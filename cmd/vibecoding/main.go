@@ -11,11 +11,13 @@ import (
 
 	"github.com/fuckvibecoding/vibecoding/internal/agent"
 	"github.com/fuckvibecoding/vibecoding/internal/config"
+	"github.com/fuckvibecoding/vibecoding/internal/contextfiles"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 	"github.com/fuckvibecoding/vibecoding/internal/provider/anthropic"
 	"github.com/fuckvibecoding/vibecoding/internal/provider/openai"
 	"github.com/fuckvibecoding/vibecoding/internal/sandbox"
 	"github.com/fuckvibecoding/vibecoding/internal/session"
+	"github.com/fuckvibecoding/vibecoding/internal/skills"
 	"github.com/fuckvibecoding/vibecoding/internal/tools"
 	"github.com/fuckvibecoding/vibecoding/internal/tui"
 )
@@ -59,7 +61,7 @@ func main() {
 	}
 
 	flags := rootCmd.Flags()
-	flags.StringVarP(&flagProvider, "provider", "p", "", "Provider (openai, anthropic)")
+	flags.StringVarP(&flagProvider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
 	flags.StringVarP(&flagModel, "model", "m", "", "Model ID")
 	flags.StringVarP(&flagMode, "mode", "M", "", "Mode (plan, agent, yolo)")
 	flags.StringVarP(&flagThinking, "thinking", "t", "", "Thinking level (off, minimal, low, medium, high, xhigh)")
@@ -95,24 +97,16 @@ func run(args []string, opts runOptions) error {
 		return fmt.Errorf("load settings: %w", err)
 	}
 
+	// Get working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get working directory: %w", err)
+	}
+
 	// Determine provider
 	providerName := opts.provider
 	if providerName == "" {
 		providerName = settings.DefaultProvider
-	}
-
-	// Resolve API key
-	apiKey := config.ResolveKey(providerName)
-
-	// Create provider
-	var p provider.Provider
-	switch strings.ToLower(providerName) {
-	case "openai":
-		p = openai.NewProvider(apiKey, "")
-	case "anthropic":
-		p = anthropic.NewProvider(apiKey, "")
-	default:
-		return fmt.Errorf("unknown provider: %s (supported: openai, anthropic)", providerName)
 	}
 
 	// Determine model
@@ -121,14 +115,10 @@ func run(args []string, opts runOptions) error {
 		modelID = settings.DefaultModel
 	}
 
-	model := p.GetModel(modelID)
-	if model == nil {
-		// Use first available model
-		models := p.Models()
-		if len(models) == 0 {
-			return fmt.Errorf("no models available for provider %s", providerName)
-		}
-		model = models[0]
+	// Create provider from config
+	p, model, err := createProvider(settings, providerName, modelID)
+	if err != nil {
+		return err
 	}
 
 	// Determine mode
@@ -146,30 +136,41 @@ func run(args []string, opts runOptions) error {
 		thinkingLevel = settings.DefaultThinkingLevel
 	}
 
-	// Get working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+	// Load context files
+	var contextStr string
+	if settings.ContextFiles.Enabled {
+		cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
+		contextStr = contextfiles.BuildContextString(cfResult)
+		if opts.verbose && contextStr != "" {
+			fmt.Fprintf(os.Stderr, "Loaded context files: %d global, %d parent, %d project\n",
+				len(cfResult.GlobalFiles), len(cfResult.ParentFiles), len(cfResult.ProjectFiles))
+		}
+	}
+
+	// Load skills
+	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), cwd+"/.skills")
+	if err := skillsMgr.Load(); err != nil && opts.verbose {
+		fmt.Fprintf(os.Stderr, "Warning: load skills: %v\n", err)
+	}
+	skillsContext := skillsMgr.BuildAllSkillsContext()
+	if opts.verbose && skillsContext != "" {
+		fmt.Fprintf(os.Stderr, "Loaded %d skills\n", len(skillsMgr.List()))
 	}
 
 	// Setup sandbox
 	sbMgr := sandbox.NewManager(cwd)
-
 	if opts.noSandbox {
 		sbMgr.SetLevel(sandbox.LevelNone)
 	} else {
 		switch mode {
 		case "plan":
 			sbMgr.SetLevel(sandbox.LevelStrict)
-		case "agent":
-			sbMgr.SetLevel(sandbox.LevelStandard)
 		case "yolo":
 			sbMgr.SetLevel(sandbox.LevelNone)
 		default:
 			sbMgr.SetLevel(sandbox.LevelStandard)
 		}
 	}
-
 	sbInfo := sandbox.FormatSandboxInfo(sbMgr.GetActive())
 
 	// Setup session
@@ -195,13 +196,16 @@ func run(args []string, opts runOptions) error {
 	registry := tools.NewRegistry(cwd, sbMgr.GetActive())
 	registry.RegisterDefaults()
 
+	// Build extra system context
+	extraContext := contextStr + skillsContext
+
 	// Print mode: non-interactive
 	if opts.print {
-		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess)
+		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext)
 	}
 
 	// Interactive mode
-	app := tui.NewApp(p, model, settings, sess, registry, sbInfo)
+	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr)
 	p2 := tea.NewProgram(app, tea.WithAltScreen())
 	if _, err := p2.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
@@ -210,7 +214,98 @@ func run(args []string, opts runOptions) error {
 	return nil
 }
 
-func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager) error {
+// createProvider creates a provider from config based on provider name.
+func createProvider(settings *config.Settings, providerName, modelID string) (provider.Provider, *provider.Model, error) {
+	// Check if provider is in config
+	pc := settings.GetProviderConfig(providerName)
+
+	if pc != nil {
+		// Custom provider from config
+		apiKey := settings.ResolveKey(providerName)
+		models := convertModelConfigs(providerName, pc.Models)
+
+		api := pc.API
+		if api == "" {
+			// Auto-detect: if baseUrl contains "anthropic", use anthropic-messages
+			if strings.Contains(strings.ToLower(pc.BaseURL), "anthropic") {
+				api = "anthropic-messages"
+			} else {
+				api = "openai-chat"
+			}
+		}
+
+		var p provider.Provider
+		switch api {
+		case "anthropic-messages":
+			p = anthropic.NewProviderWithModels(apiKey, pc.BaseURL, models)
+		case "openai-chat", "openai":
+			p = openai.NewProviderWithModels(apiKey, pc.BaseURL, models)
+		default:
+			return nil, nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat' or 'anthropic-messages')", api)
+		}
+
+		// Find model
+		model := p.GetModel(modelID)
+		if model == nil {
+			if len(models) > 0 {
+				model = models[0]
+			} else {
+				return nil, nil, fmt.Errorf("no models configured for provider %s", providerName)
+			}
+		}
+
+		return p, model, nil
+	}
+
+	// Built-in providers (fallback)
+	var p provider.Provider
+	switch strings.ToLower(providerName) {
+	case "openai":
+		apiKey := settings.ResolveKey(providerName)
+		p = openai.NewProvider(apiKey, "")
+	case "anthropic":
+		apiKey := settings.ResolveKey(providerName)
+		p = anthropic.NewProvider(apiKey, "")
+	default:
+		return nil, nil, fmt.Errorf("unknown provider: %s (add it to settings.json providers section)", providerName)
+	}
+
+	model := p.GetModel(modelID)
+	if model == nil {
+		models := p.Models()
+		if len(models) > 0 {
+			model = models[0]
+		} else {
+			return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
+		}
+	}
+
+	return p, model, nil
+}
+
+// convertModelConfigs converts config.ModelConfig to provider.Model.
+func convertModelConfigs(providerName string, models []config.ModelConfig) []*provider.Model {
+	var result []*provider.Model
+	for _, m := range models {
+		input := m.Input
+		if len(input) == 0 {
+			input = []string{"text"}
+		}
+		result = append(result, &provider.Model{
+			ID:            m.ID,
+			Name:          m.Name,
+			Provider:      providerName,
+			Reasoning:     m.Reasoning,
+			Input:         input,
+			Cost:          provider.ModelPricing{Input: m.CostInput, Output: m.CostOutput},
+			ContextWindow: m.ContextWindow,
+			MaxTokens:     m.MaxTokens,
+		})
+	}
+	return result
+}
+
+func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager, extraContext string) error {
 	input := strings.Join(args, " ")
 	if input == "" {
 		data, err := os.ReadFile("/dev/stdin")
@@ -230,6 +325,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		MaxTokens:     settings.MaxOutputTokens,
 		Settings:      settings,
 		Session:       sess,
+		ExtraContext:  extraContext,
 	}
 
 	a := agent.New(agentCfg, registry)
@@ -241,8 +337,6 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		switch event.Type {
 		case agent.EventTextDelta:
 			fmt.Print(event.TextDelta)
-		case agent.EventThinkDelta:
-			// Silently skip thinking in print mode
 		case agent.EventToolCall:
 			fmt.Fprintf(os.Stderr, "\n[tool: %s]\n", event.ToolCall.Name)
 		case agent.EventToolStart:

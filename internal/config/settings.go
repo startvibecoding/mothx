@@ -12,9 +12,10 @@ import (
 // Settings holds all configuration for vibecoding.
 type Settings struct {
 	// Provider settings
-	DefaultProvider     string `json:"defaultProvider,omitempty"`
-	DefaultModel        string `json:"defaultModel,omitempty"`
-	DefaultThinkingLevel string `json:"defaultThinkingLevel,omitempty"`
+	Providers          map[string]ProviderConfig `json:"providers,omitempty"`
+	DefaultProvider    string                    `json:"defaultProvider,omitempty"`
+	DefaultModel       string                    `json:"defaultModel,omitempty"`
+	DefaultThinkingLevel string                  `json:"defaultThinkingLevel,omitempty"`
 
 	// Mode settings
 	DefaultMode string `json:"defaultMode,omitempty"` // "plan", "agent", "yolo"
@@ -22,6 +23,12 @@ type Settings struct {
 	// Context settings
 	MaxContextTokens int  `json:"maxContextTokens,omitempty"` // 0 = use model default
 	MaxOutputTokens  int  `json:"maxOutputTokens,omitempty"`  // 0 = use model default
+
+	// Context files settings
+	ContextFiles ContextFilesSettings `json:"contextFiles"`
+
+	// Skills settings
+	SkillsDir string `json:"skillsDir,omitempty"` // global skills dir, default ~/.vibecoding/skills
 
 	// Compaction settings
 	Compaction CompactionSettings `json:"compaction"`
@@ -43,17 +50,43 @@ type Settings struct {
 	Retry RetrySettings `json:"retry"`
 }
 
+// ProviderConfig holds configuration for a single provider.
+type ProviderConfig struct {
+	APIKey  string        `json:"apiKey,omitempty"`
+	BaseURL string        `json:"baseUrl,omitempty"`
+	API     string        `json:"api,omitempty"`      // "openai-chat", "anthropic-messages" (default: "openai-chat")
+	Models  []ModelConfig `json:"models"`
+}
+
+// ModelConfig holds configuration for a single model.
+type ModelConfig struct {
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Reasoning     bool     `json:"reasoning,omitempty"`
+	ContextWindow int      `json:"contextWindow,omitempty"`
+	MaxTokens     int      `json:"maxTokens,omitempty"`
+	CostInput     float64  `json:"costInput,omitempty"`
+	CostOutput    float64  `json:"costOutput,omitempty"`
+	Input         []string `json:"input,omitempty"` // "text", "image"
+}
+
+// ContextFilesSettings controls which context files to load.
+type ContextFilesSettings struct {
+	Enabled   bool     `json:"enabled"`
+	ExtraFiles []string `json:"extraFiles,omitempty"` // additional file names to look for
+}
+
 // CompactionSettings controls context compaction behavior.
 type CompactionSettings struct {
-	Enabled         bool `json:"enabled"`
-	ReserveTokens   int  `json:"reserveTokens"`
-	KeepRecentTokens int `json:"keepRecentTokens"`
+	Enabled          bool `json:"enabled"`
+	ReserveTokens    int  `json:"reserveTokens"`
+	KeepRecentTokens int  `json:"keepRecentTokens"`
 }
 
 // SandboxSettings controls sandbox behavior.
 type SandboxSettings struct {
 	Enabled      bool     `json:"enabled"`
-	Level        string   `json:"level"`         // "strict", "standard", "none"
+	Level        string   `json:"level"` // "strict", "standard", "none"
 	BwrapPath    string   `json:"bwrapPath,omitempty"`
 	AllowNetwork bool     `json:"allowNetwork"`
 	AllowedRead  []string `json:"allowedRead,omitempty"`
@@ -75,12 +108,34 @@ func DefaultSettings() *Settings {
 	homeDir, _ := os.UserHomeDir()
 
 	return &Settings{
+		Providers: map[string]ProviderConfig{
+			"anthropic": {
+				Models: []ModelConfig{
+					{ID: "claude-sonnet-4-20250514", Name: "Claude 4 Sonnet", Reasoning: true, ContextWindow: 200000, MaxTokens: 16384, CostInput: 3.0, CostOutput: 15.0, Input: []string{"text", "image"}},
+					{ID: "claude-3-5-sonnet-20241022", Name: "Claude 3.5 Sonnet", Reasoning: false, ContextWindow: 200000, MaxTokens: 8192, CostInput: 3.0, CostOutput: 15.0, Input: []string{"text", "image"}},
+					{ID: "claude-3-5-haiku-20241022", Name: "Claude 3.5 Haiku", Reasoning: false, ContextWindow: 200000, MaxTokens: 8192, CostInput: 0.8, CostOutput: 4.0, Input: []string{"text", "image"}},
+					{ID: "claude-3-opus-20240229", Name: "Claude 3 Opus", Reasoning: false, ContextWindow: 200000, MaxTokens: 4096, CostInput: 15.0, CostOutput: 75.0, Input: []string{"text", "image"}},
+				},
+			},
+			"openai": {
+				Models: []ModelConfig{
+					{ID: "gpt-4o", Name: "GPT-4o", Reasoning: false, ContextWindow: 128000, MaxTokens: 16384, CostInput: 2.5, CostOutput: 10.0, Input: []string{"text", "image"}},
+					{ID: "gpt-4o-mini", Name: "GPT-4o Mini", Reasoning: false, ContextWindow: 128000, MaxTokens: 16384, CostInput: 0.15, CostOutput: 0.6, Input: []string{"text", "image"}},
+					{ID: "o1", Name: "o1", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, CostInput: 15.0, CostOutput: 60.0, Input: []string{"text", "image"}},
+					{ID: "o3-mini", Name: "o3-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, CostInput: 1.1, CostOutput: 4.4, Input: []string{"text", "image"}},
+				},
+			},
+		},
 		DefaultProvider:      "anthropic",
 		DefaultModel:         "claude-sonnet-4-20250514",
 		DefaultThinkingLevel: "medium",
 		DefaultMode:          "agent",
 		MaxContextTokens:     0,
 		MaxOutputTokens:      0,
+		ContextFiles: ContextFilesSettings{
+			Enabled: true,
+		},
+		SkillsDir: filepath.Join(homeDir, ".vibecoding", "skills"),
 		Compaction: CompactionSettings{
 			Enabled:          true,
 			ReserveTokens:    16384,
@@ -246,27 +301,22 @@ func LoadAuth() (*AuthData, error) {
 }
 
 // ResolveKey resolves an API key for a provider.
-// Priority: auth.json > environment variable.
-func ResolveKey(providerName string) string {
-	// Try auth.json first
+// Priority: settings.providers[name].apiKey > auth.json > environment variable.
+func (s *Settings) ResolveKey(providerName string) string {
+	// 1. Check settings.providers
+	if pc, ok := s.Providers[providerName]; ok && pc.APIKey != "" {
+		return resolveKeyValue(pc.APIKey)
+	}
+
+	// 2. Check auth.json
 	auth, err := LoadAuth()
 	if err == nil {
 		if entry, ok := auth.Entries[providerName]; ok && entry.Key != "" {
-			key := entry.Key
-			// Shell command
-			if strings.HasPrefix(key, "!") {
-				return resolveShellCommand(key[1:])
-			}
-			// Environment variable reference
-			if v := os.Getenv(key); v != "" {
-				return v
-			}
-			// Literal value
-			return key
+			return resolveKeyValue(entry.Key)
 		}
 	}
 
-	// Fall back to environment variables
+	// 3. Environment variables
 	envMap := map[string]string{
 		"anthropic": "ANTHROPIC_API_KEY",
 		"openai":    "OPENAI_API_KEY",
@@ -278,9 +328,44 @@ func ResolveKey(providerName string) string {
 	return ""
 }
 
+// resolveKeyValue resolves a key value that could be a shell command, env var, or literal.
+func resolveKeyValue(key string) string {
+	// Shell command
+	if strings.HasPrefix(key, "!") {
+		return resolveShellCommand(key[1:])
+	}
+	// Environment variable reference (single word that looks like an env var)
+	if v := os.Getenv(key); v != "" && !strings.Contains(key, " ") {
+		return v
+	}
+	// Literal value
+	return key
+}
+
+// GetProviderConfig returns the provider config for the given name.
+func (s *Settings) GetProviderConfig(name string) *ProviderConfig {
+	if pc, ok := s.Providers[name]; ok {
+		return &pc
+	}
+	return nil
+}
+
+// GetModelConfig returns the model config for the given provider and model ID.
+func (s *Settings) GetModelConfig(providerName, modelID string) *ModelConfig {
+	pc := s.GetProviderConfig(providerName)
+	if pc == nil {
+		return nil
+	}
+	for _, m := range pc.Models {
+		if m.ID == modelID {
+			return &m
+		}
+	}
+	return nil
+}
+
 func resolveShellCommand(cmd string) string {
 	// Simple shell command execution for key resolution
-	// In production, this would use os/exec with proper error handling
 	return ""
 }
 
@@ -305,6 +390,18 @@ func (s *Settings) GetSessionDir() string {
 		return s.SessionDir
 	}
 	return filepath.Join(ConfigDir(), "sessions")
+}
+
+// GetGlobalSkillsDir returns the global skills directory.
+func (s *Settings) GetGlobalSkillsDir() string {
+	if s.SkillsDir != "" {
+		if strings.HasPrefix(s.SkillsDir, "~") {
+			home, _ := os.UserHomeDir()
+			return filepath.Join(home, s.SkillsDir[1:])
+		}
+		return s.SkillsDir
+	}
+	return filepath.Join(ConfigDir(), "skills")
 }
 
 // SaveGlobalSettings saves settings to the global config file.

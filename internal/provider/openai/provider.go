@@ -23,56 +23,44 @@ type Provider struct {
 	client  *http.Client
 }
 
-// NewProvider creates a new OpenAI provider.
+// DefaultModels returns the default OpenAI model list.
+func DefaultModels() []*provider.Model {
+	return []*provider.Model{
+		{
+			ID: "gpt-4o", Name: "GPT-4o", Provider: "openai",
+			Input: []string{"text", "image"}, Cost: provider.ModelPricing{Input: 2.5, Output: 10.0, CacheRead: 1.25, CacheWrite: 2.5},
+			ContextWindow: 128000, MaxTokens: 16384,
+		},
+		{
+			ID: "gpt-4o-mini", Name: "GPT-4o Mini", Provider: "openai",
+			Input: []string{"text", "image"}, Cost: provider.ModelPricing{Input: 0.15, Output: 0.6, CacheRead: 0.075, CacheWrite: 0.15},
+			ContextWindow: 128000, MaxTokens: 16384,
+		},
+		{
+			ID: "o1", Name: "o1", Provider: "openai", Reasoning: true,
+			Input: []string{"text", "image"}, Cost: provider.ModelPricing{Input: 15.0, Output: 60.0, CacheRead: 7.5, CacheWrite: 15.0},
+			ContextWindow: 200000, MaxTokens: 100000,
+		},
+		{
+			ID: "o3-mini", Name: "o3-mini", Provider: "openai", Reasoning: true,
+			Input: []string{"text", "image"}, Cost: provider.ModelPricing{Input: 1.1, Output: 4.4, CacheRead: 0.55, CacheWrite: 1.1},
+			ContextWindow: 200000, MaxTokens: 100000,
+		},
+	}
+}
+
+// NewProvider creates a new OpenAI provider with default models.
 func NewProvider(apiKey, baseURL string) *Provider {
+	return NewProviderWithModels(apiKey, baseURL, DefaultModels())
+}
+
+// NewProviderWithModels creates a new OpenAI provider with custom models.
+func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Provider {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
 	}
 	if apiKey == "" {
 		apiKey = os.Getenv("OPENAI_API_KEY")
-	}
-
-	models := []*provider.Model{
-		{
-			ID:            "gpt-4o",
-			Name:          "GPT-4o",
-			Provider:      "openai",
-			Reasoning:     false,
-			Input:         []string{"text", "image"},
-			Cost:          provider.ModelPricing{Input: 2.5, Output: 10.0, CacheRead: 1.25, CacheWrite: 2.5},
-			ContextWindow: 128000,
-			MaxTokens:     16384,
-		},
-		{
-			ID:            "gpt-4o-mini",
-			Name:          "GPT-4o Mini",
-			Provider:      "openai",
-			Reasoning:     false,
-			Input:         []string{"text", "image"},
-			Cost:          provider.ModelPricing{Input: 0.15, Output: 0.6, CacheRead: 0.075, CacheWrite: 0.15},
-			ContextWindow: 128000,
-			MaxTokens:     16384,
-		},
-		{
-			ID:            "o1",
-			Name:          "o1",
-			Provider:      "openai",
-			Reasoning:     true,
-			Input:         []string{"text", "image"},
-			Cost:          provider.ModelPricing{Input: 15.0, Output: 60.0, CacheRead: 7.5, CacheWrite: 15.0},
-			ContextWindow: 200000,
-			MaxTokens:     100000,
-		},
-		{
-			ID:            "o3-mini",
-			Name:          "o3-mini",
-			Provider:      "openai",
-			Reasoning:     true,
-			Input:         []string{"text", "image"},
-			Cost:          provider.ModelPricing{Input: 1.1, Output: 4.4, CacheRead: 0.55, CacheWrite: 1.1},
-			ContextWindow: 200000,
-			MaxTokens:     100000,
-		},
 	}
 
 	return &Provider{
@@ -85,13 +73,13 @@ func NewProvider(apiKey, baseURL string) *Provider {
 
 // openAIRequest represents the request body for OpenAI Chat Completions.
 type openAIRequest struct {
-	Model       string              `json:"model"`
-	Messages    []openAIMessage     `json:"messages"`
-	Tools       []openAITool        `json:"tools,omitempty"`
-	MaxTokens   int                 `json:"max_tokens,omitempty"`
-	Stream      bool                `json:"stream"`
-	StreamOptions *streamOptions    `json:"stream_options,omitempty"`
-	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
+	Model         string          `json:"model"`
+	Messages      []openAIMessage `json:"messages"`
+	Tools         []openAITool    `json:"tools,omitempty"`
+	MaxTokens     int             `json:"max_tokens,omitempty"`
+	Stream        bool            `json:"stream"`
+	StreamOptions *streamOptions  `json:"stream_options,omitempty"`
+	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
 }
 
 type streamOptions struct {
@@ -99,26 +87,26 @@ type streamOptions struct {
 }
 
 type openAIMessage struct {
-	Role       string          `json:"role"`
-	Content    interface{}     `json:"content"`    // string or []openAIContentBlock
+	Role       string           `json:"role"`
+	Content    interface{}      `json:"content"`
 	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string          `json:"tool_call_id,omitempty"`
-	Name       string          `json:"name,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	Name       string           `json:"name,omitempty"`
 }
 
 type openAIContentBlock struct {
-	Type     string        `json:"type"`
-	Text     string        `json:"text,omitempty"`
-	ImageURL *openAIImage  `json:"image_url,omitempty"`
+	Type     string       `json:"type"`
+	Text     string       `json:"text,omitempty"`
+	ImageURL *openAIImage `json:"image_url,omitempty"`
 }
 
 type openAIImage struct {
-	URL string `json:"url"` // data:mime;base64,...
+	URL string `json:"url"`
 }
 
 type openAITool struct {
-	Type     string           `json:"type"`
-	Function openAIFunction   `json:"function"`
+	Type     string         `json:"type"`
+	Function openAIFunction `json:"function"`
 }
 
 type openAIFunction struct {
@@ -128,16 +116,15 @@ type openAIFunction struct {
 }
 
 type openAIToolCall struct {
-	ID       string `json:"id"`
-	Index    int    `json:"index"`
-	Type     string `json:"type"`
+	ID    string `json:"id"`
+	Index int    `json:"index"`
+	Type  string `json:"type"`
 	Function struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
 	} `json:"function"`
 }
 
-// openAIResponse represents a streaming chunk from OpenAI.
 type openAIResponse struct {
 	ID      string               `json:"id"`
 	Object  string               `json:"object"`
@@ -148,16 +135,16 @@ type openAIResponse struct {
 }
 
 type openAIChoice struct {
-	Index        int              `json:"index"`
-	Delta        openAIDelta      `json:"delta"`
-	FinishReason *string          `json:"finish_reason"`
+	Index        int          `json:"index"`
+	Delta        openAIDelta  `json:"delta"`
+	FinishReason *string      `json:"finish_reason"`
 }
 
 type openAIDelta struct {
-	Role      string             `json:"role"`
-	Content   string             `json:"content"`
-	Reasoning *string            `json:"reasoning_content"`
-	ToolCalls []openAIToolCall   `json:"tool_calls"`
+	Role      string         `json:"role"`
+	Content   string         `json:"content"`
+	Reasoning *string        `json:"reasoning_content"`
+	ToolCalls []openAIToolCall `json:"tool_calls"`
 }
 
 type openAIUsageResponse struct {
@@ -184,10 +171,13 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		messages := p.convertMessages(params)
 		tools := p.convertTools(params.Tools)
 
-		model := p.GetModel(params.Messages[0].Content) // dummy, we need model ID
-		modelID := "gpt-4o"
-		if model != nil {
-			modelID = model.ID
+		modelID := params.ModelID
+		if modelID == "" {
+			if len(p.Models()) > 0 {
+				modelID = p.Models()[0].ID
+			} else {
+				modelID = "gpt-4o"
+			}
 		}
 
 		maxTokens := params.MaxTokens
@@ -201,17 +191,13 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			Tools:     tools,
 			MaxTokens: maxTokens,
 			Stream:    true,
-			StreamOptions: &streamOptions{
-				IncludeUsage: true,
-			},
+			StreamOptions: &streamOptions{IncludeUsage: true},
 		}
 
-		// Map thinking level to reasoning effort for reasoning models
+		model := p.GetModel(modelID)
 		if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 			switch params.ThinkingLevel {
-			case provider.ThinkingMinimal:
-				reqBody.ReasoningEffort = "low"
-			case provider.ThinkingLow:
+			case provider.ThinkingMinimal, provider.ThinkingLow:
 				reqBody.ReasoningEffort = "low"
 			case provider.ThinkingMedium:
 				reqBody.ReasoningEffort = "medium"
@@ -256,7 +242,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 
 func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) {
 	scanner := bufio.NewScanner(body)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB buffer
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var (
 		textContent     string
@@ -294,12 +280,10 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			continue
 		}
 
-		// Process usage if present
 		if chunk.Usage != nil {
 			usage = &provider.Usage{
 				Input:       chunk.Usage.PromptTokens,
 				Output:      chunk.Usage.CompletionTokens,
-				CacheRead:   0,
 				TotalTokens: chunk.Usage.TotalTokens,
 			}
 			if chunk.Usage.PromptTokensDetails != nil {
@@ -308,84 +292,48 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		}
 
 		for _, choice := range chunk.Choices {
-			// Text content
 			if choice.Delta.Content != "" {
 				textContent += choice.Delta.Content
-				ch <- provider.StreamEvent{
-					Type:      provider.StreamTextDelta,
-					TextDelta: choice.Delta.Content,
-				}
+				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: choice.Delta.Content}
 			}
-
-			// Reasoning content
 			if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
 				reasonContent += *choice.Delta.Reasoning
-				ch <- provider.StreamEvent{
-					Type:       provider.StreamThinkDelta,
-					ThinkDelta: *choice.Delta.Reasoning,
-				}
+				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: *choice.Delta.Reasoning}
 			}
-
-			// Tool calls
 			for _, tc := range choice.Delta.ToolCalls {
 				idx := tc.Index
 				if _, ok := toolCallBuffers[idx]; !ok {
 					toolCallBuffers[idx] = &strings.Builder{}
-					toolCalls = append(toolCalls, provider.ToolCallBlock{
-						ID:   tc.ID,
-						Name: tc.Function.Name,
-					})
+					toolCalls = append(toolCalls, provider.ToolCallBlock{ID: tc.ID, Name: tc.Function.Name})
 				}
-				if tc.ID != "" {
-					toolCalls[idx].ID = tc.ID
-				}
-				if tc.Function.Name != "" {
-					toolCalls[idx].Name = tc.Function.Name
-				}
-				if tc.Function.Arguments != "" {
-					toolCallBuffers[idx].WriteString(tc.Function.Arguments)
-				}
+				if tc.ID != "" { toolCalls[idx].ID = tc.ID }
+				if tc.Function.Name != "" { toolCalls[idx].Name = tc.Function.Name }
+				if tc.Function.Arguments != "" { toolCallBuffers[idx].WriteString(tc.Function.Arguments) }
 			}
-
-			// Finish reason
-			if choice.FinishReason != nil {
-				stopReason = *choice.FinishReason
-			}
+			if choice.FinishReason != nil { stopReason = *choice.FinishReason }
 		}
 	}
 
-	// Finalize tool calls
 	for i, tc := range toolCalls {
 		if buf, ok := toolCallBuffers[i]; ok {
 			tc.Arguments = json.RawMessage(buf.String())
 			toolCalls[i] = tc
-			ch <- provider.StreamEvent{
-				Type:     provider.StreamToolCall,
-				ToolCall: &toolCalls[i],
-			}
+			ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: &toolCalls[i]}
 		}
 	}
 
-	// Usage event
 	if usage != nil {
 		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: usage}
 	}
-
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: stopReason}
 }
 
 func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 	var messages []openAIMessage
-
 	for _, msg := range params.Messages {
-		om := openAIMessage{
-			Role:       msg.Role,
-			ToolCallID: msg.ToolCallID,
-		}
-
+		om := openAIMessage{Role: msg.Role, ToolCallID: msg.ToolCallID}
 		if msg.Role == "toolResult" {
 			om.Role = "tool"
-			om.ToolCallID = msg.ToolCallID
 			om.Content = msg.Content
 		} else if len(msg.Contents) > 0 {
 			var blocks []openAIContentBlock
@@ -395,16 +343,8 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 					blocks = append(blocks, openAIContentBlock{Type: "text", Text: c.Text})
 				case "image":
 					if c.Image != nil {
-						blocks = append(blocks, openAIContentBlock{
-							Type: "image_url",
-							ImageURL: &openAIImage{
-								URL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data),
-							},
-						})
+						blocks = append(blocks, openAIContentBlock{Type: "image_url", ImageURL: &openAIImage{URL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)}})
 					}
-				case "thinking":
-					// OpenAI doesn't have native thinking blocks in the same way
-					// Skip for now
 				}
 			}
 			if len(blocks) == 1 && blocks[0].Type == "text" {
@@ -415,43 +355,25 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 		} else {
 			om.Content = msg.Content
 		}
-
-		// Handle tool calls in assistant messages
 		if msg.Role == "assistant" {
 			for _, c := range msg.Contents {
 				if c.Type == "toolCall" && c.ToolCall != nil {
-					om.ToolCalls = append(om.ToolCalls, openAIToolCall{
-						ID:   c.ToolCall.ID,
-						Type: "function",
-						Function: struct {
-							Name      string `json:"name"`
-							Arguments string `json:"arguments"`
-						}{
-							Name:      c.ToolCall.Name,
-							Arguments: string(c.ToolCall.Arguments),
-						},
-					})
+					om.ToolCalls = append(om.ToolCalls, openAIToolCall{ID: c.ToolCall.ID, Type: "function", Function: struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					}{Name: c.ToolCall.Name, Arguments: string(c.ToolCall.Arguments)}})
 				}
 			}
 		}
-
 		messages = append(messages, om)
 	}
-
 	return messages
 }
 
 func (p *Provider) convertTools(tools []provider.ToolDefinition) []openAITool {
 	var result []openAITool
 	for _, t := range tools {
-		result = append(result, openAITool{
-			Type: "function",
-			Function: openAIFunction{
-				Name:        t.Name,
-				Description: t.Description,
-				Parameters:  t.Parameters,
-			},
-		})
+		result = append(result, openAITool{Type: "function", Function: openAIFunction{Name: t.Name, Description: t.Description, Parameters: t.Parameters}})
 	}
 	return result
 }

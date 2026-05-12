@@ -7,7 +7,7 @@ import (
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
-func BuildSystemPrompt(mode string, toolNames []string, cwd string) string {
+func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf(`You are VibeCoding, an AI coding assistant running in a terminal.
@@ -86,6 +86,11 @@ Use them to accomplish the user's requests. When using tools:
 - When in doubt, ask for clarification
 - Don't make assumptions about file contents - read them first
 `, strings.Join(toolNames, ", ")))
+
+	// Append extra context from files and skills
+	if extraContext != "" {
+		sb.WriteString(extraContext)
+	}
 
 	return sb.String()
 }

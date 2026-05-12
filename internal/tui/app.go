@@ -14,6 +14,7 @@ import (
 	"github.com/fuckvibecoding/vibecoding/internal/config"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 	"github.com/fuckvibecoding/vibecoding/internal/session"
+	"github.com/fuckvibecoding/vibecoding/internal/skills"
 	"github.com/fuckvibecoding/vibecoding/internal/tools"
 )
 
@@ -71,6 +72,8 @@ type App struct {
 	registry    *tools.Registry
 	sandboxInfo string
 	mode        string
+	extraContext string
+	skillsMgr   *skills.Manager
 
 	// State
 	viewport   viewport.Model
@@ -92,7 +95,7 @@ type displayMessage struct {
 }
 
 // NewApp creates a new TUI application.
-func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string) *App {
+func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager) *App {
 	editor := textarea.New()
 	editor.Placeholder = "Type a message... (@ for files, / for commands, Tab to switch mode)"
 	editor.Focus()
@@ -102,16 +105,18 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 	vp := viewport.New(80, 20)
 
 	return &App{
-		provider:    p,
-		model:       model,
-		settings:    settings,
-		session:     sess,
-		registry:    registry,
-		sandboxInfo: sandboxInfo,
-		mode:        settings.DefaultMode,
-		editor:      editor,
-		viewport:    vp,
-		showThink:   true,
+		provider:     p,
+		model:        model,
+		settings:     settings,
+		session:      sess,
+		registry:     registry,
+		sandboxInfo:  sandboxInfo,
+		mode:         settings.DefaultMode,
+		extraContext: extraContext,
+		skillsMgr:    skillsMgr,
+		editor:       editor,
+		viewport:     vp,
+		showThink:    true,
 	}
 }
 
@@ -394,6 +399,7 @@ func (a *App) processInput(input string) tea.Cmd {
 			MaxTokens:     a.settings.MaxOutputTokens,
 			Settings:      a.settings,
 			Session:       a.session,
+			ExtraContext:  a.extraContext,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
 	}

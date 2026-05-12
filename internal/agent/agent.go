@@ -65,6 +65,7 @@ type Config struct {
 	SandboxMgr    *sandbox.Manager
 	Settings      *config.Settings
 	Session       *session.Manager
+	ExtraContext  string // extra context from files and skills
 }
 
 // Agent is the core agent loop.
@@ -146,7 +147,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		for _, t := range a.registry.ModeTools(a.config.Mode) {
 			toolNames = append(toolNames, t.Name)
 		}
-		systemPrompt := BuildSystemPrompt(a.config.Mode, toolNames, a.registry.GetWorkDir())
+		systemPrompt := BuildSystemPrompt(a.config.Mode, toolNames, a.registry.GetWorkDir(), a.config.ExtraContext)
 
 		// Build context messages
 		messages := a.buildContext(systemPrompt)

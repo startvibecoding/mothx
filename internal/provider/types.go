@@ -7,11 +7,11 @@ import (
 
 // ContentBlock represents a block of content in a message.
 type ContentBlock struct {
-	Type       string          `json:"type"`                  // "text", "image", "thinking", "toolCall"
-	Text       string          `json:"text,omitempty"`
-	Thinking   string          `json:"thinking,omitempty"`
-	Image      *ImageContent   `json:"image,omitempty"`
-	ToolCall   *ToolCallBlock  `json:"toolCall,omitempty"`
+	Type      string         `json:"type"` // "text", "image", "thinking", "toolCall"
+	Text      string         `json:"text,omitempty"`
+	Thinking  string         `json:"thinking,omitempty"`
+	Image     *ImageContent  `json:"image,omitempty"`
+	ToolCall  *ToolCallBlock `json:"toolCall,omitempty"`
 }
 
 // ImageContent represents an image in a message.
@@ -29,12 +29,12 @@ type ToolCallBlock struct {
 
 // Message represents a conversation message.
 type Message struct {
-	Role       string         `json:"role"`                  // "user", "assistant", "toolResult"
-	Content    string         `json:"content,omitempty"`     // simple text content
-	Contents   []ContentBlock `json:"contents,omitempty"`    // rich content blocks
-	ToolCallID string         `json:"toolCallId,omitempty"`  // for toolResult
-	ToolName   string         `json:"toolName,omitempty"`    // for toolResult
-	IsError    bool           `json:"isError,omitempty"`     // for toolResult
+	Role       string         `json:"role"`                 // "user", "assistant", "toolResult"
+	Content    string         `json:"content,omitempty"`    // simple text content
+	Contents   []ContentBlock `json:"contents,omitempty"`   // rich content blocks
+	ToolCallID string         `json:"toolCallId,omitempty"` // for toolResult
+	ToolName   string         `json:"toolName,omitempty"`   // for toolResult
+	IsError    bool           `json:"isError,omitempty"`    // for toolResult
 	Timestamp  time.Time      `json:"timestamp"`
 }
 
@@ -112,14 +112,14 @@ type ModelPricing struct {
 
 // Model represents a model available from a provider.
 type Model struct {
-	ID            string        `json:"id"`
-	Name          string        `json:"name"`
-	Provider      string        `json:"provider"`
-	Reasoning     bool          `json:"reasoning"`         // supports extended thinking
-	Input         []string      `json:"input"`             // "text", "image"
-	Cost          ModelPricing  `json:"cost"`
-	ContextWindow int           `json:"contextWindow"`     // max context tokens
-	MaxTokens     int           `json:"maxTokens"`         // max output tokens
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Provider      string       `json:"provider"`
+	Reasoning     bool         `json:"reasoning"`     // supports extended thinking
+	Input         []string     `json:"input"`         // "text", "image"
+	Cost          ModelPricing `json:"cost"`
+	ContextWindow int          `json:"contextWindow"` // max context tokens
+	MaxTokens     int          `json:"maxTokens"`     // max output tokens
 }
 
 // ThinkingLevel represents the depth of reasoning.
@@ -145,24 +145,24 @@ type ToolDefinition struct {
 type StreamEventType int
 
 const (
-	StreamStart       StreamEventType = iota // Stream started
-	StreamTextDelta                          // Text content delta
-	StreamThinkDelta                         // Thinking content delta
-	StreamToolCall                           // Tool call event
-	StreamUsage                              // Usage statistics
-	StreamDone                               // Stream completed
-	StreamError                              // Error occurred
+	StreamStart      StreamEventType = iota // Stream started
+	StreamTextDelta                         // Text content delta
+	StreamThinkDelta                        // Thinking content delta
+	StreamToolCall                          // Tool call event
+	StreamUsage                             // Usage statistics
+	StreamDone                              // Stream completed
+	StreamError                             // Error occurred
 )
 
 // StreamEvent represents a single event from a streaming response.
 type StreamEvent struct {
 	Type       StreamEventType
-	TextDelta  string        // for StreamTextDelta
-	ThinkDelta string        // for StreamThinkDelta
-	ToolCall   *ToolCallBlock // for StreamToolCall
-	Usage      *Usage        // for StreamUsage
-	Error      error         // for StreamError
-	StopReason string        // for StreamDone: "stop", "length", "toolUse", "error", "aborted"
+	TextDelta  string          // for StreamTextDelta
+	ThinkDelta string          // for StreamThinkDelta
+	ToolCall   *ToolCallBlock  // for StreamToolCall
+	Usage      *Usage          // for StreamUsage
+	Error      error           // for StreamError
+	StopReason string          // for StreamDone: "stop", "length", "toolUse", "error", "aborted"
 }
 
 // ChatParams contains all parameters for a chat request.
@@ -172,5 +172,6 @@ type ChatParams struct {
 	SystemPrompt  string
 	ThinkingLevel ThinkingLevel
 	MaxTokens     int
+	ModelID       string          // which model to use
 	Abort         <-chan struct{} // closed to abort the request
 }
