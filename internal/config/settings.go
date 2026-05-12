@@ -137,8 +137,15 @@ func ProjectSettingsPath() string {
 }
 
 // LoadSettings loads and merges global + project settings.
+// If the config directory or settings.json doesn't exist, creates them with defaults.
 func LoadSettings() (*Settings, error) {
 	s := DefaultSettings()
+
+	// Ensure config directory and settings.json exist
+	if err := ensureConfigExists(s); err != nil {
+		// Non-fatal: continue with defaults even if we can't create config
+		fmt.Fprintf(os.Stderr, "Warning: could not create config: %v\n", err)
+	}
 
 	// Load global settings
 	if data, err := os.ReadFile(GlobalSettingsPath()); err == nil {
@@ -169,6 +176,36 @@ func LoadSettings() (*Settings, error) {
 	}
 
 	return s, nil
+}
+
+// ensureConfigExists creates the config directory and settings.json if they don't exist.
+func ensureConfigExists(defaults *Settings) error {
+	configDir := ConfigDir()
+	settingsPath := GlobalSettingsPath()
+
+	// Check if settings.json already exists
+	if _, err := os.Stat(settingsPath); err == nil {
+		return nil // already exists
+	}
+
+	// Create config directory with proper permissions
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+
+	// Marshal default settings with nice formatting
+	data, err := json.MarshalIndent(defaults, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal default settings: %w", err)
+	}
+
+	// Write settings file
+	if err := os.WriteFile(settingsPath, data, 0600); err != nil {
+		return fmt.Errorf("write settings file: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "Created default config: %s\n", settingsPath)
+	return nil
 }
 
 // AuthData holds authentication credentials.
