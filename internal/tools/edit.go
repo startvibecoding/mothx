@@ -1,0 +1,126 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// EditTool performs precise text replacements in files.
+type EditTool struct {
+	registry *Registry
+}
+
+// NewEditTool creates a new edit tool.
+func NewEditTool(r *Registry) *EditTool {
+	return &EditTool{registry: r}
+}
+
+func (t *EditTool) Name() string { return "edit" }
+
+func (t *EditTool) Description() string {
+	return "Edit a file using exact text replacement. Each edit must match a unique, non-overlapping region of the file. For multiple changes to the same file, use multiple edits in one call."
+}
+
+func (t *EditTool) Parameters() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"path": {
+				"type": "string",
+				"description": "Path to the file to edit"
+			},
+			"edits": {
+				"type": "array",
+				"description": "Array of edits. Each edit has oldText (exact match) and newText (replacement).",
+				"items": {
+					"type": "object",
+					"properties": {
+						"oldText": {
+							"type": "string",
+							"description": "Exact text to find and replace"
+						},
+						"newText": {
+							"type": "string",
+							"description": "Replacement text"
+						}
+					},
+					"required": ["oldText", "newText"]
+				}
+			}
+		},
+		"required": ["path", "edits"]
+	}`)
+}
+
+func (t *EditTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+	path, _ := params["path"].(string)
+	if path == "" {
+		return "", fmt.Errorf("path is required")
+	}
+
+	path = t.resolvePath(path)
+	path = filepath.Clean(path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read file: %w", err)
+	}
+	content := string(data)
+
+	editsRaw, ok := params["edits"].([]any)
+	if !ok || len(editsRaw) == 0 {
+		return "", fmt.Errorf("edits array is required and must not be empty")
+	}
+
+	type edit struct {
+		OldText string
+		NewText string
+	}
+
+	var edits []edit
+	for _, e := range editsRaw {
+		editMap, ok := e.(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("invalid edit format")
+		}
+		oldText, _ := editMap["oldText"].(string)
+		newText, _ := editMap["newText"].(string)
+		if oldText == "" {
+			return "", fmt.Errorf("oldText is required for each edit")
+		}
+		edits = append(edits, edit{OldText: oldText, NewText: newText})
+	}
+
+	// Validate all edits before applying
+	for i, e := range edits {
+		count := strings.Count(content, e.OldText)
+		if count == 0 {
+			return "", fmt.Errorf("edit %d: oldText not found in file", i)
+		}
+		if count > 1 {
+			return "", fmt.Errorf("edit %d: oldText matches %d times (must be unique). Make the match text more specific", i, count)
+		}
+	}
+
+	// Apply edits
+	for _, e := range edits {
+		content = strings.Replace(content, e.OldText, e.NewText, 1)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return "", fmt.Errorf("write file: %w", err)
+	}
+
+	return fmt.Sprintf("Applied %d edit(s) to %s", len(edits), path), nil
+}
+
+func (t *EditTool) resolvePath(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(t.registry.GetWorkDir(), path)
+}

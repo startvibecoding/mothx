@@ -1,0 +1,408 @@
+package session
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/fuckvibecoding/vibecoding/internal/provider"
+)
+
+const CurrentVersion = 3
+
+// Manager manages a single session's state and persistence.
+type Manager struct {
+	mu         sync.Mutex
+	file       string
+	header     *Header
+	entries    []interface{} // all entry types
+	leafID     *string
+	cwd        string
+	sessionDir string
+}
+
+// New creates a new session manager for a new session.
+func New(cwd, sessionDir string) *Manager {
+	if sessionDir == "" {
+		home, _ := os.UserHomeDir()
+		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+	}
+
+	return &Manager{
+		cwd:        cwd,
+		sessionDir: sessionDir,
+	}
+}
+
+// Open opens an existing session file.
+func Open(path string) (*Manager, error) {
+	m := &Manager{file: path}
+	if err := m.load(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ContinueRecent continues the most recent session for a directory, or creates new.
+func ContinueRecent(cwd, sessionDir string) (*Manager, error) {
+	if sessionDir == "" {
+		home, _ := os.UserHomeDir()
+		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+	}
+
+	sessions, err := ListForDir(cwd, sessionDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(sessions) > 0 {
+		// Most recent
+		sort.Slice(sessions, func(i, j int) bool {
+			return sessions[i].ModTime.After(sessions[j].ModTime)
+		})
+		return Open(sessions[0].Path)
+	}
+
+	return New(cwd, sessionDir), nil
+}
+
+// SessionInfo contains metadata about a session file.
+type SessionInfo struct {
+	Path    string
+	ModTime time.Time
+	Name    string
+}
+
+// ListForDir lists session files for a given working directory.
+func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
+	if sessionDir == "" {
+		home, _ := os.UserHomeDir()
+		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+	}
+
+	// Session files are stored in sessionDir/--<encoded-path>--/
+	encoded := strings.ReplaceAll(cwd, "/", "-")
+	encoded = strings.ReplaceAll(encoded, ":", "-")
+	dir := filepath.Join(sessionDir, "--"+encoded+"--")
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var sessions []SessionInfo
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		sessions = append(sessions, SessionInfo{
+			Path:    filepath.Join(dir, e.Name()),
+			ModTime: info.ModTime(),
+		})
+	}
+
+	return sessions, nil
+}
+
+// Init initializes a new session. Must be called before appending entries.
+func (m *Manager) Init() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := time.Now()
+	m.header = &Header{
+		Type:      EntrySession,
+		Version:   CurrentVersion,
+		ID:        GenerateID(),
+		Timestamp: now,
+		Cwd:       m.cwd,
+	}
+	m.entries = nil
+	m.leafID = nil
+
+	// Create session file
+	encoded := strings.ReplaceAll(m.cwd, "/", "-")
+	encoded = strings.ReplaceAll(encoded, ":", "-")
+	dir := filepath.Join(m.sessionDir, "--"+encoded+"--")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("create session dir: %w", err)
+	}
+
+	m.file = filepath.Join(dir, fmt.Sprintf("%s_%s.jsonl", now.Format("20060102-150405"), m.header.ID[:8]))
+
+	// Write header
+	return m.writeEntry(m.header)
+}
+
+// AppendMessage adds a message entry.
+func (m *Manager) AppendMessage(msg provider.Message) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := GenerateID()
+	entry := MessageEntry{
+		EntryBase: EntryBase{
+			Type:      EntryMessage,
+			ID:        id,
+			ParentID:  m.leafID,
+			Timestamp: time.Now(),
+		},
+		Message: msg,
+	}
+
+	if err := m.writeEntry(entry); err != nil {
+		return "", err
+	}
+
+	m.entries = append(m.entries, entry)
+	m.leafID = &id
+	return id, nil
+}
+
+// AppendModelChange records a model change.
+func (m *Manager) AppendModelChange(providerName, modelID string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := GenerateID()
+	entry := ModelChangeEntry{
+		EntryBase: EntryBase{
+			Type:      EntryModelChange,
+			ID:        id,
+			ParentID:  m.leafID,
+			Timestamp: time.Now(),
+		},
+		Provider: providerName,
+		ModelID:  modelID,
+	}
+
+	if err := m.writeEntry(entry); err != nil {
+		return "", err
+	}
+
+	m.entries = append(m.entries, entry)
+	m.leafID = &id
+	return id, nil
+}
+
+// AppendThinkingLevelChange records a thinking level change.
+func (m *Manager) AppendThinkingLevelChange(level string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := GenerateID()
+	entry := ThinkingLevelChangeEntry{
+		EntryBase: EntryBase{
+			Type:      EntryThinkingChange,
+			ID:        id,
+			ParentID:  m.leafID,
+			Timestamp: time.Now(),
+		},
+		ThinkingLevel: level,
+	}
+
+	if err := m.writeEntry(entry); err != nil {
+		return "", err
+	}
+
+	m.entries = append(m.entries, entry)
+	m.leafID = &id
+	return id, nil
+}
+
+// AppendCompaction records a context compaction.
+func (m *Manager) AppendCompaction(summary, firstKeptEntryID string, tokensBefore int) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := GenerateID()
+	entry := CompactionEntry{
+		EntryBase: EntryBase{
+			Type:      EntryCompaction,
+			ID:        id,
+			ParentID:  m.leafID,
+			Timestamp: time.Now(),
+		},
+		Summary:        summary,
+		FirstKeptEntry: firstKeptEntryID,
+		TokensBefore:   tokensBefore,
+	}
+
+	if err := m.writeEntry(entry); err != nil {
+		return "", err
+	}
+
+	m.entries = append(m.entries, entry)
+	m.leafID = &id
+	return id, nil
+}
+
+// AppendSessionInfo records session metadata (e.g. display name).
+func (m *Manager) AppendSessionInfo(name string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := GenerateID()
+	entry := SessionInfoEntry{
+		EntryBase: EntryBase{
+			Type:      EntrySessionInfo,
+			ID:        id,
+			ParentID:  m.leafID,
+			Timestamp: time.Now(),
+		},
+		Name: name,
+	}
+
+	if err := m.writeEntry(entry); err != nil {
+		return "", err
+	}
+
+	m.entries = append(m.entries, entry)
+	m.leafID = &id
+	return id, nil
+}
+
+// GetMessages extracts all messages from the current branch.
+func (m *Manager) GetMessages() []provider.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var messages []provider.Message
+	for _, e := range m.entries {
+		if msg, ok := e.(MessageEntry); ok {
+			messages = append(messages, msg.Message)
+		}
+	}
+	return messages
+}
+
+// GetLeafID returns the current leaf entry ID.
+func (m *Manager) GetLeafID() *string {
+	return m.leafID
+}
+
+// GetFile returns the session file path.
+func (m *Manager) GetFile() string {
+	return m.file
+}
+
+// GetHeader returns the session header.
+func (m *Manager) GetHeader() *Header {
+	return m.header
+}
+
+// load reads a session file into memory.
+func (m *Manager) load() error {
+	f, err := os.Open(m.file)
+	if err != nil {
+		return fmt.Errorf("open session: %w", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+
+		// Parse just the type field to determine entry type
+		var typeField struct {
+			Type EntryType `json:"type"`
+		}
+		if err := json.Unmarshal(line, &typeField); err != nil {
+			continue
+		}
+
+		switch typeField.Type {
+		case EntrySession:
+			var h Header
+			if err := json.Unmarshal(line, &h); err != nil {
+				return fmt.Errorf("parse header: %w", err)
+			}
+			m.header = &h
+			m.cwd = h.Cwd
+
+		case EntryMessage:
+			var e MessageEntry
+			if err := json.Unmarshal(line, &e); err != nil {
+				continue
+			}
+			m.entries = append(m.entries, e)
+			m.leafID = &e.ID
+
+		case EntryModelChange:
+			var e ModelChangeEntry
+			if err := json.Unmarshal(line, &e); err != nil {
+				continue
+			}
+			m.entries = append(m.entries, e)
+			m.leafID = &e.ID
+
+		case EntryThinkingChange:
+			var e ThinkingLevelChangeEntry
+			if err := json.Unmarshal(line, &e); err != nil {
+				continue
+			}
+			m.entries = append(m.entries, e)
+			m.leafID = &e.ID
+
+		case EntryCompaction:
+			var e CompactionEntry
+			if err := json.Unmarshal(line, &e); err != nil {
+				continue
+			}
+			m.entries = append(m.entries, e)
+			m.leafID = &e.ID
+
+		case EntrySessionInfo:
+			var e SessionInfoEntry
+			if err := json.Unmarshal(line, &e); err != nil {
+				continue
+			}
+			m.entries = append(m.entries, e)
+			m.leafID = &e.ID
+
+		case EntryBranchSummary:
+			var e BranchSummaryEntry
+			if err := json.Unmarshal(line, &e); err != nil {
+				continue
+			}
+			m.entries = append(m.entries, e)
+			m.leafID = &e.ID
+		}
+	}
+
+	return scanner.Err()
+}
+
+// writeEntry writes a single entry to the session file.
+func (m *Manager) writeEntry(entry interface{}) error {
+	f, err := os.OpenFile(m.file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("open session file: %w", err)
+	}
+	defer f.Close()
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshal entry: %w", err)
+	}
+
+	data = append(data, '\n')
+	_, err = f.Write(data)
+	return err
+}
