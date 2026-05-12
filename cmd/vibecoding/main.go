@@ -33,7 +33,7 @@ func main() {
 		flagContinue  bool
 		flagResume    string
 		flagSession   string
-		flagNoSandbox bool
+		flagSandbox    bool
 		flagPrint     bool
 		flagVerbose   bool
 	)
@@ -53,7 +53,7 @@ func main() {
 				continue_: flagContinue,
 				resume:    flagResume,
 				session:   flagSession,
-				noSandbox: flagNoSandbox,
+				sandbox:   flagSandbox,
 				print:     flagPrint,
 				verbose:   flagVerbose,
 			})
@@ -68,7 +68,7 @@ func main() {
 	flags.BoolVarP(&flagContinue, "continue", "c", false, "Continue most recent session")
 	flags.StringVarP(&flagResume, "resume", "r", "", "Resume session by ID or path")
 	flags.StringVar(&flagSession, "session", "", "Use specific session file or ID")
-	flags.BoolVar(&flagNoSandbox, "no-sandbox", false, "Disable sandbox")
+	flags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
 	flags.BoolVarP(&flagPrint, "print", "P", false, "Print response and exit (non-interactive)")
 	flags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 
@@ -85,7 +85,7 @@ type runOptions struct {
 	continue_ bool
 	resume    string
 	session   string
-	noSandbox bool
+	sandbox   bool
 	print     bool
 	verbose   bool
 }
@@ -159,7 +159,11 @@ func run(args []string, opts runOptions) error {
 
 	// Setup sandbox
 	sbMgr := sandbox.NewManager(cwd)
-	if opts.noSandbox {
+
+	// Sandbox is disabled by default, enabled via --sandbox flag or config
+	sbEnabled := opts.sandbox || settings.Sandbox.Enabled
+
+	if !sbEnabled {
 		sbMgr.SetLevel(sandbox.LevelNone)
 	} else {
 		switch mode {
@@ -291,13 +295,22 @@ func convertModelConfigs(providerName string, models []config.ModelConfig) []*pr
 		if len(input) == 0 {
 			input = []string{"text"}
 		}
+		var cost provider.ModelPricing
+		if m.Cost != nil {
+			cost = provider.ModelPricing{
+				Input:      m.Cost.Input,
+				Output:     m.Cost.Output,
+				CacheRead:  m.Cost.CacheRead,
+				CacheWrite: m.Cost.CacheWrite,
+			}
+		}
 		result = append(result, &provider.Model{
 			ID:            m.ID,
 			Name:          m.Name,
 			Provider:      providerName,
 			Reasoning:     m.Reasoning,
 			Input:         input,
-			Cost:          provider.ModelPricing{Input: m.CostInput, Output: m.CostOutput},
+			Cost:          cost,
 			ContextWindow: m.ContextWindow,
 			MaxTokens:     m.MaxTokens,
 		})
