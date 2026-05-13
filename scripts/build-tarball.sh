@@ -2,31 +2,46 @@
 set -e
 
 # VibeCoding Tarball Builder
-# Usage: ./scripts/build-tarball.sh [version]
+# Usage: ./scripts/build-tarball.sh <arch> [version]
+# Example: ./scripts/build-tarball.sh amd64 v0.0.2
 
 BINARY_NAME="vibecoding"
 PACKAGE_NAME="vibecoding"
 
-# Get version from argument or git
-VERSION="${1:-$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1")}"
+# Parse arguments
+OS="${1:-linux}"
+ARCH="${2:-amd64}"
+VERSION="${3:-$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1")}"
+
 # Remove leading 'v' if present
 VERSION="${VERSION#v}"
 
 BUILD_DIR="dist/tarball"
-TARBALL_NAME="${PACKAGE_NAME}-${VERSION}"
+TARBALL_NAME="${PACKAGE_NAME}-${VERSION}-${OS}-${ARCH}"
 
-echo "Building ${PACKAGE_NAME} ${VERSION} tarball..."
+echo "Building ${TARBALL_NAME}..."
 
 # Clean previous build
-rm -rf "${BUILD_DIR}"
+rm -rf "${BUILD_DIR}/${TARBALL_NAME}"
 mkdir -p "${BUILD_DIR}/${TARBALL_NAME}"
 
-# Build binary
-echo "Building binary..."
-make build
+# Check if binary exists
+BINARY_FILE="bin/${BINARY_NAME}-${OS}-${ARCH}"
+if [ "${OS}" = "windows" ]; then
+    BINARY_FILE="${BINARY_FILE}.exe"
+fi
+
+if [ ! -f "${BINARY_FILE}" ]; then
+    echo "Error: Binary not found: ${BINARY_FILE}"
+    echo "Run 'make build-${OS}' first or 'make build-all'"
+    exit 1
+fi
 
 # Copy binary
-cp "bin/${BINARY_NAME}" "${BUILD_DIR}/${TARBALL_NAME}/"
+cp "${BINARY_FILE}" "${BUILD_DIR}/${TARBALL_NAME}/${BINARY_NAME}"
+if [ "${OS}" = "windows" ]; then
+    mv "${BUILD_DIR}/${TARBALL_NAME}/${BINARY_NAME}" "${BUILD_DIR}/${TARBALL_NAME}/${BINARY_NAME}.exe"
+fi
 
 # Copy documentation
 echo "Copying documentation..."
@@ -44,8 +59,9 @@ if [ -f "LICENSE" ]; then
     cp LICENSE "${BUILD_DIR}/${TARBALL_NAME}/"
 fi
 
-# Create install script
-cat > "${BUILD_DIR}/${TARBALL_NAME}/install.sh" << 'EOF'
+# Create install script for Unix
+if [ "${OS}" != "windows" ]; then
+    cat > "${BUILD_DIR}/${TARBALL_NAME}/install.sh" << 'EOF'
 #!/bin/bash
 set -e
 
@@ -75,10 +91,10 @@ echo ""
 echo "Run 'vibecoding' to get started."
 echo "=========================================="
 EOF
-chmod +x "${BUILD_DIR}/${TARBALL_NAME}/install.sh"
+    chmod +x "${BUILD_DIR}/${TARBALL_NAME}/install.sh"
 
-# Create uninstall script
-cat > "${BUILD_DIR}/${TARBALL_NAME}/uninstall.sh" << 'EOF'
+    # Create uninstall script
+    cat > "${BUILD_DIR}/${TARBALL_NAME}/uninstall.sh" << 'EOF'
 #!/bin/bash
 set -e
 
@@ -99,7 +115,8 @@ done
 echo "Binary not found in common locations."
 echo "You may need to remove it manually."
 EOF
-chmod +x "${BUILD_DIR}/${TARBALL_NAME}/uninstall.sh"
+    chmod +x "${BUILD_DIR}/${TARBALL_NAME}/uninstall.sh"
+fi
 
 # Create tarball
 echo "Creating tarball..."
@@ -108,17 +125,9 @@ tar -czf "${TARBALL_NAME}.tar.gz" "${TARBALL_NAME}"
 
 # Generate checksums
 sha256sum "${TARBALL_NAME}.tar.gz" > "${TARBALL_NAME}.tar.gz.sha256"
-md5sum "${TARBALL_NAME}.tar.gz" > "${TARBALL_NAME}.tar.gz.md5"
 cd - > /dev/null
 
-echo ""
-echo "=========================================="
-echo "Build complete!"
-echo "Tarball: ${BUILD_DIR}/${TARBALL_NAME}.tar.gz"
-echo ""
-echo "Extract with:"
-echo "  tar -xzf ${BUILD_DIR}/${TARBALL_NAME}.tar.gz"
-echo ""
-echo "Install with:"
-echo "  cd ${TARBALL_NAME} && ./install.sh"
-echo "=========================================="
+# Cleanup temp directory
+rm -rf "${BUILD_DIR}/${TARBALL_NAME}"
+
+echo "  Created: ${BUILD_DIR}/${TARBALL_NAME}.tar.gz"
