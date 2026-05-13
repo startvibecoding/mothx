@@ -63,8 +63,9 @@ type InputEvent struct {
 // toolResult stores tool result information
 type toolResult struct {
 	toolName    string
-	summary     string // Short summary for collapsed view
-	fullContent string // Full content for expanded view
+	toolArgs    map[string]any // Tool call arguments
+	summary     string         // Short summary for collapsed view
+	fullContent string         // Full content for expanded view
 }
 
 // App is the main TUI application.
@@ -185,7 +186,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		a.ready = true
 
-		chatHeight := msg.Height - 5
+		// Calculate heights: input (1 line) + footer (1 line) + some padding
+		heightUsed := 3 // input + footer + padding
+		chatHeight := msg.Height - heightUsed
 		if chatHeight < 3 {
 			chatHeight = 3
 		}
@@ -376,9 +379,26 @@ func (a *App) View() string {
 
 	footer := a.renderFooter()
 
+	// Ensure viewport content fills the available height
+	// This allows the terminal's native scrollbar to work
+	viewportContent := a.viewport.View()
+	
+	// Calculate how many lines we need to fill
+	// This ensures footer stays at the bottom even when content is short
+	contentLines := strings.Count(viewportContent, "\n") + 1
+	inputLines := 1
+	footerLines := 1
+	totalUsed := contentLines + inputLines + footerLines
+	
+	if totalUsed < a.height {
+		// Add padding to push footer to bottom
+		padding := a.height - totalUsed
+		viewportContent += strings.Repeat("\n", padding)
+	}
+	
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		a.viewport.View(),
+		viewportContent,
 		a.input.View(),
 		footer,
 	)
@@ -460,8 +480,22 @@ func (a *App) updateViewportContent() {
 			toolResultIdx++
 			
 			if a.toolOutputExpanded {
-				// Show full content
-				displayMessages = append(displayMessages, toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", result.toolName, result.fullContent)))
+				// Show full content with arguments
+				var content string
+				if result.toolArgs != nil {
+					// Show tool arguments (path, content, etc.)
+					argsStr := formatToolArgs(result.toolName, result.toolArgs)
+					if result.fullContent != "" {
+						content = fmt.Sprintf("🔧 [%s]\n%s\n---\n%s", result.toolName, argsStr, result.fullContent)
+					} else {
+						content = fmt.Sprintf("🔧 [%s]\n%s", result.toolName, argsStr)
+					}
+				} else if result.fullContent != "" {
+					content = fmt.Sprintf("🔧 [%s]\n%s", result.toolName, result.fullContent)
+				} else {
+					content = fmt.Sprintf("🔧 [%s]", result.toolName)
+				}
+				displayMessages = append(displayMessages, toolStyle.Render(content))
 			} else {
 				// Show summary
 				displayMessages = append(displayMessages, toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", result.toolName, result.summary)))
@@ -476,6 +510,69 @@ func (a *App) updateViewportContent() {
 		a.viewport.GotoBottom()
 	}
 }
+
+// formatToolArgs formats tool arguments for display
+func formatToolArgs(toolName string, args map[string]any) string {
+	var parts []string
+	
+	switch toolName {
+	case "write":
+		// Show path and content for write tool
+		if path, ok := args["path"]; ok {
+			parts = append(parts, fmt.Sprintf("path: %v", path))
+		}
+		if content, ok := args["content"]; ok {
+			contentStr := fmt.Sprintf("%v", content)
+			// Truncate content if too long
+			if len(contentStr) > 500 {
+				contentStr = contentStr[:500] + "..."
+			}
+			parts = append(parts, fmt.Sprintf("content:\n%s", contentStr))
+		}
+	case "edit":
+		// Show path and edits for edit tool
+		if path, ok := args["path"]; ok {
+			parts = append(parts, fmt.Sprintf("path: %v", path))
+		}
+		if editList, ok := args["edits"]; ok {
+			if arr, ok := editList.([]any); ok {
+				for idx, e := range arr {
+					if m, ok := e.(map[string]any); ok {
+						oldT, _ := m["oldText"].(string)
+						newT, _ := m["newText"].(string)
+						if len(oldT) > 100 {
+							oldT = oldT[:100] + "..."
+						}
+						if len(newT) > 100 {
+							newT = newT[:100] + "..."
+						}
+						parts = append(parts, fmt.Sprintf("edit[%d]:\n  old: %s\n  new: %s", idx+1, oldT, newT))
+					}
+				}
+			}
+		}
+	case "read":
+		if path, ok := args["path"]; ok {
+			parts = append(parts, fmt.Sprintf("path: %v", path))
+		}
+	case "bash":
+		if cmd, ok := args["command"]; ok {
+			parts = append(parts, fmt.Sprintf("command: %v", cmd))
+		}
+	default:
+		// Show all arguments for other tools
+		for k, v := range args {
+			vStr := fmt.Sprintf("%v", v)
+			if len(vStr) > 100 {
+				vStr = vStr[:100] + "..."
+			}
+			parts = append(parts, fmt.Sprintf("%s: %s", k, vStr))
+		}
+	}
+	
+	return strings.Join(parts, "\n")
+}
+
 
 func formatTokens(count int) string {
 	if count < 1000 {
@@ -687,43 +784,50 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventToolCall:
 		if event.ToolCall != nil {
+			// Store tool args for later display
+			a.toolResults = append(a.toolResults, toolResult{
+				toolName: event.ToolCall.Name,
+				toolArgs: event.ToolArgs,
+			})
 			a.addMessage(toolStyle.Render(fmt.Sprintf("🔧 [%s] ...", event.ToolCall.Name)))
 		}
 		return listenEvents(a.eventCh)
 
 	case agent.EventToolResult:
-		for i := len(a.messages) - 1; i >= 0; i-- {
-			if strings.Contains(a.messages[i], "🔧 [") {
-				// Store tool result for expansion
-				result := toolResult{
-					toolName:    event.ToolName,
-					fullContent: event.ToolResult,
-				}
+		// Find the matching tool result entry and update it
+		for j := len(a.toolResults) - 1; j >= 0; j-- {
+			if a.toolResults[j].toolName == event.ToolName && a.toolResults[j].fullContent == "" {
+				a.toolResults[j].fullContent = event.ToolResult
 				
 				// Create summary based on tool type
 				switch event.ToolName {
 				case "bash":
-					// For bash, always show full output for security
-					result.summary = event.ToolResult
+					a.toolResults[j].summary = event.ToolResult
 				case "read":
-					// For read, show line count
 					lines := strings.Split(event.ToolResult, "\n")
-					result.summary = fmt.Sprintf("%d lines", len(lines))
+					a.toolResults[j].summary = fmt.Sprintf("%d lines", len(lines))
 				case "write":
-					result.summary = "Written"
+					a.toolResults[j].summary = "Written"
 				case "edit":
-					result.summary = "Applied"
+					a.toolResults[j].summary = "Applied"
 				default:
-					result.summary = truncate(event.ToolResult, 50)
+					a.toolResults[j].summary = truncate(event.ToolResult, 50)
 				}
-				
-				a.toolResults = append(a.toolResults, result)
-				
-				// Bash always shows full output, others respect expansion state
-				if event.ToolName == "bash" || a.toolOutputExpanded {
-					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", event.ToolName, event.ToolResult))
-				} else {
-					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, result.summary))
+				break
+			}
+		}
+		
+		// Update the display message
+		for i := len(a.messages) - 1; i >= 0; i-- {
+			if strings.Contains(a.messages[i], "🔧 [") {
+				// Get the last tool result for display
+				if len(a.toolResults) > 0 {
+					lastResult := a.toolResults[len(a.toolResults)-1]
+					if event.ToolName == "bash" || a.toolOutputExpanded {
+						a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", event.ToolName, event.ToolResult))
+					} else {
+						a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, lastResult.summary))
+					}
 				}
 				break
 			}
