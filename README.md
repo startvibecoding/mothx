@@ -5,7 +5,7 @@
 <h1 align="center">VibeCoding</h1>
 
 <p align="center">
-  A terminal-based AI coding assistant written in Go, inspired by <a href="https://pi.dev">pi.dev</a>
+  A terminal-based AI coding assistant written in ~10,000 lines of Go, inspired by <a href="https://pi.dev">pi.dev</a>
 </p>
 
 ## Features
