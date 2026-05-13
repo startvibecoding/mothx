@@ -417,3 +417,84 @@ Any setting can be overridden via environment variables:
   }
 }
 ```
+
+### approval
+
+Agent mode approval configuration, controls bash command approval behavior.
+
+```json
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
+    "bashBlacklist": ["rm -rf", "sudo"]
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `bashWhitelist` | []string | See below | Auto-approved command prefix list |
+| `bashBlacklist` | []string | [] | Commands always requiring approval |
+
+#### Default Whitelist
+
+```json
+[
+  "go ",
+  "make ",
+  "git ",
+  "npm ",
+  "yarn ",
+  "node ",
+  "python ",
+  "pip "
+]
+```
+
+#### Approval Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Approval Flow                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Agent requests bash command execution                       │
+│  │                                                           │
+│  ▼                                                           │
+│  Check mode                                                  │
+│  ├─ Plan mode → Deny (read-only)                             │
+│  ├─ Agent mode → Continue checking                           │
+│  └─ YOLO mode → Auto-approve                                 │
+│                                                              │
+│  In Agent mode:                                              │
+│  ├─ Non-bash tool → Auto-approve                             │
+│  ├─ Command matches whitelist → Auto-approve                 │
+│  └─ Otherwise → Require user approval                        │
+│                                                              │
+│  User approval:                                              │
+│  ├─ Enter y/yes → Execute command                            │
+│  └─ Enter n/no → Deny execution                              │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Example Configurations
+
+**Only allow git and npm:**
+```json
+{
+  "approval": {
+    "bashWhitelist": ["git ", "npm "]
+  }
+}
+```
+
+**Custom blacklist:**
+```json
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git "],
+    "bashBlacklist": ["rm -rf", "sudo", "dd "]
+  }
+}
+```

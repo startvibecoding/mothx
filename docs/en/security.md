@@ -385,6 +385,78 @@ timeout 300 vibecoding --sandbox
 find . -type l -ls
 ```
 
+## Approval Mechanism
+
+VibeCoding v0.0.4 introduces an Agent mode approval mechanism for enhanced security.
+
+### How It Works
+
+In Agent mode, executing bash commands requires user approval:
+
+1. **Whitelist check**: Command prefix matches `bashWhitelist` entry → Auto-approve
+2. **Blacklist check**: Command prefix matches `bashBlacklist` entry → Always require approval
+3. **Default behavior**: Non-whitelisted commands → Require user y/n approval
+
+### Configuration Example
+
+```json
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
+    "bashBlacklist": ["rm -rf", "sudo"]
+  }
+}
+```
+
+### Default Whitelist
+
+```json
+[
+  "go ",
+  "make ",
+  "git ",
+  "npm ",
+  "yarn ",
+  "node ",
+  "python ",
+  "pip "
+]
+```
+
+### Approval Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Approval Flow                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Agent requests bash command execution                       │
+│  │                                                           │
+│  ▼                                                           │
+│  Check mode                                                  │
+│  ├─ Plan mode → Deny (read-only)                             │
+│  ├─ Agent mode → Continue checking                           │
+│  └─ YOLO mode → Auto-approve                                 │
+│                                                              │
+│  In Agent mode:                                              │
+│  ├─ Non-bash tool → Auto-approve                             │
+│  ├─ Command matches whitelist → Auto-approve                 │
+│  └─ Otherwise → Require user approval                        │
+│                                                              │
+│  User approval:                                              │
+│  ├─ Enter y/yes → Execute command                            │
+│  └─ Enter n/no → Deny execution                              │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Security Recommendations
+
+1. **Keep default whitelist**: Only allow common safe commands
+2. **Add blacklist**: Add dangerous commands like `rm -rf`, `sudo` to blacklist
+3. **Regular review**: Check approval logs to understand Agent-executed commands
+4. **Combine with sandbox**: Use `--sandbox` to limit file system access
+
 ## Audit and Logging
 
 ### Enable Debug Logging

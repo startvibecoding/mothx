@@ -1,5 +1,40 @@
 # 更新日志
 
+## v0.0.4
+
+### ✨ 新功能
+
+- **Agent 模式审批机制**
+  - Agent 模式下执行 bash 命令需要用户审批
+  - 支持 `bashWhitelist` 配置，白名单中的命令自动批准
+  - 支持 `bashBlacklist` 配置，黑名单中的命令始终需要审批
+  - TUI 中显示审批提示，用户输入 `y`/`yes` 或 `n`/`no` 响应
+  - 审批请求支持 `abort` 取消
+
+- **模式权限矩阵**
+  - Plan 模式: 只读工具 (read, grep, find, ls)
+  - Agent 模式: 读写自动执行，bash 需审批
+  - YOLO 模式: 所有工具自动执行
+  - 更新系统提示词，明确每个模式的权限
+
+### 🛠 改进
+
+- **默认审批白名单**
+  - 默认白名单: `go`, `make`, `git`, `npm`, `yarn`, `node`, `python`, `pip`
+  - 可在 `settings.json` 中自定义
+
+- **模式切换反馈**
+  - 切换模式时显示详细权限说明
+  - `/mode` 命令显示当前模式的完整权限列表
+
+### 📖 文档
+
+- 新增审批配置章节
+- 更新安全文档，说明审批机制
+- 新增 v0.0.4 发布说明
+
+---
+
 ## v0.0.3
 
 ### ✨ 新功能
@@ -61,4 +96,4 @@
 
 ---
 
-**完整变更日志**: https://github.com/fuckvibecoding/vibecoding/compare/v0.0.1...v0.0.3
+**完整变更日志**: https://github.com/fuckvibecoding/vibecoding/compare/v0.0.1...v0.0.4

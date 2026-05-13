@@ -15,7 +15,7 @@
 - **Think Mode**: Extended thinking/reasoning support (Anthropic extended thinking, OpenAI reasoning effort)
 - **Three Modes**:
   - 🗒️ **Plan** — Read-only analysis and planning. Sandboxed, no file writes
-  - 🔧 **Agent** (default) — Controlled read/write access to the project. Sandboxed, no network
+  - 🔧 **Agent** (default) — Controlled read/write access to the project. Bash requires approval (configurable whitelist). Sandboxed, no network
   - 🚀 **YOLO** — Full system access with no restrictions
 - **bwrap Sandbox**: Linux sandboxing via [bubblewrap](https://github.com/containers/bubblewrap) for secure execution
 - **Session Management**: JSONL-based session files with tree structure, branching, compaction
@@ -154,6 +154,10 @@ vibecoding --no-sandbox
     "enabled": true,
     "maxRetries": 3,
     "baseDelayMs": 2000
+  },
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
+    "bashBlacklist": ["rm -rf", "sudo"]
   }
 }
 ```
