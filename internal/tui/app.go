@@ -648,11 +648,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				// Create summary based on tool type
 				switch event.ToolName {
 				case "bash":
-					// For bash, show command and exit status
-					lines := strings.Split(event.ToolResult, "\n")
-					if len(lines) > 0 {
-						result.summary = lines[0] // First line is usually the command
-					}
+					// For bash, always show full output for security
+					result.summary = event.ToolResult
 				case "read":
 					// For read, show line count
 					lines := strings.Split(event.ToolResult, "\n")
@@ -667,8 +664,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				
 				a.toolResults = append(a.toolResults, result)
 				
-				// Display based on expansion state
-				if a.toolOutputExpanded {
+				// Bash always shows full output, others respect expansion state
+				if event.ToolName == "bash" || a.toolOutputExpanded {
 					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", event.ToolName, event.ToolResult))
 				} else {
 					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, result.summary))
