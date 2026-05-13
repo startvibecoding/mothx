@@ -1,0 +1,291 @@
+# Skills System
+
+VibeCoding's Skills system allows you to create reusable prompt snippets called Skills.
+
+## Overview
+
+Skills are prompt snippets stored as `SKILL.md` files that can be loaded and injected into the system prompt.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Skills System                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Global Skills                 Project Skills                │
+│  ~/.vibecoding/skills/         .skills/                      │
+│  ┌─────────────────────┐      ┌─────────────────────┐       │
+│  │ coding-standards/   │      │ project-specific/   │       │
+│  │   SKILL.md          │      │   SKILL.md          │       │
+│  │                     │      │                     │       │
+│  │ git-workflow/       │      │ testing-rules/      │       │
+│  │   SKILL.md          │      │   SKILL.md          │       │
+│  └─────────────────────┘      └─────────────────────┘       │
+│            │                            │                    │
+│            └──────────┬─────────────────┘                    │
+│                       │                                      │
+│                       ▼                                      │
+│              ┌─────────────────┐                             │
+│              │  System Prompt  │                             │
+│              └─────────────────┘                             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Skill Directories
+
+### Global Skills
+
+Location: `~/.vibecoding/skills/`
+
+Global skills are available for all projects.
+
+```bash
+~/.vibecoding/skills/
+├── coding-standards/
+│   └── SKILL.md
+├── git-workflow/
+│   └── SKILL.md
+└── review-checklist/
+    └── SKILL.md
+```
+
+### Project Skills
+
+Location: `.skills/` (in project root)
+
+Project skills are only available for the current project and override global skills with the same name.
+
+```bash
+.skills/
+├── project-conventions/
+│   └── SKILL.md
+└── testing-rules/
+    └── SKILL.md
+```
+
+## SKILL.md Format
+
+Each skill is a Markdown file containing the skill's description and content.
+
+### Example
+
+```markdown
+# Coding Standards
+
+This skill defines coding standards for the project.
+
+## Go Code Style
+
+- Use `gofmt` for formatting
+- Follow Effective Go guidelines
+- Use meaningful variable names
+- Add comments for exported functions
+
+## Error Handling
+
+- Always handle errors
+- Use `fmt.Errorf` with `%w` for wrapping
+- Don't panic in library code
+
+## Testing
+
+- Write table-driven tests
+- Use `t.Run` for subtests
+- Aim for >80% coverage
+```
+
+### Structure
+
+1. **Title** (H1): Skill name
+2. **Description** (first paragraph): Brief description of the skill
+3. **Content**: Detailed content and rules
+
+## Configuration
+
+### Skills Directory
+
+Configure the skills directory in `settings.json`:
+
+```json
+{
+  "skillsDir": "~/.vibecoding/skills"
+}
+```
+
+### Project Local Skills
+
+Project skills are automatically loaded from the `.skills/` directory, no additional configuration needed.
+
+## Usage
+
+### Loading Skills
+
+Skills are loaded automatically at startup:
+
+```go
+skillsMgr := skills.NewManager(globalSkillsDir, projectSkillsDir)
+if err := skillsMgr.Load(); err != nil {
+    // handle error
+}
+```
+
+### Viewing Loaded Skills
+
+Use the `/skills` command in interactive mode:
+
+```
+> /skills
+Loaded 3 skills:
+  - coding-standards (global)
+  - git-workflow (global)
+  - project-conventions (project)
+```
+
+### Skill Injection
+
+Skill content is injected into the system prompt for LLM reference.
+
+## Best Practices
+
+### 1. Keep Skills Concise
+
+Focus each skill on a single topic:
+
+```markdown
+# Git Commit Rules
+
+## Commit Message Format
+
+<type>(<scope>): <subject>
+
+## Types
+
+- feat: New feature
+- fix: Bug fix
+- docs: Documentation
+- style: Formatting
+- refactor: Code restructuring
+- test: Adding tests
+- chore: Maintenance
+```
+
+### 2. Use Global Skills for Common Rules
+
+Place rules that apply to all projects in the global skills directory:
+
+```bash
+~/.vibecoding/skills/
+└── general-rules/
+    └── SKILL.md
+```
+
+### 3. Use Project Skills to Override Specific Rules
+
+Project skills can override global skills:
+
+```bash
+.skills/
+└── general-rules/  # Overrides global general-rules
+    └── SKILL.md
+```
+
+### 4. Organize Skill Directories
+
+Organize skills by topic:
+
+```bash
+~/.vibecoding/skills/
+├── coding/
+│   ├── go-style/
+│   │   └── SKILL.md
+│   └── python-style/
+│       └── SKILL.md
+├── git/
+│   ├── commit-rules/
+│   │   └── SKILL.md
+│   └── branch-strategy/
+│       └── SKILL.md
+└── review/
+    └── checklist/
+        └── SKILL.md
+```
+
+## Example Skills
+
+### Code Review Skill
+
+```markdown
+# Code Review Checklist
+
+## Before Review
+
+- [ ] Code compiles without errors
+- [ ] Tests pass
+- [ ] No lint warnings
+
+## Review Points
+
+- [ ] Clear variable/function names
+- [ ] Proper error handling
+- [ ] No hardcoded values
+- [ ] Comments for complex logic
+- [ ] Test coverage adequate
+
+## Security
+
+- [ ] No SQL injection
+- [ ] No XSS vulnerabilities
+- [ ] Proper input validation
+- [ ] Secrets not exposed
+```
+
+### Testing Skill
+
+```markdown
+# Testing Guidelines
+
+## Test Structure
+
+```go
+func TestFunction(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    interface{}
+        expected interface{}
+    }{
+        // test cases
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            // test logic
+        })
+    }
+}
+```
+
+## Coverage
+
+- Aim for >80% code coverage
+- Focus on edge cases
+- Test error paths
+```
+
+## Troubleshooting
+
+### Skills Not Loading
+
+1. Check directory permissions
+2. Confirm `SKILL.md` filename is correct
+3. Use `/skills` command to view loading status
+
+### Skills Not Working
+
+1. Confirm skill content format is correct
+2. Check if system prompt contains skill content
+3. Restart VibeCoding to reload
+
+## Related Documents
+
+- [Configuration](configuration.md) - Skills directory configuration
+- [Architecture](architecture.md) - Skills system architecture
