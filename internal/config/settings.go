@@ -28,6 +28,7 @@ type Settings struct {
 	ShellCommandPrefix   string                    `json:"shellCommandPrefix,omitempty"`
 	Theme                string                    `json:"theme,omitempty"`
 	Retry                RetrySettings             `json:"retry"`
+	Approval             ApprovalSettings          `json:"approval"`
 }
 
 type ProviderConfig struct {
@@ -83,6 +84,13 @@ type RetrySettings struct {
 	BaseDelayMs int  `json:"baseDelayMs"`
 }
 
+type ApprovalSettings struct {
+	// BashWhitelist is a list of command prefixes that auto-approve in agent mode
+	BashWhitelist []string `json:"bashWhitelist,omitempty"`
+	// BashBlacklist is a list of command prefixes that always require approval (even in yolo mode if configured)
+	BashBlacklist []string `json:"bashBlacklist,omitempty"`
+}
+
 func DefaultSettings() *Settings {
 	return &Settings{
 		Providers: map[string]ProviderConfig{
@@ -127,6 +135,9 @@ func DefaultSettings() *Settings {
 		SessionDir: platform.SessionDir(),
 		Theme:      "dark",
 		Retry:      RetrySettings{Enabled: true, MaxRetries: 3, BaseDelayMs: 2000},
+		Approval: ApprovalSettings{
+			BashWhitelist: []string{"go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "},
+		},
 	}
 }
 

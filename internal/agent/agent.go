@@ -128,6 +128,11 @@ type Agent struct {
 	abortOnce   sync.Once
 	messages    []provider.Message
 	isStreaming bool
+
+	// Approval mechanism for agent mode
+	pendingApprovals map[string]chan bool // approvalID -> response channel
+	approvalMu       sync.Mutex
+	approvalCounter  int64
 }
 
 // New creates a new agent.
@@ -139,9 +144,10 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 	}
 
 	return &Agent{
-		config:   loopConfig,
-		registry: registry,
-		abort:    make(chan struct{}),
+		config:           loopConfig,
+		registry:         registry,
+		abort:            make(chan struct{}),
+		pendingApprovals: make(map[string]chan bool),
 		context: &AgentContext{
 			Messages: make([]provider.Message, 0),
 		},
@@ -158,9 +164,10 @@ func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 	}
 
 	return &Agent{
-		config:   cfg,
-		registry: registry,
-		abort:    make(chan struct{}),
+		config:           cfg,
+		registry:         registry,
+		abort:            make(chan struct{}),
+		pendingApprovals: make(map[string]chan bool),
 		context: &AgentContext{
 			Messages: make([]provider.Message, 0),
 		},
@@ -593,6 +600,22 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 		}
 	}
 
+	// Check if tool needs user approval based on mode
+	if a.NeedsApproval(tc.Name, params) {
+		approved := a.RequestApproval(ch, tc.Name, params)
+		if !approved {
+			reason := "Tool execution denied by user"
+			ch <- Event{
+				Type:       EventToolExecutionEnd,
+				ToolCallID: tc.ID,
+				ToolName:   tc.Name,
+				ToolResult: reason,
+				ToolError:  fmt.Errorf("%s", reason),
+			}
+			return provider.NewToolResultMessage(tc.ID, tc.Name, reason, true)
+		}
+	}
+
 	// Execute tool with timeout
 	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
@@ -738,4 +761,71 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	}
 
 	return nil
+}
+
+// NeedsApproval checks if a tool call needs user approval based on the current mode.
+func (a *Agent) NeedsApproval(toolName string, args map[string]any) bool {
+	switch a.config.Mode {
+	case "plan":
+		// Plan mode: no tools should be executed (read-only tools don't need approval)
+		return false
+	case "agent":
+		// Agent mode: only bash needs approval (with whitelist check)
+		if toolName != "bash" {
+			return false
+		}
+		// Check whitelist
+		if a.config.Settings != nil {
+			if command, ok := args["command"].(string); ok {
+				for _, prefix := range a.config.Settings.Approval.BashWhitelist {
+					if strings.HasPrefix(command, prefix) {
+						return false // Whitelisted, no approval needed
+					}
+				}
+			}
+		}
+		return true
+	case "yolo":
+		// YOLO mode: no approval needed
+		return false
+	default:
+		return false
+	}
+}
+
+// RequestApproval sends an approval request and waits for the user's response.
+func (a *Agent) RequestApproval(ch chan<- Event, toolName string, args map[string]any) bool {
+	a.approvalMu.Lock()
+	a.approvalCounter++
+	approvalID := fmt.Sprintf("approval-%d", a.approvalCounter)
+	responseCh := make(chan bool, 1)
+	a.pendingApprovals[approvalID] = responseCh
+	a.approvalMu.Unlock()
+
+	// Send approval request event
+	ch <- Event{
+		Type:           EventToolApprovalRequest,
+		ApprovalID:     approvalID,
+		ApprovalTool:   toolName,
+		ApprovalArgs:   args,
+	}
+
+	// Wait for response or abort
+	select {
+	case approved := <-responseCh:
+		return approved
+	case <-a.abort:
+		return false
+	}
+}
+
+// HandleApprovalResponse processes the user's approval response.
+func (a *Agent) HandleApprovalResponse(approvalID string, approved bool) {
+	a.approvalMu.Lock()
+	defer a.approvalMu.Unlock()
+
+	if ch, ok := a.pendingApprovals[approvalID]; ok {
+		ch <- approved
+		delete(a.pendingApprovals, approvalID)
+	}
 }

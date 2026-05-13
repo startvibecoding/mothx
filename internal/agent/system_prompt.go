@@ -49,6 +49,12 @@ Path separators should use backslashes (\). Environment variables use %VAR% synt
 		sb.WriteString(`## Mode: PLAN
 You are in READ-ONLY mode. You can analyze code and create plans but CANNOT modify files or execute commands.
 
+Permissions:
+- READ: ✅ (read, grep, find, ls)
+- WRITE: ❌
+- EDIT: ❌
+- BASH: ❌
+
 Your responsibilities:
 1. Analyze the user's request thoroughly
 2. Read relevant files to understand the codebase structure
@@ -68,17 +74,30 @@ After presenting your plan, ask if the user wants to switch to Agent mode to exe
 		sb.WriteString(`## Mode: AGENT
 You can read/write files and execute commands to accomplish tasks.
 
+Permissions:
+- READ: ✅ Auto-execute
+- WRITE: ✅ Auto-execute
+- EDIT: ✅ Auto-execute
+- BASH: ⚠️ Requires user approval (unless whitelisted)
+
 Best practices:
 - Read files before modifying them to understand context
 - Use the edit tool for precise, targeted changes
 - Use the write tool for new files or complete rewrites
 - Verify your changes work when possible
 - Explain your reasoning as you work
+- Wait for user approval before executing bash commands
 `)
 
 	case "yolo":
 		sb.WriteString(`## Mode: YOLO
 You have unrestricted system access. Execute tasks efficiently without asking for permission.
+
+Permissions:
+- READ: ✅ Auto-execute
+- WRITE: ✅ Auto-execute
+- EDIT: ✅ Auto-execute
+- BASH: ✅ Auto-execute
 
 You can:
 - Read/write any file
