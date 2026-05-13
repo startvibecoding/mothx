@@ -155,13 +155,22 @@ type pendingApproval struct {
 }
 
 // NewApp creates a new TUI application.
-func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager) *App {
+func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string) *App {
 	input := textinput.New()
 	input.Placeholder = "Type a message..."
 	input.Focus()
 	input.CharLimit = 0
 
 	vp := viewport.New(80, 20)
+
+	// Determine initial mode: use provided mode, fall back to settings default
+	mode := initialMode
+	if mode == "" {
+		mode = settings.DefaultMode
+	}
+	if mode == "" {
+		mode = "agent"
+	}
 
 	return &App{
 		provider:       p,
@@ -170,7 +179,7 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		session:        sess,
 		registry:       registry,
 		sandboxInfo:    sandboxInfo,
-		mode:           settings.DefaultMode,
+		mode:           mode,
 		extraContext:   extraContext,
 		baseExtraContext: extraContext,
 		activeSkills:    make(map[string]string),
@@ -801,7 +810,16 @@ func (a *App) cycleMode() {
 	}
 	next := (current + 1) % len(modes)
 	a.mode = modes[next]
-	a.agent = nil
+	
+	// If agent is currently running, abort it so the new mode takes effect immediately
+	if a.isThinking && a.agent != nil {
+		a.agent.Abort()
+		a.agent = nil
+		a.isThinking = false
+		a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
+	} else {
+		a.agent = nil
+	}
 
 	var modeLabel string
 	switch a.mode {
@@ -877,7 +895,15 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			switch parts[1] {
 			case "plan", "agent", "yolo":
 				a.mode = parts[1]
-				a.agent = nil
+				// If agent is currently running, abort it so the new mode takes effect immediately
+				if a.isThinking && a.agent != nil {
+					a.agent.Abort()
+					a.agent = nil
+					a.isThinking = false
+					a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
+				} else {
+					a.agent = nil
+				}
 				a.addMessage(statusStyle.Render(fmt.Sprintf("Mode: %s", strings.ToUpper(a.mode))))
 			default:
 				a.addMessage(errorStyle.Render("Invalid mode"))
@@ -1013,10 +1039,10 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventThinkDelta:
 		lastIdx := len(a.messages) - 1
-		if lastIdx >= 0 && strings.HasPrefix(a.messages[lastIdx], thinkStyle.Render("💭 ")) {
+		if lastIdx >= 0 && strings.HasPrefix(a.messages[lastIdx], thinkStyle.Render("think: ")) {
 			a.messages[lastIdx] += event.ThinkDelta
 		} else {
-			a.messages = append(a.messages, thinkStyle.Render("💭 ")+event.ThinkDelta)
+			a.messages = append(a.messages, thinkStyle.Render("think: ")+event.ThinkDelta)
 		}
 		a.scheduleRender()
 		return listenEvents(a.eventCh)
