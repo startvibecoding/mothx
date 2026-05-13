@@ -1,31 +1,53 @@
 package ua
 
 import (
+	"os"
 	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestUserAgent(t *testing.T) {
+	// Clean up env var after test
+	defer os.Unsetenv("VIBECODING_USER_AGENT")
+
 	ua := UserAgent()
 
 	if ua == "" {
 		t.Fatal("expected non-empty user agent")
 	}
 
-	// Should contain Claude-User
-	if !strings.Contains(ua, "Claude-User") {
-		t.Error("expected user agent to contain 'Claude-User'")
+	// Should contain default prefix
+	if !strings.Contains(ua, "Vibecoding Client") {
+		t.Error("expected user agent to contain 'Vibecoding Client'")
 	}
 
-	// Should contain vibecoding
-	if !strings.Contains(ua, "vibecoding/") {
-		t.Error("expected user agent to contain 'vibecoding/'")
+	// Should contain version
+	if !strings.Contains(ua, Version) {
+		t.Errorf("expected user agent to contain '%s'", Version)
 	}
 
-	// Should contain support URL
-	if !strings.Contains(ua, "github.com/fuckvibecoding/vibecoding") {
-		t.Error("expected user agent to contain support URL")
+	// Should contain OS
+	if !strings.Contains(ua, runtime.GOOS) {
+		t.Errorf("expected user agent to contain '%s'", runtime.GOOS)
+	}
+
+	// Should contain architecture
+	if !strings.Contains(ua, runtime.GOARCH) {
+		t.Errorf("expected user agent to contain '%s'", runtime.GOARCH)
+	}
+}
+
+func TestUserAgentWithEnvOverride(t *testing.T) {
+	// Set custom UA
+	customUA := "MyCustomAgent/1.0"
+	os.Setenv("VIBECODING_USER_AGENT", customUA)
+	defer os.Unsetenv("VIBECODING_USER_AGENT")
+
+	ua := UserAgent()
+
+	if ua != customUA {
+		t.Errorf("expected '%s', got '%s'", customUA, ua)
 	}
 }
 
@@ -42,32 +64,15 @@ func TestProviderUserAgent(t *testing.T) {
 	}
 }
 
-func TestDetailedUserAgent(t *testing.T) {
-	ua := DetailedUserAgent()
-
-	if ua == "" {
-		t.Fatal("expected non-empty detailed user agent")
-	}
-
-	// Should contain Claude-User
-	if !strings.Contains(ua, "Claude-User") {
-		t.Error("expected detailed user agent to contain 'Claude-User'")
-	}
-
-	// Should contain OS
-	if !strings.Contains(ua, runtime.GOOS) {
-		t.Errorf("expected detailed user agent to contain '%s'", runtime.GOOS)
-	}
-
-	// Should contain architecture
-	if !strings.Contains(ua, runtime.GOARCH) {
-		t.Errorf("expected detailed user agent to contain '%s'", runtime.GOARCH)
-	}
-}
-
 func TestVersion(t *testing.T) {
 	// Default version should be "dev"
 	if Version != "dev" {
 		t.Errorf("expected default version to be 'dev', got '%s'", Version)
+	}
+}
+
+func TestDefaultUserAgent(t *testing.T) {
+	if DefaultUserAgent != "Vibecoding Client" {
+		t.Errorf("expected default user agent to be 'Vibecoding Client', got '%s'", DefaultUserAgent)
 	}
 }

@@ -3,30 +3,34 @@ package ua
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 )
 
 // Version is set at build time via ldflags.
 var Version = "dev"
 
+// DefaultUserAgent is the default User-Agent prefix.
+const DefaultUserAgent = "Vibecoding Client"
+
 // UserAgent returns the User-Agent string for vibecoding.
-// Format: Claude-User (vibecoding/{version}; +https://github.com/fuckvibecoding/vibecoding)
+// Can be overridden by VIBECODING_USER_AGENT environment variable.
 func UserAgent() string {
-	return fmt.Sprintf("Claude-User (vibecoding/%s; +https://github.com/fuckvibecoding/vibecoding)",
+	// Check for environment variable override
+	if ua := os.Getenv("VIBECODING_USER_AGENT"); ua != "" {
+		return ua
+	}
+
+	return fmt.Sprintf("%s/%s (%s; %s; %s)",
+		DefaultUserAgent,
 		Version,
+		runtime.GOOS,
+		runtime.GOARCH,
+		runtime.Version(),
 	)
 }
 
 // ProviderUserAgent returns the User-Agent string for provider API calls.
 func ProviderUserAgent() string {
 	return UserAgent()
-}
-
-// DetailedUserAgent returns a more detailed User-Agent string with OS info.
-func DetailedUserAgent() string {
-	return fmt.Sprintf("Claude-User (vibecoding/%s; %s; %s; +https://github.com/fuckvibecoding/vibecoding)",
-		Version,
-		runtime.GOOS,
-		runtime.GOARCH,
-	)
 }
