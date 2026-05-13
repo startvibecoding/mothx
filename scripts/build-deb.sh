@@ -2,7 +2,8 @@
 set -e
 
 # VibeCoding Debian Package Builder
-# Usage: ./scripts/build-deb.sh [version]
+# Usage: ./scripts/build-deb.sh <arch> [version]
+# Example: ./scripts/build-deb.sh amd64 v0.0.2
 
 BINARY_NAME="vibecoding"
 PACKAGE_NAME="vibecoding"
@@ -10,30 +11,36 @@ MAINTAINER="VibeCoding Team <team@vibecoding.dev>"
 DESCRIPTION="AI-powered terminal coding assistant"
 HOMEPAGE="https://github.com/fuckvibecoding/vibecoding"
 
-# Get version from argument or git
-VERSION="${1:-$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1")}"
+# Parse arguments
+ARCH="${1:-amd64}"
+VERSION="${2:-$(git describe --tags --always --dirty 2>/dev/null || echo "0.0.1")}"
+
 # Remove leading 'v' if present
 VERSION="${VERSION#v}"
 
-ARCH="amd64"
 BUILD_DIR="dist/deb"
 PACKAGE_DIR="${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}"
 
 echo "Building ${PACKAGE_NAME} ${VERSION} for ${ARCH}..."
 
+# Check if binary exists
+BINARY_FILE="bin/${BINARY_NAME}-linux-${ARCH}"
+if [ ! -f "${BINARY_FILE}" ]; then
+    echo "Error: Binary not found: ${BINARY_FILE}"
+    echo "Run 'make build-linux' first or 'make build-all'"
+    exit 1
+fi
+
 # Clean previous build
-rm -rf "${BUILD_DIR}"
+rm -rf "${PACKAGE_DIR}"
 mkdir -p "${PACKAGE_DIR}/DEBIAN"
 mkdir -p "${PACKAGE_DIR}/usr/bin"
 mkdir -p "${PACKAGE_DIR}/usr/share/doc/${PACKAGE_NAME}"
 mkdir -p "${PACKAGE_DIR}/usr/share/licenses/${PACKAGE_NAME}"
 
-# Build binary
-echo "Building binary..."
-make build
-
 # Copy binary
-cp "bin/${BINARY_NAME}" "${PACKAGE_DIR}/usr/bin/"
+cp "${BINARY_FILE}" "${PACKAGE_DIR}/usr/bin/${BINARY_NAME}"
+chmod +x "${PACKAGE_DIR}/usr/bin/${BINARY_NAME}"
 
 # Create control file
 cat > "${PACKAGE_DIR}/DEBIAN/control" << EOF
@@ -92,7 +99,7 @@ EOF
 # Compress changelog
 gzip -9 -n "${PACKAGE_DIR}/usr/share/doc/${PACKAGE_NAME}/changelog.Debian"
 
-# Create postinst script (optional)
+# Create postinst script
 cat > "${PACKAGE_DIR}/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
@@ -120,17 +127,9 @@ dpkg-deb --root-owner-group --build "${PACKAGE_DIR}"
 cd "${BUILD_DIR}"
 DEB_FILE="${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
 sha256sum "${DEB_FILE}" > "${DEB_FILE}.sha256"
-md5sum "${DEB_FILE}" > "${DEB_FILE}.md5"
 cd - > /dev/null
 
-echo ""
-echo "=========================================="
-echo "Build complete!"
-echo "Package: ${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-echo ""
-echo "Install with:"
-echo "  sudo dpkg -i ${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-echo ""
-echo "Check with:"
-echo "  dpkg -I ${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
-echo "=========================================="
+# Cleanup temp directory
+rm -rf "${PACKAGE_DIR}"
+
+echo "  Created: ${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${ARCH}.deb"
