@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
 	"time"
 
+	"github.com/fuckvibecoding/vibecoding/internal/platform"
 	"github.com/fuckvibecoding/vibecoding/internal/sandbox"
 )
 
@@ -26,6 +27,9 @@ func NewBashTool(r *Registry) *BashTool {
 func (t *BashTool) Name() string { return "bash" }
 
 func (t *BashTool) Description() string {
+	if platform.IsWindows() {
+		return "Execute a shell command (PowerShell/cmd). Use this to run commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s)."
+	}
 	return "Execute a bash command. Use this to run shell commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s)."
 }
 
@@ -35,7 +39,7 @@ func (t *BashTool) Parameters() json.RawMessage {
 		"properties": {
 			"command": {
 				"type": "string",
-				"description": "The bash command to execute"
+				"description": "The shell command to execute"
 			},
 			"timeout": {
 				"type": "integer",
@@ -63,7 +67,8 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	shell := "/bin/bash"
+	// Get platform-specific shell
+	shell := platform.DefaultShell()
 	if s := os.Getenv("SHELL"); s != "" {
 		shell = s
 	}
@@ -80,7 +85,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		}
 		cmd = sb.WrapCommand(ctx, shell, command, opts)
 	} else {
-		cmd = exec.CommandContext(ctx, shell, "-c", command)
+		// Use platform-specific shell arguments
+		args := platform.ShellArgs(shell, command)
+		cmd = exec.CommandContext(ctx, shell, args...)
 		cmd.Dir = workDir
 	}
 
@@ -129,12 +136,16 @@ type FileTool struct {
 }
 
 func (t *FileTool) resolvePath(path string) string {
-	if strings.HasPrefix(path, "~") {
-		home, _ := os.UserHomeDir()
-		return strings.Replace(path, "~", home, 1)
+	// Expand home directory
+	path = platform.ExpandHome(path)
+
+	// Normalize path separators
+	path = platform.NormalizePath(path)
+
+	// Make relative paths absolute
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(t.registry.GetWorkDir(), path)
 	}
-	if !strings.HasPrefix(path, "/") {
-		return t.registry.GetWorkDir() + "/" + path
-	}
+
 	return path
 }

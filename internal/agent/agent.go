@@ -168,7 +168,6 @@ func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 func (a *Agent) Abort() {
 	a.abortOnce.Do(func() {
 		close(a.abort)
-		a.abort = make(chan struct{})
 	})
 }
 

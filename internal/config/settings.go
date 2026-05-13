@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
+
+	"github.com/fuckvibecoding/vibecoding/internal/platform"
 )
 
 // Settings holds all configuration for vibecoding.
@@ -83,8 +84,6 @@ type RetrySettings struct {
 }
 
 func DefaultSettings() *Settings {
-	homeDir, _ := os.UserHomeDir()
-
 	return &Settings{
 		Providers: map[string]ProviderConfig{
 			"anthropic": {
@@ -115,33 +114,24 @@ func DefaultSettings() *Settings {
 		DefaultThinkingLevel: "medium",
 		DefaultMode:          "agent",
 		ContextFiles:         ContextFilesSettings{Enabled: true},
-		SkillsDir:            filepath.Join(homeDir, ".vibecoding", "skills"),
+		SkillsDir:            platform.SkillsDir(),
 		Compaction:           CompactionSettings{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000},
 		Sandbox: SandboxSettings{
-			Enabled: false,
-			Level:   "none",
-			AllowedRead: []string{
-				"/usr", "/lib", "/lib64", "/bin", "/sbin",
-				"/etc/ld.so.cache", "/etc/ssl", "/etc/ca-certificates",
-				"/dev/null", "/dev/urandom", "/dev/zero",
-				"/proc/self", "/proc/meminfo", "/proc/cpuinfo",
-			},
-			DeniedPaths: []string{"/etc/shadow", "/etc/gshadow", "/etc/passwd", "/root", "/home"},
-			PassEnv:     []string{"PATH", "HOME", "USER", "SHELL", "GOPATH", "GOROOT", "GOPROXY", "GOMODCACHE", "NODE_PATH", "LANG", "LC_ALL", "TERM"},
+			Enabled:     false,
+			Level:       "none",
+			AllowedRead: platform.SandboxPaths(),
+			DeniedPaths: platform.DeniedPaths(),
+			PassEnv:     platform.DefaultEnvVars(),
 			TmpSize:     "100m",
 		},
-		SessionDir: filepath.Join(homeDir, ".vibecoding", "sessions"),
+		SessionDir: platform.SessionDir(),
 		Theme:      "dark",
 		Retry:      RetrySettings{Enabled: true, MaxRetries: 3, BaseDelayMs: 2000},
 	}
 }
 
 func ConfigDir() string {
-	if dir := os.Getenv("VIBECODING_DIR"); dir != "" {
-		return dir
-	}
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".vibecoding")
+	return platform.ConfigDir()
 }
 
 func GlobalSettingsPath() string {
@@ -290,38 +280,35 @@ func (s *Settings) GetModelConfig(providerName, modelID string) *ModelConfig {
 	return nil
 }
 
-func resolveShellCommand(cmd string) string { return "" }
+func resolveShellCommand(cmd string) string {
+	return ""
+}
 
 func (s *Settings) GetShell() string {
 	if s.ShellPath != "" {
 		return s.ShellPath
 	}
-	if runtime.GOOS == "windows" {
-		return "cmd"
-	}
-	return "/bin/bash"
+	return platform.DefaultShell()
 }
 
 func (s *Settings) GetSessionDir() string {
 	if s.SessionDir != "" {
 		if strings.HasPrefix(s.SessionDir, "~") {
-			home, _ := os.UserHomeDir()
-			return filepath.Join(home, s.SessionDir[1:])
+			return platform.ExpandHome(s.SessionDir)
 		}
 		return s.SessionDir
 	}
-	return filepath.Join(ConfigDir(), "sessions")
+	return platform.SessionDir()
 }
 
 func (s *Settings) GetGlobalSkillsDir() string {
 	if s.SkillsDir != "" {
 		if strings.HasPrefix(s.SkillsDir, "~") {
-			home, _ := os.UserHomeDir()
-			return filepath.Join(home, s.SkillsDir[1:])
+			return platform.ExpandHome(s.SkillsDir)
 		}
 		return s.SkillsDir
 	}
-	return filepath.Join(ConfigDir(), "skills")
+	return platform.SkillsDir()
 }
 
 func SaveGlobalSettings(s *Settings) error {

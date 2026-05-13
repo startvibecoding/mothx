@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeCoding Documentation</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 2em;
+            font-weight: 600;
+        }
+        
+        .language-switch {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .lang-btn {
+            padding: 8px 16px;
+            border: 2px solid white;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .lang-btn:hover {
+            background: white;
+            color: #2c3e50;
+        }
+        
+        .lang-btn.active {
+            background: white;
+            color: #2c3e50;
+        }
+        
+        .content-wrapper {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .sidebar {
+            width: 250px;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-nav {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar-nav h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .sidebar-nav a {
+            display: block;
+            color: #555;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar-nav a:hover {
+            background: #f0f0f0;
+            color: #2c3e50;
+        }
+        
+        .sidebar-nav a.active {
+            background: #3498db;
+            color: white;
+        }
+        
+        .main-content {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-height: 500px;
+        }
+        
+        .main-content h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .main-content h2 {
+            color: #34495e;
+            margin: 25px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .main-content h3 {
+            color: #7f8c8d;
+            margin: 20px 0 10px;
+        }
+        
+        .main-content p {
+            margin-bottom: 15px;
+        }
+        
+        .main-content a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .main-content a:hover {
+            text-decoration: underline;
+        }
+        
+        .main-content code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.9em;
+        }
+        
+        .main-content pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 15px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .main-content pre code {
+            background: transparent;
+            padding: 0;
+        }
+        
+        .main-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        .main-content th, .main-content td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        
+        .main-content th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        
+        .main-content tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        
+        .main-content blockquote {
+            border-left: 4px solid #3498db;
+            padding: 10px 20px;
+            margin: 15px 0;
+            background: #f8f9fa;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #7f8c8d;
+        }
+        
+        .error {
+            color: #e74c3c;
+            padding: 20px;
+            background: #fdf2f2;
+            border-radius: 5px;
+            border: 1px solid #fecaca;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #7f8c8d;
+            margin-top: 30px;
+        }
+        
+        @media (max-width: 768px) {
+            .content-wrapper {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+            }
+            
+            header .container {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>VibeCoding Documentation</h1>
+            <div class="language-switch">
+                <button class="lang-btn active" onclick="switchLanguage('zh')">中文</button>
+                <button class="lang-btn" onclick="switchLanguage('en')">English</button>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="content-wrapper">
+            <aside class="sidebar">
+                <nav class="sidebar-nav" id="sidebar">
+                    <!-- Dynamic sidebar content -->
+                </nav>
+            </aside>
+            
+            <main class="main-content" id="content">
+                <div class="loading">Loading documentation...</div>
+            </main>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 VibeCoding. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        let currentLanguage = 'zh';
+        let currentDoc = 'README';
+        
+        const docs = {
+            zh: {
+                title: 'VibeCoding 文档中心',
+                items: [
+                    { id: 'README', title: '文档首页' },
+                    { id: 'getting-started', title: '快速入门' },
+                    { id: 'cli-reference', title: '命令行参考' },
+                    { id: 'configuration', title: '配置详解' },
+                    { id: 'architecture', title: '系统架构' },
+                    { id: 'tools', title: '工具系统' },
+                    { id: 'security', title: '安全与沙箱' },
+                    { id: 'sessions', title: '会话管理' },
+                    { id: 'development', title: '开发指南' },
+                    { id: 'faq', title: '常见问题' }
+                ]
+            },
+            en: {
+                title: 'VibeCoding Documentation Center',
+                items: [
+                    { id: 'README', title: 'Documentation Home' },
+                    { id: 'getting-started', title: 'Quick Start' },
+                    { id: 'cli-reference', title: 'CLI Reference' },
+                    { id: 'configuration', title: 'Configuration Guide' },
+                    { id: 'architecture', title: 'System Architecture' },
+                    { id: 'tools', title: 'Tool System' },
+                    { id: 'security', title: 'Security & Sandbox' },
+                    { id: 'sessions', title: 'Session Management' },
+                    { id: 'development', title: 'Development Guide' },
+                    { id: 'faq', title: 'FAQ' }
+                ]
+            }
+        };
+        
+        function getDocPath(lang, docId) {
+            const langDir = lang === 'zh' ? 'zh' : 'en';
+            return `${langDir}/${docId}.md`;
+        }
+        
+        async function loadDocument(docId) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="loading">Loading document...</div>';
+            
+            try {
+                const response = await fetch(getDocPath(currentLanguage, docId));
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const text = await response.text();
+                contentDiv.innerHTML = marked.parse(text);
+                currentDoc = docId;
+                
+                // Update active state in sidebar
+                document.querySelectorAll('.sidebar-nav a').forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-doc') === docId) {
+                        link.classList.add('active');
+                    }
+                });
+                
+                // Handle internal links
+                handleInternalLinks();
+            } catch (error) {
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Error Loading Document</h3>
+                        <p>${error.message}</p>
+                        <p>Please check if the documentation files exist.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function handleInternalLinks() {
+            document.querySelectorAll('.main-content a').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && href.endsWith('.md')) {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const docId = href.replace('.md', '').replace('../', '').replace('./', '');
+                        loadDocument(docId);
+                    });
+                }
+            });
+        }
+        
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Update language buttons
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === (lang === 'zh' ? '中文' : 'English')) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Update page title
+            document.title = docs[lang].title;
+            
+            // Update sidebar
+            updateSidebar();
+            
+            // Reload current document
+            loadDocument(currentDoc);
+        }
+        
+        function updateSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const langDocs = docs[currentLanguage];
+            
+            let html = `<h3>${currentLanguage === 'zh' ? '文档目录' : 'Table of Contents'}</h3>`;
+            
+            langDocs.items.forEach(item => {
+                html += `<a href="#" data-doc="${item.id}" onclick="loadDocument('${item.id}'); return false;">${item.title}</a>`;
+            });
+            
+            sidebar.innerHTML = html;
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateSidebar();
+            loadDocument('README');
+        });
+    </script>
+</body>
+</html>

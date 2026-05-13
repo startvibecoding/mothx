@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/fuckvibecoding/vibecoding/internal/platform"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 )
 
@@ -12,15 +13,29 @@ import (
 func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string) string {
 	var sb strings.Builder
 
+	// Get platform-specific shell
+	shell := platform.DefaultShell()
+
 	// Core identity and environment
 	sb.WriteString(fmt.Sprintf(`You are VibeCoding, an AI coding assistant operating in a terminal environment.
 
 ## Environment
 - Working directory: %s
 - OS: %s %s
-- Shell: /bin/bash
+- Shell: %s
 
-`, cwd, runtime.GOOS, runtime.GOARCH))
+`, cwd, platform.OS(), runtime.GOARCH, shell))
+
+	// Platform-specific notes
+	if platform.IsWindows() {
+		sb.WriteString(`Note: You are running on Windows. Use Windows-compatible commands (PowerShell/cmd).
+Path separators should use backslashes (\). Environment variables use %VAR% syntax.
+`)
+	} else if platform.IsMacOS() {
+		sb.WriteString(`Note: You are running on macOS. Some commands may differ from Linux (e.g., sed, grep flags).
+`)
+	}
+	sb.WriteString("\n")
 
 	// Mode-specific instructions
 	switch mode {
