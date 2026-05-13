@@ -17,21 +17,30 @@ import (
 
 // BashTool executes shell commands.
 type BashTool struct {
-	registry *Registry
+	registry   *Registry
+	jobManager *JobManager
 }
 
 // NewBashTool creates a new bash tool.
 func NewBashTool(r *Registry) *BashTool {
-	return &BashTool{registry: r}
+	return &BashTool{
+		registry:   r,
+		jobManager: NewJobManager(),
+	}
+}
+
+// GetJobManager returns the job manager for background processes.
+func (t *BashTool) GetJobManager() *JobManager {
+	return t.jobManager
 }
 
 func (t *BashTool) Name() string { return "bash" }
 
 func (t *BashTool) Description() string {
 	if platform.IsWindows() {
-		return "Execute a shell command (PowerShell/cmd). Use this to run commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s)."
+		return "Execute a shell command (PowerShell/cmd). Use this to run commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
 	}
-	return "Execute a bash command. Use this to run shell commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s)."
+	return "Execute a bash command. Use this to run shell commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
 }
 
 func (t *BashTool) Parameters() json.RawMessage {
@@ -45,6 +54,10 @@ func (t *BashTool) Parameters() json.RawMessage {
 			"timeout": {
 				"type": "integer",
 				"description": "Timeout in seconds (default 120, max 600)"
+			},
+			"async": {
+				"type": "boolean",
+				"description": "Run command in background (for long-running services like servers). Returns immediately with a job ID. Use 'jobs' tool to check status."
 			}
 		},
 		"required": ["command"]
@@ -57,6 +70,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		return "", fmt.Errorf("command is required")
 	}
 
+	// Check for async mode
+	async, _ := params["async"].(bool)
+
 	timeout := 120 * time.Second
 	if v, ok := params["timeout"].(float64); ok && v > 0 {
 		if v > 600 {
@@ -65,8 +81,15 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		timeout = time.Duration(v) * time.Second
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	// For async commands, use a background context (no timeout unless specified)
+	var cmdCtx context.Context
+	var cancel context.CancelFunc
+	if async {
+		cmdCtx, cancel = context.WithCancel(context.Background())
+	} else {
+		cmdCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 
 	// Get platform-specific shell
 	shell := platform.DefaultShell()
@@ -84,14 +107,36 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 			Timeout: timeout,
 			EnvVars: make(map[string]string),
 		}
-		cmd = sb.WrapCommand(ctx, shell, command, opts)
+		cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
 	} else {
 		// Use platform-specific shell arguments
 		args := platform.ShellArgs(shell, command)
-		cmd = exec.CommandContext(ctx, shell, args...)
+		cmd = exec.CommandContext(cmdCtx, shell, args...)
 		cmd.Dir = workDir
 	}
 
+	// Async mode: start in background and return immediately
+	if async {
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start background command: %w", err)
+		}
+
+		job := t.jobManager.AddJob(cmd, command, cancel)
+
+		// Wait in background and mark done when finished
+		go func() {
+			err := cmd.Wait()
+			job.MarkDone(stdout.Bytes(), stderr.Bytes(), err)
+		}()
+
+		return fmt.Sprintf("Started background job [%d] (PID: %d): %s\nUse 'jobs' tool to check status or 'kill' to stop.", job.ID, job.PID, command), nil
+	}
+
+	// Synchronous mode
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
