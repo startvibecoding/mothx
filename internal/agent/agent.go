@@ -218,7 +218,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 	// Track consecutive iterations without text output for loop detection
 	consecutiveNoText := 0
-	const maxConsecutiveNoText = 15 // Threshold to trigger stuck detection
+	const maxConsecutiveNoText = 95 // Threshold to trigger stuck detection
 	const maxConsecutiveNoTextAfterWarning = 5 // After warning, allow 5 more turns before stopping
 	warningIssued := false
 
