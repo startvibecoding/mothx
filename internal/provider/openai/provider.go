@@ -110,6 +110,7 @@ type streamOptions struct {
 type openAIMessage struct {
 	Role       string           `json:"role"`
 	Content    interface{}      `json:"content"`
+	Reasoning  string           `json:"reasoning_content,omitempty"`
 	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string           `json:"tool_call_id,omitempty"`
 	Name       string           `json:"name,omitempty"`
@@ -367,6 +368,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 			om.Content = msg.Content
 		} else if len(msg.Contents) > 0 {
 			var blocks []openAIContentBlock
+			var reasoningContent string
 			for _, c := range msg.Contents {
 				switch c.Type {
 				case "text":
@@ -375,12 +377,21 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 					if c.Image != nil {
 						blocks = append(blocks, openAIContentBlock{Type: "image_url", ImageURL: &openAIImage{URL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)}})
 					}
+				case "thinking":
+					// Store reasoning content for OpenAI-compatible APIs
+					if !p.disableReasoning {
+						reasoningContent += c.Thinking
+					}
 				}
 			}
 			if len(blocks) == 1 && blocks[0].Type == "text" {
 				om.Content = blocks[0].Text
 			} else {
 				om.Content = blocks
+			}
+			// Set reasoning content if available
+			if reasoningContent != "" {
+				om.Reasoning = reasoningContent
 			}
 		} else {
 			om.Content = msg.Content
