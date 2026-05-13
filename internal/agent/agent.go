@@ -135,7 +135,7 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 	loopConfig := AgentLoopConfig{
 		Config:            cfg,
 		ToolExecutionMode: "parallel",
-		MaxIterations:     50,
+		MaxIterations:     200,
 	}
 
 	return &Agent{
@@ -151,7 +151,7 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 // NewWithLoopConfig creates a new agent with custom loop configuration.
 func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 	if cfg.MaxIterations == 0 {
-		cfg.MaxIterations = 50
+		cfg.MaxIterations = 200
 	}
 	if cfg.ToolExecutionMode == "" {
 		cfg.ToolExecutionMode = "parallel"
@@ -215,6 +215,12 @@ func (a *Agent) RunWithMessages(ctx context.Context, messages []provider.Message
 // loop runs the main agent loop: send message -> receive response -> execute tools -> repeat.
 func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 	ch <- Event{Type: EventAgentStart}
+
+	// Track consecutive iterations without text output for loop detection
+	consecutiveNoText := 0
+	const maxConsecutiveNoText = 15 // Threshold to trigger stuck detection
+	const maxConsecutiveNoTextAfterWarning = 5 // After warning, allow 5 more turns before stopping
+	warningIssued := false
 
 	for i := 0; i < a.config.MaxIterations; i++ {
 		select {
@@ -285,7 +291,12 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			case provider.StreamToolCall:
 				if event.ToolCall != nil {
 					toolCalls = append(toolCalls, *event.ToolCall)
-					ch <- Event{Type: EventToolCall, ToolCall: event.ToolCall}
+					// Parse arguments for the event
+					var args map[string]any
+					if len(event.ToolCall.Arguments) > 0 {
+						json.Unmarshal(event.ToolCall.Arguments, &args)
+					}
+					ch <- Event{Type: EventToolCall, ToolCall: event.ToolCall, ToolArgs: args}
 				}
 			case provider.StreamUsage:
 				usage = event.Usage
@@ -342,6 +353,35 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		// Calculate cost
 		if usage != nil && a.config.Model != nil {
 			usage.CalculateCost(a.config.Model)
+		}
+
+		// Track progress for loop detection
+		if textContent == "" {
+			consecutiveNoText++
+			threshold := maxConsecutiveNoText
+			if warningIssued {
+				threshold = maxConsecutiveNoTextAfterWarning
+			}
+			if consecutiveNoText >= threshold {
+				if !warningIssued {
+					// Inject a warning message to let the AI explain itself
+					warningMsg := provider.NewUserMessage("[System] You have been making tool calls for " + fmt.Sprintf("%d", consecutiveNoText) + " consecutive turns without any text response. Please explain what you are doing and whether you are stuck. If you are making progress, briefly describe your current task and continue. If you are truly stuck, please stop and explain the issue.")
+					ch <- Event{Type: EventMessageStart, Message: warningMsg}
+					ch <- Event{Type: EventMessageEnd, Message: warningMsg}
+					a.messages = append(a.messages, warningMsg)
+					a.context.Messages = append(a.context.Messages, warningMsg)
+					warningIssued = true
+					consecutiveNoText = 0 // Reset counter for post-warning phase
+				} else {
+					// Already warned, now truly stuck
+					ch <- Event{Type: EventError, Error: fmt.Errorf("agent appears stuck: %d consecutive turns without text output after warning", consecutiveNoText+maxConsecutiveNoText), StopReason: "stuck"}
+					ch <- Event{Type: EventAgentEnd, Messages: a.messages}
+					return
+				}
+			}
+		} else {
+			consecutiveNoText = 0
+			warningIssued = false // AI responded with text, reset warning state
 		}
 
 		// If no tool calls, we're done
