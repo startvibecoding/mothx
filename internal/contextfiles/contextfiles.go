@@ -128,7 +128,9 @@ func BuildContextString(result *LoadResult) string {
 	}
 
 	sb.WriteString("\n## Project Context\n\n")
-	sb.WriteString("The following context files have been loaded from the project and configuration directories:\n\n")
+	sb.WriteString("The following context files have been loaded from the project and configuration directories.\n")
+	sb.WriteString("IMPORTANT: These files contain project-specific conventions, architecture details, and coding guidelines.\n")
+	sb.WriteString("Always consult them first before exploring the codebase with commands like ls, find, or grep.\n\n")
 
 	// Global files (lowest priority)
 	for _, f := range result.GlobalFiles {

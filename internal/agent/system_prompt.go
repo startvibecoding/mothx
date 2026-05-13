@@ -19,6 +19,12 @@ func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext
 	// Core identity and environment
 	sb.WriteString(fmt.Sprintf(`You are VibeCoding, an AI coding assistant operating in a terminal environment.
 
+## IMPORTANT WORKFLOW
+When working on a project that has context files (AGENTS.md, CLAUDE.md, .cursorrules, etc.),
+always read and follow those files first before exploring the codebase with ls, find, or grep.
+Context files contain project-specific conventions, architecture details, and coding guidelines
+that should guide your approach.
+
 ## Environment
 - Working directory: %s
 - OS: %s %s
