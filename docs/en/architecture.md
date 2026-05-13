@@ -13,7 +13,9 @@ vibecoding/
 │   │   ├── provider.go          # Provider interface adapter
 │   │   └── system_prompt.go     # System prompt generation
 │   ├── config/                  # Configuration management
+│   ├── context/                 # Context management and token estimation
 │   ├── contextfiles/            # Context file loading
+│   ├── platform/                # Cross-platform compatibility utilities
 │   ├── provider/                # LLM Provider abstraction
 │   │   ├── anthropic/           # Anthropic Messages API
 │   │   └── openai/              # OpenAI Chat Completions API
@@ -28,7 +30,8 @@ vibecoding/
 │   │   ├── grep.go              # Content search
 │   │   ├── find.go              # File finding
 │   │   └── ls.go                # Directory listing
-│   └── tui/                     # Terminal UI (BubbleTea)
+│   ├── tui/                     # Terminal UI (BubbleTea)
+│   └── ua/                      # User-Agent string generation
 └── pkg/sdk/                     # Public SDK (future)
 ```
 

@@ -147,6 +147,7 @@ cat main.go | vibecoding -p "解释这个文件"
 | `/mode [plan\|agent\|yolo]` | 切换模式 |
 | `/model` | 显示当前模型 |
 | `/think` | 循环切换思考级别 |
+| `/skills` | 列出已加载的技能 |
 | `/clear` | 清空对话 |
 | `/help` | 显示帮助 |
 | `/quit` | 退出 |
@@ -173,6 +174,7 @@ cat main.go | vibecoding -p "解释这个文件"
 | `VIBECODING_MODEL` | 覆盖默认模型 |
 | `VIBECODING_MODE` | 覆盖默认模式 |
 | `VIBECODING_THINKING` | 覆盖默认思考级别 |
+| `VIBECODING_USER_AGENT` | 自定义 User-Agent 字符串 |
 
 ## 退出码
 

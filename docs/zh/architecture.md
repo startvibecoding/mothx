@@ -13,7 +13,9 @@ vibecoding/
 │   │   ├── provider.go          # Provider 接口适配
 │   │   └── system_prompt.go     # 系统提示词生成
 │   ├── config/                  # 配置管理
+│   ├── context/                 # 上下文管理和 token 估算
 │   ├── contextfiles/            # 上下文文件加载
+│   ├── platform/                # 跨平台兼容工具
 │   ├── provider/                # LLM Provider 抽象
 │   │   ├── anthropic/           # Anthropic Messages API
 │   │   └── openai/              # OpenAI Chat Completions API
@@ -28,7 +30,8 @@ vibecoding/
 │   │   ├── grep.go              # 内容搜索
 │   │   ├── find.go              # 文件查找
 │   │   └── ls.go                # 目录列表
-│   └── tui/                     # 终端 UI (BubbleTea)
+│   ├── tui/                     # 终端 UI (BubbleTea)
+│   └── ua/                      # User-Agent 字符串生成
 └── pkg/sdk/                     # 公共 SDK (未来)
 ```
 

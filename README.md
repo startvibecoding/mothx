@@ -1,10 +1,10 @@
 # VibeCoding
 
-A vibe code AI coding assistant written in Go, inspired by [pi.dev](https://pi.dev).
+A terminal-based AI coding assistant written in Go, inspired by [pi.dev](https://pi.dev).
 
 ## Features
 
-- **Dual API Support**: OpenAI (GPT-4o, o1, o3-mini) and Anthropic (Claude 4 Sonnet, 3.5 Sonnet, Haiku, Opus)
+- **Multi-Provider Support**: OpenAI (GPT-4o, o1, o3-mini), Anthropic (Claude 4 Sonnet, 3.5 Sonnet, Haiku, Opus), and custom providers
 - **SSE Streaming**: Real-time token streaming for fast response delivery
 - **Think Mode**: Extended thinking/reasoning support (Anthropic extended thinking, OpenAI reasoning effort)
 - **Three Modes**:
@@ -30,6 +30,12 @@ Or build from source:
 git clone https://github.com/fuckvibecoding/vibecoding.git
 cd vibecoding
 make build
+```
+
+### Cross-compile
+
+```bash
+make build-all    # Build for linux/amd64, darwin/amd64, darwin/arm64, windows/amd64
 ```
 
 ### Configure
@@ -98,6 +104,7 @@ vibecoding --no-sandbox
   "defaultThinkingLevel": "medium",
   "defaultMode": "agent",
   "maxContextTokens": 200000,
+  "maxOutputTokens": 16384,
   "compaction": {
     "enabled": true,
     "reserveTokens": 16384,
@@ -107,6 +114,14 @@ vibecoding --no-sandbox
     "enabled": true,
     "level": "standard",
     "allowNetwork": false
+  },
+  "contextFiles": {
+    "enabled": true
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
   }
 }
 ```
@@ -122,6 +137,7 @@ vibecoding --no-sandbox
 | `VIBECODING_MODEL` | Override default model |
 | `VIBECODING_MODE` | Override default mode |
 | `VIBECODING_THINKING` | Override default thinking level |
+| `VIBECODING_USER_AGENT` | Custom User-Agent string |
 
 ## Sandbox Security
 
@@ -150,18 +166,20 @@ sudo pacman -S bubblewrap
 
 ```
 vibecoding [flags] [message...]
+Aliases: vc
 
 Flags:
-  -p, --provider string    Provider (openai, anthropic)
+  -p, --provider string    Provider (openai, anthropic, or custom provider name)
   -m, --model string       Model ID
   -M, --mode string        Mode (plan, agent, yolo)
   -t, --thinking string    Thinking level (off, minimal, low, medium, high, xhigh)
   -c, --continue           Continue most recent session
   -r, --resume string      Resume session by ID or path
-      --session string     Use specific session file
-      --no-sandbox         Disable sandbox
+      --session string     Use specific session file or ID
+      --sandbox            Enable sandbox (bwrap) for secure execution
   -P, --print              Print response and exit (non-interactive)
       --verbose            Verbose output
+      --debug              Enable debug logging
   -v, --version            Show version
   -h, --help               Show help
 ```
@@ -173,6 +191,7 @@ Flags:
 | `/mode [plan\|agent\|yolo]` | Switch mode |
 | `/model` | Show current model |
 | `/think` | Cycle thinking level |
+| `/skills` | List loaded skills |
 | `/clear` | Clear conversation |
 | `/help` | Show help |
 | `/quit` | Exit |
@@ -194,6 +213,8 @@ make test       # Run tests
 make lint       # Run linter
 make fmt        # Format code
 make clean      # Clean build artifacts
+make build-all  # Cross-compile for all platforms
+make dist       # Build distribution packages (.deb, .tar.gz)
 ```
 
 ## Architecture
@@ -203,14 +224,19 @@ vibecoding/
 ├── cmd/vibecoding/        # CLI entry point
 ├── internal/
 │   ├── agent/             # Core agent loop
+│   ├── config/            # Configuration system
+│   ├── context/           # Context management and token estimation
+│   ├── contextfiles/      # Context file discovery (AGENTS.md, CLAUDE.md, etc.)
+│   ├── platform/          # Cross-platform compatibility utilities
 │   ├── provider/          # LLM provider abstraction
 │   │   ├── openai/        # OpenAI Chat Completions API
 │   │   └── anthropic/     # Anthropic Messages API
-│   ├── tools/             # Tool implementations
-│   ├── session/           # Session management (JSONL)
-│   ├── config/            # Configuration system
 │   ├── sandbox/           # Sandbox (bwrap) implementation
-│   └── tui/               # Terminal UI (BubbleTea)
+│   ├── session/           # Session management (JSONL)
+│   ├── skills/            # Skills system
+│   ├── tools/             # Tool implementations
+│   ├── tui/               # Terminal UI (BubbleTea)
+│   └── ua/                # User-Agent string generation
 └── pkg/sdk/               # Public SDK interface
 ```
 

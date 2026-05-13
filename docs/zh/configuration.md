@@ -282,21 +282,81 @@ VibeCoding 会自动搜索并加载以下文件:
    - `.vibe/AGENTS.md`
    - `.vibe/CLAUDE.md`
 
-### skills
+### skillsDir
 
-技能系统配置。
+技能目录路径。
 
 ```json
 {
-  "skills": {
+  "skillsDir": "~/.vibecoding/skills"
+}
+```
+
+技能文件结构:
+- 全局技能: `~/.vibecoding/skills/<name>/SKILL.md`
+- 项目技能: `.skills/<name>/SKILL.md` (覆盖全局)
+
+### sessionDir
+
+会话文件存储目录。
+
+```json
+{
+  "sessionDir": "~/.vibecoding/sessions"
+}
+```
+
+### shellPath
+
+自定义 shell 路径，用于 bash 工具。
+
+```json
+{
+  "shellPath": "/bin/bash"
+}
+```
+
+### shellCommandPrefix
+
+自定义命令前缀。
+
+```json
+{
+  "shellCommandPrefix": ""
+}
+```
+
+### theme
+
+UI 主题。
+
+```json
+{
+  "theme": "dark"
+}
+```
+
+可选值: `dark`, `light`
+
+### retry
+
+API 调用重试配置。
+
+```json
+{
+  "retry": {
     "enabled": true,
-    "dirs": [
-      "~/.vibecoding/skills",
-      ".skills"
-    ]
+    "maxRetries": 3,
+    "baseDelayMs": 2000
   }
 }
 ```
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `enabled` | bool | true | 是否启用重试 |
+| `maxRetries` | int | 3 | 最大重试次数 |
+| `baseDelayMs` | int | 2000 | 基础延迟 (毫秒) |
 
 ## 认证配置
 

@@ -6,7 +6,7 @@ VibeCoding is a terminal-based AI coding assistant written in Go, inspired by [p
 
 ## Tech Stack
 
-- **Language**: Go 1.23+
+- **Language**: Go 1.24+
 - **TUI**: BubbleTea + Lipgloss + Glamour
 - **CLI**: Cobra
 - **Sandbox**: bubblewrap (bwrap) on Linux
@@ -23,12 +23,14 @@ vibecoding/
 │   ├── development.md       # Development guide
 │   ├── security.md          # Security documentation
 │   ├── sessions.md          # Session management
+│   ├── skills.md            # Skills documentation
 │   ├── tools.md             # Tools documentation
 │   ├── zh/                  # Chinese documentation
 │   └── en/                  # English documentation
 ├── internal/
 │   ├── agent/               # Core agent loop and system prompts
 │   ├── config/              # Settings, auth, configuration
+│   ├── context/             # Context management and token estimation
 │   ├── contextfiles/        # Context file discovery (AGENTS.md, CLAUDE.md, etc.)
 │   ├── platform/            # Cross-platform compatibility utilities
 │   ├── provider/            # LLM provider abstraction
@@ -38,7 +40,8 @@ vibecoding/
 │   ├── session/             # Session management (JSONL format)
 │   ├── skills/              # Skills system
 │   ├── tools/               # Tool implementations
-│   └── tui/                 # Terminal UI
+│   ├── tui/                 # Terminal UI
+│   └── ua/                  # User-Agent string generation
 └── pkg/sdk/                 # Public SDK (future)
 ```
 
@@ -81,6 +84,11 @@ make build
 
 # Install
 make install
+
+# Cross-compile for all platforms
+make build-all
+
+# Build distribution packages\make dist
 ```
 
 ## Configuration
@@ -92,8 +100,15 @@ Key settings:
 - `defaultProvider` / `defaultModel`: Default selections
 - `defaultMode`: "plan", "agent", or "yolo"
 - `defaultThinkingLevel`: "off", "minimal", "low", "medium", "high", "xhigh"
+- `maxContextTokens`: Maximum context window size
+- `maxOutputTokens`: Maximum output tokens
 - `sandbox.enabled`: Enable sandbox (default: false)
 - `contextFiles.enabled`: Auto-load context files
+- `compaction`: Context compaction settings
+- `retry`: Retry settings for API calls
+- `theme`: UI theme ("dark" or "light")
+- `shellPath`: Custom shell path for bash tool
+- `shellCommandPrefix`: Custom command prefix
 
 ## Code Conventions
 
@@ -109,6 +124,13 @@ JSONL files with tree structure:
 - `id` / `parentId` for branching
 - Entry types: `session`, `message`, `model_change`, `compaction`, `label`
 - Stored in `~/.vibecoding/sessions/--<encoded-path>--/`
+
+## Skills System
+
+Skills are reusable prompt snippets stored as SKILL.md files:
+- Global skills: `~/.vibecoding/skills/<name>/SKILL.md`
+- Project skills: `.skills/<name>/SKILL.md` (overrides global)
+- Project skills override global skills with the same name
 
 ## Testing
 

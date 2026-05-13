@@ -14,6 +14,7 @@ Welcome to the VibeCoding Documentation Center!
 ### Architecture
 - [System Architecture](architecture.md) - Project structure, core components, data flow
 - [Tool System](tools.md) - Built-in tools usage guide
+- [Skills System](skills.md) - Reusable prompt snippets
 
 ### Security
 - [Security & Sandbox](security.md) - Sandbox modes, permission control
