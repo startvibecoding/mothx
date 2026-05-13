@@ -9,13 +9,25 @@ import (
 	"strings"
 )
 
+// SkillReference represents a reference file within a skill.
+type SkillReference struct {
+	Path      string // relative path (e.g. "references/audio.md")
+	FullPath  string // absolute path
+	Label     string // display label (e.g. "音频")
+	AutoLoad  bool   // true if marked [已加载], false if [待按需加载]
+	Loaded    bool   // whether this reference has been loaded
+	Content   string // loaded content
+}
+
 // Skill represents a loaded skill.
 type Skill struct {
 	Name        string // skill name (directory name)
 	Path        string // absolute path to SKILL.md
+	Dir         string // skill directory
 	Description string // first line or heading description
 	Content     string // full SKILL.md content
 	Source      string // "global" or "project"
+	References  []*SkillReference // parsed references
 }
 
 // Manager manages skill discovery and loading.
@@ -88,12 +100,16 @@ func (m *Manager) loadFromDir(dir string, source string) error {
 		skill := &Skill{
 			Name:    entry.Name(),
 			Path:    skillFile,
+			Dir:     skillDir,
 			Content: string(data),
 			Source:  source,
 		}
 
 		// Extract description from first heading or first non-empty line
 		skill.Description = extractDescription(string(data))
+
+		// Parse references from SKILL.md
+		skill.References = parseReferences(string(data), skillDir)
 
 		m.skills[entry.Name()] = skill
 	}
@@ -143,12 +159,185 @@ func (m *Manager) Names() []string {
 }
 
 // BuildSkillContext returns the content of a skill for injection into the system prompt.
+// It includes the SKILL.md content plus all auto-loaded references.
 func (m *Manager) BuildSkillContext(name string) string {
 	skill := m.Get(name)
 	if skill == nil {
 		return ""
 	}
-	return fmt.Sprintf("\n## Active Skill: %s\n\n%s\n", skill.Name, skill.Content)
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("\n## Active Skill: %s\n\n%s\n", skill.Name, skill.Content))
+
+	// Auto-load references marked as [已加载]
+	for _, ref := range skill.References {
+		if ref.AutoLoad {
+			if content := loadReferenceContent(ref); content != "" {
+				ref.Loaded = true
+				ref.Content = content
+				sb.WriteString(fmt.Sprintf("\n### Reference: %s\n\n%s\n", ref.Label, content))
+			}
+		}
+	}
+
+	// Add reference loading instructions if there are on-demand references
+	hasOnDemand := false
+	var onDemandRefs []string
+	for _, ref := range skill.References {
+		if !ref.AutoLoad {
+			if !hasOnDemand {
+				sb.WriteString("\n### On-Demand References\n\n")
+				sb.WriteString("The following references are available but not loaded. " +
+					"Use the `skill_ref` tool to load them when needed:\n\n")
+				hasOnDemand = true
+			}
+			onDemandRefs = append(onDemandRefs, fmt.Sprintf("- `%s` (%s)", ref.Path, ref.Label))
+		}
+	}
+	if hasOnDemand {
+		sb.WriteString(strings.Join(onDemandRefs, "\n"))
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+// LoadReference loads a specific reference file by path for a skill.
+// Returns the content and true if successful.
+func (m *Manager) LoadReference(skillName, refPath string) (string, bool) {
+	skill := m.Get(skillName)
+	if skill == nil {
+		return "", false
+	}
+
+	// Normalize the path
+	refPath = filepath.Clean(refPath)
+
+	for _, ref := range skill.References {
+		if ref.Path == refPath || filepath.Clean(ref.Path) == refPath {
+			if ref.Loaded {
+				return ref.Content, true
+			}
+			if content := loadReferenceContent(ref); content != "" {
+				ref.Loaded = true
+				ref.Content = content
+				return content, true
+			}
+			return "", false
+		}
+	}
+
+	// Try loading directly from the skill directory
+	fullPath := filepath.Join(skill.Dir, refPath)
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return "", false
+	}
+
+	content := string(data)
+	// Add to references list for tracking
+	skill.References = append(skill.References, &SkillReference{
+		Path:     refPath,
+		FullPath: fullPath,
+		Label:    refPath,
+		AutoLoad: false,
+		Loaded:   true,
+		Content:  content,
+	})
+	return content, true
+}
+
+// ListReferences returns the reference files for a skill with their load status.
+func (m *Manager) ListReferences(skillName string) []*SkillReference {
+	skill := m.Get(skillName)
+	if skill == nil {
+		return nil
+	}
+	return skill.References
+}
+
+// loadReferenceContent reads the content of a reference file.
+func loadReferenceContent(ref *SkillReference) string {
+	data, err := os.ReadFile(ref.FullPath)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// parseReferences parses reference links from SKILL.md content.
+// It looks for patterns like:
+//   - Section headers: "### N. Label (references/file.md) [已加载]" or "[待按需加载]"
+//   - Markdown links: "- [Label](references/file.md)"
+func parseReferences(content, skillDir string) []*SkillReference {
+	var refs []*SkillReference
+	seen := make(map[string]bool)
+
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Pattern 1: Section headers with (path) [status]
+		// e.g.: "### 1. 基础 (references/base.md) [已加载]"
+		if strings.HasPrefix(line, "###") {
+			pathStart := strings.Index(line, "(")
+			pathEnd := strings.Index(line, ")")
+			if pathStart > 0 && pathEnd > pathStart {
+				path := line[pathStart+1 : pathEnd]
+				if strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".txt") {
+					fullPath := filepath.Join(skillDir, path)
+					if !seen[path] {
+						seen[path] = true
+						label := strings.TrimPrefix(line, "#")
+						label = strings.TrimSpace(label)
+						// Remove the path part
+						if idx := strings.Index(label, "("); idx > 0 {
+							label = strings.TrimSpace(label[:idx])
+							// Remove leading number and dot
+							label = strings.TrimLeft(label, "0123456789. ")
+						}
+						autoLoad := strings.Contains(line, "[已加载]")
+						refs = append(refs, &SkillReference{
+							Path:     path,
+							FullPath: fullPath,
+							Label:    label,
+							AutoLoad: autoLoad,
+						})
+					}
+				}
+			}
+		}
+
+		// Pattern 2: Markdown links at bottom
+		// e.g.: "- [基础](references/base.md)"
+		if strings.HasPrefix(line, "-") && strings.Contains(line, "[") && strings.Contains(line, "](") {
+			linkStart := strings.Index(line, "](")
+			linkEnd := strings.Index(line[linkStart+2:], ")")
+			if linkStart > 0 && linkEnd > 0 {
+				path := line[linkStart+2 : linkStart+2+linkEnd]
+				if (strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".txt")) && !seen[path] {
+					seen[path] = true
+					fullPath := filepath.Join(skillDir, path)
+					// Extract label
+					labelStart := strings.Index(line, "[")
+					label := ""
+					if labelStart >= 0 && labelStart < linkStart {
+						label = line[labelStart+1 : linkStart]
+					}
+					// Check if this ref was already parsed with autoLoad info from headers
+					// If not, default to on-demand
+					refs = append(refs, &SkillReference{
+						Path:     path,
+						FullPath: fullPath,
+						Label:    label,
+						AutoLoad: false,
+					})
+				}
+			}
+		}
+	}
+
+	return refs
 }
 
 // BuildAllSkillsContext returns a summary of all available skills for the system prompt.
