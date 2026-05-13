@@ -59,6 +59,13 @@ type InputEvent struct {
 	arrived time.Time
 }
 
+// toolResult stores tool result information
+type toolResult struct {
+	toolName    string
+	summary     string // Short summary for collapsed view
+	fullContent string // Full content for expanded view
+}
+
 // App is the main TUI application.
 type App struct {
 	provider    provider.Provider
@@ -77,6 +84,7 @@ type App struct {
 
 	// State
 	messages   []string
+	toolResults []toolResult // Store tool results for expansion
 	isThinking bool
 	agent      *agent.Agent
 	eventCh    <-chan agent.Event
@@ -98,6 +106,9 @@ type App struct {
 
 	// Initial message to display
 	initialMessage string
+
+	// Tool output expansion
+	toolOutputExpanded bool
 
 	// Render throttling
 	lastRender     time.Time
@@ -239,6 +250,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "end":
 			a.viewport.GotoBottom()
 			a.autoScroll = true
+			return a, nil
+		case "ctrl+o":
+			// Toggle tool output expansion
+			a.toolOutputExpanded = !a.toolOutputExpanded
+			a.updateViewportContent()
 			return a, nil
 		}
 
@@ -429,7 +445,29 @@ func (a *App) expandPasteMarkers(text string) string {
 }
 
 func (a *App) updateViewportContent() {
-	a.viewport.SetContent(strings.Join(a.messages, "\n\n"))
+	// Rebuild messages based on expansion state
+	var displayMessages []string
+	toolResultIdx := 0
+	
+	for _, msg := range a.messages {
+		if strings.Contains(msg, "🔧 [") && toolResultIdx < len(a.toolResults) {
+			// This is a tool result message
+			result := a.toolResults[toolResultIdx]
+			toolResultIdx++
+			
+			if a.toolOutputExpanded {
+				// Show full content
+				displayMessages = append(displayMessages, toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", result.toolName, result.fullContent)))
+			} else {
+				// Show summary
+				displayMessages = append(displayMessages, toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", result.toolName, result.summary)))
+			}
+		} else {
+			displayMessages = append(displayMessages, msg)
+		}
+	}
+	
+	a.viewport.SetContent(strings.Join(displayMessages, "\n\n"))
 	if a.autoScroll {
 		a.viewport.GotoBottom()
 	}
@@ -465,7 +503,11 @@ func (a *App) renderFooter() string {
 	if a.isThinking {
 		status += " | ⏳"
 	} else {
-		status += " | Tab:mode Esc:abort"
+		if a.toolOutputExpanded {
+			status += " | Tab:mode Esc:abort Ctrl+O:collapse"
+		} else {
+			status += " | Tab:mode Esc:abort Ctrl+O:expand"
+		}
 	}
 
 	return footerStyle.Width(a.width).Render(status)
@@ -597,14 +639,39 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	case agent.EventToolResult:
 		for i := len(a.messages) - 1; i >= 0; i-- {
 			if strings.Contains(a.messages[i], "🔧 [") {
-				// For bash commands, show full output
-				displayResult := event.ToolResult
-				if event.ToolName == "bash" {
-					// Show full bash output for security
-					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", event.ToolName, displayResult))
+				// Store tool result for expansion
+				result := toolResult{
+					toolName:    event.ToolName,
+					fullContent: event.ToolResult,
+				}
+				
+				// Create summary based on tool type
+				switch event.ToolName {
+				case "bash":
+					// For bash, show command and exit status
+					lines := strings.Split(event.ToolResult, "\n")
+					if len(lines) > 0 {
+						result.summary = lines[0] // First line is usually the command
+					}
+				case "read":
+					// For read, show line count
+					lines := strings.Split(event.ToolResult, "\n")
+					result.summary = fmt.Sprintf("%d lines", len(lines))
+				case "write":
+					result.summary = "Written"
+				case "edit":
+					result.summary = "Applied"
+				default:
+					result.summary = truncate(event.ToolResult, 50)
+				}
+				
+				a.toolResults = append(a.toolResults, result)
+				
+				// Display based on expansion state
+				if a.toolOutputExpanded {
+					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", event.ToolName, event.ToolResult))
 				} else {
-					// Truncate other tool results
-					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, truncate(displayResult, 200)))
+					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, result.summary))
 				}
 				break
 			}
