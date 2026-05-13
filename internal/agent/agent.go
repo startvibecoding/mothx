@@ -294,7 +294,10 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 					// Parse arguments for the event
 					var args map[string]any
 					if len(event.ToolCall.Arguments) > 0 {
-						json.Unmarshal(event.ToolCall.Arguments, &args)
+						if err := json.Unmarshal(event.ToolCall.Arguments, &args); err != nil {
+							// Log parse error but continue - tool execution will handle invalid args
+							ch <- Event{Type: EventStatus, StatusMessage: fmt.Sprintf("Warning: failed to parse tool arguments: %v", err)}
+						}
 					}
 					ch <- Event{Type: EventToolCall, ToolCall: event.ToolCall, ToolArgs: args}
 				}
