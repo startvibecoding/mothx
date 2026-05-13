@@ -348,7 +348,12 @@ func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessag
 				case "toolCall":
 					if c.ToolCall != nil {
 						input := make(map[string]interface{})
-						json.Unmarshal(c.ToolCall.Arguments, &input)
+						if len(c.ToolCall.Arguments) > 0 {
+							if err := json.Unmarshal(c.ToolCall.Arguments, &input); err != nil {
+								// If unmarshal fails, use empty input
+								input = make(map[string]interface{})
+							}
+						}
 						blocks = append(blocks, anthropicContentBlock{Type: "tool_use", ID: c.ToolCall.ID, Name: c.ToolCall.Name, Input: input})
 					}
 				}
