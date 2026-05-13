@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/fuckvibecoding/vibecoding/internal/sandbox"
 )
@@ -47,7 +48,7 @@ func TestRegisterDefaults(t *testing.T) {
 	r := NewRegistry("/tmp", sb)
 	r.RegisterDefaults()
 
-	expectedTools := []string{"read", "write", "edit", "bash", "grep", "find", "ls"}
+	expectedTools := []string{"read", "write", "edit", "bash", "jobs", "kill", "grep", "find", "ls"}
 
 	for _, name := range expectedTools {
 		_, ok := r.Get(name)
@@ -87,8 +88,8 @@ func TestModeTools(t *testing.T) {
 
 	// Agent mode - all tools
 	agentTools := r.ModeTools("agent")
-	if len(agentTools) != 7 {
-		t.Errorf("expected 7 tools in agent mode, got %d", len(agentTools))
+	if len(agentTools) != 9 {
+		t.Errorf("expected 9 tools in agent mode, got %d", len(agentTools))
 	}
 }
 
@@ -262,6 +263,84 @@ func TestBashToolExecute(t *testing.T) {
 	}
 }
 
+func TestBashToolAsync(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	// Start async command
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "sleep 1",
+		"async":  true,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result == "" {
+		t.Error("expected non-empty result")
+	}
+
+	// Check job was created
+	jm := tool.GetJobManager()
+	jobs := jm.ListJobs()
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(jobs))
+	}
+
+	if jobs[0].ID != 1 {
+		t.Errorf("expected job ID 1, got %d", jobs[0].ID)
+	}
+
+	// Wait for job to finish
+	time.Sleep(2 * time.Second)
+
+	if !jobs[0].IsDone() {
+		t.Error("expected job to be done")
+	}
+}
+
+func TestJobsTool(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	bashTool := NewBashTool(r)
+	jobsTool := NewJobsTool(r, bashTool)
+
+	if jobsTool.Name() != "jobs" {
+		t.Errorf("expected name 'jobs', got '%s'", jobsTool.Name())
+	}
+
+	// List jobs - should be empty
+	result, err := jobsTool.Execute(context.Background(), map[string]any{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result != "No background jobs." {
+		t.Errorf("expected 'No background jobs.', got '%s'", result)
+	}
+}
+
+func TestKillTool(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	bashTool := NewBashTool(r)
+	killTool := NewKillTool(r, bashTool)
+
+	if killTool.Name() != "kill" {
+		t.Errorf("expected name 'kill', got '%s'", killTool.Name())
+	}
+
+	// Try to kill non-existent job
+	_, err := killTool.Execute(context.Background(), map[string]any{
+		"jobId": float64(999),
+	})
+	if err == nil {
+		t.Error("expected error for non-existent job")
+	}
+}
+
 func TestGrepTool(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)
@@ -399,8 +478,8 @@ func TestDefinitions(t *testing.T) {
 
 	defs := r.Definitions()
 
-	if len(defs) != 7 {
-		t.Errorf("expected 7 definitions, got %d", len(defs))
+	if len(defs) != 9 {
+		t.Errorf("expected 9 definitions, got %d", len(defs))
 	}
 }
 
@@ -411,7 +490,7 @@ func TestAll(t *testing.T) {
 
 	all := r.All()
 
-	if len(all) != 7 {
-		t.Errorf("expected 7 tools, got %d", len(all))
+	if len(all) != 9 {
+		t.Errorf("expected 9 tools, got %d", len(all))
 	}
 }
