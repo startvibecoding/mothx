@@ -144,6 +144,14 @@ type App struct {
 	// Approval state
 	waitingForApproval bool
 	pendingApprovalID  string
+	approvalQueue      []pendingApproval
+}
+
+// pendingApproval holds a queued approval request.
+type pendingApproval struct {
+	approvalID string
+	toolName   string
+	args       map[string]any
 }
 
 // NewApp creates a new TUI application.
@@ -336,8 +344,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						a.addMessage(statusStyle.Render("❌ Denied"))
 					}
 				}
-				a.waitingForApproval = false
-				a.pendingApprovalID = ""
+				// Show next queued approval or clear waiting state
+				if len(a.approvalQueue) > 0 {
+					a.showNextApproval()
+				} else {
+					a.waitingForApproval = false
+					a.pendingApprovalID = ""
+				}
 				a.input.Reset()
 				a.scheduleRender()
 				return a, nil
@@ -754,6 +767,29 @@ func (a *App) addMessage(msg string) {
 	a.updateViewportContent()
 }
 
+// showNextApproval pops the next approval request from the queue and displays it.
+func (a *App) showNextApproval() {
+	if len(a.approvalQueue) == 0 {
+		a.waitingForApproval = false
+		a.pendingApprovalID = ""
+		return
+	}
+	next := a.approvalQueue[0]
+	a.approvalQueue = a.approvalQueue[1:]
+	a.pendingApprovalID = next.approvalID
+	a.waitingForApproval = true
+	if len(a.approvalQueue) > 0 {
+		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s] (%d more pending)", next.toolName, len(a.approvalQueue))))
+	} else {
+		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s]", next.toolName)))
+	}
+	if len(next.args) > 0 {
+		argsJSON, _ := json.MarshalIndent(next.args, "", "  ")
+		a.addMessage(warningStyle.Render(string(argsJSON)))
+	}
+	a.addMessage(warningStyle.Render("Approve? (y/n): "))
+}
+
 func (a *App) cycleMode() {
 	modes := []string{"plan", "agent", "yolo"}
 	current := 0
@@ -1040,15 +1076,16 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return listenEvents(a.eventCh)
 
 	case agent.EventToolApprovalRequest:
-		// Display approval request to user
-		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s]", event.ApprovalTool)))
-		if len(event.ApprovalArgs) > 0 {
-			argsJSON, _ := json.MarshalIndent(event.ApprovalArgs, "", "  ")
-			a.addMessage(warningStyle.Render(string(argsJSON)))
+		// Queue the approval request
+		a.approvalQueue = append(a.approvalQueue, pendingApproval{
+			approvalID: event.ApprovalID,
+			toolName:   event.ApprovalTool,
+			args:       event.ApprovalArgs,
+		})
+		// If not currently waiting, show the next one
+		if !a.waitingForApproval {
+			a.showNextApproval()
 		}
-		a.addMessage(warningStyle.Render("Approve? (y/n): "))
-		a.pendingApprovalID = event.ApprovalID
-		a.waitingForApproval = true
 		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
