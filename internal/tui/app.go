@@ -114,6 +114,9 @@ type App struct {
 
 	// Context usage
 	contextUsage *ctxpkg.ContextUsage
+	
+	// Spinner state
+	spinnerIndex int
 
 	// Render throttling
 	lastRender     time.Time
@@ -176,6 +179,20 @@ func (a *App) processInputQueue() tea.Cmd {
 // inputQueueTickMsg is sent when the input queue should be processed
 type inputQueueTickMsg time.Time
 
+// spinnerTickMsg is sent to update the spinner animation
+type spinnerTickMsg time.Time
+
+// Spinner characters for the thinking animation
+var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+const spinnerInterval = 100 * time.Millisecond
+
+// tickSpinner returns a command that updates the spinner
+func (a *App) tickSpinner() tea.Cmd {
+	return tea.Tick(spinnerInterval, func(t time.Time) tea.Msg {
+		return spinnerTickMsg(t)
+	})
+}
+
 // Update implements tea.Model.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -206,6 +223,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		// Schedule next tick
 		cmds = append(cmds, a.processInputQueue())
+		return a, tea.Batch(cmds...)
+
+	case spinnerTickMsg:
+		// Update spinner animation if still thinking
+		if a.isThinking {
+			a.spinnerIndex = (a.spinnerIndex + 1) % len(spinnerChars)
+			cmds = append(cmds, a.tickSpinner())
+		}
 		return a, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
@@ -278,8 +303,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentStartMsg:
 		a.isThinking = true
+		a.spinnerIndex = 0
 		a.addMessage(userStyle.Render("You: ") + msg.input)
-		return a, listenEvents(a.eventCh)
+		return a, tea.Batch(listenEvents(a.eventCh), a.tickSpinner())
 
 	case agentEventMsg:
 		return a, a.handleAgentEvent(msg.event)
@@ -639,7 +665,7 @@ func (a *App) renderFooter() string {
 
 	status := fmt.Sprintf(" %s | %s | %s%s", modeStr, modelName, cwd, contextStr)
 	if a.isThinking {
-		status += " | ⏳"
+		status += " | " + spinnerChars[a.spinnerIndex]
 	} else {
 		if a.toolOutputExpanded {
 			status += " | Tab:mode Esc:abort Ctrl+O:collapse"
