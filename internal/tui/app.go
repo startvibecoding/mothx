@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -51,17 +53,23 @@ var (
 				Bold(true)
 )
 
+// InputEvent represents a queued input event
+type InputEvent struct {
+	msg     tea.Msg
+	arrived time.Time
+}
+
 // App is the main TUI application.
 type App struct {
-	provider     provider.Provider
-	model        *provider.Model
-	settings     *config.Settings
-	session      *session.Manager
-	registry     *tools.Registry
-	sandboxInfo  string
-	mode         string
+	provider    provider.Provider
+	model       *provider.Model
+	settings    *config.Settings
+	session     *session.Manager
+	registry    *tools.Registry
+	sandboxInfo string
+	mode        string
 	extraContext string
-	skillsMgr    *skills.Manager
+	skillsMgr   *skills.Manager
 
 	// UI Components
 	viewport viewport.Model
@@ -79,10 +87,23 @@ type App struct {
 
 	// Paste markers storage
 	pasteCounter int
-	pastes       map[int]string // pasteId -> original content
+	pastes       map[int]string
+
+	// Input queue for batching
+	inputQueue     []InputEvent
+	inputQueueMu   sync.Mutex
+	lastInputTime  time.Time
+	inputBatchSize int
+	inputDelay     time.Duration
 
 	// Initial message to display
 	initialMessage string
+
+	// Render throttling
+	lastRender     time.Time
+	renderPending  bool
+	renderMu       sync.Mutex
+	renderInterval time.Duration
 }
 
 // NewApp creates a new TUI application.
@@ -95,19 +116,23 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 	vp := viewport.New(80, 20)
 
 	return &App{
-		provider:     p,
-		model:        model,
-		settings:     settings,
-		session:      sess,
-		registry:     registry,
-		sandboxInfo:  sandboxInfo,
-		mode:         settings.DefaultMode,
-		extraContext: extraContext,
-		skillsMgr:    skillsMgr,
-		input:        input,
-		viewport:     vp,
-		autoScroll:   true,
-		pastes:       make(map[int]string),
+		provider:       p,
+		model:          model,
+		settings:       settings,
+		session:        sess,
+		registry:       registry,
+		sandboxInfo:    sandboxInfo,
+		mode:           settings.DefaultMode,
+		extraContext:   extraContext,
+		skillsMgr:      skillsMgr,
+		input:          input,
+		viewport:       vp,
+		autoScroll:     true,
+		pastes:         make(map[int]string),
+		inputQueue:     make([]InputEvent, 0, 100),
+		inputBatchSize: 10,
+		inputDelay:     16 * time.Millisecond, // ~60fps
+		renderInterval: 16 * time.Millisecond, // ~60fps
 	}
 }
 
@@ -122,15 +147,22 @@ func (a *App) Init() tea.Cmd {
 	if a.initialMessage != "" {
 		a.messages = append(a.messages, statusStyle.Render(a.initialMessage))
 	}
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, a.processInputQueue())
 }
+
+// processInputQueue returns a command that processes queued input events
+func (a *App) processInputQueue() tea.Cmd {
+	return tea.Tick(a.inputDelay, func(t time.Time) tea.Msg {
+		return inputQueueTickMsg(t)
+	})
+}
+
+// inputQueueTickMsg is sent when the input queue should be processed
+type inputQueueTickMsg time.Time
 
 // Update implements tea.Model.
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var (
-		inputCmd tea.Cmd
-		vpCmd    tea.Cmd
-	)
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -150,11 +182,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.updateViewportContent()
 		return a, nil
 
+	case inputQueueTickMsg:
+		// Process queued input events
+		cmd := a.flushInputQueue()
+		cmds = append(cmds, cmd)
+		// Schedule next tick
+		cmds = append(cmds, a.processInputQueue())
+		return a, tea.Batch(cmds...)
+
 	case tea.KeyMsg:
+		// Queue the key event
+		a.queueInput(msg)
+
+		// For special keys, process immediately
 		switch msg.String() {
 		case "ctrl+c":
 			return a, tea.Quit
-
 		case "esc":
 			if a.isThinking {
 				if a.agent != nil {
@@ -166,38 +209,33 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.input.Reset()
 			}
 			return a, nil
-
-		case "tab":
-			a.cycleMode()
-			return a, nil
-
 		case "enter":
+			// Process enter immediately
+			a.flushInputQueue()
 			input := strings.TrimSpace(a.input.Value())
 			if input != "" {
 				a.input.Reset()
-				// Expand paste markers before processing
 				expandedInput := a.expandPasteMarkers(input)
 				return a, a.processInput(expandedInput)
 			}
 			return a, nil
-
+		case "tab":
+			a.cycleMode()
+			return a, nil
 		case "pgup":
 			a.viewport.HalfViewUp()
 			a.autoScroll = false
 			return a, nil
-
 		case "pgdown":
 			a.viewport.HalfViewDown()
 			if a.viewport.AtBottom() {
 				a.autoScroll = true
 			}
 			return a, nil
-
 		case "home":
 			a.viewport.GotoTop()
 			a.autoScroll = false
 			return a, nil
-
 		case "end":
 			a.viewport.GotoBottom()
 			a.autoScroll = true
@@ -212,6 +250,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 		}
+
+		return a, nil
 
 	case agentStartMsg:
 		a.isThinking = true
@@ -230,10 +270,98 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Update components
+	var inputCmd, vpCmd tea.Cmd
 	a.input, inputCmd = a.input.Update(msg)
 	a.viewport, vpCmd = a.viewport.Update(msg)
 
-	return a, tea.Batch(inputCmd, vpCmd)
+	if inputCmd != nil {
+		cmds = append(cmds, inputCmd)
+	}
+	if vpCmd != nil {
+		cmds = append(cmds, vpCmd)
+	}
+
+	return a, tea.Batch(cmds...)
+}
+
+// queueInput adds an input event to the queue
+func (a *App) queueInput(msg tea.Msg) {
+	a.inputQueueMu.Lock()
+	defer a.inputQueueMu.Unlock()
+
+	a.inputQueue = append(a.inputQueue, InputEvent{
+		msg:     msg,
+		arrived: time.Now(),
+	})
+	a.lastInputTime = time.Now()
+}
+
+// flushInputQueue processes all queued input events
+func (a *App) flushInputQueue() tea.Cmd {
+	a.inputQueueMu.Lock()
+	events := make([]InputEvent, len(a.inputQueue))
+	copy(events, a.inputQueue)
+	a.inputQueue = a.inputQueue[:0]
+	a.inputQueueMu.Unlock()
+
+	if len(events) == 0 {
+		return nil
+	}
+
+	// Process events in batch
+	var cmds []tea.Cmd
+	for _, event := range events {
+		// Update input component
+		if keyMsg, ok := event.msg.(tea.KeyMsg); ok {
+			var cmd tea.Cmd
+			a.input, cmd = a.input.Update(keyMsg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+	}
+
+	// Schedule render
+	a.scheduleRender()
+
+	if len(cmds) > 0 {
+		return tea.Batch(cmds...)
+	}
+	return nil
+}
+
+// scheduleRender schedules a render update with throttling
+func (a *App) scheduleRender() {
+	a.renderMu.Lock()
+	defer a.renderMu.Unlock()
+
+	now := time.Now()
+	if now.Sub(a.lastRender) < a.renderInterval {
+		// Too soon, mark as pending
+		a.renderPending = true
+		return
+	}
+
+	// Render now
+	a.lastRender = now
+	a.renderPending = false
+	a.updateViewportContent()
+}
+
+// View implements tea.Model.
+func (a *App) View() string {
+	if !a.ready {
+		return "\n  Loading...\n"
+	}
+
+	footer := a.renderFooter()
+
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		a.viewport.View(),
+		a.input.View(),
+		footer,
+	)
 }
 
 // handlePaste handles large pastes by creating markers
@@ -298,22 +426,6 @@ func (a *App) expandPasteMarkers(text string) string {
 	a.pasteCounter = 0
 
 	return result
-}
-
-// View implements tea.Model.
-func (a *App) View() string {
-	if !a.ready {
-		return "\n  Loading...\n"
-	}
-
-	footer := a.renderFooter()
-
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		a.viewport.View(),
-		a.input.View(),
-		footer,
-	)
 }
 
 func (a *App) updateViewportContent() {
@@ -463,7 +575,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		} else {
 			a.messages = append(a.messages, assistantStyle.Render("Assistant: ")+event.TextDelta)
 		}
-		a.updateViewportContent()
+		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
 	case agent.EventThinkDelta:
@@ -473,7 +585,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		} else {
 			a.messages = append(a.messages, thinkStyle.Render("💭 ")+event.ThinkDelta)
 		}
-		a.updateViewportContent()
+		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
 	case agent.EventToolCall:
@@ -489,7 +601,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				break
 			}
 		}
-		a.updateViewportContent()
+		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
 	case agent.EventDone:
