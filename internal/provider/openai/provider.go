@@ -22,6 +22,9 @@ type Provider struct {
 	apiKey  string
 	baseURL string
 	client  *http.Client
+
+	// Configuration options
+	disableReasoning bool // Disable reasoning_content support for incompatible APIs
 }
 
 // DefaultModels returns the default OpenAI model list.
@@ -64,12 +67,29 @@ func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Pr
 		apiKey = os.Getenv("OPENAI_API_KEY")
 	}
 
-	return &Provider{
+	p := &Provider{
 		BaseProvider: provider.NewBaseProvider("openai", models),
 		apiKey:       apiKey,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		client:       &http.Client{Timeout: 30 * time.Minute},
 	}
+
+	// Check environment variable to disable reasoning
+	if os.Getenv("OPENAI_DISABLE_REASONING") == "1" || os.Getenv("OPENAI_DISABLE_REASONING") == "true" {
+		p.disableReasoning = true
+	}
+
+	return p
+}
+
+// DisableReasoning disables reasoning_content support for incompatible APIs.
+func (p *Provider) DisableReasoning() {
+	p.disableReasoning = true
+}
+
+// IsReasoningDisabled returns whether reasoning support is disabled.
+func (p *Provider) IsReasoningDisabled() bool {
+	return p.disableReasoning
 }
 
 // openAIRequest represents the request body for OpenAI Chat Completions.
@@ -144,7 +164,7 @@ type openAIChoice struct {
 type openAIDelta struct {
 	Role      string           `json:"role"`
 	Content   string           `json:"content"`
-	Reasoning *string          `json:"reasoning_content"`
+	Reasoning *string          `json:"reasoning_content,omitempty"`
 	ToolCalls []openAIToolCall `json:"tool_calls"`
 }
 
@@ -196,7 +216,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		}
 
 		model := p.GetModel(modelID)
-		if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
+		if !p.disableReasoning && params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 			switch params.ThinkingLevel {
 			case provider.ThinkingMinimal, provider.ThinkingLow:
 				reqBody.ReasoningEffort = "low"
@@ -298,7 +318,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				textContent += choice.Delta.Content
 				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: choice.Delta.Content}
 			}
-			if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
+			if !p.disableReasoning && choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
 				reasonContent += *choice.Delta.Reasoning
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: *choice.Delta.Reasoning}
 			}
