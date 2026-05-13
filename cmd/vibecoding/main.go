@@ -242,6 +242,11 @@ func run(args []string, opts runOptions) error {
 	registry := tools.NewRegistry(cwd, sbMgr.GetActive())
 	registry.RegisterDefaults()
 
+	// Register skill reference tool if skills are available
+	if skillsMgr != nil {
+		registry.Register(tools.NewSkillRefTool(skillsMgr))
+	}
+
 	// Build extra system context
 	extraContext := contextStr + skillsContext
 
