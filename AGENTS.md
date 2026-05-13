@@ -73,6 +73,22 @@ vibecoding/
 - `standard`: Project read-write, no network (via --sandbox)
 - `strict`: Project read-only, no network (Plan mode)
 
+### Mode Permissions
+- `plan`: Read-only tools only (read, grep, find, ls)
+- `agent`: Read/write/edit auto-execute; bash requires user approval (with whitelist support)
+- `yolo`: All tools auto-execute without approval
+
+### Approval Configuration
+In `settings.json`, configure approval whitelist:
+```json
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
+    "bashBlacklist": ["rm -rf", "sudo"]
+  }
+}
+```
+
 ## Build & Run
 
 ```bash

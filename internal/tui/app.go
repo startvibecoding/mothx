@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -52,6 +53,10 @@ var (
 	pasteMarkerStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("214")).
 				Bold(true)
+
+	warningStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("214")).
+			Bold(true)
 )
 
 // InputEvent represents a queued input event
@@ -131,6 +136,10 @@ type App struct {
 	renderPending  bool
 	renderMu       sync.Mutex
 	renderInterval time.Duration
+
+	// Approval state
+	waitingForApproval bool
+	pendingApprovalID  string
 }
 
 // NewApp creates a new TUI application.
@@ -309,6 +318,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Process enter immediately
 			a.flushInputQueue()
 			input := strings.TrimSpace(a.input.Value())
+
+			// Check if waiting for approval
+			if a.waitingForApproval {
+				if a.agent != nil {
+					approved := strings.ToLower(input) == "y" || strings.ToLower(input) == "yes"
+					a.agent.HandleApprovalResponse(a.pendingApprovalID, approved)
+					if approved {
+						a.addMessage(statusStyle.Render("✅ Approved"))
+					} else {
+						a.addMessage(statusStyle.Render("❌ Denied"))
+					}
+				}
+				a.waitingForApproval = false
+				a.pendingApprovalID = ""
+				a.input.Reset()
+				a.scheduleRender()
+				return a, nil
+			}
+
 			if input != "" {
 				a.input.Reset()
 				expandedInput := a.expandPasteMarkers(input)
@@ -736,9 +764,9 @@ func (a *App) cycleMode() {
 	var modeLabel string
 	switch a.mode {
 	case "plan":
-		modeLabel = "🗒️ PLAN - Read-only"
+		modeLabel = "🗒️ PLAN - Read-only (no modifications)"
 	case "agent":
-		modeLabel = "🔧 AGENT - Standard"
+		modeLabel = "🔧 AGENT - Bash requires approval"
 	case "yolo":
 		modeLabel = "🚀 YOLO - Full access"
 	}
@@ -814,6 +842,14 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			}
 		} else {
 			a.addMessage(statusStyle.Render(fmt.Sprintf("Current mode: %s", strings.ToUpper(a.mode))))
+			switch a.mode {
+			case "plan":
+				a.addMessage(statusStyle.Render("  Permissions: READ only (no modifications)"))
+			case "agent":
+				a.addMessage(statusStyle.Render("  Permissions: READ/WRITE/EDIT auto | BASH requires approval"))
+			case "yolo":
+				a.addMessage(statusStyle.Render("  Permissions: ALL tools auto-execute"))
+			}
 		}
 	case "/model":
 		a.addMessage(statusStyle.Render(fmt.Sprintf("Model: %s (%s)", a.model.Name, a.model.Provider)))
@@ -908,6 +944,19 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				break
 			}
 		}
+		a.scheduleRender()
+		return listenEvents(a.eventCh)
+
+	case agent.EventToolApprovalRequest:
+		// Display approval request to user
+		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s]", event.ApprovalTool)))
+		if len(event.ApprovalArgs) > 0 {
+			argsJSON, _ := json.MarshalIndent(event.ApprovalArgs, "", "  ")
+			a.addMessage(warningStyle.Render(string(argsJSON)))
+		}
+		a.addMessage(warningStyle.Render("Approve? (y/n): "))
+		a.pendingApprovalID = event.ApprovalID
+		a.waitingForApproval = true
 		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
