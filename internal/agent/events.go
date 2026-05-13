@@ -1,6 +1,7 @@
 package agent
 
 import (
+	ctxpkg "github.com/fuckvibecoding/vibecoding/internal/context"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 )
 
@@ -37,6 +38,10 @@ const (
 	EventDone
 	EventError
 	EventUsage
+
+	// Compaction events
+	EventCompactionStart
+	EventCompactionEnd
 )
 
 // Event represents an event from the agent to the UI.
@@ -76,4 +81,7 @@ type Event struct {
 
 	// Usage
 	Usage *provider.Usage
+
+	// Context usage
+	ContextUsage *ctxpkg.ContextUsage
 }

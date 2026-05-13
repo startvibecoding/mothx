@@ -14,6 +14,7 @@ import (
 
 	"github.com/fuckvibecoding/vibecoding/internal/agent"
 	"github.com/fuckvibecoding/vibecoding/internal/config"
+	ctxpkg "github.com/fuckvibecoding/vibecoding/internal/context"
 	"github.com/fuckvibecoding/vibecoding/internal/contextfiles"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 	"github.com/fuckvibecoding/vibecoding/internal/provider/anthropic"
@@ -404,15 +405,28 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		renderer = nil
 	}
 
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:          settings.Compaction.Enabled,
+		ReserveTokens:    settings.Compaction.ReserveTokens,
+		KeepRecentTokens: settings.Compaction.KeepRecentTokens,
+	}
+	if compactionSettings.ReserveTokens == 0 {
+		compactionSettings.ReserveTokens = 16384
+	}
+	if compactionSettings.KeepRecentTokens == 0 {
+		compactionSettings.KeepRecentTokens = 20000
+	}
+
 	agentCfg := agent.Config{
-		Provider:      p,
-		Model:         model,
-		Mode:          mode,
-		ThinkingLevel: thinkingLevel,
-		MaxTokens:     settings.MaxOutputTokens,
-		Settings:      settings,
-		Session:       sess,
-		ExtraContext:  extraContext,
+		Provider:           p,
+		Model:              model,
+		Mode:               mode,
+		ThinkingLevel:      thinkingLevel,
+		MaxTokens:          settings.MaxOutputTokens,
+		Settings:           settings,
+		Session:            sess,
+		ExtraContext:       extraContext,
+		CompactionSettings: compactionSettings,
 	}
 
 	a := agent.New(agentCfg, registry)
@@ -450,6 +464,12 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 			if textBuffer.Len() > 0 {
 				flushTextBuffer(&textBuffer, renderer)
 			}
+			// Show context usage
+			if event.ContextUsage != nil && event.ContextUsage.Percent != nil {
+				fmt.Fprintf(os.Stderr, "\nContext: %.1f%%/%s\n",
+					*event.ContextUsage.Percent,
+					formatTokenCount(event.ContextUsage.ContextWindow))
+			}
 		case agent.EventError:
 			// Flush text buffer before error
 			if textBuffer.Len() > 0 {
@@ -459,9 +479,24 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 				return event.Error
 			}
 		case agent.EventUsage:
+			if event.ContextUsage != nil && event.ContextUsage.Percent != nil {
+				fmt.Fprintf(os.Stderr, "Context: %.1f%%/%s | ",
+					*event.ContextUsage.Percent,
+					formatTokenCount(event.ContextUsage.ContextWindow))
+			}
 			if event.Usage != nil {
-				fmt.Fprintf(os.Stderr, "\nTokens: %d in / %d out | Cost: $%.4f\n",
+				fmt.Fprintf(os.Stderr, "Tokens: %d in / %d out | Cost: $%.4f\n",
 					event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total)
+			}
+		case agent.EventCompactionStart:
+			fmt.Fprintf(os.Stderr, "\n⏳ Compacting context...\n")
+		case agent.EventCompactionEnd:
+			if event.Error != nil {
+				fmt.Fprintf(os.Stderr, "Compaction failed: %v\n", event.Error)
+			} else if event.StatusMessage != "" {
+				fmt.Fprintf(os.Stderr, "✅ %s\n", event.StatusMessage)
+			} else {
+				fmt.Fprintf(os.Stderr, "✅ Context compacted\n")
 			}
 		}
 	}
@@ -485,4 +520,21 @@ func flushTextBuffer(buffer *strings.Builder, renderer *glamour.TermRenderer) {
 	} else {
 		fmt.Print(text)
 	}
+}
+
+// formatTokenCount formats a token count for display.
+func formatTokenCount(count int) string {
+	if count < 1000 {
+		return fmt.Sprintf("%d", count)
+	}
+	if count < 10000 {
+		return fmt.Sprintf("%.1fk", float64(count)/1000)
+	}
+	if count < 1000000 {
+		return fmt.Sprintf("%dk", count/1000)
+	}
+	if count < 10000000 {
+		return fmt.Sprintf("%.1fM", float64(count)/1000000)
+	}
+	return fmt.Sprintf("%dM", count/1000000)
 }

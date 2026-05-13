@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	ctxpkg "github.com/fuckvibecoding/vibecoding/internal/context"
 	"github.com/fuckvibecoding/vibecoding/internal/config"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 	"github.com/fuckvibecoding/vibecoding/internal/sandbox"
@@ -16,15 +18,16 @@ import (
 
 // Config holds the agent configuration.
 type Config struct {
-	Provider      provider.Provider
-	Model         *provider.Model
-	Mode          string // "plan", "agent", "yolo"
-	ThinkingLevel provider.ThinkingLevel
-	MaxTokens     int
-	SandboxMgr    *sandbox.Manager
-	Settings      *config.Settings
-	Session       *session.Manager
-	ExtraContext  string // extra context from files and skills
+	Provider           provider.Provider
+	Model              *provider.Model
+	Mode               string // "plan", "agent", "yolo"
+	ThinkingLevel      provider.ThinkingLevel
+	MaxTokens          int
+	SandboxMgr         *sandbox.Manager
+	Settings           *config.Settings
+	Session            *session.Manager
+	ExtraContext       string // extra context from files and skills
+	CompactionSettings ctxpkg.CompactionSettings
 }
 
 // AgentLoopConfig extends Config with loop-specific settings.
@@ -286,7 +289,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 				}
 			case provider.StreamUsage:
 				usage = event.Usage
-				ch <- Event{Type: EventUsage, Usage: event.Usage}
+				ch <- Event{Type: EventUsage, Usage: event.Usage, ContextUsage: a.GetContextUsage()}
 			case provider.StreamDone:
 				stopReason = event.StopReason
 			case provider.StreamError:
@@ -324,6 +327,10 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		}
 
 		assistantMsg := provider.NewAssistantMessage(contents)
+		// Store usage in the message for context tracking
+		if usage != nil {
+			assistantMsg.Usage = usage
+		}
 		a.messages = append(a.messages, assistantMsg)
 		a.context.Messages = append(a.context.Messages, assistantMsg)
 
@@ -339,8 +346,9 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		// If no tool calls, we're done
 		if len(toolCalls) == 0 {
-			ch <- Event{Type: EventTurnEnd, TurnMessage: assistantMsg}
-			ch <- Event{Type: EventDone, StopReason: stopReason}
+			contextUsage := a.GetContextUsage()
+			ch <- Event{Type: EventTurnEnd, TurnMessage: assistantMsg, ContextUsage: contextUsage}
+			ch <- Event{Type: EventDone, StopReason: stopReason, Usage: usage, ContextUsage: contextUsage}
 			ch <- Event{Type: EventAgentEnd, Messages: a.messages}
 			return
 		}
@@ -359,7 +367,15 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			a.context.Messages = append(a.context.Messages, result)
 		}
 
-		ch <- Event{Type: EventTurnEnd, TurnMessage: assistantMsg, TurnToolResults: toolResults}
+		ch <- Event{Type: EventTurnEnd, TurnMessage: assistantMsg, TurnToolResults: toolResults, ContextUsage: a.GetContextUsage()}
+
+		// Check if compaction should trigger
+		if a.ShouldCompact() {
+			if err := a.Compact(ctx, ch); err != nil {
+				// Log error but continue
+				ch <- Event{Type: EventStatus, StatusMessage: fmt.Sprintf("Compaction failed: %v", err)}
+			}
+		}
 
 		// Check if we should stop after this turn
 		if a.config.ShouldStopAfterTurn != nil {
@@ -596,4 +612,81 @@ func (a *Agent) GetContext() *AgentContext {
 // SetContext replaces the agent context.
 func (a *Agent) SetContext(ctx *AgentContext) {
 	a.context = ctx
+}
+
+// GetContextUsage calculates and returns the current context usage.
+func (a *Agent) GetContextUsage() *ctxpkg.ContextUsage {
+	if a.config.Model == nil {
+		return nil
+	}
+	contextWindow := a.config.Model.ContextWindow
+	if contextWindow <= 0 {
+		return nil
+	}
+
+	tokens, _ := ctxpkg.EstimateContextTokens(a.messages)
+	percent := float64(tokens) / float64(contextWindow) * 100
+
+	return &ctxpkg.ContextUsage{
+		Tokens:        tokens,
+		ContextWindow: contextWindow,
+		Percent:       &percent,
+	}
+}
+
+// ShouldCompact checks if compaction should trigger.
+func (a *Agent) ShouldCompact() bool {
+	if !a.config.CompactionSettings.Enabled {
+		return false
+	}
+	if a.config.Model == nil {
+		return false
+	}
+	contextWindow := a.config.Model.ContextWindow
+	if contextWindow <= 0 {
+		return false
+	}
+	tokens, _ := ctxpkg.EstimateContextTokens(a.messages)
+	return ctxpkg.ShouldCompact(tokens, contextWindow, a.config.CompactionSettings.ReserveTokens)
+}
+
+// Compact performs context compaction.
+func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
+	if a.config.Model == nil {
+		return fmt.Errorf("no model set for compaction")
+	}
+
+	ch <- Event{Type: EventCompactionStart}
+
+	// Get previous summary if exists
+	previousSummary := ""
+	for i := len(a.messages) - 1; i >= 0; i-- {
+		if a.messages[i].Role == "user" && strings.HasPrefix(a.messages[i].Content, "## Goal") {
+			previousSummary = a.messages[i].Content
+			break
+		}
+	}
+
+	result, err := ctxpkg.Compact(ctx, a.messages, a.config.Provider, a.config.Model, a.config.CompactionSettings, previousSummary)
+	if err != nil {
+		ch <- Event{Type: EventCompactionEnd, Error: err}
+		return fmt.Errorf("compaction failed: %w", err)
+	}
+
+	// Replace messages with summary + kept messages
+	summaryMsg := provider.NewUserMessage(result.Summary)
+	a.messages = append([]provider.Message{summaryMsg}, a.messages[result.FirstKeptIndex:]...)
+	a.context.Messages = a.messages
+
+	// Save compaction to session
+	if a.config.Session != nil {
+		a.config.Session.AppendCompaction(result.Summary, "", result.TokensBefore)
+	}
+
+	ch <- Event{
+		Type:         EventCompactionEnd,
+		StatusMessage: fmt.Sprintf("Context compacted: %d tokens -> %d tokens", result.TokensBefore, a.GetContextUsage().Tokens),
+	}
+
+	return nil
 }

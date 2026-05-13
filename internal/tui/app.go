@@ -14,6 +14,7 @@ import (
 
 	"github.com/fuckvibecoding/vibecoding/internal/agent"
 	"github.com/fuckvibecoding/vibecoding/internal/config"
+	ctxpkg "github.com/fuckvibecoding/vibecoding/internal/context"
 	"github.com/fuckvibecoding/vibecoding/internal/provider"
 	"github.com/fuckvibecoding/vibecoding/internal/session"
 	"github.com/fuckvibecoding/vibecoding/internal/skills"
@@ -109,6 +110,9 @@ type App struct {
 
 	// Tool output expansion
 	toolOutputExpanded bool
+
+	// Context usage
+	contextUsage *ctxpkg.ContextUsage
 
 	// Render throttling
 	lastRender     time.Time
@@ -473,6 +477,22 @@ func (a *App) updateViewportContent() {
 	}
 }
 
+func formatTokens(count int) string {
+	if count < 1000 {
+		return fmt.Sprintf("%d", count)
+	}
+	if count < 10000 {
+		return fmt.Sprintf("%.1fk", float64(count)/1000)
+	}
+	if count < 1000000 {
+		return fmt.Sprintf("%dk", count/1000)
+	}
+	if count < 10000000 {
+		return fmt.Sprintf("%.1fM", float64(count)/1000000)
+	}
+	return fmt.Sprintf("%dM", count/1000000)
+}
+
 func (a *App) renderFooter() string {
 	modelName := "unknown"
 	if a.model != nil {
@@ -499,7 +519,28 @@ func (a *App) renderFooter() string {
 		cwd = "..." + cwd[len(cwd)-27:]
 	}
 
-	status := fmt.Sprintf(" %s | %s | %s", modeStr, modelName, cwd)
+	// Build context usage string with color coding
+	contextStr := ""
+	if a.contextUsage != nil && a.contextUsage.ContextWindow > 0 {
+		if a.contextUsage.Percent != nil {
+			percent := *a.contextUsage.Percent
+			contextDisplay := fmt.Sprintf("%.1f%%/%s",
+				percent,
+				formatTokens(a.contextUsage.ContextWindow))
+			// Colorize based on usage
+			if percent > 90 {
+				contextStr = " | " + errorStyle.Render(contextDisplay)
+			} else if percent > 70 {
+				contextStr = " | " + userStyle.Render(contextDisplay)
+			} else {
+				contextStr = " | " + contextDisplay
+			}
+		} else {
+			contextStr = fmt.Sprintf(" | ?/%s", formatTokens(a.contextUsage.ContextWindow))
+		}
+	}
+
+	status := fmt.Sprintf(" %s | %s | %s%s", modeStr, modelName, cwd, contextStr)
 	if a.isThinking {
 		status += " | ⏳"
 	} else {
@@ -549,15 +590,28 @@ func (a *App) processInput(input string) tea.Cmd {
 	}
 
 	if a.agent == nil {
+		compactionSettings := ctxpkg.CompactionSettings{
+			Enabled:          a.settings.Compaction.Enabled,
+			ReserveTokens:    a.settings.Compaction.ReserveTokens,
+			KeepRecentTokens: a.settings.Compaction.KeepRecentTokens,
+		}
+		if compactionSettings.ReserveTokens == 0 {
+			compactionSettings.ReserveTokens = 16384
+		}
+		if compactionSettings.KeepRecentTokens == 0 {
+			compactionSettings.KeepRecentTokens = 20000
+		}
+
 		agentCfg := agent.Config{
-			Provider:      a.provider,
-			Model:         a.model,
-			Mode:          a.mode,
-			ThinkingLevel: provider.ThinkingLevel(a.settings.DefaultThinkingLevel),
-			MaxTokens:     a.settings.MaxOutputTokens,
-			Settings:      a.settings,
-			Session:       a.session,
-			ExtraContext:  a.extraContext,
+			Provider:           a.provider,
+			Model:              a.model,
+			Mode:               a.mode,
+			ThinkingLevel:      provider.ThinkingLevel(a.settings.DefaultThinkingLevel),
+			MaxTokens:          a.settings.MaxOutputTokens,
+			Settings:           a.settings,
+			Session:            a.session,
+			ExtraContext:       a.extraContext,
+			CompactionSettings: compactionSettings,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
 	}
@@ -594,6 +648,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 	case "/clear":
 		a.messages = nil
 		a.agent = nil
+		a.contextUsage = nil
 		a.pastes = make(map[int]string)
 		a.pasteCounter = 0
 		a.updateViewportContent()
@@ -676,9 +731,18 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
+	case agent.EventTurnEnd:
+		if event.ContextUsage != nil {
+			a.contextUsage = event.ContextUsage
+		}
+		return listenEvents(a.eventCh)
+
 	case agent.EventDone:
 		a.isThinking = false
 		a.autoScroll = true
+		if event.ContextUsage != nil {
+			a.contextUsage = event.ContextUsage
+		}
 		return listenEvents(a.eventCh)
 
 	case agent.EventError:
@@ -689,10 +753,27 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return listenEvents(a.eventCh)
 
 	case agent.EventUsage:
+		if event.ContextUsage != nil {
+			a.contextUsage = event.ContextUsage
+		}
 		if event.Usage != nil {
 			costStr := fmt.Sprintf("Tokens: %d↓/%d↑ $%.4f",
 				event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total)
 			a.addMessage(statusStyle.Render(costStr))
+		}
+		return listenEvents(a.eventCh)
+
+	case agent.EventCompactionStart:
+		a.addMessage(statusStyle.Render("⏳ Compacting context..."))
+		return listenEvents(a.eventCh)
+
+	case agent.EventCompactionEnd:
+		if event.Error != nil {
+			a.addMessage(errorStyle.Render("Compaction failed: ") + event.Error.Error())
+		} else if event.StatusMessage != "" {
+			a.addMessage(statusStyle.Render("✅ " + event.StatusMessage))
+		} else {
+			a.addMessage(statusStyle.Render("✅ Context compacted"))
 		}
 		return listenEvents(a.eventCh)
 

@@ -36,6 +36,7 @@ type Message struct {
 	ToolName   string         `json:"toolName,omitempty"`   // for toolResult
 	IsError    bool           `json:"isError,omitempty"`    // for toolResult
 	Timestamp  time.Time      `json:"timestamp"`
+	Usage      *Usage         `json:"usage,omitempty"`      // token usage from API response
 }
 
 // NewUserMessage creates a simple user text message.
