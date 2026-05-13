@@ -251,7 +251,7 @@ func run(args []string, opts runOptions) error {
 	if contextFilesInfo != "" {
 		app.SetInitialMessage(contextFilesInfo)
 	}
-	p2 := tea.NewProgram(app, tea.WithAltScreen(), tea.WithInputTTY(), tea.WithReportFocus())
+	p2 := tea.NewProgram(app, tea.WithInputTTY(), tea.WithReportFocus())
 	if _, err := p2.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
 	}

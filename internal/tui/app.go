@@ -106,6 +106,9 @@ type App struct {
 	inputBatchSize int
 	inputDelay     time.Duration
 
+	// Full content for native scrollbar support
+	fullContent string
+
 	// Initial message to display
 	initialMessage string
 
@@ -405,22 +408,8 @@ func (a *App) View() string {
 
 	footer := a.renderFooter()
 
-	// Ensure viewport content fills the available height
-	// This allows the terminal's native scrollbar to work
-	viewportContent := a.viewport.View()
-	
-	// Calculate how many lines we need to fill
-	// This ensures footer stays at the bottom even when content is short
-	contentLines := strings.Count(viewportContent, "\n") + 1
-	inputLines := 1
-	footerLines := 1
-	totalUsed := contentLines + inputLines + footerLines
-	
-	if totalUsed < a.height {
-		// Add padding to push footer to bottom
-		padding := a.height - totalUsed
-		viewportContent += strings.Repeat("\n", padding)
-	}
+	// Use full content so the terminal's native scrollbar works
+	viewportContent := a.fullContent
 	
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -532,6 +521,7 @@ func (a *App) updateViewportContent() {
 	}
 	
 	a.viewport.SetContent(strings.Join(displayMessages, "\n\n"))
+	a.fullContent = strings.Join(displayMessages, "\n\n")
 	if a.autoScroll {
 		a.viewport.GotoBottom()
 	}
