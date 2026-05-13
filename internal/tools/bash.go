@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fuckvibecoding/vibecoding/internal/platform"
@@ -105,24 +106,33 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		output += "STDERR:\n" + stderr.String()
 	}
 
+	// Build result with command info
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("$ %s\n", command))
+	result.WriteString(fmt.Sprintf("(in %s)\n\n", workDir))
+
+	if output == "" {
+		result.WriteString("(no output)")
+	} else {
+		result.WriteString(output)
+	}
+
 	// Truncate large outputs
 	const maxOutput = 50000
-	if len(output) > maxOutput {
-		truncated := len(output) - maxOutput
-		output = output[:maxOutput] + fmt.Sprintf("\n... (truncated %d bytes)", truncated)
+	resultStr := result.String()
+	if len(resultStr) > maxOutput {
+		truncated := len(resultStr) - maxOutput
+		resultStr = resultStr[:maxOutput] + fmt.Sprintf("\n... (truncated %d bytes)", truncated)
 	}
 
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return fmt.Sprintf("Exit code: %d\n%s", exitErr.ExitCode(), output), nil
+			return fmt.Sprintf("%s\nExit code: %d", resultStr, exitErr.ExitCode()), nil
 		}
-		return "", fmt.Errorf("command failed: %w\n%s", err, output)
+		return "", fmt.Errorf("command failed: %w\n%s", err, resultStr)
 	}
 
-	if output == "" {
-		return "(no output)", nil
-	}
-	return output, nil
+	return resultStr, nil
 }
 
 // SetTool is an interface for tools that need sandbox updates.

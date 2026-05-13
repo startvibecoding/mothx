@@ -597,7 +597,15 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	case agent.EventToolResult:
 		for i := len(a.messages) - 1; i >= 0; i-- {
 			if strings.Contains(a.messages[i], "🔧 [") {
-				a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, truncate(event.ToolResult, 80)))
+				// For bash commands, show full output
+				displayResult := event.ToolResult
+				if event.ToolName == "bash" {
+					// Show full bash output for security
+					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s]\n%s", event.ToolName, displayResult))
+				} else {
+					// Truncate other tool results
+					a.messages[i] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, truncate(displayResult, 200)))
+				}
 				break
 			}
 		}

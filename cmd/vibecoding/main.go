@@ -441,7 +441,10 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 				fmt.Fprintf(os.Stderr, "done\n")
 			}
 		case agent.EventToolResult:
-			// Already handled by EventToolExecutionEnd
+			// Show full tool result for bash commands
+			if event.ToolName == "bash" {
+				fmt.Fprintf(os.Stderr, "\n%s\n", event.ToolResult)
+			}
 		case agent.EventDone:
 			// Flush remaining text buffer
 			if textBuffer.Len() > 0 {
