@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.0.7
+
+### ✨ Features
+
+- **Cross-Platform Sandbox Support**
+  - Sandbox now supports macOS and Windows in addition to Linux
+  - macOS uses `sandbox-exec` for process isolation
+  - Windows uses restricted process creation without network access
+  - Platform-specific sandbox implementations selected automatically
+
+- **Repository Rename**
+  - Module path renamed to `github.com/startvibecoding/vibecoding`
+  - All imports, documentation, and scripts updated accordingly
+
+### 🛠 Improvements
+
+- **Platform-Specific Process Handling**
+  - Extracted `SysProcAttr` configuration into build-tagged files (`bash_unix.go`, `bash_windows.go`)
+  - Background child process cleanup now works correctly on all platforms
+  - `Setpgid` only set on Unix systems; Windows uses `CREATE_NEW_PROCESS_GROUP`
+
+### 📖 Documentation
+
+- Updated all GitHub URLs to new repository location
+- Added v0.0.6 and v0.0.7 release notes
+
+---
+
+## v0.0.6
+
+### 🛠 Improvements
+
+- **Bash Tool Reliability**
+  - Fixed background child process hanging issue
+  - Added `WaitDelay` to prevent shell from waiting indefinitely on background children
+  - Properly handle `exec.ErrWaitDelay` errors
+
+- **NPM Installation**
+  - Added npm package for installation via `npm install -g vibecoding-installer`
+  - Automatic binary download during `postinstall`
+
+### 📖 Documentation
+
+- Added npm installation instructions
+- Removed redundant markdown files from docs root
+- Added v0.0.5 release notes
+
+---
+
 ## v0.0.5
 
 ### ✨ Features
@@ -128,4 +177,4 @@
 
 ---
 
-**Full Changelog**: https://github.com/startvibecoding/vibecoding/compare/v0.0.1...v0.0.5
+**Full Changelog**: https://github.com/startvibecoding/vibecoding/compare/v0.0.1...v0.0.7
