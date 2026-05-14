@@ -1,0 +1,32 @@
+{
+  "name": "vibecoding-installer",
+  "version": "v0.0.5-1-g5522892-dirty",
+  "description": "AI coding assistant for the terminal",
+  "main": "index.js",
+  "bin": {
+    "vibecoding": "bin/vibecoding"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "keywords": [
+    "ai",
+    "coding",
+    "assistant",
+    "terminal",
+    "cli",
+    "llm",
+    "gpt",
+    "claude"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fuckvibecoding/vibecoding.git",
+    "directory": "npm"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
