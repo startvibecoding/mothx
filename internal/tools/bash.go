@@ -43,6 +43,14 @@ func (t *BashTool) Description() string {
 	return "Execute a bash command. Use this to run shell commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
 }
 
+func (t *BashTool) PromptSnippet() string {
+	return "Execute bash commands (ls, grep, find, etc.)"
+}
+
+func (t *BashTool) PromptGuidelines() []string {
+	return []string{"Prefer grep/find/ls tools over bash for file exploration (faster, respects .gitignore)"}
+}
+
 func (t *BashTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

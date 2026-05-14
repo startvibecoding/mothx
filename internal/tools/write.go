@@ -24,6 +24,14 @@ func (t *WriteTool) Description() string {
 	return "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories."
 }
 
+func (t *WriteTool) PromptSnippet() string {
+	return "Create or overwrite files"
+}
+
+func (t *WriteTool) PromptGuidelines() []string {
+	return []string{"Use write only for new files or complete rewrites."}
+}
+
 func (t *WriteTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

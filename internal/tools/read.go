@@ -25,6 +25,14 @@ func (t *ReadTool) Description() string {
 	return "Read the contents of a file. Supports text files and images (jpg, png, gif, webp). For text files, output is truncated at 2000 lines or 50KB. Use offset/limit for large files."
 }
 
+func (t *ReadTool) PromptSnippet() string {
+	return "Read file contents"
+}
+
+func (t *ReadTool) PromptGuidelines() []string {
+	return []string{"Use read to examine files instead of cat or sed."}
+}
+
 func (t *ReadTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

@@ -16,6 +16,12 @@ type Tool interface {
 	// Description returns a description of what the tool does.
 	Description() string
 
+	// PromptSnippet returns a short one-line description for the system prompt's Available tools section.
+	PromptSnippet() string
+
+	// PromptGuidelines returns guideline bullets for the system prompt's Guidelines section.
+	PromptGuidelines() []string
+
 	// Parameters returns the JSON Schema for the tool's parameters.
 	Parameters() json.RawMessage
 
@@ -128,4 +134,34 @@ func (r *Registry) ModeTools(mode string) []provider.ToolDefinition {
 		// Agent/YOLO: all tools
 		return r.Definitions()
 	}
+}
+
+// ToolSnippets returns prompt snippets for the given tool names.
+func (r *Registry) ToolSnippets(toolNames []string) map[string]string {
+	snippets := make(map[string]string)
+	for _, name := range toolNames {
+		if t, ok := r.tools[name]; ok {
+			if snippet := t.PromptSnippet(); snippet != "" {
+				snippets[name] = snippet
+			}
+		}
+	}
+	return snippets
+}
+
+// ToolGuidelines returns prompt guidelines for the given tool names.
+func (r *Registry) ToolGuidelines(toolNames []string) []string {
+	var guidelines []string
+	seen := make(map[string]bool)
+	for _, name := range toolNames {
+		if t, ok := r.tools[name]; ok {
+			for _, g := range t.PromptGuidelines() {
+				if !seen[g] {
+					seen[g] = true
+					guidelines = append(guidelines, g)
+				}
+			}
+		}
+	}
+	return guidelines
 }
