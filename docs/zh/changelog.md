@@ -1,5 +1,54 @@
 # 更新日志
 
+## v0.0.7
+
+### ✨ 新功能
+
+- **跨平台沙箱支持**
+  - 沙箱现在除 Linux 外还支持 macOS 和 Windows
+  - macOS 使用 `sandbox-exec` 进行进程隔离
+  - Windows 使用受限进程创建，禁止网络访问
+  - 自动选择平台特定的沙箱实现
+
+- **仓库重命名**
+  - 模块路径更名为 `github.com/startvibecoding/vibecoding`
+  - 所有导入、文档和脚本已同步更新
+
+### 🛠 改进
+
+- **平台特定进程处理**
+  - 将 `SysProcAttr` 配置提取到构建标签文件（`bash_unix.go`、`bash_windows.go`）
+  - 后台子进程清理现在在所有平台上正常工作
+  - `Setpgid` 仅在 Unix 系统上设置；Windows 使用 `CREATE_NEW_PROCESS_GROUP`
+
+### 📖 文档
+
+- 更新所有 GitHub URL 至新仓库地址
+- 新增 v0.0.6 和 v0.0.7 发布说明
+
+---
+
+## v0.0.6
+
+### 🛠 改进
+
+- **Bash 工具可靠性**
+  - 修复后台子进程挂起问题
+  - 添加 `WaitDelay` 防止 shell 无限等待后台子进程
+  - 正确处理 `exec.ErrWaitDelay` 错误
+
+- **NPM 安装**
+  - 新增 npm 包，支持通过 `npm install -g vibecoding-installer` 安装
+  - `postinstall` 时自动下载二进制文件
+
+### 📖 文档
+
+- 新增 npm 安装说明
+- 移除 docs 根目录下冗余的 markdown 文件
+- 新增 v0.0.5 更新日志
+
+---
+
 ## v0.0.5
 
 ### ✨ 新功能
@@ -128,4 +177,4 @@
 
 ---
 
-**完整变更日志**: https://github.com/startvibecoding/vibecoding/compare/v0.0.1...v0.0.5
+**完整变更日志**: https://github.com/startvibecoding/vibecoding/compare/v0.0.1...v0.0.7

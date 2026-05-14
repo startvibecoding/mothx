@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer",
-  "version": "v0.0.5-1-g5522892-dirty",
+  "version": "0.0.7",
   "description": "AI coding assistant for the terminal",
   "main": "index.js",
   "bin": {
