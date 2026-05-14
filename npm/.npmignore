@@ -1,0 +1,13 @@
+# Ignore everything
+*
+
+# Except these files
+!package.json
+!postinstall.js
+!README.md
+!bin/
+!bin/vibecoding-*
+
+# Ignore generated files
+tgz
+*.tgz

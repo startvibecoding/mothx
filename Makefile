@@ -2,6 +2,7 @@
 .PHONY: build-linux build-darwin build-windows
 .PHONY: dist dist-linux dist-darwin dist-windows dist-deb dist-tarball dist-zip
 .PHONY: clean-all checksums
+.PHONY: npm-version npm-publish npm-pack
 
 # Variables
 BINARY_NAME=vibecoding
@@ -33,6 +34,11 @@ help:
 	@echo "  dist-deb       Build Debian packages only"
 	@echo "  dist-tarball   Build tarball packages only"
 	@echo "  dist-zip       Build zip packages only"
+	@echo ""
+	@echo "NPM targets:"
+	@echo "  npm-version    Sync version to npm package"
+	@echo "  npm-publish    Publish to npm registry"
+	@echo "  npm-pack       Create npm tarball"
 	@echo ""
 	@echo "Other targets:"
 	@echo "  install        Install via go install"
@@ -165,3 +171,19 @@ dist: dist-linux dist-darwin dist-windows checksums
 	@echo ""
 	@echo "Checksums: $(CHECKSUM_FILE)"
 	@echo "=========================================="
+
+# NPM targets
+npm-version:
+	./scripts/sync-npm-version.sh $(VERSION)
+
+npm-binaries: build-all
+	./scripts/build-npm.sh
+
+npm-pack: npm-version npm-binaries
+	cd npm && npm pack
+
+npm-publish: npm-version npm-binaries
+	cd npm && npm publish --tag latest
+
+npm-publish-pre: npm-version npm-binaries
+	cd npm && npm publish --tag next

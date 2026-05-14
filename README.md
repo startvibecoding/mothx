@@ -26,7 +26,13 @@
 
 ### Install
 
-**Option 1: One-line Install (Recommended)**
+**Option 1: npm (Recommended)**
+
+```bash
+npm install -g vibecoding
+```
+
+**Option 2: One-line Install**
 
 Linux/macOS:
 
@@ -50,13 +56,13 @@ INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/fuckvibeco
 $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/fuckvibecoding/vibecoding/main/install.ps1 | iex
 ```
 
-**Option 2: Go Install**
+**Option 3: Go Install**
 
 ```bash
 go install github.com/fuckvibecoding/vibecoding/cmd/vibecoding@latest
 ```
 
-**Option 3: Build from Source**
+**Option 4: Build from Source**
 
 ```bash
 git clone https://github.com/fuckvibecoding/vibecoding.git
