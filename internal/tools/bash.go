@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fuckvibecoding/vibecoding/internal/platform"
@@ -48,7 +50,10 @@ func (t *BashTool) PromptSnippet() string {
 }
 
 func (t *BashTool) PromptGuidelines() []string {
-	return []string{"Prefer grep/find/ls tools over bash for file exploration (faster, respects .gitignore)"}
+	return []string{
+		"Prefer grep/find/ls tools over bash for file exploration (faster, respects .gitignore)",
+		"For long-running services (servers, watchers, dev servers), use async=true to run in background",
+	}
 }
 
 func (t *BashTool) Parameters() json.RawMessage {
@@ -121,6 +126,11 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		args := platform.ShellArgs(shell, command)
 		cmd = exec.CommandContext(cmdCtx, shell, args...)
 		cmd.Dir = workDir
+		// Detach child process group so background children don't block the shell.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		// If the shell exits while a background child still holds stdio,
+		// don't wait forever – give it 100ms then force-close.
+		cmd.WaitDelay = 100 * time.Millisecond
 	}
 
 	// Async mode: start in background and return immediately
@@ -138,6 +148,10 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		// Wait in background and mark done when finished
 		go func() {
 			err := cmd.Wait()
+			// Ignore WaitDelay error – background children may still hold stdio.
+			if errors.Is(err, exec.ErrWaitDelay) {
+				err = nil
+			}
 			job.MarkDone(stdout.Bytes(), stderr.Bytes(), err)
 		}()
 
@@ -179,6 +193,11 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 	}
 
 	if err != nil {
+		// Ignore WaitDelay error – the shell already exited; we just didn't
+		// drain all stdio in time (common with background children).
+		if errors.Is(err, exec.ErrWaitDelay) {
+			return resultStr, nil
+		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return fmt.Sprintf("%s\nExit code: %d", resultStr, exitErr.ExitCode()), nil
 		}
