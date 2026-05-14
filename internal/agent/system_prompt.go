@@ -10,7 +10,7 @@ import (
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
-func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string) string {
+func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string, toolSnippets map[string]string, toolGuidelines []string) string {
 	var sb strings.Builder
 
 	// Get platform-specific shell
@@ -113,28 +113,22 @@ Focus on getting the task done quickly and correctly.
 		sb.WriteString(fmt.Sprintf("## Mode: %s\n", strings.ToUpper(mode)))
 	}
 
-	// Tools section
+	// Tools section with snippets
+	toolsList := formatToolListWithSnippets(toolNames, toolSnippets)
 	sb.WriteString(fmt.Sprintf(`
 ## Available Tools
 %s
 
-Tool usage guidelines:
-- Provide clear, specific parameters
-- Handle errors gracefully and report them
-- Verify results when possible
-- Use the most appropriate tool for each task
+`, toolsList))
 
-`, formatToolList(toolNames)))
+	// Guidelines section
+	guidelines := buildGuidelines(toolGuidelines)
+	sb.WriteString(fmt.Sprintf(`Guidelines:
+%s
 
-	// Behavior guidelines
-	sb.WriteString(`## Behavior
-- Be concise and direct in your responses
-- Focus on the task at hand
-- Ask for clarification when requirements are ambiguous
-- Don't assume file contents - read them first
-- Explain complex operations before executing them
-- Report errors clearly with context
-`)
+`, guidelines))
+
+	// Behavior guidelines are now included in the Guidelines section above
 
 	// Append extra context from files and skills
 	if extraContext != "" {
@@ -158,6 +152,52 @@ func formatToolList(toolNames []string) string {
 		}
 		sb.WriteString(name)
 	}
+	return sb.String()
+}
+
+// formatToolListWithSnippets formats the tool list with snippets for the system prompt.
+func formatToolListWithSnippets(toolNames []string, snippets map[string]string) string {
+	if len(toolNames) == 0 {
+		return "(none)"
+	}
+
+	var sb strings.Builder
+	for _, name := range toolNames {
+		if snippet, ok := snippets[name]; ok {
+			sb.WriteString(fmt.Sprintf("- %s: %s\n", name, snippet))
+		} else {
+			sb.WriteString(fmt.Sprintf("- %s\n", name))
+		}
+	}
+	return sb.String()
+}
+
+// buildGuidelines builds the guidelines section for the system prompt.
+func buildGuidelines(toolGuidelines []string) string {
+	var sb strings.Builder
+
+	// Add tool-specific guidelines
+	for _, g := range toolGuidelines {
+		sb.WriteString(fmt.Sprintf("- %s\n", g))
+	}
+
+	// Add general guidelines
+	generalGuidelines := []string{
+		"Be concise in your responses",
+		"Show file paths clearly when working with files",
+		"Use bash for file operations like ls, rg, find",
+		"Read files before modifying them to understand context",
+		"Verify your changes work when possible",
+		"Ask for clarification when requirements are ambiguous",
+		"Don't assume file contents - read them first",
+		"Explain complex operations before executing them",
+		"Report errors clearly with context",
+	}
+
+	for _, g := range generalGuidelines {
+		sb.WriteString(fmt.Sprintf("- %s\n", g))
+	}
+
 	return sb.String()
 }
 

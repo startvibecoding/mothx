@@ -262,7 +262,9 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		for _, t := range a.registry.ModeTools(a.config.Mode) {
 			toolNames = append(toolNames, t.Name)
 		}
-		systemPrompt := BuildSystemPrompt(a.config.Mode, toolNames, a.registry.GetWorkDir(), a.config.ExtraContext)
+		toolSnippets := a.registry.ToolSnippets(toolNames)
+		toolGuidelines := a.registry.ToolGuidelines(toolNames)
+		systemPrompt := BuildSystemPrompt(a.config.Mode, toolNames, a.registry.GetWorkDir(), a.config.ExtraContext, toolSnippets, toolGuidelines)
 		a.context.SystemPrompt = systemPrompt
 
 		// Get tool definitions for current mode

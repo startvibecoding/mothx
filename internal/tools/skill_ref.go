@@ -26,6 +26,14 @@ func (t *SkillRefTool) Description() string {
 	return "Load a reference file from an active skill. Use this to access on-demand knowledge from skills that have reference files (e.g. references/audio.md)."
 }
 
+func (t *SkillRefTool) PromptSnippet() string {
+	return "Load reference files from skills"
+}
+
+func (t *SkillRefTool) PromptGuidelines() []string {
+	return nil
+}
+
 func (t *SkillRefTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

@@ -25,6 +25,19 @@ func (t *EditTool) Description() string {
 	return "Edit a file using exact text replacement. Each edit must match a unique, non-overlapping region of the file. For multiple changes to the same file, use multiple edits in one call."
 }
 
+func (t *EditTool) PromptSnippet() string {
+	return "Make precise file edits with exact text replacement, including multiple disjoint edits in one call"
+}
+
+func (t *EditTool) PromptGuidelines() []string {
+	return []string{
+		"Use edit for precise changes (edits[].oldText must match exactly)",
+		"When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls",
+		"Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
+		"Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
+	}
+}
+
 func (t *EditTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

@@ -25,6 +25,14 @@ func (t *FindTool) Description() string {
 	return "Search for files by name pattern. Supports glob patterns. Use for finding files by name, extension, or path pattern."
 }
 
+func (t *FindTool) PromptSnippet() string {
+	return "Find files by glob pattern (respects .gitignore)"
+}
+
+func (t *FindTool) PromptGuidelines() []string {
+	return nil
+}
+
 func (t *FindTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

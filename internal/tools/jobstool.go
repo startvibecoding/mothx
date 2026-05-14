@@ -25,6 +25,14 @@ func (t *JobsTool) Description() string {
 	return "List and check status of background jobs started with bash async=true. Shows running and finished jobs."
 }
 
+func (t *JobsTool) PromptSnippet() string {
+	return "List and manage background jobs"
+}
+
+func (t *JobsTool) PromptGuidelines() []string {
+	return nil
+}
+
 func (t *JobsTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

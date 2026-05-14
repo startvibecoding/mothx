@@ -26,6 +26,14 @@ func (t *LsTool) Description() string {
 	return "List directory contents with details. Shows files and directories with sizes and types."
 }
 
+func (t *LsTool) PromptSnippet() string {
+	return "List directory contents"
+}
+
+func (t *LsTool) PromptGuidelines() []string {
+	return nil
+}
+
 func (t *LsTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

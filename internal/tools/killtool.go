@@ -23,6 +23,14 @@ func (t *KillTool) Description() string {
 	return "Stop a running background job started with bash async=true."
 }
 
+func (t *KillTool) PromptSnippet() string {
+	return "Stop a running background job"
+}
+
+func (t *KillTool) PromptGuidelines() []string {
+	return nil
+}
+
 func (t *KillTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

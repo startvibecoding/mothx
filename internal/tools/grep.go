@@ -27,6 +27,14 @@ func (t *GrepTool) Description() string {
 	return "Search file contents using regex patterns. Returns matching lines with file paths and line numbers. Use for finding code patterns, function definitions, etc."
 }
 
+func (t *GrepTool) PromptSnippet() string {
+	return "Search file contents for patterns (respects .gitignore)"
+}
+
+func (t *GrepTool) PromptGuidelines() []string {
+	return nil
+}
+
 func (t *GrepTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
