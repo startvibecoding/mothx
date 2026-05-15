@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# Sync version from git tag to npm/package.json
+# Sync version from git tag to npm package.json (main + all platform packages)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-PACKAGE_JSON="$PROJECT_ROOT/npm/package.json"
+NPM_DIR="$PROJECT_ROOT/npm"
+PACKAGE_JSON="$NPM_DIR/package.json"
 
 # Get version from argument or git
 if [ -n "$1" ]; then
@@ -21,15 +22,36 @@ fi
 
 echo "Syncing npm version to: $VERSION"
 
-# Update package.json version
-if command -v jq &> /dev/null; then
-  # Use jq if available
-  jq --arg version "$VERSION" '.version = $version' "$PACKAGE_JSON" > "$PACKAGE_JSON.tmp"
-  mv "$PACKAGE_JSON.tmp" "$PACKAGE_JSON"
-else
-  # Fallback to sed
-  sed -i.bak "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$PACKAGE_JSON"
-  rm -f "$PACKAGE_JSON.bak"
+# Update main package.json version + optionalDependencies
+node -e "
+const fs = require('fs');
+const pkgPath = '$PACKAGE_JSON';
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+pkg.version = '$VERSION';
+if (pkg.optionalDependencies) {
+  for (const key of Object.keys(pkg.optionalDependencies)) {
+    pkg.optionalDependencies[key] = '$VERSION';
+  }
+}
+fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+console.log('Updated: $PACKAGE_JSON');
+"
+
+# Update all platform package.json files
+PACKAGES_DIR="$NPM_DIR/packages"
+if [ -d "$PACKAGES_DIR" ]; then
+  for pkgDir in "$PACKAGES_DIR"/*/; do
+    if [ -f "$pkgDir/package.json" ]; then
+      node -e "
+      const fs = require('fs');
+      const pkgPath = '${pkgDir}package.json';
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      pkg.version = '$VERSION';
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+      console.log('Updated: ' + pkgPath);
+      "
+    fi
+  done
 fi
 
-echo "Updated $PACKAGE_JSON"
+echo "Version sync complete: $VERSION"

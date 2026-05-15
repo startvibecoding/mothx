@@ -1,5 +1,24 @@
 # 更新日志
 
+## v0.0.8
+
+### ✨ 新功能
+
+- **NPM 多架构分包优化**
+  - 将 npm 包从单包全平台（~60MB）拆分为 6 个平台独立包（每个 ~10MB）
+  - 用户安装时只下载当前平台的二进制文件，体积减少 83%
+  - 利用 npm `optionalDependencies` + `os`/`cpu` 字段自动匹配平台
+  - 主包 `vibecoding-installer` 仅 ~2KB，通过 `postinstall` 链接正确的平台包
+
+### 🛠 改进
+
+- **构建系统**
+  - 新增 `scripts/build-npm-packages.sh` 生成平台独立 npm 包
+  - 新增 `make npm-packages`、`make npm-pack`、`make npm-publish-all` 目标
+  - `sync-npm-version.sh` 同步更新所有平台包版本
+
+---
+
 ## v0.0.7
 
 ### ✨ 新功能

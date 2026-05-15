@@ -4,10 +4,12 @@
 # Except these files
 !package.json
 !postinstall.js
+!index.js
 !README.md
-!bin/
-!bin/vibecoding-*
 
 # Ignore generated files
 tgz
 *.tgz
+
+# Ignore platform packages directory (published as separate packages)
+packages/
