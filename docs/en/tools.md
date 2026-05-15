@@ -18,7 +18,7 @@ VibeCoding provides a set of built-in tools for file operations, code search, an
 
 ### read - File Reading
 
-Read file content with pagination support.
+Read file content with pagination support. Supports both text files and images.
 
 **Parameters:**
 
@@ -38,7 +38,17 @@ Read file content with pagination support.
 }
 ```
 
-**Returns:** File content text
+**Returns:** 
+- For text files: File content as text
+- For images (PNG, JPEG, GIF, WebP): Base64-encoded image data with MIME type information
+
+**Image Support:**
+
+When reading image files, the tool returns rich content containing:
+- A text description with file path, size, and type
+- The image data encoded in base64 format
+
+Supported image formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
 
 ---
 
@@ -300,6 +310,27 @@ In sandbox mode:
 - Excess content is truncated
 - Use `offset` and `limit` for paginated reading of large files
 
+## Tool Results
+
+Tools return a `ToolResult` struct that supports both plain text and rich content:
+
+```go
+type ToolResult struct {
+    Text     string                  // Plain text result (always populated)
+    Contents []provider.ContentBlock // Rich content blocks (text + images)
+}
+```
+
+### Creating Tool Results
+
+```go
+// Plain text result
+return tools.NewTextToolResult("File written successfully"), nil
+
+// Result with image (for tools that return images)
+return tools.NewImageToolResult("Image loaded", "image/png", base64Data), nil
+```
+
 ## Extending Tools
 
 ### Custom Tool Interface
@@ -309,7 +340,7 @@ type Tool interface {
     Name() string
     Description() string
     Parameters() json.RawMessage
-    Execute(ctx context.Context, params json.RawMessage) (string, error)
+    Execute(ctx context.Context, params map[string]any) (ToolResult, error)
 }
 ```
 

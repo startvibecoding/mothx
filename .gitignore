@@ -26,3 +26,5 @@ Thumbs.db
 .vibe/
 dist/
 /vibecoding
+npm/*.tgz
+*.png

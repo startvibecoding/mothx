@@ -1,16 +1,10 @@
 {
   "name": "vibecoding-installer-win32-x64",
-  "version": "v0.0.8",
+  "version": "v0.0.8-dirty",
   "description": "VibeCoding native binary for win32-x64",
-  "os": [
-    "win32"
-  ],
-  "cpu": [
-    "x64"
-  ],
-  "files": [
-    "bin/"
-  ],
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "files": ["bin/"],
   "license": "MIT",
   "repository": {
     "type": "git",

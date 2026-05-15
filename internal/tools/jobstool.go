@@ -49,7 +49,7 @@ func (t *JobsTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *JobsTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *JobsTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	jm := t.bashTool.GetJobManager()
 
 	// Cleanup finished jobs
@@ -59,22 +59,22 @@ func (t *JobsTool) Execute(ctx context.Context, params map[string]any) (string, 
 				jm.RemoveJob(job.ID)
 			}
 		}
-		return "Cleaned up finished jobs.", nil
+		return NewTextToolResult("Cleaned up finished jobs."), nil
 	}
 
 	// Get specific job
 	if jobID, ok := params["jobId"].(float64); ok {
 		job := jm.GetJob(int(jobID))
 		if job == nil {
-			return "", fmt.Errorf("job %d not found", int(jobID))
+			return ToolResult{}, fmt.Errorf("job %d not found", int(jobID))
 		}
-		return formatJobDetail(job), nil
+		return NewTextToolResult(formatJobDetail(job)), nil
 	}
 
 	// List all jobs
 	jobs := jm.ListJobs()
 	if len(jobs) == 0 {
-		return "No background jobs.", nil
+		return NewTextToolResult("No background jobs."), nil
 	}
 
 	// Sort by ID
@@ -86,7 +86,7 @@ func (t *JobsTool) Execute(ctx context.Context, params map[string]any) (string, 
 	for _, job := range jobs {
 		result += job.Status() + "\n"
 	}
-	return result, nil
+	return NewTextToolResult(result), nil
 }
 
 func formatJobDetail(job *BackgroundJob) string {

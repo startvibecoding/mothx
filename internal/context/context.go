@@ -16,25 +16,26 @@ type ContextUsage struct {
 func EstimateTokens(msg provider.Message) int {
 	chars := 0
 
-	if msg.Content != "" {
-		chars += len(msg.Content)
-	}
-
-	for _, block := range msg.Contents {
-		switch block.Type {
-		case "text":
-			chars += len(block.Text)
-		case "thinking":
-			chars += len(block.Thinking)
-		case "toolCall":
-			if block.ToolCall != nil {
-				chars += len(block.ToolCall.Name)
-				chars += len(block.ToolCall.Arguments)
+	if len(msg.Contents) > 0 {
+		// Rich content blocks take precedence; avoid double-counting with Content.
+		for _, block := range msg.Contents {
+			switch block.Type {
+			case "text":
+				chars += len(block.Text)
+			case "thinking":
+				chars += len(block.Thinking)
+			case "toolCall":
+				if block.ToolCall != nil {
+					chars += len(block.ToolCall.Name)
+					chars += len(block.ToolCall.Arguments)
+				}
+			case "image":
+				// Estimate images as ~4800 chars (~1200 tokens)
+				chars += 4800
 			}
-		case "image":
-			// Estimate images as ~4800 chars (~1200 tokens)
-			chars += 4800
 		}
+	} else if msg.Content != "" {
+		chars += len(msg.Content)
 	}
 
 	return (chars + 3) / 4 // ceil(chars/4)

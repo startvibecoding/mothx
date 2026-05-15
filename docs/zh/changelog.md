@@ -1,5 +1,46 @@
 # 更新日志
 
+## v0.0.9
+
+### ✨ 新功能
+
+- **工具图像支持**
+  - `read` 工具现在支持读取图像文件（PNG、JPEG、GIF、WebP）
+  - 图像以 base64 编码数据和 MIME 类型信息返回
+  - LLM 现在可以分析和理解图像内容
+  - 支持格式：`.png`、`.jpg`、`.jpeg`、`.gif`、`.webp`
+
+- **富内容工具结果**
+  - 新的 `ToolResult` 结构体支持纯文本和富内容块
+  - 工具现在可以在单个结果中返回文本 + 图像
+  - 新增工厂函数：`NewTextToolResult()` 和 `NewImageToolResult()`
+
+- **模型切换**
+  - `/model <id>` 命令允许在交互模式下切换模型
+  - `/model` 不带参数显示当前模型和可用选项
+  - 切换模型时自动重置 Agent
+
+- **增强的帮助系统**
+  - `/help` 命令现在显示详细的命令说明
+  - 新增键盘快捷键参考（Tab、Esc、Ctrl+O、PgUp/PgDn）
+
+### 🛠 改进
+
+- **上下文 Token 估算**
+  - 修复了同时存在 `Content` 和 `Contents` 时的重复计算问题
+  - 图像 token 估算为每张图约 1200 token
+
+- **提供商消息转换**
+  - OpenAI：工具结果中的图像作为补充用户消息发送
+  - Anthropic：图像作为单独的用户消息与 tool_result 一起发送
+
+### 🧪 测试
+
+- 新增 `TestReadToolImage` 测试用例验证图像读取功能
+- 所有工具测试已更新为新的 `ToolResult` 返回类型
+
+---
+
 ## v0.0.8
 
 ### ✨ 新功能

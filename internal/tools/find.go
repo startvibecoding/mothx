@@ -58,10 +58,10 @@ func (t *FindTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *FindTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	pattern, _ := params["pattern"].(string)
 	if pattern == "" {
-		return "", fmt.Errorf("pattern is required")
+		return ToolResult{}, fmt.Errorf("pattern is required")
 	}
 
 	searchPath := t.registry.GetWorkDir()
@@ -123,10 +123,10 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (string, 
 	})
 
 	if len(results) == 0 {
-		return "(no files found)", nil
+		return NewTextToolResult("(no files found)"), nil
 	}
 
-	return strings.Join(results, "\n"), nil
+	return NewTextToolResult(strings.Join(results, "\n")), nil
 }
 
 func (t *FindTool) resolvePath(path string) string {

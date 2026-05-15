@@ -374,6 +374,24 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 		om := openAIMessage{Role: msg.Role, ToolCallID: msg.ToolCallID}
 		if msg.Role == "toolResult" {
 			om.Role = "tool"
+			if len(msg.Contents) > 0 {
+				// Rich tool result: send text as tool message, images as supplementary user message
+				om.Content = msg.Content
+				messages = append(messages, om)
+				// Collect image blocks for a supplementary user message
+				var imageBlocks []openAIContentBlock
+				for _, c := range msg.Contents {
+					if c.Type == "image" && c.Image != nil {
+						imageBlocks = append(imageBlocks, openAIContentBlock{Type: "image_url", ImageURL: &openAIImage{URL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)}})
+					}
+				}
+				if len(imageBlocks) > 0 {
+					// OpenAI tool messages can't contain images, so send them as a user message
+					imageMsg := openAIMessage{Role: "user", Content: imageBlocks}
+					messages = append(messages, imageMsg)
+				}
+				continue
+			}
 			om.Content = msg.Content
 		} else if len(msg.Contents) > 0 {
 			var blocks []openAIContentBlock

@@ -334,6 +334,36 @@ func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessag
 		am := anthropicMessage{Role: msg.Role}
 		if msg.Role == "toolResult" {
 			am.Role = "user"
+			if len(msg.Contents) > 0 {
+				// Rich tool result: send text as tool_result, images as separate user message.
+				// Many API routing layers only detect images in user messages, not inside tool_result.
+				var imageBlocks []anthropicContentBlock
+				var textContent string
+				for _, c := range msg.Contents {
+					switch c.Type {
+					case "text":
+						textContent = c.Text
+					case "image":
+						if c.Image != nil {
+							imageBlocks = append(imageBlocks, anthropicContentBlock{Type: "image", Source: &anthropicImage{Type: "base64", MediaType: c.Image.MimeType, Data: c.Image.Data}})
+						}
+					}
+				}
+				// Send tool_result with text only
+				if textContent != "" {
+					am.Content = []anthropicContentBlock{{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: textContent, IsError: msg.IsError}}
+					messages = append(messages, am)
+				} else {
+					am.Content = []anthropicContentBlock{{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: msg.Content, IsError: msg.IsError}}
+					messages = append(messages, am)
+				}
+				// Send images as a separate user message
+				if len(imageBlocks) > 0 {
+					imageMsg := anthropicMessage{Role: "user", Content: imageBlocks}
+					messages = append(messages, imageMsg)
+				}
+				continue
+			}
 			am.Content = []anthropicContentBlock{{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: msg.Content, IsError: msg.IsError}}
 		} else if len(msg.Contents) > 0 {
 			var blocks []anthropicContentBlock

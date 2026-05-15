@@ -18,7 +18,7 @@ VibeCoding 提供了一组内置工具，用于文件操作、代码搜索和命
 
 ### read - 文件读取
 
-读取文件内容，支持分页。
+读取文件内容，支持分页。支持文本文件和图像文件。
 
 **参数:**
 
@@ -38,7 +38,17 @@ VibeCoding 提供了一组内置工具，用于文件操作、代码搜索和命
 }
 ```
 
-**返回:** 文件内容文本
+**返回:** 
+- 文本文件：文件内容文本
+- 图像文件（PNG、JPEG、GIF、WebP）：Base64 编码的图像数据及 MIME 类型信息
+
+**图像支持：**
+
+读取图像文件时，工具返回富内容，包含：
+- 文件路径、大小和类型的文本描述
+- Base64 编码的图像数据
+
+支持的图像格式：`.png`、`.jpg`、`.jpeg`、`.gif`、`.webp`
 
 ---
 
@@ -300,6 +310,27 @@ VibeCoding 提供了一组内置工具，用于文件操作、代码搜索和命
 - 超出部分会被截断
 - 使用 `offset` 和 `limit` 分页读取大文件
 
+## 工具结果
+
+工具返回支持纯文本和富内容的 `ToolResult` 结构体：
+
+```go
+type ToolResult struct {
+    Text     string                  // 纯文本结果（始终填充）
+    Contents []provider.ContentBlock // 富内容块（文本 + 图像）
+}
+```
+
+### 创建工具结果
+
+```go
+// 纯文本结果
+return tools.NewTextToolResult("文件写入成功"), nil
+
+// 包含图像的结果（用于返回图像的工具）
+return tools.NewImageToolResult("图像已加载", "image/png", base64Data), nil
+```
+
 ## 扩展工具
 
 ### 自定义工具接口
@@ -309,7 +340,7 @@ type Tool interface {
     Name() string
     Description() string
     Parameters() json.RawMessage
-    Execute(ctx context.Context, params json.RawMessage) (string, error)
+    Execute(ctx context.Context, params map[string]any) (ToolResult, error)
 }
 ```
 

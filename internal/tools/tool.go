@@ -8,6 +8,30 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 )
 
+// ToolResult represents the result of a tool execution.
+// It can contain plain text and optional rich content blocks (e.g. images).
+type ToolResult struct {
+	Text     string                  // Plain text result (always populated for display/logging)
+	Contents []provider.ContentBlock // Rich content blocks (text + images) for the LLM
+}
+
+// NewTextToolResult creates a plain text tool result.
+func NewTextToolResult(text string) ToolResult {
+	return ToolResult{Text: text}
+}
+
+// NewImageToolResult creates a tool result that includes an image.
+// text is the human-readable description, mimeType and base64Data are the image payload.
+func NewImageToolResult(text, mimeType, base64Data string) ToolResult {
+	return ToolResult{
+		Text: text,
+		Contents: []provider.ContentBlock{
+			{Type: "text", Text: text},
+			{Type: "image", Image: &provider.ImageContent{MimeType: mimeType, Data: base64Data}},
+		},
+	}
+}
+
 // Tool is the interface that all tools must implement.
 type Tool interface {
 	// Name returns the tool's name.
@@ -26,7 +50,7 @@ type Tool interface {
 	Parameters() json.RawMessage
 
 	// Execute runs the tool with the given parameters.
-	Execute(ctx context.Context, params map[string]any) (string, error)
+	Execute(ctx context.Context, params map[string]any) (ToolResult, error)
 }
 
 // ToolDefinition converts a Tool to a provider.ToolDefinition.
