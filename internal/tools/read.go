@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -54,10 +55,19 @@ func (t *ReadTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+// imageMimeType maps file extensions to MIME types.
+var imageMimeType = map[string]string{
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+}
+
+func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	path, _ := params["path"].(string)
 	if path == "" {
-		return "", fmt.Errorf("path is required")
+		return ToolResult{}, fmt.Errorf("path is required")
 	}
 
 	path = t.resolvePath(path)
@@ -65,19 +75,20 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (string, 
 
 	// Check for image files
 	ext := strings.ToLower(filepath.Ext(path))
-	imageExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
-	if imageExts[ext] {
-		info, err := os.Stat(path)
+	if mimeType, ok := imageMimeType[ext]; ok {
+		data, err := os.ReadFile(path)
 		if err != nil {
-			return "", fmt.Errorf("cannot access file: %w", err)
+			return ToolResult{}, fmt.Errorf("cannot read image file: %w", err)
 		}
-		return fmt.Sprintf("[Image file: %s, size: %d bytes]", path, info.Size()), nil
+		b64 := base64.StdEncoding.EncodeToString(data)
+		desc := fmt.Sprintf("[Image file: %s, size: %d bytes, type: %s]", path, len(data), mimeType)
+		return NewImageToolResult(desc, mimeType, b64), nil
 	}
 
 	// Read text file
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("cannot read file: %w", err)
+		return ToolResult{}, fmt.Errorf("cannot read file: %w", err)
 	}
 
 	content := string(data)
@@ -95,7 +106,7 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (string, 
 
 	// Clamp
 	if offset >= len(lines) {
-		return "(end of file)", nil
+		return NewTextToolResult("(end of file)"), nil
 	}
 	end := offset + limit
 	if end > len(lines) {
@@ -119,7 +130,7 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (string, 
 		result = result[:maxBytes] + fmt.Sprintf("\n... (truncated, total %d lines)", len(lines))
 	}
 
-	return result, nil
+	return NewTextToolResult(result), nil
 }
 
 func (t *ReadTool) resolvePath(path string) string {

@@ -69,6 +69,26 @@ func NewToolResultMessage(toolCallID, toolName, content string, isError bool) Me
 	}
 }
 
+// NewToolResultMessageWithContents creates a tool result message with rich content blocks.
+// If contents is nil or empty, it falls back to using the text parameter.
+func NewToolResultMessageWithContents(toolCallID, toolName, text string, contents []ContentBlock, isError bool) Message {
+	msg := Message{
+		Role:       "toolResult",
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		IsError:    isError,
+		Timestamp:  time.Now(),
+	}
+	if len(contents) > 0 {
+		msg.Contents = contents
+		// Also set Content for backward compatibility (display/logging)
+		msg.Content = text
+	} else {
+		msg.Content = text
+	}
+	return msg
+}
+
 // Usage represents token usage and cost information.
 type Usage struct {
 	Input       int  `json:"input"`

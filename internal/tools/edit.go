@@ -69,10 +69,10 @@ func (t *EditTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *EditTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	path, _ := params["path"].(string)
 	if path == "" {
-		return "", fmt.Errorf("path is required")
+		return ToolResult{}, fmt.Errorf("path is required")
 	}
 
 	path = t.resolvePath(path)
@@ -80,13 +80,13 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (string, 
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read file: %w", err)
+		return ToolResult{}, fmt.Errorf("read file: %w", err)
 	}
 	content := string(data)
 
 	editsRaw, ok := params["edits"].([]any)
 	if !ok || len(editsRaw) == 0 {
-		return "", fmt.Errorf("edits array is required and must not be empty")
+		return ToolResult{}, fmt.Errorf("edits array is required and must not be empty")
 	}
 
 	type edit struct {
@@ -98,12 +98,12 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (string, 
 	for _, e := range editsRaw {
 		editMap, ok := e.(map[string]any)
 		if !ok {
-			return "", fmt.Errorf("invalid edit format")
+			return ToolResult{}, fmt.Errorf("invalid edit format")
 		}
 		oldText, _ := editMap["oldText"].(string)
 		newText, _ := editMap["newText"].(string)
 		if oldText == "" {
-			return "", fmt.Errorf("oldText is required for each edit")
+			return ToolResult{}, fmt.Errorf("oldText is required for each edit")
 		}
 		edits = append(edits, edit{OldText: oldText, NewText: newText})
 	}
@@ -112,10 +112,10 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (string, 
 	for i, e := range edits {
 		count := strings.Count(content, e.OldText)
 		if count == 0 {
-			return "", fmt.Errorf("edit %d: oldText not found in file", i)
+			return ToolResult{}, fmt.Errorf("edit %d: oldText not found in file", i)
 		}
 		if count > 1 {
-			return "", fmt.Errorf("edit %d: oldText matches %d times (must be unique). Make the match text more specific", i, count)
+			return ToolResult{}, fmt.Errorf("edit %d: oldText matches %d times (must be unique). Make the match text more specific", i, count)
 		}
 	}
 
@@ -125,10 +125,10 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (string, 
 	}
 
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return "", fmt.Errorf("write file: %w", err)
+		return ToolResult{}, fmt.Errorf("write file: %w", err)
 	}
 
-	return fmt.Sprintf("Applied %d edit(s) to %s", len(edits), path), nil
+	return NewTextToolResult(fmt.Sprintf("Applied %d edit(s) to %s", len(edits), path)), nil
 }
 
 func (t *EditTool) resolvePath(path string) string {

@@ -940,7 +940,49 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			}
 		}
 	case "/model":
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Model: %s (%s)", a.model.Name, a.model.Provider)))
+		if len(parts) > 1 {
+			// Switch model
+			modelID := parts[1]
+			newModel := a.provider.GetModel(modelID)
+			if newModel == nil {
+				a.addMessage(errorStyle.Render(fmt.Sprintf("Model not found: %s", modelID)))
+				// List available models
+				models := a.provider.Models()
+				if len(models) > 0 {
+					var sb strings.Builder
+					sb.WriteString("Available models:\n")
+					for _, m := range models {
+						marker := " "
+						if m.ID == a.model.ID {
+							marker = "*"
+						}
+						sb.WriteString(fmt.Sprintf("  [%s] %s (%s)\n", marker, m.Name, m.ID))
+					}
+					a.addMessage(statusStyle.Render(sb.String()))
+				}
+				return nil
+			}
+			a.model = newModel
+			// Reset agent so next message uses the new model
+			a.agent = nil
+			a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID)))
+		} else {
+			// Show current model and available models
+			a.addMessage(statusStyle.Render(fmt.Sprintf("Current model: %s (%s)", a.model.Name, a.model.ID)))
+			models := a.provider.Models()
+			if len(models) > 0 {
+				var sb strings.Builder
+				sb.WriteString("Available models (use /model <id> to switch):\n")
+				for _, m := range models {
+					marker := " "
+					if m.ID == a.model.ID {
+						marker = "*"
+					}
+					sb.WriteString(fmt.Sprintf("  [%s] %s (%s)\n", marker, m.Name, m.ID))
+				}
+				a.addMessage(statusStyle.Render(sb.String()))
+			}
+		}
 	case "/skills":
 		a.listSkills()
 	case "/skill":
@@ -961,7 +1003,20 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 	case "/quit":
 		return tea.Quit
 	case "/help":
-		a.addMessage(statusStyle.Render("Commands: /mode, /model, /skills, /skill <name>, /clear, /quit, /help"))
+		a.addMessage(statusStyle.Render("Commands:"))
+		a.addMessage(statusStyle.Render("  /mode [plan|agent|yolo] - Switch or show mode"))
+		a.addMessage(statusStyle.Render("  /model [model_id]       - Switch or show model"))
+		a.addMessage(statusStyle.Render("  /skills                 - List available skills"))
+		a.addMessage(statusStyle.Render("  /skill <name>           - Activate a skill"))
+		a.addMessage(statusStyle.Render("  /clear                  - Clear conversation"))
+		a.addMessage(statusStyle.Render("  /quit                   - Exit"))
+		a.addMessage(statusStyle.Render("  /help                   - Show this help"))
+		a.addMessage(statusStyle.Render(""))
+		a.addMessage(statusStyle.Render("Keyboard shortcuts:"))
+		a.addMessage(statusStyle.Render("  Tab       - Cycle mode (plan/agent/yolo)"))
+		a.addMessage(statusStyle.Render("  Esc       - Abort current operation"))
+		a.addMessage(statusStyle.Render("  Ctrl+O    - Toggle tool output"))
+		a.addMessage(statusStyle.Render("  PgUp/PgDn - Scroll viewport"))
 	default:
 		// Handle /skill:<name> syntax (colon-separated)
 		if strings.HasPrefix(command, "/skill:") {

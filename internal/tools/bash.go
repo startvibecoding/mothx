@@ -76,10 +76,10 @@ func (t *BashTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	command, _ := params["command"].(string)
 	if command == "" {
-		return "", fmt.Errorf("command is required")
+		return ToolResult{}, fmt.Errorf("command is required")
 	}
 
 	// Check for async mode
@@ -139,7 +139,7 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		cmd.Stderr = &stderr
 
 		if err := cmd.Start(); err != nil {
-			return "", fmt.Errorf("failed to start background command: %w", err)
+			return ToolResult{}, fmt.Errorf("failed to start background command: %w", err)
 		}
 
 		job := t.jobManager.AddJob(cmd, command, cancel)
@@ -154,7 +154,7 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 			job.MarkDone(stdout.Bytes(), stderr.Bytes(), err)
 		}()
 
-		return fmt.Sprintf("Started background job [%d] (PID: %d): %s\nUse 'jobs' tool to check status or 'kill' to stop.", job.ID, job.PID, command), nil
+		return NewTextToolResult(fmt.Sprintf("Started background job [%d] (PID: %d): %s\nUse 'jobs' tool to check status or 'kill' to stop.", job.ID, job.PID, command)), nil
 	}
 
 	// Synchronous mode
@@ -195,15 +195,15 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (string, 
 		// Ignore WaitDelay error – the shell already exited; we just didn't
 		// drain all stdio in time (common with background children).
 		if errors.Is(err, exec.ErrWaitDelay) {
-			return resultStr, nil
+			return NewTextToolResult(resultStr), nil
 		}
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			return fmt.Sprintf("%s\nExit code: %d", resultStr, exitErr.ExitCode()), nil
+			return NewTextToolResult(fmt.Sprintf("%s\nExit code: %d", resultStr, exitErr.ExitCode())), nil
 		}
-		return "", fmt.Errorf("command failed: %w\n%s", err, resultStr)
+		return ToolResult{}, fmt.Errorf("command failed: %w\n%s", err, resultStr)
 	}
 
-	return resultStr, nil
+	return NewTextToolResult(resultStr), nil
 }
 
 // SetTool is an interface for tools that need sandbox updates.

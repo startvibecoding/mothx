@@ -46,7 +46,7 @@ func (t *LsTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *LsTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *LsTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	dirPath := t.registry.GetWorkDir()
 	if v, ok := params["path"].(string); ok && v != "" {
 		dirPath = t.resolvePath(v)
@@ -54,7 +54,7 @@ func (t *LsTool) Execute(ctx context.Context, params map[string]any) (string, er
 
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return "", fmt.Errorf("read directory: %w", err)
+		return ToolResult{}, fmt.Errorf("read directory: %w", err)
 	}
 
 	sort.Slice(entries, func(i, j int) bool {
@@ -86,9 +86,9 @@ func (t *LsTool) Execute(ctx context.Context, params map[string]any) (string, er
 
 	result := sb.String()
 	if result == "" {
-		return "(empty directory)", nil
+		return NewTextToolResult("(empty directory)"), nil
 	}
-	return result, nil
+	return NewTextToolResult(result), nil
 }
 
 func (t *LsTool) resolvePath(path string) string {

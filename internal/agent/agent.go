@@ -624,9 +624,11 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 
 	result, err := tool.Execute(toolCtx, params)
 	isError := err != nil
-	resultContent := result
+	resultContent := result.Text
+	resultContents := result.Contents
 	if err != nil {
 		resultContent = err.Error()
+		resultContents = nil
 	}
 
 	// Apply after-tool-call hook
@@ -646,6 +648,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 				resultContent = afterResult.Content
 			}
 			isError = afterResult.IsError
+			resultContents = nil
 		}
 	}
 
@@ -664,7 +667,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 		ToolError:  err,
 	}
 
-	return provider.NewToolResultMessage(tc.ID, tc.Name, resultContent, isError)
+	return provider.NewToolResultMessageWithContents(tc.ID, tc.Name, resultContent, resultContents, isError)
 }
 
 // GetMessages returns the current message history.

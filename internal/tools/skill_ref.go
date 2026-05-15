@@ -51,19 +51,19 @@ func (t *SkillRefTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *SkillRefTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *SkillRefTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	if t.skillsMgr == nil {
-		return "", fmt.Errorf("no skills manager available")
+		return ToolResult{}, fmt.Errorf("no skills manager available")
 	}
 
 	skillName, ok := params["skill"].(string)
 	if !ok || skillName == "" {
-		return "", fmt.Errorf("missing required parameter: skill")
+		return ToolResult{}, fmt.Errorf("missing required parameter: skill")
 	}
 
 	refPath, ok := params["ref"].(string)
 	if !ok || refPath == "" {
-		return "", fmt.Errorf("missing required parameter: ref")
+		return ToolResult{}, fmt.Errorf("missing required parameter: ref")
 	}
 
 	content, found := t.skillsMgr.LoadReference(skillName, refPath)
@@ -71,7 +71,7 @@ func (t *SkillRefTool) Execute(ctx context.Context, params map[string]any) (stri
 		// List available references to help the model
 		refs := t.skillsMgr.ListReferences(skillName)
 		if refs == nil {
-			return "", fmt.Errorf("skill '%s' not found", skillName)
+			return ToolResult{}, fmt.Errorf("skill '%s' not found", skillName)
 		}
 		var available string
 		for _, r := range refs {
@@ -84,8 +84,8 @@ func (t *SkillRefTool) Execute(ctx context.Context, params map[string]any) (stri
 			}
 			available += fmt.Sprintf("  - %s (%s): %s\n", r.Path, status, r.Label)
 		}
-		return "", fmt.Errorf("reference '%s' not found in skill '%s'. Available references:\n%s", refPath, skillName, available)
+		return ToolResult{}, fmt.Errorf("reference '%s' not found in skill '%s'. Available references:\n%s", refPath, skillName, available)
 	}
 
-	return content, nil
+	return NewTextToolResult(content), nil
 }

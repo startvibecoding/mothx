@@ -44,25 +44,25 @@ func (t *KillTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *KillTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *KillTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	jobID, ok := params["jobId"].(float64)
 	if !ok {
-		return "", fmt.Errorf("jobId is required")
+		return ToolResult{}, fmt.Errorf("jobId is required")
 	}
 
 	jm := t.bashTool.GetJobManager()
 	job := jm.GetJob(int(jobID))
 	if job == nil {
-		return "", fmt.Errorf("job %d not found", int(jobID))
+		return ToolResult{}, fmt.Errorf("job %d not found", int(jobID))
 	}
 
 	if job.IsDone() {
-		return fmt.Sprintf("Job %d already finished.", int(jobID)), nil
+		return NewTextToolResult(fmt.Sprintf("Job %d already finished.", int(jobID))), nil
 	}
 
 	if err := jm.KillJob(int(jobID)); err != nil {
-		return "", fmt.Errorf("failed to kill job %d: %w", int(jobID), err)
+		return ToolResult{}, fmt.Errorf("failed to kill job %d: %w", int(jobID), err)
 	}
 
-	return fmt.Sprintf("Sent kill signal to job %d (PID: %d).", int(jobID), job.PID), nil
+	return NewTextToolResult(fmt.Sprintf("Sent kill signal to job %d (PID: %d).", int(jobID), job.PID)), nil
 }

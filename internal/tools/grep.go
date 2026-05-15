@@ -60,15 +60,15 @@ func (t *GrepTool) Parameters() json.RawMessage {
 	}`)
 }
 
-func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (string, error) {
+func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	pattern, _ := params["pattern"].(string)
 	if pattern == "" {
-		return "", fmt.Errorf("pattern is required")
+		return ToolResult{}, fmt.Errorf("pattern is required")
 	}
 
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return "", fmt.Errorf("invalid regex: %w", err)
+		return ToolResult{}, fmt.Errorf("invalid regex: %w", err)
 	}
 
 	searchPath := t.registry.GetWorkDir()
@@ -133,14 +133,14 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (string, 
 		return nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("search failed: %w", err)
+		return ToolResult{}, fmt.Errorf("search failed: %w", err)
 	}
 
 	if len(results) == 0 {
-		return "(no matches found)", nil
+		return NewTextToolResult("(no matches found)"), nil
 	}
 
-	return strings.Join(results, "\n"), nil
+	return NewTextToolResult(strings.Join(results, "\n")), nil
 }
 
 func (t *GrepTool) resolvePath(path string) string {

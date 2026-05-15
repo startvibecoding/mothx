@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.0.9
+
+### ✨ Features
+
+- **Image Support in Tools**
+  - `read` tool now supports reading image files (PNG, JPEG, GIF, WebP)
+  - Images are returned as base64-encoded data with MIME type information
+  - LLMs can now analyze and understand image content
+  - Supported formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
+
+- **Rich Content Tool Results**
+  - New `ToolResult` struct supports both plain text and rich content blocks
+  - Tools can now return text + images in a single result
+  - New factory functions: `NewTextToolResult()` and `NewImageToolResult()`
+
+- **Model Switching**
+  - `/model <id>` command allows switching models in interactive mode
+  - `/model` without arguments shows current model and available options
+  - Agent resets automatically when model is switched
+
+- **Enhanced Help System**
+  - `/help` command now shows detailed command descriptions
+  - Added keyboard shortcuts reference (Tab, Esc, Ctrl+O, PgUp/PgDn)
+
+### 🛠 Improvements
+
+- **Context Token Estimation**
+  - Fixed double-counting issue when both `Content` and `Contents` are present
+  - Image tokens estimated as ~1200 tokens per image
+
+- **Provider Message Conversion**
+  - OpenAI: Images in tool results sent as supplementary user messages
+  - Anthropic: Images sent as separate user messages alongside tool_result
+
+### 🧪 Testing
+
+- Added `TestReadToolImage` test case for image reading functionality
+- All tool tests updated for new `ToolResult` return type
+
+---
+
 ## v0.0.8
 
 ### ✨ Features

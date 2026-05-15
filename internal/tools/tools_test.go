@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,8 +130,68 @@ func TestReadToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
+	}
+}
+
+func TestReadToolImage(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a minimal valid PNG (1x1 pixel, red)
+	pngData := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
+		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // 8-bit RGB
+		0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, // IDAT chunk
+		0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+		0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc,
+		0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, // IEND chunk
+		0x44, 0xae, 0x42, 0x60, 0x82,
+	}
+
+	tmpFile := filepath.Join(tmpDir, "test.png")
+	os.WriteFile(tmpFile, pngData, 0644)
+
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewReadTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": "test.png",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have text description
+	if result.Text == "" {
+		t.Error("expected non-empty text result")
+	}
+	if !strings.Contains(result.Text, "Image file") {
+		t.Errorf("expected 'Image file' in text, got '%s'", result.Text)
+	}
+
+	// Should have rich contents with image block
+	if len(result.Contents) != 2 {
+		t.Fatalf("expected 2 content blocks (text + image), got %d", len(result.Contents))
+	}
+	if result.Contents[0].Type != "text" {
+		t.Errorf("expected first block type 'text', got '%s'", result.Contents[0].Type)
+	}
+	if result.Contents[1].Type != "image" {
+		t.Errorf("expected second block type 'image', got '%s'", result.Contents[1].Type)
+	}
+	if result.Contents[1].Image == nil {
+		t.Fatal("expected non-nil image content")
+	}
+	if result.Contents[1].Image.MimeType != "image/png" {
+		t.Errorf("expected mime type 'image/png', got '%s'", result.Contents[1].Image.MimeType)
+	}
+	if result.Contents[1].Image.Data == "" {
+		t.Error("expected non-empty base64 data")
 	}
 }
 
@@ -164,7 +225,7 @@ func TestWriteToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 
@@ -216,7 +277,7 @@ func TestEditToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 
@@ -258,7 +319,7 @@ func TestBashToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 }
@@ -278,7 +339,7 @@ func TestBashToolAsync(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 
@@ -317,8 +378,8 @@ func TestJobsTool(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result != "No background jobs." {
-		t.Errorf("expected 'No background jobs.', got '%s'", result)
+	if result.Text != "No background jobs." {
+		t.Errorf("expected 'No background jobs.', got '%s'", result.Text)
 	}
 }
 
@@ -373,7 +434,7 @@ func TestGrepToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 }
@@ -410,7 +471,7 @@ func TestFindToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 }
@@ -446,7 +507,7 @@ func TestLsToolExecute(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if result == "" {
+	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
 }
