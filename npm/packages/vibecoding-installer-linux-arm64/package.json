@@ -1,16 +1,10 @@
 {
   "name": "vibecoding-installer-linux-arm64",
-  "version": "0.1.0",
+  "version": "v0.1.0",
   "description": "VibeCoding native binary for linux-arm64",
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "arm64"
-  ],
-  "files": [
-    "bin/"
-  ],
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": ["bin/"],
   "license": "MIT",
   "repository": {
     "type": "git",
