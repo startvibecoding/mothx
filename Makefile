@@ -2,7 +2,7 @@
 .PHONY: build-linux build-darwin build-windows
 .PHONY: dist dist-linux dist-darwin dist-windows dist-deb dist-tarball dist-zip
 .PHONY: clean-all checksums
-.PHONY: npm-version npm-publish npm-pack
+.PHONY: npm-version npm-publish npm-publish-all npm-pack npm-pack-all
 
 # Variables
 BINARY_NAME=vibecoding
@@ -36,9 +36,10 @@ help:
 	@echo "  dist-zip       Build zip packages only"
 	@echo ""
 	@echo "NPM targets:"
-	@echo "  npm-version    Sync version to npm package"
-	@echo "  npm-publish    Publish to npm registry"
-	@echo "  npm-pack       Create npm tarball"
+	@echo "  npm-version       Sync version to npm package"
+	@echo "  npm-pack          Pack main + all platform packages"
+	@echo "  npm-publish-all   Publish main + all platform packages"
+	@echo "  npm-publish       Publish main package only (legacy)"
 	@echo ""
 	@echo "Other targets:"
 	@echo "  install        Install via go install"
@@ -176,14 +177,54 @@ dist: dist-linux dist-darwin dist-windows checksums
 npm-version:
 	./scripts/sync-npm-version.sh $(VERSION)
 
+# Legacy: build all binaries into single package
 npm-binaries: build-all
 	./scripts/build-npm.sh
 
-npm-pack: npm-version npm-binaries
-	cd npm && npm pack
+# Build platform-specific packages
+npm-packages: build-all
+	./scripts/build-npm-packages.sh
 
+# Pack main + platform packages
+npm-pack: npm-version npm-packages
+	@echo "Packing platform packages..."
+	@for d in npm/packages/*/; do \
+		if [ -f "$$d/package.json" ]; then \
+			echo "  Packing $$(basename $$d)..."; \
+			cd "$$d" && npm pack && cd - > /dev/null; \
+			mv "$$d"/*.tgz npm/ 2>/dev/null || true; \
+		fi; \
+	done
+	@echo "Packing main package..."
+	cd npm && npm pack
+	@echo "Done. Tarballs in npm/"
+
+# Publish platform packages first, then main
+npm-publish-all: npm-version npm-packages
+	@echo "Publishing platform packages..."
+	@for d in npm/packages/*/; do \
+		if [ -f "$$d/package.json" ]; then \
+			echo "  Publishing $$(basename $$d)..."; \
+			cd "$$d" && npm publish --tag latest && cd - > /dev/null; \
+		fi; \
+	done
+	@echo "Publishing main package..."
+	cd npm && npm publish --tag latest
+	@echo "Published all packages!"
+
+# Publish pre-release
+npm-publish-pre: npm-version npm-packages
+	@echo "Publishing platform packages (pre-release)..."
+	@for d in npm/packages/*/; do \
+		if [ -f "$$d/package.json" ]; then \
+			echo "  Publishing $$(basename $$d)..."; \
+			cd "$$d" && npm publish --tag next && cd - > /dev/null; \
+		fi; \
+	done
+	@echo "Publishing main package (pre-release)..."
+	cd npm && npm publish --tag next
+	@echo "Published all packages (pre-release)!"
+
+# Legacy: publish main package only
 npm-publish: npm-version npm-binaries
 	cd npm && npm publish --tag latest
-
-npm-publish-pre: npm-version npm-binaries
-	cd npm && npm publish --tag next

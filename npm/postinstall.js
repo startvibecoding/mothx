@@ -1,63 +1,65 @@
 #!/usr/bin/env node
 
+// Since npm installs the correct platform package via optionalDependencies,
+// this script just finds the installed platform binary and links it to bin/.
+
 const { platform, arch } = require('os');
 const fs = require('fs');
 const path = require('path');
 
-// Platform and architecture mapping
-const PLATFORM_MAP = {
-  'linux': 'linux',
-  'darwin': 'darwin',
-  'win32': 'windows'
+const PLATFORM_PACKAGES = {
+  'linux-x64':    'vibecoding-installer-linux-x64',
+  'linux-arm64':  'vibecoding-installer-linux-arm64',
+  'darwin-x64':   'vibecoding-installer-darwin-x64',
+  'darwin-arm64': 'vibecoding-installer-darwin-arm64',
+  'win32-x64':    'vibecoding-installer-win32-x64',
+  'win32-arm64':  'vibecoding-installer-win32-arm64',
 };
-
-const ARCH_MAP = {
-  'x64': 'amd64',
-  'arm64': 'arm64'
-};
-
-function getBinaryName() {
-  const os = PLATFORM_MAP[platform()];
-  const architecture = ARCH_MAP[arch()];
-  
-  if (!os || !architecture) {
-    throw new Error(`Unsupported platform: ${platform()} ${arch()}`);
-  }
-  
-  const ext = os === 'windows' ? '.exe' : '';
-  return `vibecoding-${os}-${architecture}${ext}`;
-}
 
 function main() {
-  try {
-    const sourceName = getBinaryName();
-    const isWindows = platform() === 'win32';
-    const destName = isWindows ? 'vibecoding.exe' : 'vibecoding';
-    
-    const binDir = path.join(__dirname, 'bin');
-    const sourcePath = path.join(binDir, sourceName);
-    const destPath = path.join(binDir, destName);
-    
-    // Check if source binary exists
-    if (!fs.existsSync(sourcePath)) {
-      console.error(`Error: Binary not found for your platform: ${sourceName}`);
-      console.error('Supported platforms: linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64');
-      process.exit(1);
-    }
-    
-    // Copy binary to the expected name (vibecoding or vibecoding.exe)
-    fs.copyFileSync(sourcePath, destPath);
-    
-    // Make binary executable on Unix
-    if (!isWindows) {
-      fs.chmodSync(destPath, '755');
-    }
-    
-    console.log(`VibeCoding installed successfully for ${platform()}/${arch()}`);
-  } catch (error) {
-    console.error('Installation error:', error.message);
+  const key = `${platform()}-${arch()}`;
+  const pkgName = PLATFORM_PACKAGES[key];
+
+  if (!pkgName) {
+    console.error(`Error: Unsupported platform: ${key}`);
+    console.error(`Supported: ${Object.keys(PLATFORM_PACKAGES).join(', ')}`);
     process.exit(1);
   }
+
+  // Find the platform package in node_modules
+  let platformPkgDir;
+  try {
+    platformPkgDir = path.dirname(require.resolve(pkgName + '/package.json'));
+  } catch {
+    console.error(`Error: Platform package '${pkgName}' not installed.`);
+    console.error('Your platform may not be supported, or the optional dependency was skipped.');
+    process.exit(1);
+  }
+
+  const isWindows = platform() === 'win32';
+  const srcName = isWindows ? 'vibecoding.exe' : 'vibecoding';
+  const destName = isWindows ? 'vibecoding.exe' : 'vibecoding';
+
+  const srcPath = path.join(platformPkgDir, 'bin', srcName);
+  const destPath = path.join(__dirname, 'bin', destName);
+
+  if (!fs.existsSync(srcPath)) {
+    console.error(`Error: Binary not found at ${srcPath}`);
+    process.exit(1);
+  }
+
+  // Ensure bin directory exists
+  const binDir = path.join(__dirname, 'bin');
+  fs.mkdirSync(binDir, { recursive: true });
+
+  // Copy binary
+  fs.copyFileSync(srcPath, destPath);
+
+  if (!isWindows) {
+    fs.chmodSync(destPath, '755');
+  }
+
+  console.log(`VibeCoding installed successfully (${key})`);
 }
 
 main();

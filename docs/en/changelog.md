@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.0.8
+
+### ✨ Features
+
+- **NPM Multi-Architecture Split Packages**
+  - Split the npm package from a single all-platform bundle (~60MB) into 6 platform-specific packages (~10MB each)
+  - Users now only download the binary for their current platform, reducing install size by 83%
+  - Uses npm `optionalDependencies` + `os`/`cpu` fields for automatic platform matching
+  - Main package `vibecoding-installer` is only ~2KB, links the correct platform package via `postinstall`
+
+### 🛠 Improvements
+
+- **Build System**
+  - Added `scripts/build-npm-packages.sh` to generate platform-specific npm packages
+  - Added `make npm-packages`, `make npm-pack`, `make npm-publish-all` targets
+  - `sync-npm-version.sh` now syncs versions across all platform packages
+
+---
+
 ## v0.0.7
 
 ### ✨ Features
