@@ -49,7 +49,10 @@ func (t *WriteTool) Parameters() json.RawMessage {
 
 func (t *WriteTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	path, _ := params["path"].(string)
-	content, _ := params["content"].(string)
+	content, ok := params["content"].(string)
+	if !ok {
+		return ToolResult{}, fmt.Errorf("content is required")
+	}
 
 	if path == "" {
 		return ToolResult{}, fmt.Errorf("path is required")
