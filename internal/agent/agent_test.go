@@ -432,23 +432,24 @@ func TestBuildSystemPromptModes(t *testing.T) {
 	}
 }
 
-func TestFormatToolList(t *testing.T) {
-	// Test with tools
+func TestFormatToolListWithSnippets(t *testing.T) {
+	// Test with tools and snippets
 	tools := []string{"read", "write", "bash"}
-	list := formatToolList(tools)
+	snippets := map[string]string{"read": "Read a file", "write": "Write a file"}
+	list := formatToolListWithSnippets(tools, snippets)
 
 	if !contains(list, "read") {
 		t.Error("expected list to contain 'read'")
 	}
 
-	if !contains(list, "write") {
-		t.Error("expected list to contain 'write'")
+	if !contains(list, "Read a file") {
+		t.Error("expected list to contain snippet")
 	}
 
 	// Test empty
-	emptyList := formatToolList(nil)
-	if !contains(emptyList, "No tools") {
-		t.Error("expected empty list to say 'No tools'")
+	emptyList := formatToolListWithSnippets(nil, nil)
+	if emptyList != "(none)" {
+		t.Errorf("expected empty list to say '(none)', got %q", emptyList)
 	}
 }
 
@@ -493,25 +494,6 @@ func TestBuildContextFilesContext(t *testing.T) {
 	emptyContext := BuildContextFilesContext(nil)
 	if emptyContext != "" {
 		t.Error("expected empty context for nil files")
-	}
-}
-
-func TestConvertMessages(t *testing.T) {
-	messages := []provider.Message{
-		provider.NewUserMessage("Hello"),
-		provider.NewAssistantMessage([]provider.ContentBlock{
-			{Type: "text", Text: "Hi"},
-		}),
-	}
-
-	converted := ConvertToProviderMessages(messages)
-	if len(converted) != 2 {
-		t.Errorf("expected 2 messages, got %d", len(converted))
-	}
-
-	converted = ConvertFromProviderMessages(messages)
-	if len(converted) != 2 {
-		t.Errorf("expected 2 messages, got %d", len(converted))
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/platform"
-	"github.com/startvibecoding/vibecoding/internal/provider"
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
@@ -140,23 +139,6 @@ Focus on getting the task done quickly and correctly.
 	return sb.String()
 }
 
-// formatToolList formats the tool list for the system prompt.
-func formatToolList(toolNames []string) string {
-	if len(toolNames) == 0 {
-		return "No tools available."
-	}
-
-	var sb strings.Builder
-	sb.WriteString("Tools: ")
-	for i, name := range toolNames {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(name)
-	}
-	return sb.String()
-}
-
 // formatToolListWithSnippets formats the tool list with snippets for the system prompt.
 func formatToolListWithSnippets(toolNames []string, snippets map[string]string) string {
 	if len(toolNames) == 0 {
@@ -266,12 +248,3 @@ type ContextFileInfo struct {
 	Content string
 }
 
-// ConvertToProviderMessages converts agent messages to provider messages.
-func ConvertToProviderMessages(messages []provider.Message) []provider.Message {
-	return messages
-}
-
-// ConvertFromProviderMessages converts provider messages to agent messages.
-func ConvertFromProviderMessages(messages []provider.Message) []provider.Message {
-	return messages
-}
