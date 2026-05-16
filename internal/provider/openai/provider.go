@@ -331,13 +331,30 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		}
 
 		if chunk.Usage != nil {
-			usage = &provider.Usage{
-				Input:       chunk.Usage.PromptTokens,
-				Output:      chunk.Usage.CompletionTokens,
-				TotalTokens: chunk.Usage.TotalTokens,
-			}
-			if chunk.Usage.PromptTokensDetails != nil {
-				usage.CacheRead = chunk.Usage.PromptTokensDetails.CachedTokens
+			// Only update usage if not already set (to avoid overwriting with partial values from different chunks)
+			if usage == nil {
+				usage = &provider.Usage{
+					Input:       chunk.Usage.PromptTokens,
+					Output:      chunk.Usage.CompletionTokens,
+					TotalTokens: chunk.Usage.TotalTokens,
+				}
+				if chunk.Usage.PromptTokensDetails != nil {
+					usage.CacheRead = chunk.Usage.PromptTokensDetails.CachedTokens
+				}
+			} else {
+				// Update only if new values are provided and current values are 0
+				if chunk.Usage.PromptTokens > 0 && usage.Input == 0 {
+					usage.Input = chunk.Usage.PromptTokens
+				}
+				if chunk.Usage.CompletionTokens > 0 && usage.Output == 0 {
+					usage.Output = chunk.Usage.CompletionTokens
+				}
+				if chunk.Usage.TotalTokens > 0 && usage.TotalTokens == 0 {
+					usage.TotalTokens = chunk.Usage.TotalTokens
+				}
+				if chunk.Usage.PromptTokensDetails != nil && chunk.Usage.PromptTokensDetails.CachedTokens > 0 && usage.CacheRead == 0 {
+					usage.CacheRead = chunk.Usage.PromptTokensDetails.CachedTokens
+				}
 			}
 		}
 

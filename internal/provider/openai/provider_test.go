@@ -1,0 +1,187 @@
+package openai
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/startvibecoding/vibecoding/internal/provider"
+)
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+func newTestServer(t *testing.T, sse string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(sse))
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func chatAndCollect(t *testing.T, srv *httptest.Server) []provider.StreamEvent {
+	t.Helper()
+	p := NewProvider("fake-key", srv.URL)
+	params := provider.ChatParams{
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}
+	var events []provider.StreamEvent
+	for e := range p.Chat(context.Background(), params) {
+		events = append(events, e)
+	}
+	return events
+}
+
+func mustUsage(t *testing.T, events []provider.StreamEvent) *provider.Usage {
+	t.Helper()
+	for _, e := range events {
+		if e.Type == provider.StreamUsage && e.Usage != nil {
+			return e.Usage
+		}
+	}
+	t.Fatal("no StreamUsage event received")
+	return nil
+}
+
+// ─── standard OpenAI SSE scenarios ───────────────────────────────────────────
+
+// TestOpenAICache_CacheHit: final SSE chunk carries full usage with cached tokens.
+func TestOpenAICache_CacheHit(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n" +
+		"data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"},\"finish_reason\":null}]}\n" +
+		"data: {\"id\":\"chatcmpl-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1000,\"completion_tokens\":5,\"total_tokens\":1005,\"prompt_tokens_details\":{\"cached_tokens\":750}}}\n" +
+		"data: [DONE]\n"
+
+	srv := newTestServer(t, sse)
+	u := mustUsage(t, chatAndCollect(t, srv))
+
+	if u.Input != 1000 {
+		t.Errorf("Input = %d, want 1000", u.Input)
+	}
+	if u.Output != 5 {
+		t.Errorf("Output = %d, want 5", u.Output)
+	}
+	if u.CacheRead != 750 {
+		t.Errorf("CacheRead = %d, want 750", u.CacheRead)
+	}
+	if got, want := u.CacheInfo(), "Cache: 75%"; got != want {
+		t.Errorf("CacheInfo() = %q, want %q", got, want)
+	}
+}
+
+// TestOpenAICache_NoCache: usage chunk present but no cached tokens.
+func TestOpenAICache_NoCache(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-2\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hi\"},\"finish_reason\":null}]}\n" +
+		"data: {\"id\":\"chatcmpl-2\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":200,\"completion_tokens\":8,\"total_tokens\":208}}\n" +
+		"data: [DONE]\n"
+
+	srv := newTestServer(t, sse)
+	u := mustUsage(t, chatAndCollect(t, srv))
+
+	if u.Input != 200 {
+		t.Errorf("Input = %d, want 200", u.Input)
+	}
+	if u.CacheRead != 0 {
+		t.Errorf("CacheRead = %d, want 0", u.CacheRead)
+	}
+	if got, want := u.CacheInfo(), "Cache: 0%"; got != want {
+		t.Errorf("CacheInfo() = %q, want %q", got, want)
+	}
+}
+
+// TestOpenAICache_100Pct: all input tokens are cached.
+func TestOpenAICache_100Pct(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-3\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Full\"},\"finish_reason\":null}]}\n" +
+		"data: {\"id\":\"chatcmpl-3\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":500,\"completion_tokens\":4,\"total_tokens\":504,\"prompt_tokens_details\":{\"cached_tokens\":500}}}\n" +
+		"data: [DONE]\n"
+
+	srv := newTestServer(t, sse)
+	u := mustUsage(t, chatAndCollect(t, srv))
+
+	if u.CacheRead != 500 {
+		t.Errorf("CacheRead = %d, want 500", u.CacheRead)
+	}
+	if got, want := u.CacheInfo(), "Cache: 100%"; got != want {
+		t.Errorf("CacheInfo() = %q, want %q", got, want)
+	}
+}
+
+// ─── proxy-compatibility scenarios ───────────────────────────────────────────
+
+// TestOpenAICache_ProxyFirstChunkHasUsage: some proxies send usage in an early
+// chunk rather than the final one. The first-seen values must be kept.
+func TestOpenAICache_ProxyFirstChunkHasUsage(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-4\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hey\"},\"finish_reason\":null}],\"usage\":{\"prompt_tokens\":800,\"completion_tokens\":3,\"total_tokens\":803,\"prompt_tokens_details\":{\"cached_tokens\":600}}}\n" +
+		"data: {\"id\":\"chatcmpl-4\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n" +
+		"data: [DONE]\n"
+
+	srv := newTestServer(t, sse)
+	u := mustUsage(t, chatAndCollect(t, srv))
+
+	if u.Input != 800 {
+		t.Errorf("Input = %d, want 800", u.Input)
+	}
+	if u.CacheRead != 600 {
+		t.Errorf("CacheRead = %d, want 600", u.CacheRead)
+	}
+	if got, want := u.CacheInfo(), "Cache: 75%"; got != want {
+		t.Errorf("CacheInfo() = %q, want %q", got, want)
+	}
+}
+
+// TestOpenAICache_ProxyFirstWinsOnConflict: if two chunks carry usage with
+// different values for the same field, the first chunk's value must win.
+func TestOpenAICache_ProxyFirstWinsOnConflict(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-5\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"A\"},\"finish_reason\":null}],\"usage\":{\"prompt_tokens\":1000,\"completion_tokens\":6,\"total_tokens\":1006,\"prompt_tokens_details\":{\"cached_tokens\":750}}}\n" +
+		// Second chunk has different (wrong) values — must be ignored
+		"data: {\"id\":\"chatcmpl-5\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":999,\"completion_tokens\":99,\"total_tokens\":1098,\"prompt_tokens_details\":{\"cached_tokens\":800}}}\n" +
+		"data: [DONE]\n"
+
+	srv := newTestServer(t, sse)
+	u := mustUsage(t, chatAndCollect(t, srv))
+
+	if u.Input != 1000 {
+		t.Errorf("Input = %d, want 1000 (first chunk wins)", u.Input)
+	}
+	if u.Output != 6 {
+		t.Errorf("Output = %d, want 6 (first chunk wins)", u.Output)
+	}
+	if u.CacheRead != 750 {
+		t.Errorf("CacheRead = %d, want 750 (first chunk wins)", u.CacheRead)
+	}
+	if got, want := u.CacheInfo(), "Cache: 75%"; got != want {
+		t.Errorf("CacheInfo() = %q, want %q", got, want)
+	}
+}
+
+// TestOpenAICache_ProxySplitUsage: first chunk has prompt/completion counts
+// but no cache details; a later chunk fills in the cache details.
+// The first-wins rule applies per-field: the later chunk's cache value fills
+// the zero CacheRead.
+func TestOpenAICache_ProxySplitUsage(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-6\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"B\"},\"finish_reason\":null}],\"usage\":{\"prompt_tokens\":400,\"completion_tokens\":7,\"total_tokens\":407}}\n" +
+		// Second chunk has only cache details (no prompt/completion override since those are non-zero)
+		"data: {\"id\":\"chatcmpl-6\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0,\"prompt_tokens_details\":{\"cached_tokens\":300}}}\n" +
+		"data: [DONE]\n"
+
+	srv := newTestServer(t, sse)
+	u := mustUsage(t, chatAndCollect(t, srv))
+
+	if u.Input != 400 {
+		t.Errorf("Input = %d, want 400 (first chunk)", u.Input)
+	}
+	if u.Output != 7 {
+		t.Errorf("Output = %d, want 7 (first chunk)", u.Output)
+	}
+	if u.CacheRead != 300 {
+		t.Errorf("CacheRead = %d, want 300 (second chunk fills zero)", u.CacheRead)
+	}
+	// 300/400 = 75%
+	if got, want := u.CacheInfo(), "Cache: 75%"; got != want {
+		t.Errorf("CacheInfo() = %q, want %q", got, want)
+	}
+}

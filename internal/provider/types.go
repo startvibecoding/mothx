@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -97,6 +98,25 @@ type Usage struct {
 	CacheWrite  int  `json:"cacheWrite"`
 	TotalTokens int  `json:"totalTokens"`
 	Cost        Cost `json:"cost"`
+}
+
+// CacheInfo returns a short display string for cache activity (e.g. "Cache: 75%"),
+// or an empty string when there is no cache data to show.
+func (u *Usage) CacheInfo() string {
+	switch {
+	case u.Input > 0 && u.CacheRead > 0:
+		pct := float64(u.CacheRead) / float64(u.Input) * 100
+		if pct > 100 {
+			pct = 100
+		}
+		return fmt.Sprintf("Cache: %.0f%%", pct)
+	case u.CacheWrite > 0 && u.CacheRead == 0:
+		return fmt.Sprintf("CacheWrite: %d", u.CacheWrite)
+	case u.Input > 0 && u.CacheRead == 0 && u.CacheWrite == 0:
+		return "Cache: 0%"
+	default:
+		return ""
+	}
 }
 
 // Cost represents the monetary cost of a request.
