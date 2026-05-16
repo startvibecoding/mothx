@@ -227,10 +227,24 @@ func applyCacheMarkers(messages []provider.Message, markers [2]int) []provider.M
 	result := make([]provider.Message, len(messages))
 	for i, msg := range messages {
 		result[i] = msg
-		// Deep copy Contents slice to avoid sharing
+		// Deep copy Contents slice and pointer fields
 		if len(msg.Contents) > 0 {
 			result[i].Contents = make([]provider.ContentBlock, len(msg.Contents))
-			copy(result[i].Contents, msg.Contents)
+			for j, cb := range msg.Contents {
+				result[i].Contents[j] = cb
+				if cb.Image != nil {
+					imgCopy := *cb.Image
+					result[i].Contents[j].Image = &imgCopy
+				}
+				if cb.ToolCall != nil {
+					tcCopy := *cb.ToolCall
+					result[i].Contents[j].ToolCall = &tcCopy
+				}
+				if cb.CacheControl != nil {
+					ccCopy := *cb.CacheControl
+					result[i].Contents[j].CacheControl = &ccCopy
+				}
+			}
 		}
 	}
 
@@ -1013,6 +1027,9 @@ func (a *Agent) RequestApproval(ch chan<- Event, toolName string, args map[strin
 	case approved := <-responseCh:
 		return approved
 	case <-a.abort:
+		a.approvalMu.Lock()
+		delete(a.pendingApprovals, approvalID)
+		a.approvalMu.Unlock()
 		return false
 	}
 }

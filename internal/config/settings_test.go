@@ -159,7 +159,7 @@ func TestLoadSettings(t *testing.T) {
 
 func TestResolveKey(t *testing.T) {
 	s := &Settings{
-		Providers: map[string]ProviderConfig{
+		Providers: map[string]*ProviderConfig{
 			"test": {
 				APIKey: "test-api-key",
 			},
@@ -174,7 +174,7 @@ func TestResolveKey(t *testing.T) {
 
 	// Test env var
 	os.Setenv("TEST_API_KEY", "env-key")
-	s.Providers["env"] = ProviderConfig{
+	s.Providers["env"] = &ProviderConfig{
 		APIKey: "TEST_API_KEY",
 	}
 	key = s.ResolveKey("env")
