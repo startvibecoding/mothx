@@ -340,7 +340,20 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				if usage == nil {
 					usage = &provider.Usage{}
 				}
-				usage.Output = event.Usage.OutputTokens
+				// Some proxies send all usage data in message_delta instead of message_start.
+				// Only update values if they haven't been set yet (to avoid overwriting with partial values).
+				if event.Usage.OutputTokens > 0 && usage.Output == 0 {
+					usage.Output = event.Usage.OutputTokens
+				}
+				if event.Usage.InputTokens > 0 && usage.Input == 0 {
+					usage.Input = event.Usage.InputTokens
+				}
+				if event.Usage.CacheReadInputTokens > 0 && usage.CacheRead == 0 {
+					usage.CacheRead = event.Usage.CacheReadInputTokens
+				}
+				if event.Usage.CacheCreationInputTokens > 0 && usage.CacheWrite == 0 {
+					usage.CacheWrite = event.Usage.CacheCreationInputTokens
+				}
 			}
 		}
 	}

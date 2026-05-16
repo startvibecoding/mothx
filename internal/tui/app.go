@@ -128,7 +128,12 @@ type App struct {
 
 	// Context usage
 	contextUsage *ctxpkg.ContextUsage
-	
+
+	// Cache usage tracking (cumulative)
+	totalInputTokens int
+	totalCacheRead   int
+	totalCacheWrite  int
+
 	// Spinner state
 	spinnerIndex int
 
@@ -624,7 +629,7 @@ func (a *App) updateViewportContent() {
 			displayMessages = append(displayMessages, msg)
 		}
 	}
-	
+
 	a.fullContent = strings.Join(displayMessages, "\n\n")
 	a.viewport.SetContent(a.wrapContent(a.fullContent))
 	if a.autoScroll {
@@ -649,7 +654,7 @@ func (a *App) wrapContent(content string) string {
 // formatToolArgs formats tool arguments for display
 func formatToolArgs(toolName string, args map[string]any) string {
 	var parts []string
-	
+
 	switch toolName {
 	case "write":
 		// Show path and content for write tool
@@ -704,10 +709,31 @@ func formatToolArgs(toolName string, args map[string]any) string {
 			parts = append(parts, fmt.Sprintf("%s: %s", k, vStr))
 		}
 	}
-	
+
 	return strings.Join(parts, "\n")
 }
 
+
+// formatCachePercent calculates and returns the cache hit rate string, or empty string if no data.
+// For OpenAI: Input (prompt_tokens) already includes CacheRead (cached_tokens), so total = Input.
+// For Anthropic: Input (input_tokens) also includes cache tokens, so total = Input works for both.
+// Falls back to showing cache counts when Input is 0 but cache data exists.
+func (a *App) formatCachePercent() string {
+	switch {
+	case a.totalInputTokens > 0:
+		pct := float64(a.totalCacheRead) / float64(a.totalInputTokens) * 100
+		if pct > 100 {
+			pct = 100
+		}
+		return fmt.Sprintf("Cache: %.0f%%", pct)
+	case a.totalCacheRead > 0:
+		return fmt.Sprintf("CacheRead: %d", a.totalCacheRead)
+	case a.totalCacheWrite > 0:
+		return fmt.Sprintf("CacheWrite: %d", a.totalCacheWrite)
+	default:
+		return ""
+	}
+}
 
 func formatTokens(count int) string {
 	if count < 1000 {
@@ -772,7 +798,17 @@ func (a *App) renderFooter() string {
 		}
 	}
 
-	status := fmt.Sprintf(" %s | %s | %s%s", modeStr, modelName, cwd, contextStr)
+	// Build cache hit rate string, highlighting when hit rate >= 50%
+	cacheStr := ""
+	if cachePercentStr := a.formatCachePercent(); cachePercentStr != "" {
+		if a.totalInputTokens > 0 && float64(a.totalCacheRead)/float64(a.totalInputTokens)*100 >= 50 {
+			cacheStr = " | " + statusStyle.Render(cachePercentStr)
+		} else {
+			cacheStr = " | " + cachePercentStr
+		}
+	}
+
+	status := fmt.Sprintf(" %s | %s | %s%s%s", modeStr, modelName, cwd, contextStr, cacheStr)
 	if a.isThinking {
 		status += " | " + spinnerChars[a.spinnerIndex]
 	} else {
@@ -830,7 +866,7 @@ func (a *App) cycleMode() {
 	}
 	next := (current + 1) % len(modes)
 	a.mode = modes[next]
-	
+
 	// If agent is currently running, abort it so the new mode takes effect immediately
 	if a.isThinking && a.agent != nil {
 		a.agent.Abort()
@@ -995,6 +1031,9 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.messages = nil
 		a.agent = nil
 		a.contextUsage = nil
+		a.totalInputTokens = 0
+		a.totalCacheRead = 0
+		a.totalCacheWrite = 0
 		a.pastes = make(map[int]string)
 		a.pasteCounter = 0
 		a.activeSkills = make(map[string]string)
@@ -1140,7 +1179,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		for j := len(a.toolResults) - 1; j >= 0; j-- {
 			if a.toolResults[j].toolName == event.ToolName && a.toolResults[j].fullContent == "" {
 				a.toolResults[j].fullContent = event.ToolResult
-				
+
 				// Create summary based on tool type
 				switch event.ToolName {
 				case "bash":
@@ -1158,7 +1197,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				break
 			}
 		}
-		
+
 		// Update the message at the stored index
 		for j := len(a.toolResults) - 1; j >= 0; j-- {
 			if a.toolResults[j].toolName == event.ToolName && a.toolResults[j].fullContent == "" {
@@ -1216,10 +1255,21 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.contextUsage = event.ContextUsage
 		}
 		if event.Usage != nil {
-			costStr := fmt.Sprintf("Tokens: %d↓/%d↑ $%.4f",
-				event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total)
+			// Accumulate cache stats
+			a.totalInputTokens += event.Usage.Input
+			a.totalCacheRead += event.Usage.CacheRead
+			a.totalCacheWrite += event.Usage.CacheWrite
+
+			// Per-turn cache info
+			cacheInfo := ""
+			if info := event.Usage.CacheInfo(); info != "" {
+				cacheInfo = " | " + info
+			}
+			costStr := fmt.Sprintf("Tokens: %d↓/%d↑ $%.4f%s",
+				event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total, cacheInfo)
 			a.addMessage(statusStyle.Render(costStr))
 		}
+		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
 	case agent.EventCompactionStart:

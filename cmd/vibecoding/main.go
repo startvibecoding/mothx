@@ -522,8 +522,12 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 					formatTokenCount(event.ContextUsage.ContextWindow))
 			}
 			if event.Usage != nil {
-				fmt.Fprintf(os.Stderr, "Tokens: %d in / %d out | Cost: $%.4f\n",
-					event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total)
+				cacheInfo := ""
+				if info := event.Usage.CacheInfo(); info != "" {
+					cacheInfo = " | " + info
+				}
+				fmt.Fprintf(os.Stderr, "Tokens: %d↓/%d↑ $%.4f%s\n",
+					event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total, cacheInfo)
 			}
 		case agent.EventCompactionStart:
 			fmt.Fprintf(os.Stderr, "\n⏳ Compacting context...\n")
