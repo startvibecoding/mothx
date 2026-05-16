@@ -13,7 +13,7 @@ import (
 
 // Settings holds all configuration for vibecoding.
 type Settings struct {
-	Providers            map[string]ProviderConfig `json:"providers,omitempty"`
+	Providers            map[string]*ProviderConfig `json:"providers,omitempty"`
 	DefaultProvider      string                    `json:"defaultProvider,omitempty"`
 	DefaultModel         string                    `json:"defaultModel,omitempty"`
 	DefaultThinkingLevel string                    `json:"defaultThinkingLevel,omitempty"`
@@ -101,8 +101,8 @@ type ApprovalSettings struct {
 
 func DefaultSettings() *Settings {
 	return &Settings{
-		Providers: map[string]ProviderConfig{
-			"anthropic": {
+		Providers: map[string]*ProviderConfig{
+			"anthropic": &ProviderConfig{
 				BaseURL: "https://api.anthropic.com",
 				APIKey:  "${ANTHROPIC_API_KEY}",
 				API:     "anthropic-messages",
@@ -113,7 +113,7 @@ func DefaultSettings() *Settings {
 					{ID: "claude-3-opus-20240229", Name: "Claude 3 Opus", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
 				},
 			},
-			"openai": {
+			"openai": &ProviderConfig{
 				BaseURL: "https://api.openai.com/v1",
 				APIKey:  "${OPENAI_API_KEY}",
 				API:     "openai-chat",
@@ -175,9 +175,11 @@ func LoadSettings() (*Settings, error) {
 	}
 
 	if data, err := os.ReadFile(ProjectSettingsPath()); err == nil {
-		if err := json.Unmarshal(data, s); err != nil {
+		var proj Settings
+		if err := json.Unmarshal(data, &proj); err != nil {
 			return nil, fmt.Errorf("parse project settings: %w", err)
 		}
+		mergeSettings(s, &proj)
 	}
 
 	if v := os.Getenv("VIBECODING_PROVIDER"); v != "" {
@@ -194,6 +196,73 @@ func LoadSettings() (*Settings, error) {
 	}
 
 	return s, nil
+}
+
+// mergeSettings deep-merges project settings into global settings.
+// Top-level scalar fields are overwritten if non-zero in proj.
+// The Providers map is merged per-key rather than replaced.
+func mergeSettings(s, proj *Settings) {
+	if proj.DefaultProvider != "" {
+		s.DefaultProvider = proj.DefaultProvider
+	}
+	if proj.DefaultModel != "" {
+		s.DefaultModel = proj.DefaultModel
+	}
+	if proj.DefaultThinkingLevel != "" {
+		s.DefaultThinkingLevel = proj.DefaultThinkingLevel
+	}
+	if proj.DefaultMode != "" {
+		s.DefaultMode = proj.DefaultMode
+	}
+	if proj.MaxContextTokens != 0 {
+		s.MaxContextTokens = proj.MaxContextTokens
+	}
+	if proj.MaxOutputTokens != 0 {
+		s.MaxOutputTokens = proj.MaxOutputTokens
+	}
+	if proj.SkillsDir != "" {
+		s.SkillsDir = proj.SkillsDir
+	}
+	if proj.SessionDir != "" {
+		s.SessionDir = proj.SessionDir
+	}
+	if proj.ShellPath != "" {
+		s.ShellPath = proj.ShellPath
+	}
+	if proj.ShellCommandPrefix != "" {
+		s.ShellCommandPrefix = proj.ShellCommandPrefix
+	}
+	if proj.Theme != "" {
+		s.Theme = proj.Theme
+	}
+
+	// Merge nested structs only if they are non-zero
+	if proj.ContextFiles.Enabled != s.ContextFiles.Enabled || len(proj.ContextFiles.ExtraFiles) > 0 {
+		s.ContextFiles = proj.ContextFiles
+	}
+	if proj.Compaction.Enabled != s.Compaction.Enabled || proj.Compaction.ReserveTokens != 0 || proj.Compaction.KeepRecentTokens != 0 {
+		s.Compaction = proj.Compaction
+	}
+	if proj.Sandbox.Enabled != s.Sandbox.Enabled || proj.Sandbox.Level != "" {
+		s.Sandbox = proj.Sandbox
+	}
+	if proj.Retry.Enabled != s.Retry.Enabled || proj.Retry.MaxRetries != 0 || proj.Retry.BaseDelayMs != 0 {
+		s.Retry = proj.Retry
+	}
+	if len(proj.Approval.BashWhitelist) > 0 || len(proj.Approval.BashBlacklist) > 0 {
+		s.Approval = proj.Approval
+	}
+
+	// Deep merge providers: add or override individual providers
+	for name, pc := range proj.Providers {
+		if pc == nil {
+			continue
+		}
+		if s.Providers == nil {
+			s.Providers = make(map[string]*ProviderConfig)
+		}
+		s.Providers[name] = pc
+	}
 }
 
 func ensureConfigExists(defaults *Settings) error {
@@ -250,7 +319,7 @@ func LoadAuth() (*AuthData, error) {
 }
 
 func (s *Settings) ResolveKey(providerName string) string {
-	if pc, ok := s.Providers[providerName]; ok && pc.APIKey != "" {
+	if pc, ok := s.Providers[providerName]; ok && pc != nil && pc.APIKey != "" {
 		return resolveKeyValue(pc.APIKey)
 	}
 	auth, err := LoadAuth()
@@ -290,10 +359,7 @@ func resolveKeyValue(key string) string {
 }
 
 func (s *Settings) GetProviderConfig(name string) *ProviderConfig {
-	if pc, ok := s.Providers[name]; ok {
-		return &pc
-	}
-	return nil
+	return s.Providers[name]
 }
 
 func (s *Settings) GetModelConfig(providerName, modelID string) *ModelConfig {

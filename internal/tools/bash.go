@@ -16,6 +16,38 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 )
 
+// limitedBuffer wraps bytes.Buffer with a max size limit.
+type limitedBuffer struct {
+	buf     bytes.Buffer
+	maxSize int
+	dropped int
+}
+
+func newLimitedBuffer(maxSize int) *limitedBuffer {
+	return &limitedBuffer{maxSize: maxSize}
+}
+
+func (lb *limitedBuffer) Write(p []byte) (n int, err error) {
+	if lb.buf.Len()+len(p) > lb.maxSize {
+		keep := lb.maxSize - lb.buf.Len()
+		if keep > 0 {
+			lb.buf.Write(p[:keep])
+		}
+		lb.dropped += len(p) - keep
+		return len(p), nil
+	}
+	return lb.buf.Write(p)
+}
+
+func (lb *limitedBuffer) Bytes() []byte {
+	if lb.dropped > 0 {
+		trail := fmt.Sprintf("\n... (truncated %d bytes)", lb.dropped)
+		lb.buf.WriteString(trail)
+		lb.dropped = 0
+	}
+	return lb.buf.Bytes()
+}
+
 // BashTool executes shell commands.
 type BashTool struct {
 	registry   *Registry
@@ -136,11 +168,14 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	// Async mode: start in background and return immediately
 	if async {
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
+		const maxJobOutput = 1000000 // 1 MB limit per stream
+		stdout := newLimitedBuffer(maxJobOutput)
+		stderr := newLimitedBuffer(maxJobOutput)
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
 
 		if err := cmd.Start(); err != nil {
+			cancel()
 			return ToolResult{}, fmt.Errorf("failed to start background command: %w", err)
 		}
 

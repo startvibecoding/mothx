@@ -132,7 +132,9 @@ Focus on getting the task done quickly and correctly.
 
 	// Append extra context from files and skills
 	if extraContext != "" {
+		sb.WriteString("\n## Context from project files\n")
 		sb.WriteString(extraContext)
+		sb.WriteString("\n")
 	}
 
 	return sb.String()
@@ -216,7 +218,6 @@ The following specialized instructions are available for specific tasks:
 	for _, skill := range skills {
 		sb.WriteString(fmt.Sprintf("\n### %s\n", skill.Name))
 		sb.WriteString(fmt.Sprintf("Description: %s\n", skill.Description))
-		sb.WriteString(fmt.Sprintf("Location: %s\n", skill.Path))
 	}
 
 	sb.WriteString(`

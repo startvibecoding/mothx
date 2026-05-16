@@ -470,9 +470,10 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 			}
 			if len(blocks) == 1 && blocks[0].Type == "text" {
 				om.Content = blocks[0].Text
-			} else {
+			} else if len(blocks) > 0 {
 				om.Content = blocks
 			}
+			// For assistant messages with tool calls, ensure content is not an empty array
 			// Set reasoning content if available
 			if reasoningContent != "" {
 				om.Reasoning = reasoningContent

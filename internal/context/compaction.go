@@ -8,6 +8,13 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/provider"
 )
 
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 // CompactionSettings holds compaction configuration.
 type CompactionSettings struct {
 	Enabled          bool `json:"enabled"`
@@ -91,13 +98,17 @@ func FindCutPoint(messages []provider.Message, startIndex, endIndex, keepRecentT
 		accumulatedTokens += messageTokens
 
 		if accumulatedTokens >= keepRecentTokens {
-			// Find the closest valid cut point at or after this entry
+			// Find the closest valid cut point to this entry
+			bestCut := cutPoints[0]
+			bestDist := abs(bestCut - i)
 			for _, c := range cutPoints {
-				if c >= i {
-					cutIndex = c
-					break
+				dist := abs(c - i)
+				if dist < bestDist {
+					bestDist = dist
+					bestCut = c
 				}
 			}
+			cutIndex = bestCut
 			break
 		}
 	}
@@ -140,13 +151,17 @@ func SerializeConversation(messages []provider.Message) string {
 
 		case "assistant":
 			sb.WriteString("Assistant: ")
-			if msg.Content != "" {
-				sb.WriteString(msg.Content)
+			content := msg.Content
+			if content == "" {
+				for _, block := range msg.Contents {
+					if block.Type == "text" {
+						content += block.Text
+					}
+				}
 			}
+			sb.WriteString(content)
 			for _, block := range msg.Contents {
 				switch block.Type {
-				case "text":
-					sb.WriteString(block.Text)
 				case "thinking":
 					sb.WriteString(fmt.Sprintf("[thinking: %s]", block.Thinking))
 				case "toolCall":

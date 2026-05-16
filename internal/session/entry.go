@@ -3,6 +3,7 @@ package session
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -92,6 +93,9 @@ type SessionInfoEntry struct {
 // GenerateID generates a random 8-character hex ID.
 func GenerateID() string {
 	b := make([]byte, 4)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp-based ID on crypto failure
+		return fmt.Sprintf("%08x", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }

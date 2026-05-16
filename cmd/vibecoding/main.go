@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -419,7 +420,7 @@ func clearStdin() {
 func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager, extraContext string) error {
 	input := strings.Join(args, " ")
 	if input == "" {
-		data, err := os.ReadFile("/dev/stdin")
+		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("no input provided")
 		}

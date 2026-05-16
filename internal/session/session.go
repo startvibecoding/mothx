@@ -2,6 +2,7 @@ package session
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -27,10 +28,20 @@ type Manager struct {
 	sessionDir string
 }
 
+// encodePath encodes a directory path for use in a session directory name.
+// Uses base64 URL encoding to avoid collisions from different characters mapping
+// to the same replacement (e.g. "/" and ":" both mapped to "-").
+func encodePath(p string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(p))
+}
+
 // New creates a new session manager for a new session.
 func New(cwd, sessionDir string) *Manager {
 	if sessionDir == "" {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = "."
+		}
 		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
 	}
 
@@ -52,7 +63,10 @@ func Open(path string) (*Manager, error) {
 // ContinueRecent continues the most recent session for a directory, or creates new.
 func ContinueRecent(cwd, sessionDir string) (*Manager, error) {
 	if sessionDir == "" {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = "."
+		}
 		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
 	}
 
@@ -82,13 +96,15 @@ type SessionInfo struct {
 // ListForDir lists session files for a given working directory.
 func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 	if sessionDir == "" {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = "."
+		}
 		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
 	}
 
 	// Session files are stored in sessionDir/--<encoded-path>--/
-	encoded := strings.ReplaceAll(cwd, "/", "-")
-	encoded = strings.ReplaceAll(encoded, ":", "-")
+	encoded := encodePath(cwd)
 	dir := filepath.Join(sessionDir, "--"+encoded+"--")
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -135,8 +151,7 @@ func (m *Manager) Init() error {
 	m.leafID = nil
 
 	// Create session file
-	encoded := strings.ReplaceAll(m.cwd, "/", "-")
-	encoded = strings.ReplaceAll(encoded, ":", "-")
+	encoded := encodePath(m.cwd)
 	dir := filepath.Join(m.sessionDir, "--"+encoded+"--")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("create session dir: %w", err)
@@ -322,6 +337,7 @@ func (m *Manager) load() error {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
+	var corruptLines int
 	for scanner.Scan() {
 		line := scanner.Bytes()
 
@@ -330,6 +346,7 @@ func (m *Manager) load() error {
 			Type EntryType `json:"type"`
 		}
 		if err := json.Unmarshal(line, &typeField); err != nil {
+			corruptLines++
 			continue
 		}
 
@@ -345,6 +362,7 @@ func (m *Manager) load() error {
 		case EntryMessage:
 			var e MessageEntry
 			if err := json.Unmarshal(line, &e); err != nil {
+				corruptLines++
 				continue
 			}
 			m.entries = append(m.entries, e)
@@ -353,6 +371,7 @@ func (m *Manager) load() error {
 		case EntryModelChange:
 			var e ModelChangeEntry
 			if err := json.Unmarshal(line, &e); err != nil {
+				corruptLines++
 				continue
 			}
 			m.entries = append(m.entries, e)
@@ -361,6 +380,7 @@ func (m *Manager) load() error {
 		case EntryThinkingChange:
 			var e ThinkingLevelChangeEntry
 			if err := json.Unmarshal(line, &e); err != nil {
+				corruptLines++
 				continue
 			}
 			m.entries = append(m.entries, e)
@@ -369,6 +389,7 @@ func (m *Manager) load() error {
 		case EntryCompaction:
 			var e CompactionEntry
 			if err := json.Unmarshal(line, &e); err != nil {
+				corruptLines++
 				continue
 			}
 			m.entries = append(m.entries, e)
@@ -377,6 +398,7 @@ func (m *Manager) load() error {
 		case EntrySessionInfo:
 			var e SessionInfoEntry
 			if err := json.Unmarshal(line, &e); err != nil {
+				corruptLines++
 				continue
 			}
 			m.entries = append(m.entries, e)
@@ -385,6 +407,7 @@ func (m *Manager) load() error {
 		case EntryBranchSummary:
 			var e BranchSummaryEntry
 			if err := json.Unmarshal(line, &e); err != nil {
+				corruptLines++
 				continue
 			}
 			m.entries = append(m.entries, e)
@@ -392,7 +415,13 @@ func (m *Manager) load() error {
 		}
 	}
 
-	return scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	if corruptLines > 0 {
+		return fmt.Errorf("session file has %d corrupt line(s)", corruptLines)
+	}
+	return nil
 }
 
 // writeEntry writes a single entry to the session file.

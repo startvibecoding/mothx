@@ -108,60 +108,56 @@ func (s *macSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts Ex
 func (s *macSandbox) buildProfile(opts ExecOpts) string {
 	var b strings.Builder
 
-	b.WriteString(`(version 1)
-(allow default)
-(deny network*)
-(deny process-fork)
-(deny process-exec)
-(allow process-exec
-`)
+	// Build sandbox profile with default-deny policy.
+	// Only explicitly allowed operations are permitted.
+	b.WriteString("(version 1)\n(deny default)\n")
 
-	// Allow common shells and tools
+	// Allow process execution for common shells and tools
 	allowedBins := []string{
 		"/bin/sh", "/bin/bash", "/bin/zsh",
 		"/usr/bin/env", "/usr/bin/perl", "/usr/bin/python3",
 		"/usr/local/bin/*", "/opt/homebrew/bin/*",
 	}
+	b.WriteString("(allow process-exec\n")
 	for _, bin := range allowedBins {
 		b.WriteString(fmt.Sprintf("    (subpath \"%s\")\n", bin))
 	}
-
 	b.WriteString(")\n")
 
-	// Project directory access
+	// Allow file system access for allowed paths
+	var allowedPaths []string
 	if s.projectDir != "" {
-		if s.level == LevelStrict {
-			b.WriteString(fmt.Sprintf("(allow file-read* (subpath \"%s\"))\n", s.projectDir))
-		} else {
-			b.WriteString(fmt.Sprintf("(allow file-read* file-write* (subpath \"%s\"))\n", s.projectDir))
-		}
+		allowedPaths = append(allowedPaths, s.projectDir)
 	}
+	allowedPaths = append(allowedPaths, os.TempDir())
 
-	// Temporary directory access
-	b.WriteString(fmt.Sprintf("(allow file-read* file-write* (subpath \"%s\"))\n", os.TempDir()))
-
-	// Home directory for config files
 	homeDir, _ := os.UserHomeDir()
 	if homeDir != "" {
-		configPaths := []string{
+		allowedPaths = append(allowedPaths,
 			filepath.Join(homeDir, ".config"),
 			filepath.Join(homeDir, ".cache"),
 			filepath.Join(homeDir, ".vibecoding"),
-		}
-		for _, p := range configPaths {
+		)
+	}
+	for _, p := range opts.WritablePaths {
+		allowedPaths = append(allowedPaths, p)
+	}
+	for _, p := range opts.ReadOnlyPaths {
+		allowedPaths = append(allowedPaths, p)
+	}
+
+	for _, p := range allowedPaths {
+		if s.level == LevelStrict && p == s.projectDir {
+			b.WriteString(fmt.Sprintf("(allow file-read* (subpath \"%s\"))\n", p))
+		} else {
 			b.WriteString(fmt.Sprintf("(allow file-read* file-write* (subpath \"%s\"))\n", p))
 		}
 	}
 
-	// Allow additional writable paths
-	for _, p := range opts.WritablePaths {
-		b.WriteString(fmt.Sprintf("(allow file-read* file-write* (subpath \"%s\"))\n", p))
-	}
-
-	// Allow additional read-only paths
-	for _, p := range opts.ReadOnlyPaths {
-		b.WriteString(fmt.Sprintf("(allow file-read* (subpath \"%s\"))\n", p))
-	}
+	// Deny network explicitly
+	b.WriteString("(deny network*)\n")
+	// Deny process fork
+	b.WriteString("(deny process-fork)\n")
 
 	return b.String()
 }
