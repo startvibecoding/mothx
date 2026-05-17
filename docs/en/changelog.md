@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.1.7
+
+### 🐛 Bug Fixes
+
+- **Anthropic Provider Tool Use Serialization**
+  - Fixed `tool_use` content blocks missing `input` field when tool has no arguments
+  - Changed `Input` field from `map[string]interface{}` to `*map[string]interface{}` so `omitempty` only checks nil pointer, not empty map
+  - Fixes API errors when using models like Xiaomi MiMo with Anthropic-compatible endpoints
+
+---
+
 ## v0.1.6
 
 ### ✨ Features

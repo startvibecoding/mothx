@@ -1,5 +1,16 @@
 # 更新日志
 
+## v0.1.7
+
+### 🐛 问题修复
+
+- **Anthropic Provider Tool Use 序列化**
+  - 修复 `tool_use` 内容块在 tool 无参数时缺少 `input` 字段的问题
+  - 将 `Input` 字段从 `map[string]interface{}` 改为 `*map[string]interface{}`，使 `omitempty` 仅检查指针是否为 nil，而非空 map
+  - 修复使用小米 MiMo 等 Anthropic 兼容端点时的 API 错误
+
+---
+
 ## v0.1.6
 
 ### ✨ 新功能
