@@ -190,3 +190,35 @@ Update README files (`docs/en/README.md` and `docs/zh/README.md`) when there are
 3. Commit changes: `docs: add vX.X.X changelog`
 4. Create annotated tag: `git tag -a vX.X.X -m "Release vX.X.X: summary"`
 5. Push: `git push && git push --tags`
+
+## Versioning Rules
+
+### Version Format
+
+Use `v{major}.{minor}.{patch}` format (e.g., `v0.1.2`, `v1.0.0`).
+
+### Version Increment Rules
+
+- **Patch** (0.1.X): Bug fixes, minor improvements, documentation updates
+- **Minor** (0.X.0): New features, significant improvements (backward compatible)
+- **Major** (X.0.0): Breaking changes, major rewrites
+
+### Special Rule: Version 10 Carry-Over
+
+When a version component reaches 10, it carries over to the next level:
+
+- `v0.1.9` → `v0.2.0` (patch resets to 0, minor increments)
+- `v0.9.9` → `v1.0.0` (both reset, major increments)
+- `v1.2.9` → `v1.3.0` (patch resets to 0, minor increments)
+
+This is similar to decimal arithmetic: each component is base-10.
+
+### Tag Management
+
+- **Never delete existing tags**: Once a tag is created, it should not be deleted or modified
+- **Always create new tags**: When releasing a new version, create a new tag with the next version number
+- **Version sequence**: Follow the sequence strictly (e.g., v0.1.2 → v0.1.3 → v0.1.4 → ... → v0.2.0)
+
+### Current Version
+
+The current version is `v0.1.2`. The next version should be `v0.1.3`.
