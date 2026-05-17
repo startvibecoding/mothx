@@ -221,4 +221,4 @@ This is similar to decimal arithmetic: each component is base-10.
 
 ### Current Version
 
-The current version is `v0.1.2`. The next version should be `v0.1.3`.
+The current version is `v0.1.4`. The next version should be `v0.1.5`.
