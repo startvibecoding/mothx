@@ -1,5 +1,22 @@
 # 更新日志
 
+## v0.1.8
+
+### 🐛 问题修复
+
+- **缓存感知的 Token 计算修复**
+  - 修复 Anthropic `TotalTokens` 计算未包含 `CacheRead` 和 `CacheWrite` 的问题
+  - 为 `Usage` 结构体添加 `PromptTokens()` 和 `TotalInputTokens()` 辅助方法
+  - 更新 `CacheInfo()` 使用 `TotalInputTokens()` 作为分母，确保缓存命中率准确
+  - 更新 TUI 显示正确的 token 计数（包含缓存 token）
+
+### 🧪 测试
+
+- 添加 `PromptTokens()` 和 `TotalInputTokens()` 辅助方法的综合测试
+- 更新 Anthropic provider 测试以验证 `TotalTokens`
+
+---
+
 ## v0.1.7
 
 ### 🐛 问题修复

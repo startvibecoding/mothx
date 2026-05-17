@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.8
+
+### 🐛 Bug Fixes
+
+- **Token Counting with Cache-Aware TotalTokens**
+  - Fixed Anthropic `TotalTokens` calculation to include `CacheRead` and `CacheWrite` tokens
+  - Added `PromptTokens()` and `TotalInputTokens()` helper methods to `Usage` struct
+  - Updated `CacheInfo()` to use `TotalInputTokens()` as denominator for accurate cache hit rates
+  - Updated TUI to display correct token counts including cache tokens
+
+### 🧪 Testing
+
+- Added comprehensive tests for `PromptTokens()` and `TotalInputTokens()` helper methods
+- Updated Anthropic provider tests with `TotalTokens` validation
+
+---
+
 ## v0.1.7
 
 ### 🐛 Bug Fixes
