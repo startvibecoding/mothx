@@ -319,43 +319,9 @@ func ensureConfigExists(defaults *Settings) error {
 	return nil
 }
 
-type AuthData struct {
-	Entries map[string]AuthEntry `json:"entries"`
-}
-
-type AuthEntry struct {
-	Type string `json:"type"`
-	Key  string `json:"key"`
-}
-
-func AuthFilePath() string {
-	return filepath.Join(ConfigDir(), "auth.json")
-}
-
-func LoadAuth() (*AuthData, error) {
-	data := &AuthData{Entries: make(map[string]AuthEntry)}
-	raw, err := os.ReadFile(AuthFilePath())
-	if err != nil {
-		if os.IsNotExist(err) {
-			return data, nil
-		}
-		return nil, err
-	}
-	if err := json.Unmarshal(raw, &data.Entries); err != nil {
-		return nil, fmt.Errorf("parse auth.json: %w", err)
-	}
-	return data, nil
-}
-
 func (s *Settings) ResolveKey(providerName string) string {
 	if pc, ok := s.Providers[providerName]; ok && pc != nil && pc.APIKey != "" {
 		return resolveKeyValue(pc.APIKey)
-	}
-	auth, err := LoadAuth()
-	if err == nil {
-		if entry, ok := auth.Entries[providerName]; ok && entry.Key != "" {
-			return resolveKeyValue(entry.Key)
-		}
 	}
 	envMap := map[string]string{
 		"anthropic": "ANTHROPIC_API_KEY",

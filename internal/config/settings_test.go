@@ -190,51 +190,6 @@ func TestResolveKey(t *testing.T) {
 	}
 }
 
-func TestLoadAuth(t *testing.T) {
-	// Save original env
-	origDir := os.Getenv("VIBECODING_DIR")
-	defer os.Setenv("VIBECODING_DIR", origDir)
-
-	// Create temp auth file
-	tmpDir := t.TempDir()
-	os.Setenv("VIBECODING_DIR", tmpDir)
-
-	authPath := filepath.Join(tmpDir, "auth.json")
-	authJSON := `{
-		"test": {
-			"type": "api_key",
-			"key": "test-key"
-		}
-	}`
-
-	os.WriteFile(authPath, []byte(authJSON), 0644)
-
-	auth, err := LoadAuth()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if auth.Entries["test"].Key != "test-key" {
-		t.Errorf("expected 'test-key', got '%s'", auth.Entries["test"].Key)
-	}
-}
-
-func TestLoadAuthNotExist(t *testing.T) {
-	// Create temp directory without auth file
-	tmpDir := t.TempDir()
-	os.Setenv("VIBECODING_DIR", tmpDir)
-	defer os.Unsetenv("VIBECODING_DIR")
-
-	auth, err := LoadAuth()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(auth.Entries) != 0 {
-		t.Errorf("expected 0 entries, got %d", len(auth.Entries))
-	}
-}
-
 func TestGetShell(t *testing.T) {
 	s := &Settings{}
 
@@ -343,17 +298,6 @@ func TestResolveKeyValue(t *testing.T) {
 		t.Errorf("expected 'env-value', got '%s'", key)
 	}
 	os.Unsetenv("TEST_ENV_KEY")
-}
-
-func TestAuthFilePath(t *testing.T) {
-	path := AuthFilePath()
-	if path == "" {
-		t.Error("expected non-empty path")
-	}
-
-	if !contains(path, "auth.json") {
-		t.Error("expected path to contain 'auth.json'")
-	}
 }
 
 func contains(s, substr string) bool {
