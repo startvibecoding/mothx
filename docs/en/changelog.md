@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.1.6
+
+### ✨ Features
+
+- **Session Management Command**
+  - Added `/sessions` command for browsing and managing project sessions
+  - Supports listing, switching, clearing, and deleting sessions
+  - Shows session details including file path and message count
+
+### 🐛 Bug Fixes
+
+- **Sandbox Initialization**
+  - Fixed sandbox initialization validation and bwrap multiarch compatibility
+  - Improved error handling for sandbox setup
+
+### 📖 Documentation
+
+- Updated AGENTS.md with current version information
+- Formatted Go code for consistency
+
+---
+
 ## v0.1.5
 
 ### ✨ Features
