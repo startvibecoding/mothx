@@ -4,10 +4,11 @@
 
 VibeCoding 使用两个配置文件:
 
-| 文件 | 范围 | 优先级 |
-|------|------|--------|
-| `~/.vibecoding/settings.json` | 全局 (所有项目) | 低 |
-| `.vibe/settings.json` | 项目级 | 高 |
+| 文件 | 平台 | 范围 | 优先级 |
+|------|------|------|--------|
+| `~/.vibecoding/settings.json` | Linux/macOS | 全局 (所有项目) | 低 |
+| `%APPDATA%\vibecoding\settings.json` | Windows | 全局 (所有项目) | 低 |
+| `.vibe/settings.json` | 全部 | 项目级 | 高 |
 
 项目级配置会覆盖全局配置。
 
@@ -297,7 +298,7 @@ VibeCoding 使用两个配置文件:
 
 VibeCoding 会自动搜索并加载以下文件:
 
-1. **全局文件** (在 `~/.vibecoding/`):
+1. **全局文件** (Linux/macOS: `~/.vibecoding/`, Windows: `%APPDATA%\vibecoding\`):
    - `AGENTS.md`
    - `CLAUDE.md`
 
@@ -318,7 +319,9 @@ VibeCoding 会自动搜索并加载以下文件:
 ```
 
 技能文件结构:
-- 全局技能: `~/.vibecoding/skills/<name>/SKILL.md`
+- 全局技能:
+  - Linux/macOS: `~/.vibecoding/skills/<name>/SKILL.md`
+  - Windows: `%APPDATA%\vibecoding\skills\<name>\SKILL.md`
 - 项目技能: `.skills/<name>/SKILL.md` (覆盖全局)
 
 ### sessionDir
@@ -327,7 +330,8 @@ VibeCoding 会自动搜索并加载以下文件:
 
 ```json
 {
-  "sessionDir": "~/.vibecoding/sessions"
+  "sessionDir": "~/.vibecoding/sessions"  // Linux/macOS
+  // Windows: "%APPDATA%\\vibecoding\\sessions"
 }
 ```
 
@@ -475,7 +479,10 @@ export OPENAI_API_KEY=sk-...
 
 ### 方式二: 认证文件
 
-创建 `~/.vibecoding/auth.json`:
+创建 auth.json:
+
+- Linux/macOS: `~/.vibecoding/auth.json`
+- Windows: `%APPDATA%\vibecoding\auth.json`
 
 ```json
 {
@@ -507,7 +514,7 @@ export OPENAI_API_KEY=sk-...
 ### 密钥解析顺序
 
 1. 环境变量 (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
-2. 认证文件 (`~/.vibecoding/auth.json`)
+2. 认证文件 (Linux/macOS: `~/.vibecoding/auth.json`, Windows: `%APPDATA%\vibecoding\auth.json`)
 3. 配置文件内嵌 (`settings.json`)
 
 ## 环境变量覆盖

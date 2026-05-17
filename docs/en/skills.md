@@ -12,7 +12,9 @@ Skills are prompt snippets stored as `SKILL.md` files that can be loaded and inj
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Global Skills                 Project Skills                │
-│  ~/.vibecoding/skills/         .skills/                      │
+│  Linux/macOS: ~/.vibecoding/   .skills/                      │
+│  skills/                                                       │
+│  Windows: %APPDATA%\vibecoding\skills\                       │
 │  ┌─────────────────────┐      ┌─────────────────────┐       │
 │  │ coding-standards/   │      │ project-specific/   │       │
 │  │   SKILL.md          │      │   SKILL.md          │       │
@@ -35,17 +37,29 @@ Skills are prompt snippets stored as `SKILL.md` files that can be loaded and inj
 
 ### Global Skills
 
-Location: `~/.vibecoding/skills/`
+Location:
+- Linux/macOS: `~/.vibecoding/skills/`
+- Windows: `%APPDATA%\vibecoding\skills\`
 
 Global skills are available for all projects.
 
 ```bash
+# Linux/macOS
 ~/.vibecoding/skills/
 ├── coding-standards/
 │   └── SKILL.md
 ├── git-workflow/
 │   └── SKILL.md
 └── review-checklist/
+    └── SKILL.md
+
+# Windows
+%APPDATA%\vibecoding\skills\
+├── coding-standards\
+│   └── SKILL.md
+├── git-workflow\
+│   └── SKILL.md
+└── review-checklist\
     └── SKILL.md
 ```
 
@@ -112,6 +126,9 @@ Configure the skills directory in `settings.json`:
 }
 ```
 
+On Windows, use `%APPDATA%\vibecoding\skills` or an absolute path.
+```
+
 ### Project Local Skills
 
 Project skills are automatically loaded from the `.skills/` directory, no additional configuration needed.
@@ -174,8 +191,14 @@ Focus each skill on a single topic:
 Place rules that apply to all projects in the global skills directory:
 
 ```bash
+# Linux/macOS
 ~/.vibecoding/skills/
 └── general-rules/
+    └── SKILL.md
+
+# Windows
+%APPDATA%\vibecoding\skills\
+└── general-rules\
     └── SKILL.md
 ```
 
@@ -194,6 +217,7 @@ Project skills can override global skills:
 Organize skills by topic:
 
 ```bash
+# Linux/macOS
 ~/.vibecoding/skills/
 ├── coding/
 │   ├── go-style/
@@ -207,6 +231,22 @@ Organize skills by topic:
 │       └── SKILL.md
 └── review/
     └── checklist/
+        └── SKILL.md
+
+# Windows
+%APPDATA%\vibecoding\skills\
+├── coding\
+│   ├── go-style\
+│   │   └── SKILL.md
+│   └── python-style\
+│       └── SKILL.md
+├── git\
+│   ├── commit-rules\
+│   │   └── SKILL.md
+│   └── branch-strategy\
+│       └── SKILL.md
+└── review\
+    └── checklist\
         └── SKILL.md
 ```
 

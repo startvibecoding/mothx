@@ -7,8 +7,16 @@ VibeCoding uses JSONL format for session storage, supporting tree structure and 
 ### Storage Location
 
 ```
+Linux/macOS:
 ~/.vibecoding/sessions/
 └── --home-user-projects-myapp--/    # Encoded working directory path
+    ├── session-abc123.jsonl
+    ├── session-def456.jsonl
+    └── ...
+
+Windows:
+%APPDATA%\vibecoding\sessions\
+└── --home-user-projects-myapp--/
     ├── session-abc123.jsonl
     ├── session-def456.jsonl
     └── ...
@@ -87,8 +95,11 @@ sess, err := session.ContinueRecent(cwd, sessionDir)
 # By ID
 vibecoding --resume session-abc123
 
-# By file path
+# By file path (Linux/macOS)
 vibecoding --resume ~/.vibecoding/sessions/my-session.jsonl
+
+# By file path (Windows)
+vibecoding --resume %APPDATA%\vibecoding\sessions\my-session.jsonl
 
 # Code
 sess, err := session.Open(sessionID)
@@ -181,8 +192,11 @@ vibecoding
 ### 1. Regular Cleanup
 
 ```bash
-# Delete sessions older than 30 days
+# Delete sessions older than 30 days (Linux/macOS)
 find ~/.vibecoding/sessions -mtime +30 -delete
+
+# Delete sessions older than 30 days (Windows PowerShell)
+Get-ChildItem -Path "$env:APPDATA\vibecoding\sessions" -Recurse | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Recurse -Force
 ```
 
 ### 2. Use Labels
@@ -206,7 +220,11 @@ Adjust compression parameters as needed:
 ### 4. Backup Important Sessions
 
 ```bash
+# Linux/macOS
 cp ~/.vibecoding/sessions/important.jsonl ~/backups/
+
+# Windows PowerShell
+Copy-Item "$env:APPDATA\vibecoding\sessions\important.jsonl" "$env:USERPROFILE\backups\"
 ```
 
 ## Troubleshooting
@@ -232,7 +250,9 @@ Error: invalid JSON in session file
 
 **Solution:**
 
-1. Check `~/.vibecoding/sessions/` directory
+1. Check sessions directory:
+   - Linux/macOS: `~/.vibecoding/sessions/`
+   - Windows: `%APPDATA%\vibecoding\sessions\`
 2. Use `--resume` to specify session ID
 3. Confirm working directory is correct
 

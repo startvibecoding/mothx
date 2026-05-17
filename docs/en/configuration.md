@@ -4,10 +4,11 @@
 
 VibeCoding uses two configuration files:
 
-| File | Scope | Priority |
-|------|-------|----------|
-| `~/.vibecoding/settings.json` | Global (all projects) | Low |
-| `.vibe/settings.json` | Project-level | High |
+| File | Platform | Scope | Priority |
+|------|----------|-------|----------|
+| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) | Low |
+| `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) | Low |
+| `.vibe/settings.json` | All | Project-level | High |
 
 Project-level configuration overrides global configuration.
 
@@ -297,7 +298,7 @@ Context file configuration.
 
 VibeCoding automatically searches for and loads the following files:
 
-1. **Global files** (in `~/.vibecoding/`):
+1. **Global files** (Linux/macOS: `~/.vibecoding/`, Windows: `%APPDATA%\vibecoding\`):
    - `AGENTS.md`
    - `CLAUDE.md`
 
@@ -323,6 +324,8 @@ Skill system configuration.
 }
 ```
 
+The `"~/.vibecoding/skills"` path uses `~` expansion which works on Linux/macOS. On Windows, use `%APPDATA%\vibecoding\skills` or an absolute path.
+
 ## Authentication Configuration
 
 ### Option 1: Environment Variables
@@ -334,7 +337,10 @@ export OPENAI_API_KEY=sk-...
 
 ### Option 2: Authentication File
 
-Create `~/.vibecoding/auth.json`:
+Create `auth.json`:
+
+- Linux/macOS: `~/.vibecoding/auth.json`
+- Windows: `%APPDATA%\vibecoding\auth.json`
 
 ```json
 {
@@ -366,7 +372,7 @@ Configure directly in `settings.json` providers:
 ### Key Resolution Order
 
 1. Environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
-2. Authentication file (`~/.vibecoding/auth.json`)
+2. Authentication file (Linux/macOS: `~/.vibecoding/auth.json`, Windows: `%APPDATA%\vibecoding\auth.json`)
 3. Inline in configuration file (`settings.json`)
 
 ## Environment Variable Overrides
