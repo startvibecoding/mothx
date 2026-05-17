@@ -152,6 +152,10 @@ type App struct {
 	waitingForApproval bool
 	pendingApprovalID  string
 	approvalQueue      []pendingApproval
+
+	// Current streaming message indices (-1 = none)
+	currentAssistantIdx int
+	currentThinkIdx     int
 }
 
 // pendingApproval holds a queued approval request.
@@ -195,10 +199,12 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		viewport:       vp,
 		autoScroll:     true,
 		pastes:         make(map[int]string),
-		inputQueue:     make([]InputEvent, 0, 100),
-		inputBatchSize: 10,
-		inputDelay:     16 * time.Millisecond, // ~60fps
-		renderInterval: 16 * time.Millisecond, // ~60fps
+		inputQueue:          make([]InputEvent, 0, 100),
+		inputBatchSize:      10,
+		inputDelay:          16 * time.Millisecond, // ~60fps
+		renderInterval:      16 * time.Millisecond, // ~60fps
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
 	}
 }
 
@@ -1166,20 +1172,20 @@ func (a *App) rebuildExtraContext() {
 func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	switch event.Type {
 	case agent.EventTextDelta:
-		lastIdx := len(a.messages) - 1
-		if lastIdx >= 0 && isAssistantMsg(a.messages[lastIdx]) {
-			a.messages[lastIdx] += event.TextDelta
+		if a.currentAssistantIdx >= 0 && a.currentAssistantIdx < len(a.messages) {
+			a.messages[a.currentAssistantIdx] += event.TextDelta
 		} else {
+			a.currentAssistantIdx = len(a.messages)
 			a.messages = append(a.messages, assistantStyle.Render("Assistant: ")+event.TextDelta)
 		}
 		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
 	case agent.EventThinkDelta:
-		lastIdx := len(a.messages) - 1
-		if lastIdx >= 0 && strings.HasPrefix(a.messages[lastIdx], thinkStyle.Render("think: ")) {
-			a.messages[lastIdx] += event.ThinkDelta
+		if a.currentThinkIdx >= 0 && a.currentThinkIdx < len(a.messages) {
+			a.messages[a.currentThinkIdx] += event.ThinkDelta
 		} else {
+			a.currentThinkIdx = len(a.messages)
 			a.messages = append(a.messages, thinkStyle.Render("think: ")+event.ThinkDelta)
 		}
 		a.scheduleRender()
@@ -1257,6 +1263,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		if event.ContextUsage != nil {
 			a.contextUsage = event.ContextUsage
 		}
+		a.currentAssistantIdx = -1
+		a.currentThinkIdx = -1
 		return listenEvents(a.eventCh)
 
 	case agent.EventDone:
@@ -1265,6 +1273,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		if event.ContextUsage != nil {
 			a.contextUsage = event.ContextUsage
 		}
+		a.currentAssistantIdx = -1
+		a.currentThinkIdx = -1
 		return listenEvents(a.eventCh)
 
 	case agent.EventError:
@@ -1272,6 +1282,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		if event.Error != nil {
 			a.addMessage(errorStyle.Render("Error: ") + event.Error.Error())
 		}
+		a.currentAssistantIdx = -1
+		a.currentThinkIdx = -1
 		return listenEvents(a.eventCh)
 
 	case agent.EventUsage:
@@ -1313,10 +1325,6 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	default:
 		return listenEvents(a.eventCh)
 	}
-}
-
-func isAssistantMsg(s string) bool {
-	return strings.HasPrefix(s, "Assistant: ")
 }
 
 func truncate(s string, maxLen int) string {
