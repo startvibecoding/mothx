@@ -4,13 +4,15 @@
 
 ### Q: VibeCoding 是什么?
 
-A: VibeCoding 是一个终端 AI 编码助手，支持 DeepSeek 和自定义 API，提供代码编写、调试、重构等功能。
+A: VibeCoding 是一个终端 AI 编码助手，支持 DeepSeek（默认）、OpenAI、Anthropic 以及任何通过 OpenAI/Anthropic 兼容协议的自定义 API，提供代码编写、调试、重构等功能。
 
 ### Q: 支持哪些 LLM?
 
 A:
-- DeepSeek: deepseek-v4-flash, deepseek-v4-pro
-- 自定义: 任何 OpenAI 或 Anthropic 兼容 API
+- DeepSeek (默认): deepseek-v4-flash, deepseek-v4-pro
+- OpenAI: GPT-4o, o1 等
+- Anthropic: Claude Sonnet, Opus 等
+- 自定义: 任何 OpenAI-Chat 或 Anthropic-Messages 兼容 API 端点
 
 ### Q: 如何安装?
 
