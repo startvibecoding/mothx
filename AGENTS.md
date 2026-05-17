@@ -159,3 +159,34 @@ make test
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`
 - Main branch: `main`
 - No force push to main
+
+## Documentation & Changelog
+
+### Changelog Rules
+
+- **Location**: Changelog entries are ONLY written in:
+  - `docs/en/changelog.md` (English)
+  - `docs/zh/changelog.md` (Chinese)
+- **No separate files**: Do NOT create separate release notes files (e.g., `release-notes-vX.X.X.md`)
+- **Format**: Follow existing changelog format with sections:
+  - ✨ Features
+  - 🐛 Bug Fixes
+  - 🛠 Improvements
+  - 📖 Documentation
+  - 🧪 Testing
+
+### When to Update README
+
+Update README files (`docs/en/README.md` and `docs/zh/README.md`) when there are **major feature changes**:
+- New major features or tools
+- Significant changes to installation or usage
+- New configuration options that affect core functionality
+- Breaking changes that users need to know about
+
+### Release Process
+
+1. Update changelogs (`docs/en/changelog.md` and `docs/zh/changelog.md`)
+2. If major features: update README files
+3. Commit changes: `docs: add vX.X.X changelog`
+4. Create annotated tag: `git tag -a vX.X.X -m "Release vX.X.X: summary"`
+5. Push: `git push && git push --tags`
