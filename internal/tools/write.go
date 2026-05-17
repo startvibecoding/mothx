@@ -70,4 +70,3 @@ func (t *WriteTool) Execute(ctx context.Context, params map[string]any) (ToolRes
 
 	return NewTextToolResult(fmt.Sprintf("File written: %s (%d bytes)", path, len(content))), nil
 }
-

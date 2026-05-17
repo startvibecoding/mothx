@@ -6,9 +6,9 @@ import (
 
 // ContextUsage holds the current context usage information.
 type ContextUsage struct {
-	Tokens       int      // Current estimated context tokens
-	ContextWindow int     // Maximum context window size
-	Percent      *float64 // Usage percentage, nil if unknown
+	Tokens        int      // Current estimated context tokens
+	ContextWindow int      // Maximum context window size
+	Percent       *float64 // Usage percentage, nil if unknown
 }
 
 // EstimateTokens estimates token count for a message using chars/4 heuristic.

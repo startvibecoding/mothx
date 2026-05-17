@@ -123,17 +123,17 @@ type anthropicCacheControl struct {
 }
 
 type anthropicContentBlock struct {
-	Type          string                  `json:"type"`
-	Text          string                  `json:"text,omitempty"`
-	Thinking      string                  `json:"thinking,omitempty"`
-	Source        *anthropicImage         `json:"source,omitempty"`
-	ID            string                  `json:"id,omitempty"`
-	Name          string                  `json:"name,omitempty"`
-	Input         map[string]interface{}   `json:"input,omitempty"`
-	ToolUseID     string                  `json:"tool_use_id,omitempty"`
-	Content       interface{}             `json:"content,omitempty"`
-	IsError       bool                    `json:"is_error,omitempty"`
-	CacheControl  *anthropicCacheControl  `json:"cache_control,omitempty"`
+	Type         string                 `json:"type"`
+	Text         string                 `json:"text,omitempty"`
+	Thinking     string                 `json:"thinking,omitempty"`
+	Source       *anthropicImage        `json:"source,omitempty"`
+	ID           string                 `json:"id,omitempty"`
+	Name         string                 `json:"name,omitempty"`
+	Input        map[string]interface{} `json:"input,omitempty"`
+	ToolUseID    string                 `json:"tool_use_id,omitempty"`
+	Content      interface{}            `json:"content,omitempty"`
+	IsError      bool                   `json:"is_error,omitempty"`
+	CacheControl *anthropicCacheControl `json:"cache_control,omitempty"`
 }
 
 type anthropicImage struct {
@@ -220,8 +220,8 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			if p.IsCacheControlEnabled() {
 				// Send system prompt as content block array with cache_control for prompt caching
 				sysBlock := anthropicContentBlock{
-					Type: "text",
-					Text: params.SystemPrompt,
+					Type:         "text",
+					Text:         params.SystemPrompt,
 					CacheControl: &anthropicCacheControl{Type: "ephemeral"},
 				}
 				reqBody.System = []anthropicContentBlock{sysBlock}

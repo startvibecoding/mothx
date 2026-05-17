@@ -418,7 +418,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 
 func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 	var messages []openAIMessage
-	
+
 	// Add system prompt as the first message if provided
 	if params.SystemPrompt != "" {
 		messages = append(messages, openAIMessage{
@@ -426,7 +426,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 			Content: params.SystemPrompt,
 		})
 	}
-	
+
 	for _, msg := range params.Messages {
 		om := openAIMessage{Role: msg.Role, ToolCallID: msg.ToolCallID}
 		if msg.Role == "toolResult" {

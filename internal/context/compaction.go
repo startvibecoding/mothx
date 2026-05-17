@@ -34,8 +34,8 @@ func DefaultCompactionSettings() CompactionSettings {
 		Enabled:                  true,
 		ReserveTokens:            16384,
 		KeepRecentTokens:         20000,
-		IdleCompressionEnabled:   false, // R5.1: off by default
-		IdleTimeoutSeconds:       90,    // R5.2: 90 seconds
+		IdleCompressionEnabled:   false,  // R5.1: off by default
+		IdleTimeoutSeconds:       90,     // R5.2: 90 seconds
 		IdleMinTokensForCompress: 150000, // R5.4: 150k tokens minimum
 	}
 }

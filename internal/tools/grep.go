@@ -147,7 +147,6 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	return NewTextToolResult(strings.Join(results, "\n")), nil
 }
 
-
 func isBinary(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {

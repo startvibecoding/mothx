@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/config"
+	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -379,7 +379,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 	// Track consecutive iterations without text output for loop detection
 	consecutiveNoText := 0
-	const maxConsecutiveNoText = 95 // Threshold to trigger stuck detection
+	const maxConsecutiveNoText = 95            // Threshold to trigger stuck detection
 	const maxConsecutiveNoTextAfterWarning = 5 // After warning, allow 5 more turns before stopping
 	warningIssued := false
 
@@ -387,7 +387,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		select {
 		case <-ctx.Done():
 			ch <- Event{Type: EventError, Error: ctx.Err(), StopReason: "aborted"}
-			ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message { a.mu.RLock(); defer a.mu.RUnlock(); m := make([]provider.Message, len(a.messages)); copy(m, a.messages); return m }()}
+			ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+				a.mu.RLock()
+				defer a.mu.RUnlock()
+				m := make([]provider.Message, len(a.messages))
+				copy(m, a.messages)
+				return m
+			}()}
 			return
 		default:
 		}
@@ -482,7 +488,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		if streamErr != nil {
 			ch <- Event{Type: EventError, Error: streamErr, StopReason: stopReason}
-			ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message { a.mu.RLock(); defer a.mu.RUnlock(); m := make([]provider.Message, len(a.messages)); copy(m, a.messages); return m }()}
+			ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+				a.mu.RLock()
+				defer a.mu.RUnlock()
+				m := make([]provider.Message, len(a.messages))
+				copy(m, a.messages)
+				return m
+			}()}
 			return
 		}
 
@@ -550,7 +562,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 				} else {
 					// Already warned, now truly stuck
 					ch <- Event{Type: EventError, Error: fmt.Errorf("agent appears stuck: %d consecutive turns without text output after warning", consecutiveNoText+maxConsecutiveNoText), StopReason: "stuck"}
-					ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message { a.mu.RLock(); defer a.mu.RUnlock(); m := make([]provider.Message, len(a.messages)); copy(m, a.messages); return m }()}
+					ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+						a.mu.RLock()
+						defer a.mu.RUnlock()
+						m := make([]provider.Message, len(a.messages))
+						copy(m, a.messages)
+						return m
+					}()}
 					return
 				}
 			}
@@ -564,7 +582,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			contextUsage := a.GetContextUsage()
 			ch <- Event{Type: EventTurnEnd, TurnMessage: assistantMsg, ContextUsage: contextUsage}
 			ch <- Event{Type: EventDone, StopReason: stopReason, Usage: usage, ContextUsage: contextUsage}
-			ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message { a.mu.RLock(); defer a.mu.RUnlock(); m := make([]provider.Message, len(a.messages)); copy(m, a.messages); return m }()}
+			ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+				a.mu.RLock()
+				defer a.mu.RUnlock()
+				m := make([]provider.Message, len(a.messages))
+				copy(m, a.messages)
+				return m
+			}()}
 			return
 		}
 
@@ -609,7 +633,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			}
 			if a.config.ShouldStopAfterTurn(stopCtx) {
 				ch <- Event{Type: EventDone, StopReason: "should_stop"}
-				ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message { a.mu.RLock(); defer a.mu.RUnlock(); m := make([]provider.Message, len(a.messages)); copy(m, a.messages); return m }()}
+				ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+					a.mu.RLock()
+					defer a.mu.RUnlock()
+					m := make([]provider.Message, len(a.messages))
+					copy(m, a.messages)
+					return m
+				}()}
 				return
 			}
 		}
@@ -645,7 +675,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 				for _, msg := range steeringMessages {
 					ch <- Event{Type: EventMessageStart, Message: msg}
 					ch <- Event{Type: EventMessageEnd, Message: msg}
-						a.mu.Lock()
+					a.mu.Lock()
 					a.messages = append(a.messages, msg)
 					a.context.Messages = append(a.context.Messages, msg)
 					a.mu.Unlock()
@@ -659,7 +689,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 	}
 
 	ch <- Event{Type: EventError, Error: fmt.Errorf("max iterations (%d) exceeded", a.config.MaxIterations), StopReason: "max_iterations"}
-	ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message { a.mu.RLock(); defer a.mu.RUnlock(); m := make([]provider.Message, len(a.messages)); copy(m, a.messages); return m }()}
+	ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+		a.mu.RLock()
+		defer a.mu.RUnlock()
+		m := make([]provider.Message, len(a.messages))
+		copy(m, a.messages)
+		return m
+	}()}
 }
 
 // executeToolCallsSequential executes tool calls one by one.
@@ -962,7 +998,7 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	}
 
 	ch <- Event{
-		Type:         EventCompactionEnd,
+		Type: EventCompactionEnd,
 		StatusMessage: func() string {
 			usage := a.GetContextUsage()
 			if usage != nil {
@@ -1016,10 +1052,10 @@ func (a *Agent) RequestApproval(ch chan<- Event, toolName string, args map[strin
 
 	// Send approval request event
 	ch <- Event{
-		Type:           EventToolApprovalRequest,
-		ApprovalID:     approvalID,
-		ApprovalTool:   toolName,
-		ApprovalArgs:   args,
+		Type:         EventToolApprovalRequest,
+		ApprovalID:   approvalID,
+		ApprovalTool: toolName,
+		ApprovalArgs: args,
 	}
 
 	// Wait for response or abort

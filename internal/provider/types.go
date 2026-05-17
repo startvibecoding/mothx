@@ -36,15 +36,15 @@ type ToolCallBlock struct {
 
 // Message represents a conversation message.
 type Message struct {
-	Role           string         `json:"role"`                       // "user", "assistant", "toolResult"
-	Content        string         `json:"content,omitempty"`          // simple text content
-	Contents       []ContentBlock `json:"contents,omitempty"`         // rich content blocks
-	ToolCallID     string         `json:"toolCallId,omitempty"`       // for toolResult
-	ToolName       string         `json:"toolName,omitempty"`         // for toolResult
-	IsError        bool           `json:"isError,omitempty"`          // for toolResult
+	Role           string         `json:"role"`                 // "user", "assistant", "toolResult"
+	Content        string         `json:"content,omitempty"`    // simple text content
+	Contents       []ContentBlock `json:"contents,omitempty"`   // rich content blocks
+	ToolCallID     string         `json:"toolCallId,omitempty"` // for toolResult
+	ToolName       string         `json:"toolName,omitempty"`   // for toolResult
+	IsError        bool           `json:"isError,omitempty"`    // for toolResult
 	Timestamp      time.Time      `json:"timestamp"`
-	Usage          *Usage         `json:"usage,omitempty"`            // token usage from API response
-	SystemInjected bool           `json:"systemInjected,omitempty"`   // true for injected messages (session context, compression instructions) - skipped by cache markers
+	Usage          *Usage         `json:"usage,omitempty"`          // token usage from API response
+	SystemInjected bool           `json:"systemInjected,omitempty"` // true for injected messages (session context, compression instructions) - skipped by cache markers
 }
 
 // NewUserMessage creates a simple user text message.
