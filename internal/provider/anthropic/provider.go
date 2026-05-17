@@ -129,7 +129,7 @@ type anthropicContentBlock struct {
 	Source       *anthropicImage        `json:"source,omitempty"`
 	ID           string                 `json:"id,omitempty"`
 	Name         string                 `json:"name,omitempty"`
-	Input        map[string]interface{} `json:"input,omitempty"`
+	Input        *map[string]interface{} `json:"input,omitempty"`
 	ToolUseID    string                 `json:"tool_use_id,omitempty"`
 	Content      interface{}            `json:"content,omitempty"`
 	IsError      bool                   `json:"is_error,omitempty"`
@@ -277,6 +277,11 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 
 		if resp.StatusCode != http.StatusOK {
 			b, _ := io.ReadAll(resp.Body)
+			// Log request body on error for debugging
+			if os.Getenv("VIBECODING_DEBUG") != "" {
+				fmt.Fprintf(os.Stderr, "[DEBUG] API Error %d: %s\n", resp.StatusCode, string(b))
+				fmt.Fprintf(os.Stderr, "[DEBUG] Request body was: %s\n", string(body))
+			}
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("API %d: %s", resp.StatusCode, string(b))}
 			return
 		}
@@ -475,7 +480,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessag
 								input = make(map[string]interface{})
 							}
 						}
-						block = anthropicContentBlock{Type: "tool_use", ID: c.ToolCall.ID, Name: c.ToolCall.Name, Input: input}
+						block = anthropicContentBlock{Type: "tool_use", ID: c.ToolCall.ID, Name: c.ToolCall.Name, Input: &input}
 					}
 				}
 				// Pass through cache_control from provider content blocks (only if enabled)
