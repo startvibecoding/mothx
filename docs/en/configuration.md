@@ -337,27 +337,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 ```
 
-### Option 2: Authentication File
-
-Create `auth.json`:
-
-- Linux/macOS: `~/.vibecoding/auth.json`
-- Windows: `%APPDATA%\vibecoding\auth.json`
-
-```json
-{
-  "anthropic": {
-    "type": "api_key",
-    "key": "sk-ant-..."
-  },
-  "openai": {
-    "type": "api_key",
-    "key": "sk-..."
-  }
-}
-```
-
-### Option 3: Inline in Configuration File
+### Option 2: Inline in Configuration File
 
 Configure directly in `settings.json` providers:
 
@@ -374,8 +354,7 @@ Configure directly in `settings.json` providers:
 ### Key Resolution Order
 
 1. Environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
-2. Authentication file (Linux/macOS: `~/.vibecoding/auth.json`, Windows: `%APPDATA%\vibecoding\auth.json`)
-3. Inline in configuration file (`settings.json`)
+2. Inline in configuration file (`settings.json` providers.<name>.apiKey)
 
 ## Environment Variable Overrides
 

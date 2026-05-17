@@ -84,27 +84,20 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 ```
 
-### 方式二: 认证文件
+### 方式二: 配置文件
 
-创建 auth.json:
-
-- Linux/macOS: `~/.vibecoding/auth.json`
-- Windows: `%APPDATA%\vibecoding\auth.json`（实际路径通常为 `C:\Users\<用户名>\AppData\Roaming\vibecoding\auth.json`）
-
-> **Windows 路径说明：** `%APPDATA%` 展开为 `C:\Users\<用户名>\AppData\Roaming`。
+或在 settings.json 中直接配置:
 
 ```json
 {
-  "anthropic": {
-    "type": "api_key",
-    "key": "sk-ant-..."
-  },
-  "openai": {
-    "type": "api_key",
-    "key": "sk-..."
+  "providers": {
+    "anthropic": { "apiKey": "sk-ant-..." },
+    "openai": { "apiKey": "sk-..." }
   }
 }
 ```
+
+详见 [配置详解](configuration.md)。
 
 ## 首次运行
 

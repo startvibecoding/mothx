@@ -35,18 +35,11 @@ A:
   - Linux/macOS: `~/.vibecoding/settings.json`
   - Windows: `%APPDATA%\vibecoding\settings.json`
 - 项目: `.vibe/settings.json`
-- 认证:
-  - Linux/macOS: `~/.vibecoding/auth.json`
-  - Windows: `%APPDATA%\vibecoding\auth.json`
-
 ### Q: 如何设置 API 密钥?
 
-A: 三种方式:
+A: 两种方式:
 1. 环境变量: `export ANTHROPIC_API_KEY=sk-ant-...`
-2. 认证文件:
-   - Linux/macOS: `~/.vibecoding/auth.json`
-   - Windows: `%APPDATA%\vibecoding\auth.json`
-3. 配置文件: `settings.json` 中的 `providers.<name>.apiKey`
+2. 配置文件: `settings.json` 中的 `providers.<name>.apiKey`
 
 ### Q: 如何使用自定义 API?
 
