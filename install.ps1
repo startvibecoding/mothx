@@ -112,7 +112,6 @@ try {
     # Show config directory info
     $configDir = Join-Path $env:APPDATA "vibecoding"
     $settingsPath = Join-Path $configDir "settings.json"
-    $authPath = Join-Path $configDir "auth.json"
 
     Write-Host ""
     Write-Success "Installation complete!"
@@ -121,7 +120,6 @@ try {
     Write-Host ""
     Write-Host "  Config directory: $configDir" -ForegroundColor White
     Write-Host "    - Settings file : $settingsPath" -ForegroundColor Gray
-    Write-Host "    - Auth file     : $authPath" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  Get started:" -ForegroundColor White
     Write-Host "    vibecoding --help" -ForegroundColor Gray

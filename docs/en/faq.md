@@ -35,18 +35,11 @@ A:
   - Linux/macOS: `~/.vibecoding/settings.json`
   - Windows: `%APPDATA%\vibecoding\settings.json`
 - Project: `.vibe/settings.json`
-- Authentication:
-  - Linux/macOS: `~/.vibecoding/auth.json`
-  - Windows: `%APPDATA%\vibecoding\auth.json`
-
 ### Q: How to set API keys?
 
-A: Three ways:
+A: Two ways:
 1. Environment variables: `export ANTHROPIC_API_KEY=sk-ant-...`
-2. Authentication file:
-   - Linux/macOS: `~/.vibecoding/auth.json`
-   - Windows: `%APPDATA%\vibecoding\auth.json`
-3. Configuration file: `providers.<name>.apiKey` in `settings.json`
+2. Configuration file: `providers.<name>.apiKey` in `settings.json`
 
 ### Q: How to use custom API?
 

@@ -479,27 +479,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 ```
 
-### 方式二: 认证文件
-
-创建 auth.json:
-
-- Linux/macOS: `~/.vibecoding/auth.json`
-- Windows: `%APPDATA%\vibecoding\auth.json`
-
-```json
-{
-  "anthropic": {
-    "type": "api_key",
-    "key": "sk-ant-..."
-  },
-  "openai": {
-    "type": "api_key",
-    "key": "sk-..."
-  }
-}
-```
-
-### 方式三: 配置文件内嵌
+### 方式二: 配置文件内嵌
 
 在 `settings.json` 的 providers 中直接配置:
 
@@ -516,8 +496,7 @@ export OPENAI_API_KEY=sk-...
 ### 密钥解析顺序
 
 1. 环境变量 (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`)
-2. 认证文件 (Linux/macOS: `~/.vibecoding/auth.json`, Windows: `%APPDATA%\vibecoding\auth.json`)
-3. 配置文件内嵌 (`settings.json`)
+2. 配置文件内嵌 (`settings.json` providers.<name>.apiKey)
 
 ## 环境变量覆盖
 

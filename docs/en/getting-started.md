@@ -84,27 +84,20 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 ```
 
-### Option 2: Authentication File
+### Option 2: Settings File
 
-Create `auth.json`:
-
-- Linux/macOS: `~/.vibecoding/auth.json`
-- Windows: `%APPDATA%\vibecoding\auth.json` (typically `C:\Users\<Username>\AppData\Roaming\vibecoding\auth.json`)
-
-> **Note on Windows paths:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`.
+Or add keys directly to your settings.json:
 
 ```json
 {
-  "anthropic": {
-    "type": "api_key",
-    "key": "sk-ant-..."
-  },
-  "openai": {
-    "type": "api_key",
-    "key": "sk-..."
+  "providers": {
+    "anthropic": { "apiKey": "sk-ant-..." },
+    "openai": { "apiKey": "sk-..." }
   }
 }
 ```
+
+See the [Configuration Guide](configuration.md) for details.
 
 ## First Run
 
