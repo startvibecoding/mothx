@@ -10,6 +10,8 @@ VibeCoding uses two configuration files:
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) | Low |
 | `.vibe/settings.json` | All | Project-level | High |
 
+> **Windows:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`, so the full path is typically `C:\Users\<Username>\AppData\Roaming\vibecoding\settings.json`.
+
 Project-level configuration overrides global configuration.
 
 ## Configuration Structure
