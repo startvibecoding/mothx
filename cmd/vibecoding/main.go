@@ -110,11 +110,19 @@ type runOptions struct {
 }
 
 func run(args []string, opts runOptions) error {
+	// Set Windows console to UTF-8 so CJK IME works correctly.
+	if err := initConsole(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: init console: %v\n", err)
+	}
+
 	// Enable debug logging if requested
 	debugEnabled = opts.debug
 	if debugEnabled {
 		fmt.Fprintf(os.Stderr, "[DEBUG] Debug logging enabled\n")
 	}
+
+	// Enable config verbose logging
+	config.Verbose = opts.verbose || opts.debug
 
 	// Load settings
 	settings, err := config.LoadSettings()
@@ -283,7 +291,7 @@ func run(args []string, opts runOptions) error {
 	if initialMsg != "" {
 		app.SetInitialMessage(initialMsg)
 	}
-	p2 := tea.NewProgram(app, tea.WithInputTTY(), tea.WithReportFocus())
+	p2 := tea.NewProgram(app, teaProgramOptions()...)
 	if _, err := p2.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
 	}
