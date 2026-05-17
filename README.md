@@ -89,7 +89,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 export OPENAI_API_KEY=sk-...
 ```
 
-Or use the auth file (`~/.vibecoding/auth.json`):
+Or use the auth file:
+- Linux/macOS: `~/.vibecoding/auth.json`
+- Windows: `%APPDATA%\vibecoding\auth.json`
 
 ```json
 {
@@ -129,10 +131,11 @@ vibecoding --no-sandbox
 
 ### Settings Files
 
-| Location | Scope |
-|----------|-------|
-| `~/.vibecoding/settings.json` | Global (all projects) |
-| `.vibe/settings.json` | Project (overrides global) |
+| Location | Platform | Scope |
+|----------|----------|-------|
+| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) |
+| `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) |
+| `.vibe/settings.json` | All | Project (overrides global) |
 
 ### Example Settings
 

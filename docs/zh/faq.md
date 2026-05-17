@@ -31,15 +31,21 @@ make build
 ### Q: 配置文件在哪里?
 
 A: 
-- 全局: `~/.vibecoding/settings.json`
+- 全局:
+  - Linux/macOS: `~/.vibecoding/settings.json`
+  - Windows: `%APPDATA%\vibecoding\settings.json`
 - 项目: `.vibe/settings.json`
-- 认证: `~/.vibecoding/auth.json`
+- 认证:
+  - Linux/macOS: `~/.vibecoding/auth.json`
+  - Windows: `%APPDATA%\vibecoding\auth.json`
 
 ### Q: 如何设置 API 密钥?
 
 A: 三种方式:
 1. 环境变量: `export ANTHROPIC_API_KEY=sk-ant-...`
-2. 认证文件: `~/.vibecoding/auth.json`
+2. 认证文件:
+   - Linux/macOS: `~/.vibecoding/auth.json`
+   - Windows: `%APPDATA%\vibecoding\auth.json`
 3. 配置文件: `settings.json` 中的 `providers.<name>.apiKey`
 
 ### Q: 如何使用自定义 API?
@@ -137,7 +143,9 @@ A: 不支持。bubblewrap 是 Linux 特有的。可以使用 WSL2。
 
 ### Q: 会话存储在哪里?
 
-A: `~/.vibecoding/sessions/--<编码的路径>--/`
+A:
+- Linux/macOS: `~/.vibecoding/sessions/--<编码的路径>--/`
+- Windows: `%APPDATA%\vibecoding\sessions\--<编码的路径>--\`
 
 ### Q: 如何恢复旧会话?
 

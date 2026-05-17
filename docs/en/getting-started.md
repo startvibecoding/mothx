@@ -86,7 +86,10 @@ export OPENAI_API_KEY=sk-...
 
 ### Option 2: Authentication File
 
-Create `~/.vibecoding/auth.json`:
+Create `auth.json`:
+
+- Linux/macOS: `~/.vibecoding/auth.json`
+- Windows: `%APPDATA%\vibecoding\auth.json`
 
 ```json
 {

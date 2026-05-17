@@ -31,15 +31,21 @@ make build
 ### Q: Where is the configuration file?
 
 A: 
-- Global: `~/.vibecoding/settings.json`
+- Global:
+  - Linux/macOS: `~/.vibecoding/settings.json`
+  - Windows: `%APPDATA%\vibecoding\settings.json`
 - Project: `.vibe/settings.json`
-- Authentication: `~/.vibecoding/auth.json`
+- Authentication:
+  - Linux/macOS: `~/.vibecoding/auth.json`
+  - Windows: `%APPDATA%\vibecoding\auth.json`
 
 ### Q: How to set API keys?
 
 A: Three ways:
 1. Environment variables: `export ANTHROPIC_API_KEY=sk-ant-...`
-2. Authentication file: `~/.vibecoding/auth.json`
+2. Authentication file:
+   - Linux/macOS: `~/.vibecoding/auth.json`
+   - Windows: `%APPDATA%\vibecoding\auth.json`
 3. Configuration file: `providers.<name>.apiKey` in `settings.json`
 
 ### Q: How to use custom API?
@@ -137,7 +143,9 @@ A: No. bubblewrap is Linux-specific. You can use WSL2.
 
 ### Q: Where are sessions stored?
 
-A: `~/.vibecoding/sessions/--<encoded-path>--/`
+A:
+- Linux/macOS: `~/.vibecoding/sessions/--<encoded-path>--/`
+- Windows: `%APPDATA%\vibecoding\sessions\--<encoded-path>--/`
 
 ### Q: How to restore old sessions?
 

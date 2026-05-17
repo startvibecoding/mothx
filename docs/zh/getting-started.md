@@ -86,7 +86,10 @@ export OPENAI_API_KEY=sk-...
 
 ### 方式二: 认证文件
 
-创建 `~/.vibecoding/auth.json`:
+创建 auth.json:
+
+- Linux/macOS: `~/.vibecoding/auth.json`
+- Windows: `%APPDATA%\vibecoding\auth.json`
 
 ```json
 {

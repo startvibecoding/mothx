@@ -7,7 +7,9 @@ VibeCoding 使用 JSONL 格式存储会话，支持树状结构和分支。
 ### 存储位置
 
 ```
-~/.vibecoding/sessions/
+Linux/macOS: ~/.vibecoding/sessions/
+Windows:     %APPDATA%\vibecoding\sessions\
+
 └── --home-user-projects-myapp--/    # 编码后的工作目录路径
     ├── session-abc123.jsonl
     ├── session-def456.jsonl
@@ -87,8 +89,9 @@ sess, err := session.ContinueRecent(cwd, sessionDir)
 # 通过 ID
 vibecoding --resume session-abc123
 
-# 通过文件路径
+# 通过文件路径 (Linux/macOS)
 vibecoding --resume ~/.vibecoding/sessions/my-session.jsonl
+# Windows: %APPDATA%\vibecoding\sessions\my-session.jsonl
 
 # 代码
 sess, err := session.Open(sessionID)
@@ -182,7 +185,10 @@ vibecoding
 
 ```bash
 # 删除 30 天前的会话
+# Linux/macOS:
 find ~/.vibecoding/sessions -mtime +30 -delete
+# Windows (PowerShell):
+Get-ChildItem "$env:APPDATA\vibecoding\sessions" -Recurse | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item
 ```
 
 ### 2. 使用标签
@@ -206,7 +212,10 @@ find ~/.vibecoding/sessions -mtime +30 -delete
 ### 4. 备份重要会话
 
 ```bash
+# Linux/macOS:
 cp ~/.vibecoding/sessions/important.jsonl ~/backups/
+# Windows:
+Copy-Item "$env:APPDATA\vibecoding\sessions\important.jsonl" "$env:USERPROFILE\backups\"
 ```
 
 ## 故障排除
@@ -232,7 +241,9 @@ cp ~/.vibecoding/sessions/important.jsonl ~/backups/
 
 **解决方案:**
 
-1. 检查 `~/.vibecoding/sessions/` 目录
+1. 检查会话目录:
+   - Linux/macOS: `~/.vibecoding/sessions/`
+   - Windows: `%APPDATA%\vibecoding\sessions\`
 2. 使用 `--resume` 指定会话 ID
 3. 确认工作目录正确
 

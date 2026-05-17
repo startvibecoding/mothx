@@ -12,7 +12,9 @@ VibeCoding 的技能系统允许您创建可重用的提示片段，称为技能
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Global Skills                 Project Skills                │
-│  ~/.vibecoding/skills/         .skills/                      │
+│  Linux/macOS: ~/.vibecoding/   .skills/                      │
+│  skills/                       (项目根目录)                  │
+│  Windows: %APPDATA%\vibecoding\skills\                       │
 │  ┌─────────────────────┐      ┌─────────────────────┐       │
 │  │ coding-standards/   │      │ project-specific/   │       │
 │  │   SKILL.md          │      │   SKILL.md          │       │
@@ -35,12 +37,19 @@ VibeCoding 的技能系统允许您创建可重用的提示片段，称为技能
 
 ### 全局技能
 
-位置: `~/.vibecoding/skills/`
+位置:
+- Linux/macOS: `~/.vibecoding/skills/`
+- Windows: `%APPDATA%\vibecoding\skills\`
 
 全局技能对所有项目可用。
 
 ```bash
+# Linux/macOS
 ~/.vibecoding/skills/
+
+# Windows
+%APPDATA%\vibecoding\skills\
+
 ├── coding-standards/
 │   └── SKILL.md
 ├── git-workflow/
@@ -108,7 +117,8 @@ This skill defines coding standards for the project.
 
 ```json
 {
-  "skillsDir": "~/.vibecoding/skills"
+  "skillsDir": "~/.vibecoding/skills"  // Linux/macOS
+  // Windows: "%APPDATA%\\vibecoding\\skills"
 }
 ```
 
@@ -174,7 +184,12 @@ Loaded 3 skills:
 将适用于所有项目的规则放在全局技能目录:
 
 ```bash
+# Linux/macOS
 ~/.vibecoding/skills/
+
+# Windows
+%APPDATA%\vibecoding\skills\
+
 └── general-rules/
     └── SKILL.md
 ```
@@ -194,7 +209,12 @@ Loaded 3 skills:
 按主题组织技能:
 
 ```bash
+# Linux/macOS
 ~/.vibecoding/skills/
+
+# Windows
+%APPDATA%\vibecoding\skills\
+
 ├── coding/
 │   ├── go-style/
 │   │   └── SKILL.md

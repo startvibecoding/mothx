@@ -109,7 +109,9 @@ make build-all
 
 ## Configuration
 
-Config file: `~/.vibecoding/settings.json`
+Config file:
+- Linux/macOS: `~/.vibecoding/settings.json`
+- Windows: `%APPDATA%\vibecoding\settings.json`
 
 Key settings:
 - `providers`: Multi-provider configuration
@@ -139,12 +141,16 @@ Key settings:
 JSONL files with tree structure:
 - `id` / `parentId` for branching
 - Entry types: `session`, `message`, `model_change`, `compaction`, `label`
-- Stored in `~/.vibecoding/sessions/--<encoded-path>--/`
+- Stored in:
+  - Linux/macOS: `~/.vibecoding/sessions/--<encoded-path>--/`
+  - Windows: `%APPDATA%\vibecoding\sessions\--<encoded-path>--/`
 
 ## Skills System
 
 Skills are reusable prompt snippets stored as SKILL.md files:
-- Global skills: `~/.vibecoding/skills/<name>/SKILL.md`
+- Global skills:
+  - Linux/macOS: `~/.vibecoding/skills/<name>/SKILL.md`
+  - Windows: `%APPDATA%\vibecoding\skills\<name>\SKILL.md`
 - Project skills: `.skills/<name>/SKILL.md` (overrides global)
 - Project skills override global skills with the same name
 
