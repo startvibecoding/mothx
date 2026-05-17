@@ -76,8 +76,16 @@ func (s *BwrapSandbox) IsAvailable() bool {
 		return false
 	}
 
-	// Test that bwrap works
-	cmd := exec.Command(s.bwrapPath, "--ro-bind", "/usr", "/usr", "--ro-bind", "/lib", "/lib", "/bin/true")
+	// Test that bwrap works with a minimal but complete sandbox.
+	// We need to mount enough of the system for /bin/true to execute,
+	// including /lib64 for the dynamic linker on multiarch systems.
+	cmd := exec.Command(s.bwrapPath,
+		"--ro-bind", "/usr", "/usr",
+		"--ro-bind", "/lib", "/lib",
+		"--ro-bind", "/lib64", "/lib64",
+		"--ro-bind", "/bin", "/bin",
+		"/bin/true",
+	)
 	if err := cmd.Run(); err != nil {
 		f := false
 		s.available = &f
@@ -117,6 +125,7 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		// Unshare namespaces
 		"--unshare-pid",
 		"--unshare-ipc",
+		"--unshare-uts", // Required for --hostname
 
 		// Die when parent dies
 		"--die-with-parent",
@@ -127,17 +136,15 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		// Dev filesystem (minimal - null, zero, urandom)
 		"--dev", "/dev",
 
-		// Tmp filesystem
-		"--tmpfs", "/tmp",
+		// Network isolation (unless explicitly allowed)
 	}
-
-	// Size limit on tmpfs (must immediately follow --tmpfs)
-	args = append(args, "--size", "100000000") // ~100MB default
-
-	// Network isolation (unless explicitly allowed)
 	if !opts.NetworkAccess {
 		args = append(args, "--unshare-net")
 	}
+
+	// Tmp filesystem with size limit.
+	// --size must immediately precede --tmpfs.
+	args = append(args, "--size", "100000000", "--tmpfs", "/tmp") // ~100MB default
 
 	// System libraries (read-only)
 	systemPaths := []string{"/usr", "/lib", "/lib64", "/bin", "/sbin"}

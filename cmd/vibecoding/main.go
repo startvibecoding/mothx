@@ -211,13 +211,28 @@ func run(args []string, opts runOptions) error {
 	if !sbEnabled {
 		sbMgr.SetLevel(sandbox.LevelNone)
 	} else {
+		var targetLevel sandbox.Level
 		switch mode {
 		case "plan":
-			sbMgr.SetLevel(sandbox.LevelStrict)
+			targetLevel = sandbox.LevelStrict
 		case "yolo":
-			sbMgr.SetLevel(sandbox.LevelNone)
+			targetLevel = sandbox.LevelNone
 		default:
-			sbMgr.SetLevel(sandbox.LevelStandard)
+			targetLevel = sandbox.LevelStandard
+		}
+		// When the user explicitly passed --sandbox, verify the requested level
+		// is actually available before allowing silent fallback to none.
+		if opts.sandbox && targetLevel != sandbox.LevelNone {
+			if _, err := sbMgr.GetForLevel(targetLevel); err != nil {
+				return fmt.Errorf("sandbox requested but unavailable: %w", err)
+			}
+		}
+		if err := sbMgr.SetLevel(targetLevel); err != nil {
+			if opts.sandbox {
+				return fmt.Errorf("sandbox requested but unavailable: %w", err)
+			}
+			fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable, continuing without: %v\n", err)
+			sbMgr.SetLevel(sandbox.LevelNone)
 		}
 	}
 	sbInfo := sandbox.FormatSandboxInfo(sbMgr.GetActive())
@@ -488,6 +503,9 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 
 	for event := range eventCh {
 		switch event.Type {
+		case agent.EventToolApprovalRequest:
+			// CLI print mode: auto-approve tool calls since we can't interactively ask
+			a.HandleApprovalResponse(event.ApprovalID, true)
 		case agent.EventTextDelta:
 			textBuffer.WriteString(event.TextDelta)
 		case agent.EventToolCall:
