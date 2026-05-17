@@ -7,7 +7,7 @@
 - **Linux musl Build Support**
   - Added `make build-linux-musl` target for statically linked musl binaries (amd64 + aarch64)
   - musl tarballs produced via `dist-tarball` and `dist` targets
-  - musl Debian packages produced via `dist-deb` target (x86_64-musl / aarch64-musl)
+  - musl Debian packages produced via `dist-deb` target (amd64-musl / arm64-musl)
   - npm packages: `vibecoding-installer-linux-musl-x64` and `vibecoding-installer-linux-musl-arm64`
   - npm uses `libc` field for proper musl/glibc resolution (npm >=9.4)
   - postinstall.js auto-detects musl vs glibc on Linux

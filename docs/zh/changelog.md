@@ -7,7 +7,7 @@
 - **Linux musl 构建支持**
   - 新增 `make build-linux-musl` 目标，静态链接 musl 二进制文件（amd64 + aarch64）
   - 通过 `dist-tarball` 和 `dist` 目标生成 musl tarball 包
-  - 通过 `dist-deb` 目标生成 musl Debian 包（x86_64-musl / aarch64-musl）
+  - 通过 `dist-deb` 目标生成 musl Debian 包（amd64-musl / arm64-musl）
   - npm 包：`vibecoding-installer-linux-musl-x64` 和 `vibecoding-installer-linux-musl-arm64`
   - npm 使用 `libc` 字段实现 musl/glibc 正确解析（npm >=9.4）
   - postinstall.js 自动检测 Linux 上的 musl 与 glibc

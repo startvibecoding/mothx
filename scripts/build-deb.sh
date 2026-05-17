@@ -28,12 +28,8 @@ if echo "${ARCH}" | grep -q "musl"; then
     # Extract base arch: "amd64-musl" -> "amd64", "musl-amd64" -> "amd64"
     BASE_ARCH=$(echo "${ARCH}" | sed 's/-musl//;s/musl-//')
     BINARY_FILE="bin/${BINARY_NAME}-linux-musl-${BASE_ARCH}"
-    # Normalize arch for package name: use x86_64-musl / aarch64-musl
-    if [ "${BASE_ARCH}" = "amd64" ]; then
-        DEB_ARCH="x86_64-musl"
-    else
-        DEB_ARCH="aarch64-musl"
-    fi
+    # Normalize arch for package name: use amd64-musl / arm64-musl (hyphens only, no underscores)
+    DEB_ARCH="${BASE_ARCH}-musl"
     PACKAGE_DIR="${BUILD_DIR}/${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}"
 else
     BINARY_FILE="bin/${BINARY_NAME}-linux-${ARCH}"
@@ -161,10 +157,6 @@ dpkg-deb --root-owner-group --build "${PACKAGE_DIR}"
 # Generate checksums
 cd "${BUILD_DIR}"
 DEB_FILE="${PACKAGE_NAME}_${VERSION}_${DEB_ARCH}.deb"
-# For musl, the package name is different
-if [ "${IS_MUSL}" = true ]; then
-    DEB_FILE="${PACKAGE_NAME}-musl_${VERSION}_${DEB_ARCH}.deb"
-fi
 sha256sum "${DEB_FILE}" > "${DEB_FILE}.sha256"
 cd - > /dev/null
 
