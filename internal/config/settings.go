@@ -11,6 +11,9 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/platform"
 )
 
+// Verbose controls whether config loading prints diagnostic messages to stderr.
+var Verbose bool
+
 // Settings holds all configuration for vibecoding.
 type Settings struct {
 	Providers            map[string]*ProviderConfig `json:"providers,omitempty"`
@@ -168,18 +171,44 @@ func LoadSettings() (*Settings, error) {
 		fmt.Fprintf(os.Stderr, "Warning: could not create config: %v\n", err)
 	}
 
-	if data, err := os.ReadFile(GlobalSettingsPath()); err == nil {
+	globalPath := GlobalSettingsPath()
+	if Verbose {
+		fmt.Fprintf(os.Stderr, "[config] Loading global settings: %s\n", globalPath)
+	}
+	if data, err := os.ReadFile(globalPath); err == nil {
 		if err := json.Unmarshal(data, s); err != nil {
 			return nil, fmt.Errorf("parse global settings: %w", err)
 		}
+		if Verbose {
+			fmt.Fprintf(os.Stderr, "[config] Loaded global settings\n")
+		}
+	} else if !os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Warning: could not read global settings %s: %v\n", globalPath, err)
+	} else if Verbose {
+		fmt.Fprintf(os.Stderr, "[config] Global settings not found: %s\n", globalPath)
 	}
 
-	if data, err := os.ReadFile(ProjectSettingsPath()); err == nil {
+	projectPath := ProjectSettingsPath()
+	if Verbose {
+		fmt.Fprintf(os.Stderr, "[config] Loading project settings: %s\n", projectPath)
+	}
+	if data, err := os.ReadFile(projectPath); err == nil {
 		var proj Settings
 		if err := json.Unmarshal(data, &proj); err != nil {
 			return nil, fmt.Errorf("parse project settings: %w", err)
 		}
 		mergeSettings(s, &proj)
+		if Verbose {
+			fmt.Fprintf(os.Stderr, "[config] Loaded project settings\n")
+		}
+	} else if !os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Warning: could not read project settings %s: %v\n", projectPath, err)
+	} else if Verbose {
+		fmt.Fprintf(os.Stderr, "[config] Project settings not found: %s\n", projectPath)
+		// Detect common typo: .vibe/setting.json (singular)
+		if _, err2 := os.Stat(".vibe/setting.json"); err2 == nil {
+			fmt.Fprintf(os.Stderr, "[config] Found .vibe/setting.json (singular) — expected .vibe/settings.json (plural). Please rename the file.\n")
+		}
 	}
 
 	if v := os.Getenv("VIBECODING_PROVIDER"); v != "" {
@@ -379,7 +408,13 @@ func resolveShellCommand(cmd string) string {
 	if cmd == "" {
 		return ""
 	}
-	out, err := exec.Command("sh", "-c", cmd).Output()
+	var out []byte
+	var err error
+	if platform.IsWindows() {
+		out, err = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", cmd).Output()
+	} else {
+		out, err = exec.Command("sh", "-c", cmd).Output()
+	}
 	if err != nil {
 		return ""
 	}
