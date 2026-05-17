@@ -10,6 +10,8 @@ VibeCoding 使用两个配置文件:
 | `%APPDATA%\vibecoding\settings.json` | Windows | 全局 (所有项目) | 低 |
 | `.vibe/settings.json` | 全部 | 项目级 | 高 |
 
+> **Windows 用户：** `%APPDATA%` 实际展开为 `C:\Users\<用户名>\AppData\Roaming`，所以完整路径通常是 `C:\Users\<用户名>\AppData\Roaming\vibecoding\settings.json`。
+
 项目级配置会覆盖全局配置。
 
 ## 配置结构

@@ -137,6 +137,8 @@ vibecoding --no-sandbox
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) |
 | `.vibe/settings.json` | All | Project (overrides global) |
 
+> **Windows users:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`.
+
 ### Example Settings
 
 ```json
