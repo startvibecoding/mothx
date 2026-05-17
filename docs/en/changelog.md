@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.3
+## v0.1.4
 
 ### ✨ Features
 
@@ -11,6 +11,17 @@
   - npm packages: `vibecoding-installer-linux-musl-x64` and `vibecoding-installer-linux-musl-arm64`
   - npm uses `libc` field for proper musl/glibc resolution (npm >=9.4)
   - postinstall.js auto-detects musl vs glibc on Linux
+
+---
+
+## v0.1.3
+
+### ✨ Features
+
+- **Versioning Rules**
+  - Added version number management rules with base-10 carry-over (e.g., v0.1.9 -> v0.2.0)
+  - Documented changelog rules: only write in docs/en/changelog.md and docs/zh/changelog.md
+  - No separate release notes files allowed
 
 ---
 
