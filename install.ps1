@@ -1,5 +1,9 @@
 # VibeCoding Installer for Windows
 # Downloads and installs the latest release from GitHub
+#
+# Repository: https://github.com/startvibecoding/vibecoding
+# Author:     zhenruyan
+# Blog:       https://pkold.com
 
 $ErrorActionPreference = "Stop"
 
@@ -17,6 +21,8 @@ function Write-Error { Write-Host "[ERROR] $args" -ForegroundColor Red; exit 1 }
 Write-Host ""
 Write-Host "╔═══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkCyan
 Write-Host "║                   VibeCoding Installer                       ║" -ForegroundColor DarkCyan
+Write-Host "║         https://github.com/startvibecoding/vibecoding        ║" -ForegroundColor DarkCyan
+Write-Host "║                Author: zhenruyan | pkold.com                 ║" -ForegroundColor DarkCyan
 Write-Host "╚═══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkCyan
 Write-Host ""
 
@@ -60,21 +66,21 @@ try {
     # Download archive
     $archivePath = Join-Path $tempDir $archiveName
     Write-Info "Downloading $archiveName..."
-    
+
     $progressPreference = 'SilentlyContinue'
     Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath -UseBasicParsing
     $progressPreference = 'Continue'
-    
+
     Write-Success "Download complete"
 
     # Extract archive
     Write-Info "Extracting archive..."
     $extractPath = Join-Path $tempDir "extract"
     Expand-Archive -Path $archivePath -DestinationPath $extractPath -Force
-    
+
     # Find binary
     $binaryPath = Get-ChildItem -Path $extractPath -Filter $BINARY_NAME -Recurse | Select-Object -First 1
-    
+
     if (-not $binaryPath) {
         Write-Error "Binary not found in archive"
     }
@@ -93,7 +99,7 @@ try {
 
     # Add to PATH if not already present
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    
+
     if ($currentPath -notlike "*$installDir*") {
         Write-Info "Adding $installDir to PATH..."
         [Environment]::SetEnvironmentVariable("Path", "$currentPath;$installDir", "User")
@@ -103,11 +109,19 @@ try {
         Write-Info "$installDir is already in PATH"
     }
 
-    # Verify installation
+    # Show config directory info
+    $configDir = Join-Path $env:APPDATA "vibecoding"
+    $settingsPath = Join-Path $configDir "settings.json"
+    $authPath = Join-Path $configDir "auth.json"
+
     Write-Host ""
     Write-Success "Installation complete!"
     Write-Host ""
     Write-Host "  Version: $version" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  Config directory: $configDir" -ForegroundColor White
+    Write-Host "    - Settings file : $settingsPath" -ForegroundColor Gray
+    Write-Host "    - Auth file     : $authPath" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  Get started:" -ForegroundColor White
     Write-Host "    vibecoding --help" -ForegroundColor Gray
