@@ -89,7 +89,9 @@ export OPENAI_API_KEY=sk-...
 创建 auth.json:
 
 - Linux/macOS: `~/.vibecoding/auth.json`
-- Windows: `%APPDATA%\vibecoding\auth.json`
+- Windows: `%APPDATA%\vibecoding\auth.json`（实际路径通常为 `C:\Users\<用户名>\AppData\Roaming\vibecoding\auth.json`）
+
+> **Windows 路径说明：** `%APPDATA%` 展开为 `C:\Users\<用户名>\AppData\Roaming`。
 
 ```json
 {

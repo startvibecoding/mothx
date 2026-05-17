@@ -383,6 +383,17 @@ main() {
     # Check PATH and offer to configure
     check_path
     
+    # Determine config directory based on platform
+    local config_dir
+    case "$(uname -s)" in
+        Darwin*|Linux*)
+            config_dir="${HOME}/.vibecoding"
+            ;;
+        *)
+            config_dir="${HOME}/.vibecoding"
+            ;;
+    esac
+
     # Verify installation
     echo ""
     if command -v "$BINARY_NAME" &> /dev/null; then
@@ -392,6 +403,10 @@ main() {
         echo ""
         echo "  Version: ${installed_version}"
         echo ""
+        echo "  Config directory: ${config_dir}"
+        echo "    - Settings file : ${config_dir}/settings.json"
+        echo "    - Auth file     : ${config_dir}/auth.json"
+        echo ""
         echo "  Get started:"
         echo "    ${BINARY_NAME} --help"
         echo ""
@@ -400,6 +415,10 @@ main() {
         echo ""
         echo "  Binary installed to:"
         echo "    ${INSTALL_DIR}/${BINARY_NAME}"
+        echo ""
+        echo "  Config directory: ${config_dir}"
+        echo "    - Settings file : ${config_dir}/settings.json"
+        echo "    - Auth file     : ${config_dir}/auth.json"
         echo ""
         echo "  To use right now:"
         echo "    export PATH=\"${INSTALL_DIR}:\$PATH\""
