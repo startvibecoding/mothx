@@ -10,7 +10,7 @@
 
 ## Features
 
-- **Multi-Provider Support**: DeepSeek (deepseek-v4-flash, deepseek-v4-pro), and custom providers
+- **Multi-Provider Support**: DeepSeek (default), OpenAI, Anthropic, and any custom provider via OpenAI/Anthropic-compatible APIs
 - **SSE Streaming**: Real-time token streaming for fast response delivery
 - **Think Mode**: Extended thinking/reasoning support (DeepSeek reasoning)
 - **Three Modes**:

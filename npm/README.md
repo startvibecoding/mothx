@@ -34,8 +34,10 @@ vibecoding --mode yolo    # Full access
 Set your API key:
 
 ```bash
-# DeepSeek
+# DeepSeek (default)
 export DEEPSEEK_API_KEY=sk-...
+
+# Or configure OpenAI / Anthropic / any compatible API in settings.json
 ```
 
 ## More Information

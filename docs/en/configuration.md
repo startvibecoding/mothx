@@ -115,8 +115,12 @@ Multi-provider configuration. Each provider contains:
 
 #### api field
 
+The `api` field specifies the **protocol format**, not the service provider. You can point any provider to any compatible endpoint:
+
 - `openai-chat`: OpenAI Chat Completions API format
 - `anthropic-messages`: Anthropic Messages API format
+
+For example, DeepSeek offers both formats at different endpoints, and you can also use these formats to connect to the actual OpenAI or Anthropic services.
 
 If not specified, auto-detected based on `baseUrl`:
 - Contains "anthropic" → `anthropic-messages`

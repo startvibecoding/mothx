@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-VibeCoding is a terminal-based AI coding assistant written in Go, inspired by [pi.dev](https://pi.dev). It supports multiple LLM providers (DeepSeek, and custom providers), sandboxed execution via bubblewrap, and a rich TUI built with BubbleTea.
+VibeCoding is a terminal-based AI coding assistant written in Go, inspired by [pi.dev](https://pi.dev). It supports multiple LLM providers (DeepSeek as the default demo, plus OpenAI, Anthropic, and any custom provider via OpenAI/Anthropic-compatible APIs), sandboxed execution via bubblewrap, and a rich TUI built with BubbleTea.
 
 ## Tech Stack
 

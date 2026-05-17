@@ -115,8 +115,12 @@ VibeCoding 使用两个配置文件:
 
 #### api 字段
 
+`api` 字段指定的是 **协议格式**，而非服务商。你可以将任意提供商指向任意兼容的端点：
+
 - `openai-chat`: OpenAI Chat Completions API 格式
 - `anthropic-messages`: Anthropic Messages API 格式
+
+例如，DeepSeek 在不同端点提供两种格式，你也可以用这些格式去连接真正的 OpenAI 或 Anthropic 服务。
 
 如果未指定，会根据 `baseUrl` 自动检测:
 - 包含 "anthropic" → `anthropic-messages`
