@@ -332,7 +332,7 @@ func TestBashToolAsync(t *testing.T) {
 	// Start async command
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"command": "sleep 1",
-		"async":  true,
+		"async":   true,
 	})
 
 	if err != nil {

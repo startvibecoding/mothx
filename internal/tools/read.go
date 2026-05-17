@@ -134,4 +134,3 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	return NewTextToolResult(result), nil
 }
-

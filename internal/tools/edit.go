@@ -158,4 +158,3 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	return NewTextToolResult(fmt.Sprintf("Applied %d edit(s) to %s", len(edits), path)), nil
 }
-

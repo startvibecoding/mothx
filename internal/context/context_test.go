@@ -138,11 +138,11 @@ func TestEstimateContextTokens(t *testing.T) {
 
 func TestShouldCompact(t *testing.T) {
 	tests := []struct {
-		name           string
-		contextTokens  int
-		contextWindow  int
-		reserveTokens  int
-		expected       bool
+		name          string
+		contextTokens int
+		contextWindow int
+		reserveTokens int
+		expected      bool
 	}{
 		{
 			name:          "should compact - over threshold",

@@ -68,6 +68,20 @@ vibecoding/
 - `find`: File search
 - `ls`: Directory listing
 
+### TUI Commands
+- `/mode [plan|agent|yolo]`: Switch or show mode
+- `/model [model_id]`: Switch or show model
+- `/skills`: List available skills
+- `/skill <name>` or `/skill:<name>`: Activate a skill
+- `/sessions`: List sessions for current project
+- `/sessions ls`: List all sessions
+- `/sessions set <id>`: Switch to a session by ID prefix
+- `/sessions clear`: Create a new fresh session
+- `/sessions del <id>`: Delete a session by ID prefix
+- `/clear`: Clear conversation
+- `/quit`: Exit
+- `/help`: Show help
+
 ### Sandbox Levels
 - `none`: No restrictions (default)
 - `standard`: Project read-write, no network (via --sandbox)
@@ -165,6 +179,7 @@ make test
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`
 - Main branch: `main`
 - No force push to main
+- **IMPORTANT**: Do NOT auto-commit after code changes. Only commit when the user explicitly requests it (e.g., "提交到git" or "commit").
 
 ## Documentation & Changelog
 
@@ -188,36 +203,6 @@ Update README files (`docs/en/README.md` and `docs/zh/README.md`) when there are
 - Significant changes to installation or usage
 - New configuration options that affect core functionality
 - Breaking changes that users need to know about
-
-### Release Process
-
-1. Update changelogs (`docs/en/changelog.md` and `docs/zh/changelog.md`)
-2. If major features: update README files
-3. Commit changes: `docs: add vX.X.X changelog`
-4. Create annotated tag: `git tag -a vX.X.X -m "Release vX.X.X: summary"`
-5. Push: `git push && git push --tags`
-
-## Versioning Rules
-
-### Version Format
-
-Use `v{major}.{minor}.{patch}` format (e.g., `v0.1.2`, `v1.0.0`).
-
-### Version Increment Rules
-
-- **Patch** (0.1.X): Bug fixes, minor improvements, documentation updates
-- **Minor** (0.X.0): New features, significant improvements (backward compatible)
-- **Major** (X.0.0): Breaking changes, major rewrites
-
-### Special Rule: Version 10 Carry-Over
-
-When a version component reaches 10, it carries over to the next level:
-
-- `v0.1.9` → `v0.2.0` (patch resets to 0, minor increments)
-- `v0.9.9` → `v1.0.0` (both reset, major increments)
-- `v1.2.9` → `v1.3.0` (patch resets to 0, minor increments)
-
-This is similar to decimal arithmetic: each component is base-10.
 
 ### Tag Management
 

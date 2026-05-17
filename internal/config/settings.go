@@ -17,22 +17,22 @@ var Verbose bool
 // Settings holds all configuration for vibecoding.
 type Settings struct {
 	Providers            map[string]*ProviderConfig `json:"providers,omitempty"`
-	DefaultProvider      string                    `json:"defaultProvider,omitempty"`
-	DefaultModel         string                    `json:"defaultModel,omitempty"`
-	DefaultThinkingLevel string                    `json:"defaultThinkingLevel,omitempty"`
-	DefaultMode          string                    `json:"defaultMode,omitempty"`
-	MaxContextTokens     int                       `json:"maxContextTokens,omitempty"`
-	MaxOutputTokens      int                       `json:"maxOutputTokens,omitempty"`
-	ContextFiles         ContextFilesSettings      `json:"contextFiles"`
-	SkillsDir            string                    `json:"skillsDir,omitempty"`
-	Compaction           CompactionSettings        `json:"compaction"`
-	Sandbox              SandboxSettings           `json:"sandbox"`
-	SessionDir           string                    `json:"sessionDir,omitempty"`
-	ShellPath            string                    `json:"shellPath,omitempty"`
-	ShellCommandPrefix   string                    `json:"shellCommandPrefix,omitempty"`
-	Theme                string                    `json:"theme,omitempty"`
-	Retry                RetrySettings             `json:"retry"`
-	Approval             ApprovalSettings          `json:"approval"`
+	DefaultProvider      string                     `json:"defaultProvider,omitempty"`
+	DefaultModel         string                     `json:"defaultModel,omitempty"`
+	DefaultThinkingLevel string                     `json:"defaultThinkingLevel,omitempty"`
+	DefaultMode          string                     `json:"defaultMode,omitempty"`
+	MaxContextTokens     int                        `json:"maxContextTokens,omitempty"`
+	MaxOutputTokens      int                        `json:"maxOutputTokens,omitempty"`
+	ContextFiles         ContextFilesSettings       `json:"contextFiles"`
+	SkillsDir            string                     `json:"skillsDir,omitempty"`
+	Compaction           CompactionSettings         `json:"compaction"`
+	Sandbox              SandboxSettings            `json:"sandbox"`
+	SessionDir           string                     `json:"sessionDir,omitempty"`
+	ShellPath            string                     `json:"shellPath,omitempty"`
+	ShellCommandPrefix   string                     `json:"shellCommandPrefix,omitempty"`
+	Theme                string                     `json:"theme,omitempty"`
+	Retry                RetrySettings              `json:"retry"`
+	Approval             ApprovalSettings           `json:"approval"`
 }
 
 type ProviderConfig struct {

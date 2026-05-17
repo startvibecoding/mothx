@@ -143,5 +143,3 @@ func (job *BackgroundJob) Status() string {
 	}
 	return fmt.Sprintf("[%d] running (PID: %d, %s, elapsed: %s)", job.ID, job.PID, job.Command, elapsed)
 }
-
-

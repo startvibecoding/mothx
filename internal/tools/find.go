@@ -132,4 +132,3 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	return NewTextToolResult(strings.Join(results, "\n")), nil
 }
-

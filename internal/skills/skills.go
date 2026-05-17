@@ -11,22 +11,22 @@ import (
 
 // SkillReference represents a reference file within a skill.
 type SkillReference struct {
-	Path      string // relative path (e.g. "references/audio.md")
-	FullPath  string // absolute path
-	Label     string // display label (e.g. "音频")
-	AutoLoad  bool   // true if marked [已加载], false if [待按需加载]
-	Loaded    bool   // whether this reference has been loaded
-	Content   string // loaded content
+	Path     string // relative path (e.g. "references/audio.md")
+	FullPath string // absolute path
+	Label    string // display label (e.g. "音频")
+	AutoLoad bool   // true if marked [已加载], false if [待按需加载]
+	Loaded   bool   // whether this reference has been loaded
+	Content  string // loaded content
 }
 
 // Skill represents a loaded skill.
 type Skill struct {
-	Name        string // skill name (directory name)
-	Path        string // absolute path to SKILL.md
-	Dir         string // skill directory
-	Description string // first line or heading description
-	Content     string // full SKILL.md content
-	Source      string // "global" or "project"
+	Name        string            // skill name (directory name)
+	Path        string            // absolute path to SKILL.md
+	Dir         string            // skill directory
+	Description string            // first line or heading description
+	Content     string            // full SKILL.md content
+	Source      string            // "global" or "project"
 	References  []*SkillReference // parsed references
 }
 

@@ -165,26 +165,26 @@ func CommonPaths() map[string]string {
 	switch runtime.GOOS {
 	case "windows":
 		return map[string]string{
-			"home":     HomeDir(),
-			"temp":     os.TempDir(),
-			"appData":  os.Getenv("APPDATA"),
-			"localApp": os.Getenv("LOCALAPPDATA"),
+			"home":         HomeDir(),
+			"temp":         os.TempDir(),
+			"appData":      os.Getenv("APPDATA"),
+			"localApp":     os.Getenv("LOCALAPPDATA"),
 			"programFiles": os.Getenv("ProgramFiles"),
 		}
 	case "darwin":
 		return map[string]string{
-			"home":      HomeDir(),
-			"temp":      os.TempDir(),
+			"home":       HomeDir(),
+			"temp":       os.TempDir(),
 			"appSupport": filepath.Join(HomeDir(), "Library", "Application Support"),
-			"caches":    filepath.Join(HomeDir(), "Library", "Caches"),
+			"caches":     filepath.Join(HomeDir(), "Library", "Caches"),
 		}
 	default: // linux
 		return map[string]string{
-			"home":  HomeDir(),
-			"temp":  os.TempDir(),
-			"cache": filepath.Join(HomeDir(), ".cache"),
+			"home":   HomeDir(),
+			"temp":   os.TempDir(),
+			"cache":  filepath.Join(HomeDir(), ".cache"),
 			"config": filepath.Join(HomeDir(), ".config"),
-			"local": filepath.Join(HomeDir(), ".local"),
+			"local":  filepath.Join(HomeDir(), ".local"),
 		}
 	}
 }

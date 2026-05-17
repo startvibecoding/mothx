@@ -93,7 +93,6 @@ func (t *LsTool) Execute(ctx context.Context, params map[string]any) (ToolResult
 	return NewTextToolResult(result), nil
 }
 
-
 func formatSize(bytes int64) string {
 	const (
 		KB = 1024

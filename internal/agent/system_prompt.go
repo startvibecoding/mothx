@@ -247,4 +247,3 @@ type ContextFileInfo struct {
 	Scope   string // "global", "parent", "project"
 	Content string
 }
-

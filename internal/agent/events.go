@@ -32,7 +32,7 @@ const (
 	EventToolExecutionUpdate
 	EventToolExecutionEnd
 	EventToolResult
-	EventToolApprovalRequest // Request user approval for tool execution
+	EventToolApprovalRequest  // Request user approval for tool execution
 	EventToolApprovalResponse // User response to approval request
 
 	// Status events
@@ -74,10 +74,10 @@ type Event struct {
 	PartialResult any
 
 	// Approval events
-	ApprovalID     string // Unique ID for approval request
-	ApprovalTool   string // Tool name requiring approval
+	ApprovalID     string         // Unique ID for approval request
+	ApprovalTool   string         // Tool name requiring approval
 	ApprovalArgs   map[string]any // Tool arguments
-	ApprovalResult bool // true = approved, false = denied
+	ApprovalResult bool           // true = approved, false = denied
 
 	// Status
 	StatusMessage string
