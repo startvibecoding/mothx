@@ -117,6 +117,13 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// Check for async mode
 	async, _ := params["async"].(bool)
 
+	// Auto-detect async if command ends with &
+	command = strings.TrimSpace(command)
+	if strings.HasSuffix(command, "&") && !async {
+		async = true
+		command = strings.TrimSpace(strings.TrimSuffix(command, "&"))
+	}
+
 	timeout := 120 * time.Second
 	if v, ok := params["timeout"].(float64); ok && v > 0 {
 		if v > 600 {
