@@ -1,6 +1,6 @@
 # 更新日志
 
-## v0.1.3
+## v0.1.4
 
 ### ✨ 新功能
 
@@ -11,6 +11,17 @@
   - npm 包：`vibecoding-installer-linux-musl-x64` 和 `vibecoding-installer-linux-musl-arm64`
   - npm 使用 `libc` 字段实现 musl/glibc 正确解析（npm >=9.4）
   - postinstall.js 自动检测 Linux 上的 musl 与 glibc
+
+---
+
+## v0.1.3
+
+### ✨ 新功能
+
+- **版本规则**
+  - 新增版本号管理规则：版本号采用十进制进位（如 v0.1.9 -> v0.2.0）
+  - 明确 changelog 编写规则：只在 docs/en/changelog.md 和 docs/zh/changelog.md 中编写
+  - 不创建单独的 release notes 文件
 
 ---
 
