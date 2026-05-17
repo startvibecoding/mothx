@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -69,7 +71,7 @@ type InputEvent struct {
 
 // toolResult stores tool result information
 type toolResult struct {
-	toolCallID  string         // Unique tool call ID for precise matching
+	toolCallID  string // Unique tool call ID for precise matching
 	toolName    string
 	toolArgs    map[string]any // Tool call arguments
 	summary     string         // Short summary for collapsed view
@@ -79,15 +81,15 @@ type toolResult struct {
 
 // App is the main TUI application.
 type App struct {
-	provider    provider.Provider
-	model       *provider.Model
-	settings    *config.Settings
-	session     *session.Manager
-	registry    *tools.Registry
-	sandboxInfo string
-	mode        string
+	provider     provider.Provider
+	model        *provider.Model
+	settings     *config.Settings
+	session      *session.Manager
+	registry     *tools.Registry
+	sandboxInfo  string
+	mode         string
 	extraContext string
-	skillsMgr   *skills.Manager
+	skillsMgr    *skills.Manager
 
 	// Skills state: base extraContext (without skills) and active skill names
 	baseExtraContext string            // extraContext without skill content
@@ -98,15 +100,15 @@ type App struct {
 	input    textinput.Model
 
 	// State
-	messages   []string
+	messages    []string
 	toolResults []toolResult // Store tool results for expansion
-	isThinking bool
-	agent      *agent.Agent
-	eventCh    <-chan agent.Event
-	width      int
-	height     int
-	ready      bool
-	autoScroll bool
+	isThinking  bool
+	agent       *agent.Agent
+	eventCh     <-chan agent.Event
+	width       int
+	height      int
+	ready       bool
+	autoScroll  bool
 
 	// Paste markers storage
 	pasteCounter int
@@ -140,8 +142,8 @@ type App struct {
 	spinnerIndex int
 
 	// Session history
-	sessionMu      sync.Mutex
-	historyLoaded  bool
+	sessionMu     sync.Mutex
+	historyLoaded bool
 
 	// Render throttling
 	lastRender     time.Time
@@ -191,21 +193,21 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 	}
 
 	app := &App{
-		provider:       p,
-		model:          model,
-		settings:       settings,
-		session:        sess,
-		registry:       registry,
-		sandboxInfo:    sandboxInfo,
-		mode:           mode,
-		extraContext:   extraContext,
-		baseExtraContext: extraContext,
-		activeSkills:    make(map[string]string),
-		skillsMgr:      skillsMgr,
-		input:          input,
-		viewport:       vp,
-		autoScroll:     true,
-		pastes:         make(map[int]string),
+		provider:            p,
+		model:               model,
+		settings:            settings,
+		session:             sess,
+		registry:            registry,
+		sandboxInfo:         sandboxInfo,
+		mode:                mode,
+		extraContext:        extraContext,
+		baseExtraContext:    extraContext,
+		activeSkills:        make(map[string]string),
+		skillsMgr:           skillsMgr,
+		input:               input,
+		viewport:            vp,
+		autoScroll:          true,
+		pastes:              make(map[int]string),
 		inputQueue:          make([]InputEvent, 0, 100),
 		inputBatchSize:      10,
 		inputDelay:          16 * time.Millisecond, // ~60fps
@@ -298,6 +300,7 @@ type spinnerTickMsg time.Time
 
 // Spinner characters for the thinking animation
 var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
 const spinnerInterval = 100 * time.Millisecond
 
 // tickSpinner returns a command that updates the spinner
@@ -772,7 +775,6 @@ func formatToolArgs(toolName string, args map[string]any) string {
 	return strings.Join(parts, "\n")
 }
 
-
 // formatCachePercent calculates and returns the cache hit rate string, or empty string if no data.
 // For OpenAI: Input (prompt_tokens) already includes CacheRead (cached_tokens), so total = Input.
 // For Anthropic: Input (input_tokens) also includes cache tokens, so total = Input works for both.
@@ -1103,6 +1105,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.updateViewportContent()
 	case "/quit":
 		return tea.Quit
+	case "/sessions":
+		a.handleSessionsCommand(parts)
 	case "/help":
 		a.addMessage(statusStyle.Render("Commands:"))
 		a.addMessage(statusStyle.Render("  /mode [plan|agent|yolo] - Switch or show mode"))
@@ -1110,6 +1114,11 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.addMessage(statusStyle.Render("  /skills                 - List available skills"))
 		a.addMessage(statusStyle.Render("  /skill <name>           - Activate a skill"))
 		a.addMessage(statusStyle.Render("  /clear                  - Clear conversation"))
+		a.addMessage(statusStyle.Render("  /sessions               - List sessions for this project"))
+		a.addMessage(statusStyle.Render("  /sessions ls            - List sessions"))
+		a.addMessage(statusStyle.Render("  /sessions set <id>      - Switch to session"))
+		a.addMessage(statusStyle.Render("  /sessions clear         - Create a new session"))
+		a.addMessage(statusStyle.Render("  /sessions del <id>      - Delete a session"))
 		a.addMessage(statusStyle.Render("  /quit                   - Exit"))
 		a.addMessage(statusStyle.Render("  /help                   - Show this help"))
 		a.addMessage(statusStyle.Render(""))
@@ -1199,6 +1208,303 @@ func (a *App) rebuildExtraContext() {
 		sb.WriteString(ctx)
 	}
 	a.extraContext = sb.String()
+}
+
+// getSessionDir returns the session directory path.
+func (a *App) getSessionDir() string {
+	if a.settings != nil {
+		return a.settings.GetSessionDir()
+	}
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		home = "."
+	}
+	return filepath.Join(home, ".vibecoding", "sessions")
+}
+
+// getCurrentSessionID returns the current session's short ID (first 8 chars).
+func (a *App) getCurrentSessionID() string {
+	if a.session == nil {
+		return ""
+	}
+	file := a.session.GetFile()
+	if file == "" {
+		return ""
+	}
+	base := filepath.Base(file)
+	base = strings.TrimSuffix(base, ".jsonl")
+	if idx := strings.Index(base, "_"); idx >= 0 {
+		return base[idx+1:]
+	}
+	return ""
+}
+
+// handleSessionsCommand handles the /sessions command and its subcommands.
+func (a *App) handleSessionsCommand(parts []string) {
+	sub := "ls"
+	if len(parts) > 1 {
+		sub = strings.ToLower(parts[1])
+	}
+
+	switch sub {
+	case "ls", "list":
+		a.sessionsList()
+	case "set", "switch", "use":
+		if len(parts) < 3 {
+			a.addMessage(errorStyle.Render("Usage: /sessions set <id>"))
+			return
+		}
+		a.sessionsSet(parts[2])
+	case "clear", "new":
+		a.sessionsClear()
+	case "del", "delete", "rm":
+		if len(parts) < 3 {
+			a.addMessage(errorStyle.Render("Usage: /sessions del <id>"))
+			return
+		}
+		a.sessionsDel(parts[2])
+	default:
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown subcommand: %s. Use ls, set, clear, del.", sub)))
+	}
+}
+
+// sessionsList lists all sessions for the current project directory.
+func (a *App) sessionsList() {
+	cwd := ""
+	if a.session != nil && a.session.GetHeader() != nil {
+		cwd = a.session.GetHeader().Cwd
+	}
+	if cwd == "" {
+		if w, err := os.Getwd(); err == nil {
+			cwd = w
+		}
+	}
+
+	sessionDir := a.getSessionDir()
+	details, err := session.ListForDirDetailed(cwd, sessionDir)
+	if err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Error listing sessions: %v", err)))
+		return
+	}
+
+	if len(details) == 0 {
+		a.addMessage(statusStyle.Render("No sessions found for this project."))
+		return
+	}
+
+	currentID := a.getCurrentSessionID()
+
+	var sb strings.Builder
+	sb.WriteString("Sessions for this project:\n\n")
+	for _, d := range details {
+		marker := " "
+		if d.ID == currentID {
+			marker = "*"
+		}
+		age := formatAge(d.ModTime)
+		preview := ""
+		if d.Preview != "" {
+			preview = " - " + d.Preview
+		}
+		sb.WriteString(fmt.Sprintf("  [%s] %s  %d msgs  %s%s\n",
+			marker, d.ID, d.MessageCount, age, preview))
+	}
+	sb.WriteString("\nUse /sessions set <id> to switch. * = current session.")
+	a.addMessage(statusStyle.Render(sb.String()))
+}
+
+// sessionsSet switches to a different session by ID prefix.
+func (a *App) sessionsSet(id string) {
+	cwd := ""
+	if a.session != nil && a.session.GetHeader() != nil {
+		cwd = a.session.GetHeader().Cwd
+	}
+	if cwd == "" {
+		if w, err := os.Getwd(); err == nil {
+			cwd = w
+		}
+	}
+
+	// Don't switch to the same session
+	if id == a.getCurrentSessionID() {
+		a.addMessage(statusStyle.Render("Already on this session."))
+		return
+	}
+
+	sessionDir := a.getSessionDir()
+	details, err := session.ListForDirDetailed(cwd, sessionDir)
+	if err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Error: %v", err)))
+		return
+	}
+
+	// Find matching session by ID prefix
+	var match *session.SessionDetail
+	for i, d := range details {
+		if strings.HasPrefix(d.ID, id) {
+			if match != nil {
+				a.addMessage(errorStyle.Render(fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id)))
+				return
+			}
+			match = &details[i]
+		}
+	}
+
+	if match == nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("No session found matching '%s'.", id)))
+		return
+	}
+
+	// Open the session
+	newSess, err := session.Open(match.Path)
+	if err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Error opening session: %v", err)))
+		return
+	}
+
+	// Switch session
+	a.session = newSess
+	a.historyLoaded = false
+
+	// Reset agent and UI state
+	a.agent = nil
+	a.messages = nil
+	a.toolResults = nil
+	a.contextUsage = nil
+	a.totalInputTokens = 0
+	a.totalCacheRead = 0
+	a.totalCacheWrite = 0
+	a.assistantRaw = make(map[int]string)
+	a.assistantRendered = make(map[int]string)
+	a.assistantDirty = make(map[int]bool)
+	a.currentAssistantIdx = -1
+	a.currentThinkIdx = -1
+
+	// Load history messages from the new session
+	a.LoadHistoryMessages()
+	a.updateViewportContent()
+
+	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
+		match.ID, match.MessageCount)))
+}
+
+// sessionsClear creates a new session, starting fresh.
+func (a *App) sessionsClear() {
+	cwd := ""
+	if a.session != nil && a.session.GetHeader() != nil {
+		cwd = a.session.GetHeader().Cwd
+	}
+	if cwd == "" {
+		if w, err := os.Getwd(); err == nil {
+			cwd = w
+		}
+	}
+
+	sessionDir := a.getSessionDir()
+	newSess := session.New(cwd, sessionDir)
+	if err := newSess.Init(); err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Error creating session: %v", err)))
+		return
+	}
+
+	a.session = newSess
+	a.historyLoaded = false
+
+	// Reset agent and UI state
+	a.agent = nil
+	a.messages = nil
+	a.toolResults = nil
+	a.contextUsage = nil
+	a.totalInputTokens = 0
+	a.totalCacheRead = 0
+	a.totalCacheWrite = 0
+	a.assistantRaw = make(map[int]string)
+	a.assistantRendered = make(map[int]string)
+	a.assistantDirty = make(map[int]bool)
+	a.currentAssistantIdx = -1
+	a.currentThinkIdx = -1
+	a.updateViewportContent()
+
+	a.addMessage(statusStyle.Render("✅ New session created."))
+}
+
+// sessionsDel deletes a session by ID prefix.
+func (a *App) sessionsDel(id string) {
+	cwd := ""
+	if a.session != nil && a.session.GetHeader() != nil {
+		cwd = a.session.GetHeader().Cwd
+	}
+	if cwd == "" {
+		if w, err := os.Getwd(); err == nil {
+			cwd = w
+		}
+	}
+
+	// Don't delete the current session
+	if id == a.getCurrentSessionID() {
+		a.addMessage(errorStyle.Render("Cannot delete the current session. Switch to another session first, or use /sessions clear to start fresh."))
+		return
+	}
+
+	sessionDir := a.getSessionDir()
+	details, err := session.ListForDirDetailed(cwd, sessionDir)
+	if err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Error: %v", err)))
+		return
+	}
+
+	// Find matching session by ID prefix
+	var match *session.SessionDetail
+	for i, d := range details {
+		if strings.HasPrefix(d.ID, id) {
+			if match != nil {
+				a.addMessage(errorStyle.Render(fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id)))
+				return
+			}
+			match = &details[i]
+		}
+	}
+
+	if match == nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("No session found matching '%s'.", id)))
+		return
+	}
+
+	if err := session.DeleteSession(match.Path); err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Error deleting session: %v", err)))
+		return
+	}
+
+	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Deleted session %s.", match.ID)))
+}
+
+// formatAge returns a human-readable age string for a time.
+func formatAge(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		mins := int(d.Minutes())
+		if mins == 1 {
+			return "1 min ago"
+		}
+		return fmt.Sprintf("%d mins ago", mins)
+	case d < 24*time.Hour:
+		hours := int(d.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	case d < 30*24*time.Hour:
+		days := int(d.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	default:
+		return t.Format("2006-01-02")
+	}
 }
 
 func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {

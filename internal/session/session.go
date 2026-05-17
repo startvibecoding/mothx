@@ -425,6 +425,72 @@ func (m *Manager) load() error {
 }
 
 // writeEntry writes a single entry to the session file.
+// DeleteSession deletes a session file.
+func DeleteSession(path string) error {
+	return os.Remove(path)
+}
+
+// SessionDetail contains detailed metadata about a session for display.
+type SessionDetail struct {
+	SessionInfo
+	ID           string
+	MessageCount int
+	Preview      string // first user message (truncated)
+}
+
+// ListForDirDetailed lists sessions with details (ID, message count, preview).
+func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
+	sessions, err := ListForDir(cwd, sessionDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var details []SessionDetail
+	for _, s := range sessions {
+		d := SessionDetail{SessionInfo: s}
+		// Extract ID from filename: YYYYMMDD-HHMMSS_ID.jsonl
+		base := filepath.Base(s.Path)
+		base = strings.TrimSuffix(base, ".jsonl")
+		if idx := strings.Index(base, "_"); idx >= 0 {
+			d.ID = base[idx+1:]
+		}
+
+		// Read session to count messages and get preview
+		mgr := &Manager{file: s.Path}
+		if err := mgr.load(); err == nil {
+			for _, e := range mgr.entries {
+				if msg, ok := e.(MessageEntry); ok {
+					d.MessageCount++
+					if d.Preview == "" && msg.Message.Role == "user" {
+						text := msg.Message.Content
+						if text == "" {
+							for _, b := range msg.Message.Contents {
+								if b.Type == "text" && b.Text != "" {
+									text = b.Text
+									break
+								}
+							}
+						}
+						if len(text) > 60 {
+							text = text[:60] + "..."
+						}
+						d.Preview = text
+					}
+				}
+			}
+		}
+
+		details = append(details, d)
+	}
+
+	// Sort by modification time (newest first)
+	sort.Slice(details, func(i, j int) bool {
+		return details[i].ModTime.After(details[j].ModTime)
+	})
+
+	return details, nil
+}
+
 func (m *Manager) writeEntry(entry interface{}) error {
 	f, err := os.OpenFile(m.file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
