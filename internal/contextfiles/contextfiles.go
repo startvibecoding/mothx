@@ -64,6 +64,7 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 	}
 
 	// 1. Load from current directory (highest priority)
+	// Only the first matching file is loaded per directory (priority order: AGENTS.md > CLAUDE.md > ...)
 	for _, name := range uniqueNames {
 		path := filepath.Join(cwd, name)
 		if content, err := os.ReadFile(path); err == nil {
@@ -72,6 +73,7 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 				Name:    name,
 				Content: string(content),
 			})
+			break
 		}
 	}
 
@@ -87,6 +89,7 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 			break
 		}
 
+		// Only the first matching file is loaded per parent directory
 		for _, name := range uniqueNames {
 			path := filepath.Join(parent, name)
 			if content, err := os.ReadFile(path); err == nil {
@@ -95,12 +98,14 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 					Name:    name,
 					Content: string(content),
 				})
+				break
 			}
 		}
 		dir = parent
 	}
 
 	// 3. Load from global config directory (~/.vibecoding/)
+	// Only the first matching file is loaded
 	if globalConfigDir != "" {
 		for _, name := range uniqueNames {
 			path := filepath.Join(globalConfigDir, name)
@@ -110,6 +115,7 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 					Name:    name,
 					Content: string(content),
 				})
+				break
 			}
 		}
 	}
