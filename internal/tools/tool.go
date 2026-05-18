@@ -229,15 +229,15 @@ func (r *Registry) SetSandbox(sb sandbox.Sandbox) {
 // RegisterDefaults registers all default tools.
 func (r *Registry) RegisterDefaults() {
 	r.Register(NewReadTool(r))
+	r.Register(NewLsTool(r))
+	r.Register(NewGrepTool(r))
+	r.Register(NewFindTool(r))
 	r.Register(NewWriteTool(r))
 	r.Register(NewEditTool(r))
 	bashTool := NewBashTool(r)
 	r.Register(bashTool)
 	r.Register(NewJobsTool(r, bashTool))
 	r.Register(NewKillTool(r, bashTool))
-	r.Register(NewGrepTool(r))
-	r.Register(NewFindTool(r))
-	r.Register(NewLsTool(r))
 }
 
 // ModeTools returns tool definitions appropriate for the given mode.

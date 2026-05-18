@@ -26,7 +26,7 @@ func (t *FindTool) Description() string {
 }
 
 func (t *FindTool) PromptSnippet() string {
-	return "Find files by glob pattern (respects .gitignore)"
+	return "Find files by glob pattern (preferred for locating files, respects .gitignore)"
 }
 
 func (t *FindTool) PromptGuidelines() []string {

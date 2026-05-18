@@ -307,6 +307,7 @@ func run(args []string, opts runOptions) error {
 		app.SetInitialMessage(initialMsg)
 	}
 	p2 := tea.NewProgram(app, teaProgramOptions()...)
+	app.SetProgram(p2)
 	if _, err := p2.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
 	}

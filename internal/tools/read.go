@@ -27,7 +27,7 @@ func (t *ReadTool) Description() string {
 }
 
 func (t *ReadTool) PromptSnippet() string {
-	return "Read file contents"
+	return "Read file contents (preferred for inspecting files)"
 }
 
 func (t *ReadTool) PromptGuidelines() []string {
