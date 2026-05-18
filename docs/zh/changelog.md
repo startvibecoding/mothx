@@ -1,5 +1,36 @@
 # 更新日志
 
+## v0.1.9
+
+### 🐛 问题修复
+
+- **TUI 延迟渲染协程安全**
+  - 修复 `scheduleRender` 从后台协程直接调用 `updateViewportContent` 而未归队到 Bubble Tea UI 协程的问题
+  - 新增 `renderRequestMsg` 类型和 `program.Send()` 方法，确保 UI 更新正确归队
+  - 新增 `program *tea.Program` 字段和 `SetProgram()` 方法支持延迟 UI 调度
+
+### 🛠 改进
+
+- **TUI 中止时清空输入队列**
+  - 手动中止和模式切换时清空输入队列并重置输入状态
+  - 防止缓冲按键在中止后继续执行
+
+- **助手消息槽位预留**
+  - 新增 `EventTurnStart` 处理，在文本增量到达前预留显示槽位
+  - 防止工具输出在流式传输过程中改变助手消息索引
+  - 在 `updateViewportContent` 中增加空原始 markdown 检查
+
+- **工具提示片段优化**
+  - 为 `read`、`ls`、`grep`、`find` 工具描述添加 "(preferred for ...)" 提示
+  - 调整工具注册顺序：只读工具优先注册在 write/edit/bash 之前
+
+### 🧪 测试
+
+- 新增 `TestHandleAgentEventReservesAssistantSlotBeforeTextDelta` 测试
+- 新增 `TestAbortClearsQueuedInput` 测试
+
+---
+
 ## v0.1.8
 
 ### 🐛 问题修复

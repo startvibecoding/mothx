@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.1.9
+
+### 🐛 Bug Fixes
+
+- **TUI Deferred Render Goroutine Safety**
+  - Fixed `scheduleRender` calling `updateViewportContent` from background goroutine without marshalling back to Bubble Tea's UI goroutine
+  - Added `renderRequestMsg` type and `program.Send()` to properly marshal UI updates
+  - Added `program *tea.Program` field and `SetProgram()` method for deferred UI scheduling
+
+### 🛠 Improvements
+
+- **TUI Abort Clears Queued Input**
+  - Clear input queue and reset input state on manual abort and mode change
+  - Prevents buffered keystrokes from executing after abort
+
+- **Assistant Slot Reservation**
+  - Added `EventTurnStart` handling to reserve display slot before text deltas arrive
+  - Prevents tool output from shifting assistant message index mid-stream
+  - Added empty raw markdown check in `updateViewportContent`
+
+- **Tool Prompt Snippets**
+  - Added "(preferred for ...)" hints to `read`, `ls`, `grep`, `find` tool descriptions
+  - Reordered tool registration: read-only tools registered before write/edit/bash
+
+### 🧪 Testing
+
+- Added `TestHandleAgentEventReservesAssistantSlotBeforeTextDelta` test
+- Added `TestAbortClearsQueuedInput` test
+
+---
+
 ## v0.1.8
 
 ### 🐛 Bug Fixes
