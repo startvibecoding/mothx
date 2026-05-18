@@ -165,6 +165,9 @@ type App struct {
 	assistantRaw      map[int]string // message index -> raw markdown content
 	assistantRendered map[int]string // message index -> glamour-rendered content
 	assistantDirty    map[int]bool   // message index -> needs re-render
+
+	// Bubble Tea program used to marshal deferred renders back onto the UI goroutine.
+	program *tea.Program
 }
 
 // pendingApproval holds a queued approval request.
@@ -230,6 +233,11 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 // SetInitialMessage sets an initial message to display when the TUI starts.
 func (a *App) SetInitialMessage(msg string) {
 	a.initialMessage = msg
+}
+
+// SetProgram stores the Bubble Tea program used for deferred UI updates.
+func (a *App) SetProgram(p *tea.Program) {
+	a.program = p
 }
 
 // LoadHistoryMessages loads messages from session history into TUI display.
@@ -350,6 +358,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 
+	case renderRequestMsg:
+		a.updateViewportContent()
+		return a, nil
+
 	case tea.KeyMsg:
 		// Queue the key event
 		a.queueInput(msg)
@@ -364,6 +376,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.agent.Abort()
 					a.agent = nil // Reset agent so next request creates a fresh one with new abort channel
 				}
+				a.inputQueueMu.Lock()
+				a.inputQueue = a.inputQueue[:0]
+				a.lastInputTime = time.Time{}
+				a.inputQueueMu.Unlock()
+				a.input.Reset()
 				a.isThinking = false
 				a.addMessage(statusStyle.Render("⏹ Aborted"))
 			} else {
@@ -542,7 +559,9 @@ func (a *App) scheduleRender() {
 				}
 				a.renderMu.Unlock()
 				if wasPending {
-					a.updateViewportContent()
+					if a.program != nil {
+						a.program.Send(renderRequestMsg{})
+					}
 				}
 			})
 		}
@@ -674,6 +693,9 @@ func (a *App) updateViewportContent() {
 			}
 		} else if raw, ok := a.assistantRaw[idx]; ok {
 			// Assistant message: render markdown if renderer is available
+			if raw == "" {
+				continue
+			}
 			if a.assistantDirty[idx] && a.mdRenderer != nil {
 				rendered, err := a.mdRenderer.Render(raw)
 				if err == nil {
@@ -931,6 +953,10 @@ func (a *App) cycleMode() {
 	if a.isThinking && a.agent != nil {
 		a.agent.Abort()
 		a.agent = nil
+		a.inputQueueMu.Lock()
+		a.inputQueue = a.inputQueue[:0]
+		a.lastInputTime = time.Time{}
+		a.inputQueueMu.Unlock()
 		a.isThinking = false
 		a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
 	} else {
@@ -1018,6 +1044,10 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				if a.isThinking && a.agent != nil {
 					a.agent.Abort()
 					a.agent = nil
+					a.inputQueueMu.Lock()
+					a.inputQueue = a.inputQueue[:0]
+					a.lastInputTime = time.Time{}
+					a.inputQueueMu.Unlock()
 					a.isThinking = false
 					a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
 				} else {
@@ -1531,6 +1561,14 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.scheduleRender()
 		return listenEvents(a.eventCh)
 
+	case agent.EventTurnStart:
+		// Reserve display slots before streaming deltas arrive so later tool output
+		// cannot shift the assistant message index underneath us.
+		a.currentAssistantIdx = len(a.messages)
+		a.assistantRaw[a.currentAssistantIdx] = ""
+		a.messages = append(a.messages, "")
+		return listenEvents(a.eventCh)
+
 	case agent.EventToolCall:
 		if event.ToolCall != nil {
 			// Store tool args for later display
@@ -1678,6 +1716,7 @@ func truncate(s string, maxLen int) string {
 type agentStartMsg struct{ input string }
 type agentEventMsg struct{ event agent.Event }
 type agentDoneMsg struct{ err error }
+type renderRequestMsg struct{}
 
 func listenEvents(eventCh <-chan agent.Event) tea.Cmd {
 	return func() tea.Msg {

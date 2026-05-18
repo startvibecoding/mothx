@@ -28,7 +28,7 @@ func (t *GrepTool) Description() string {
 }
 
 func (t *GrepTool) PromptSnippet() string {
-	return "Search file contents for patterns (respects .gitignore)"
+	return "Search file contents for patterns (preferred for code search, respects .gitignore)"
 }
 
 func (t *GrepTool) PromptGuidelines() []string {

@@ -26,7 +26,7 @@ func (t *LsTool) Description() string {
 }
 
 func (t *LsTool) PromptSnippet() string {
-	return "List directory contents"
+	return "List directory contents (preferred for directory inspection)"
 }
 
 func (t *LsTool) PromptGuidelines() []string {

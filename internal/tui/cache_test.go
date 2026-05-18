@@ -4,6 +4,10 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/startvibecoding/vibecoding/internal/agent"
 )
 
 // ansiRe matches ANSI CSI escape sequences (colours, bold, etc.).
@@ -244,6 +248,56 @@ func TestCacheHighlightThreshold(t *testing.T) {
 			t.Errorf("below-threshold (49%%) footer must NOT apply statusStyle; raw = %q", footerBelow)
 		}
 	}
+}
+
+func TestHandleAgentEventReservesAssistantSlotBeforeTextDelta(t *testing.T) {
+	a := &App{
+		messages:          []string{"You: hi"},
+		assistantRaw:      make(map[int]string),
+		assistantRendered: make(map[int]string),
+		assistantDirty:    make(map[int]bool),
+	}
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventTurnStart})
+	if got, want := len(a.messages), 2; got != want {
+		t.Fatalf("len(messages) after turn start = %d, want %d", got, want)
+	}
+	if got, want := a.currentAssistantIdx, 1; got != want {
+		t.Fatalf("currentAssistantIdx = %d, want %d", got, want)
+	}
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventTextDelta, TextDelta: "Hello"})
+	if got, want := a.assistantRaw[1], "Hello"; got != want {
+		t.Fatalf("assistantRaw[1] = %q, want %q", got, want)
+	}
+	if got, want := len(a.messages), 2; got != want {
+		t.Fatalf("len(messages) after text delta = %d, want %d", got, want)
+	}
+}
+
+func TestAbortClearsQueuedInput(t *testing.T) {
+	a := &App{
+		inputQueue: make([]InputEvent, 0, 4),
+	}
+
+	a.queueInput(teaKeyMsgForTest("a"))
+	a.queueInput(teaKeyMsgForTest("b"))
+	if got := len(a.inputQueue); got != 2 {
+		t.Fatalf("len(inputQueue) before abort = %d, want 2", got)
+	}
+
+	a.inputQueueMu.Lock()
+	a.inputQueue = a.inputQueue[:0]
+	a.lastInputTime = time.Time{}
+	a.inputQueueMu.Unlock()
+
+	if got := len(a.inputQueue); got != 0 {
+		t.Fatalf("len(inputQueue) after abort = %d, want 0", got)
+	}
+}
+
+func teaKeyMsgForTest(s string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
 
 // TestCacheHighlightThresholdMath verifies the arithmetic of the 50% boundary
