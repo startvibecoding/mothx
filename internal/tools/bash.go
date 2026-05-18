@@ -77,12 +77,12 @@ func (t *BashTool) Description() string {
 }
 
 func (t *BashTool) PromptSnippet() string {
-	return "Execute bash commands (ls, grep, find, etc.)"
+	return "Execute shell commands when dedicated tools are insufficient"
 }
 
 func (t *BashTool) PromptGuidelines() []string {
 	return []string{
-		"Prefer grep/find/ls tools over bash for file exploration (faster, respects .gitignore)",
+		"Prefer read/ls/grep/find tools over bash for file inspection and exploration",
 		"For long-running services (servers, watchers, dev servers), use async=true to run in background",
 	}
 }

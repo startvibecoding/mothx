@@ -169,7 +169,8 @@ func buildGuidelines(toolGuidelines []string) string {
 	generalGuidelines := []string{
 		"Be concise in your responses",
 		"Show file paths clearly when working with files",
-		"Use bash for file operations like ls, rg, find",
+		"Prefer dedicated tools for file inspection and discovery: read for file contents, ls for directory listing, grep for content search, and find for filename search",
+		"Use bash only when a task needs a shell command that dedicated tools cannot express well",
 		"Read files before modifying them to understand context",
 		"Verify your changes work when possible",
 		"Ask for clarification when requirements are ambiguous",
