@@ -134,8 +134,8 @@ vibecoding
 # 从 stdin 读取
 echo "解释这段代码" | vibecoding -P
 
-# 从文件读取
-cat main.go | vibecoding -p "解释这个文件"
+# 直接读取文件内容
+vibecoding -p "解释这个文件: main.go"
 ```
 
 ## 交互式命令

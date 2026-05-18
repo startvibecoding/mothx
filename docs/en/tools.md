@@ -355,6 +355,6 @@ registry.Register(&MyCustomTool{})
 
 1. **Read before modifying**: Use `read` to view file content, then use `edit` to modify
 2. **Precise matching**: `edit`'s `oldText` must match exactly
-3. **Verify changes**: Use `bash` to verify after modification (e.g., compile, test)
+3. **Verify changes**: Use `bash` only for validation steps that need a shell (e.g., compile, test)
 4. **Paginated reading**: Use `offset` and `limit` for large files
 5. **Limit searches**: Use `include` and `maxResults` to limit search scope

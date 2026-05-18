@@ -134,8 +134,8 @@ vibecoding
 # Read from stdin
 echo "Explain this code" | vibecoding -P
 
-# Read from file
-cat main.go | vibecoding -p "Explain this file"
+# Read from file contents directly
+vibecoding -p "Explain this file: main.go"
 ```
 
 ## Interactive Commands

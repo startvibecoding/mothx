@@ -355,6 +355,6 @@ registry.Register(&MyCustomTool{})
 
 1. **先读后改**: 使用 `read` 查看文件内容，再用 `edit` 修改
 2. **精确匹配**: `edit` 的 `oldText` 必须精确匹配
-3. **验证修改**: 修改后使用 `bash` 验证 (如编译、测试)
+3. **验证修改**: 仅在需要 shell 的验证步骤中使用 `bash` (如编译、测试)
 4. **分页读取**: 大文件使用 `offset` 和 `limit`
 5. **限制搜索**: 使用 `include` 和 `maxResults` 限制搜索范围
