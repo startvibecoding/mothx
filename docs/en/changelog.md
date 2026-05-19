@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.1.10
+
+### ✨ Features
+
+- **ACP Support Documentation**
+  - Added ACP (Agent Client Protocol) support documentation to READMEs
+  - VibeCoding can run as an ACP stdio agent for editor integrations
+  - Compatible with VS Code, Zed, and JetBrains IDEs (IntelliJ IDEA/WebStorm) via ACP plugins
+
+### 📖 Documentation
+
+- Updated main README.md with ACP support feature
+- Updated English README with features section
+- Updated Chinese README with features section
+
+---
+
 ## v0.1.9
 
 ### 🐛 Bug Fixes

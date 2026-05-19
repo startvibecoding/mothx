@@ -1,5 +1,22 @@
 # 更新日志
 
+## v0.1.10
+
+### ✨ 新功能
+
+- **ACP 支持文档**
+  - 在 README 中添加 ACP（Agent Client Protocol）支持文档
+  - VibeCoding 可作为 ACP stdio Agent 运行，用于编辑器集成
+  - 兼容 VS Code、Zed 和 JetBrains IDE（IntelliJ IDEA/WebStorm），通过 ACP 兼容插件接入
+
+### 📖 文档
+
+- 更新主 README.md 添加 ACP 支持特性
+- 更新英文 README 添加功能特性部分
+- 更新中文 README 添加功能特性部分
+
+---
+
 ## v0.1.9
 
 ### 🐛 问题修复
