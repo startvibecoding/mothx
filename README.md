@@ -22,6 +22,7 @@
 - **Context Management**: Automatic context window management and token estimation
 - **Rich TUI**: Terminal UI built with BubbleTea, with Markdown rendering and code highlighting
 - **Cache Hit Rate**: Real-time cache hit percentage display in footer, with per-turn cache statistics
+- **ACP Support**: Run as an Agent Client Protocol (ACP) stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
 
 ## Quick Start
 

@@ -2,6 +2,12 @@
 
 Welcome to the VibeCoding Documentation Center!
 
+## Features
+
+- Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs
+- Rich terminal UI with sessions, context management, skills, and sandboxed tool execution
+- ACP support: run VibeCoding as an Agent Client Protocol stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
+
 ## Table of Contents
 
 ### Getting Started

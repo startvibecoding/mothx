@@ -2,6 +2,12 @@
 
 欢迎来到 VibeCoding 文档中心！
 
+## 功能特性
+
+- 支持 DeepSeek、OpenAI、Anthropic 以及兼容协议的自定义 API
+- 提供丰富终端界面、会话管理、上下文管理、技能系统和沙箱化工具执行
+- 支持 ACP：可作为 Agent Client Protocol stdio Agent 运行，用于编辑器集成和兼容客户端，包括通过 ACP 兼容插件接入 VS Code、Zed，以及 IntelliJ IDEA/WebStorm 等 JetBrains IDE
+
 ## 目录
 
 ### 入门指南
