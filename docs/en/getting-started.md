@@ -201,8 +201,55 @@ vibecoding --continue
 vibecoding --resume <session-id>
 ```
 
+## Skills System
+
+Skills are reusable prompt snippets that help enforce project conventions:
+
+```bash
+# List available skills
+> /skills
+
+# Activate a skill
+> /skill my-conventions
+```
+
+Create skills by adding `SKILL.md` files:
+- **Global**: `~/.vibecoding/skills/<name>/SKILL.md` (available for all projects)
+- **Project**: `.skills/<name>/SKILL.md` (project-specific, overrides global)
+
+See the [Skills System](skills.md) documentation for details.
+
+## IDE Integration
+
+VibeCoding can be integrated into your IDE via the Agent Client Protocol (ACP):
+
+### VS Code
+
+Add to `settings.json`:
+```json
+{
+  "acp.agents": {
+    "vibecoding": {
+      "command": "vibecoding",
+      "args": ["acp", "--mode", "agent"]
+    }
+  }
+}
+```
+
+### JetBrains IDEs
+
+Navigate to `Settings → Tools → ACP Agents` and add:
+- **Name**: VibeCoding
+- **Command**: `vibecoding`
+- **Arguments**: `acp --mode agent`
+
+See the [ACP Protocol](acp.md) documentation for details.
+
 ## Next Steps
 
 - Read the [Configuration Guide](configuration.md) to customize settings
 - Check the [Tool Reference](tools.md) to learn about available tools
 - Understand the [Security Model](security.md) to protect your system
+- Explore the [Skills System](skills.md) to create reusable prompt snippets
+- Set up [IDE Integration](acp.md) with VS Code or JetBrains

@@ -49,6 +49,30 @@ Alias: `vc`
 | `--version` | `-v` | Show version |
 | `--help` | `-h` | Show help |
 
+## Subcommands
+
+### `acp` - Agent Client Protocol Server
+
+Run VibeCoding as an ACP-compliant stdio agent for IDE integration.
+
+```
+vibecoding acp [flags]
+```
+
+Supports VS Code, JetBrains IDEs, and any ACP-compatible editor.
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--provider` | `-p` | From config | LLM provider |
+| `--model` | `-m` | From config | Model ID |
+| `--mode` | `-M` | `agent` | Run mode (plan, agent, yolo) |
+| `--thinking` | `-t` | From config | Thinking level |
+| `--sandbox` | - | false | Enable sandbox |
+| `--verbose` | - | false | Verbose output |
+| `--debug` | - | false | Debug logging |
+
+See the [ACP Protocol](acp.md) documentation for IDE integration details.
+
 ## Usage Examples
 
 ### Basic Usage
@@ -138,16 +162,54 @@ echo "Explain this code" | vibecoding -P
 vibecoding -p "Explain this file: main.go"
 ```
 
+### ACP Server
+
+```bash
+# Start ACP server (for IDE integration)
+vibecoding acp
+
+# ACP with specific model
+vibecoding acp --provider deepseek-openai --model deepseek-v4-flash
+
+# ACP with sandbox
+vibecoding acp --sandbox --mode agent
+```
+
 ## Interactive Commands
 
 Commands available during interactive sessions:
 
+### Mode & Model
+
 | Command | Description |
 |---------|-------------|
-| `/mode [plan\|agent\|yolo]` | Switch mode |
-| `/model` | Show current model |
+| `/mode [plan\|agent\|yolo]` | Switch or show current mode |
+| `/model [model_id]` | Switch or show current model |
 | `/think` | Cycle thinking level |
+
+### Session Management
+
+| Command | Description |
+|---------|-------------|
+| `/sessions` | List sessions for current project |
+| `/sessions ls` | List all sessions across all projects |
+| `/sessions set <id>` | Switch to a session by ID prefix |
+| `/sessions clear` | Create a new fresh session |
+| `/sessions del <id>` | Delete a session by ID prefix |
 | `/clear` | Clear conversation |
+
+### Skills
+
+| Command | Description |
+|---------|-------------|
+| `/skills` | List available skills |
+| `/skill <name>` | Activate a skill by name |
+| `/skill:<name>` | Activate a skill (alternative syntax) |
+
+### General
+
+| Command | Description |
+|---------|-------------|
 | `/help` | Show help |
 | `/quit` | Exit |
 

@@ -28,6 +28,7 @@ type Config struct {
 	Session            *session.Manager
 	ExtraContext       string // extra context from files and skills
 	CompactionSettings ctxpkg.CompactionSettings
+	ApprovalHandler    func(toolCallID, toolName string, args map[string]any) bool
 }
 
 // AgentLoopConfig extends Config with loop-specific settings.
@@ -744,27 +745,6 @@ func (a *Agent) executeToolCallsParallel(ctx context.Context, toolCalls []provid
 
 // executeSingleToolCall executes a single tool call.
 func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallBlock, ch chan<- Event) provider.Message {
-	ch <- Event{
-		Type:       EventToolExecutionStart,
-		ToolCallID: tc.ID,
-		ToolName:   tc.Name,
-		ToolArgs:   map[string]any{},
-	}
-
-	// Find tool
-	tool, ok := a.registry.Get(tc.Name)
-	if !ok {
-		errMsg := fmt.Sprintf("unknown tool: %s", tc.Name)
-		ch <- Event{
-			Type:       EventToolExecutionEnd,
-			ToolCallID: tc.ID,
-			ToolName:   tc.Name,
-			ToolResult: errMsg,
-			ToolError:  fmt.Errorf("%s", errMsg),
-		}
-		return provider.NewToolResultMessage(tc.ID, tc.Name, errMsg, true)
-	}
-
 	// Parse arguments
 	var params map[string]any
 	if len(tc.Arguments) > 0 {
@@ -779,6 +759,30 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 			}
 			return provider.NewToolResultMessage(tc.ID, tc.Name, errMsg, true)
 		}
+	}
+	if params == nil {
+		params = map[string]any{}
+	}
+
+	ch <- Event{
+		Type:       EventToolExecutionStart,
+		ToolCallID: tc.ID,
+		ToolName:   tc.Name,
+		ToolArgs:   params,
+	}
+
+	// Find tool
+	tool, ok := a.registry.Get(tc.Name)
+	if !ok {
+		errMsg := fmt.Sprintf("unknown tool: %s", tc.Name)
+		ch <- Event{
+			Type:       EventToolExecutionEnd,
+			ToolCallID: tc.ID,
+			ToolName:   tc.Name,
+			ToolResult: errMsg,
+			ToolError:  fmt.Errorf("%s", errMsg),
+		}
+		return provider.NewToolResultMessage(tc.ID, tc.Name, errMsg, true)
 	}
 
 	// Check if tool call should be blocked
@@ -806,7 +810,12 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 
 	// Check if tool needs user approval based on mode
 	if a.NeedsApproval(tc.Name, params) {
-		approved := a.RequestApproval(ch, tc.Name, params)
+		approved := false
+		if a.config.ApprovalHandler != nil {
+			approved = a.config.ApprovalHandler(tc.ID, tc.Name, params)
+		} else {
+			approved = a.RequestApproval(ch, tc.Name, params)
+		}
 		if !approved {
 			reason := "Tool execution denied by user"
 			ch <- Event{
