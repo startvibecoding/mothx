@@ -49,6 +49,30 @@ vibecoding [flags] [message...]
 | `--version` | `-v` | 显示版本 |
 | `--help` | `-h` | 显示帮助 |
 
+## 子命令
+
+### `acp` - Agent Client Protocol 服务器
+
+以 ACP 兼容的 stdio 代理模式运行 VibeCoding，用于 IDE 集成。
+
+```
+vibecoding acp [flags]
+```
+
+支持 VS Code、JetBrains IDE 以及任何 ACP 兼容的编辑器。
+
+| 标志 | 简写 | 默认值 | 描述 |
+|------|------|--------|------|
+| `--provider` | `-p` | 配置文件中的默认值 | LLM 提供商 |
+| `--model` | `-m` | 配置文件中的默认值 | 模型 ID |
+| `--mode` | `-M` | `agent` | 运行模式 (plan, agent, yolo) |
+| `--thinking` | `-t` | 配置文件中的默认值 | 思考级别 |
+| `--sandbox` | - | false | 启用沙箱 |
+| `--verbose` | - | false | 详细输出 |
+| `--debug` | - | false | 调试日志 |
+
+详见 [ACP 协议](acp.md) 文档了解 IDE 集成细节。
+
 ## 使用示例
 
 ### 基本使用
@@ -138,17 +162,54 @@ echo "解释这段代码" | vibecoding -P
 vibecoding -p "解释这个文件: main.go"
 ```
 
+### ACP 服务器
+
+```bash
+# 启动 ACP 服务器（用于 IDE 集成）
+vibecoding acp
+
+# 使用特定模型
+vibecoding acp --provider deepseek-openai --model deepseek-v4-flash
+
+# 启用沙箱
+vibecoding acp --sandbox --mode agent
+```
+
 ## 交互式命令
 
 在交互会话中可用的命令:
 
+### 模式与模型
+
 | 命令 | 描述 |
 |------|------|
-| `/mode [plan\|agent\|yolo]` | 切换模式 |
-| `/model` | 显示当前模型 |
+| `/mode [plan\|agent\|yolo]` | 切换或显示当前模式 |
+| `/model [model_id]` | 切换或显示当前模型 |
 | `/think` | 循环切换思考级别 |
-| `/skills` | 列出已加载的技能 |
+
+### 会话管理
+
+| 命令 | 描述 |
+|------|------|
+| `/sessions` | 列出当前项目的会话 |
+| `/sessions ls` | 列出所有项目的会话 |
+| `/sessions set <id>` | 通过 ID 前缀切换到指定会话 |
+| `/sessions clear` | 创建新的空白会话 |
+| `/sessions del <id>` | 通过 ID 前缀删除会话 |
 | `/clear` | 清空对话 |
+
+### 技能
+
+| 命令 | 描述 |
+|------|------|
+| `/skills` | 列出可用技能 |
+| `/skill <name>` | 激活指定技能 |
+| `/skill:<name>` | 激活技能（替代语法） |
+
+### 通用
+
+| 命令 | 描述 |
+|------|------|
 | `/help` | 显示帮助 |
 | `/quit` | 退出 |
 

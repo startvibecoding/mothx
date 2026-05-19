@@ -6,18 +6,25 @@
 
 A: VibeCoding is a terminal AI coding assistant that supports DeepSeek (default), OpenAI, Anthropic, and any custom API via OpenAI/Anthropic-compatible protocols, providing code writing, debugging, refactoring, and other features.
 
-### Q: Which LLMs are supported?
+### Q: What LLMs are supported?
 
 A:
-- DeepSeek (default): deepseek-v4-flash, deepseek-v4-pro
+- DeepSeek (default): deepseek-v4-flash, deepseek-v4-pro (1M context, up to 384K output)
 - OpenAI: GPT-4o, o1, etc.
 - Anthropic: Claude Sonnet, Opus, etc.
+- Xiaomi: MiMo models (via OpenAI-compatible API)
 - Custom: Any OpenAI-Chat or Anthropic-Messages compatible API endpoint
 
 ### Q: How to install?
 
-A: 
+A:
 ```bash
+# npm (recommended)
+npm install -g vibecoding-installer
+
+# One-line install (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+
 # Go install
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 
@@ -63,7 +70,7 @@ A: Configure in `settings.json`:
 
 ### Q: How to switch modes?
 
-A: 
+A:
 ```bash
 # Command line
 vibecoding --mode plan
@@ -72,19 +79,77 @@ vibecoding -M agent
 # Interactive
 /mode plan
 /mode agent
+/mode yolo
+```
+
+### Q: How to switch models?
+
+A:
+```bash
+# Command line
+vibecoding --provider deepseek-openai --model deepseek-v4-pro
+
+# Interactive
+/model deepseek-v4-pro
+/model                  # Show current model and available options
+```
+
+### Q: What are thinking levels?
+
+A: Thinking levels control how much reasoning the model does before responding:
+- `off`: No thinking (default)
+- `minimal`: Minimal reasoning
+- `low`: Light reasoning
+- `medium`: Balanced reasoning
+- `high`: Deep reasoning
+- `xhigh`: Maximum reasoning
+
+```bash
+# Command line
+vibecoding --thinking medium
+
+# Interactive
+/think           # Cycle through levels
+Tab              # Keyboard shortcut to cycle
 ```
 
 ### Q: How to continue the last session?
 
-A: 
+A:
 ```bash
 vibecoding --continue
 vibecoding -c
 ```
 
+### Q: How to manage sessions?
+
+A: Use the `/sessions` command in interactive mode:
+```
+/sessions           # List sessions for current project
+/sessions ls        # List all sessions across projects
+/sessions set abc   # Switch to session starting with 'abc'
+/sessions clear     # Create a new fresh session
+/sessions del abc   # Delete session starting with 'abc'
+```
+
+### Q: How to use skills?
+
+A: Skills are reusable prompt snippets. Use them in interactive mode:
+```
+/skills             # List available skills
+/skill my-skill     # Activate a skill
+/skill:my-skill     # Alternative syntax
+```
+
+Create skills by adding `SKILL.md` files:
+- Global: `~/.vibecoding/skills/<name>/SKILL.md`
+- Project: `.skills/<name>/SKILL.md`
+
+See the [Skills System](skills.md) documentation for details.
+
 ### Q: How to view the current model?
 
-A: 
+A:
 ```bash
 # Interactive
 /model
@@ -95,10 +160,36 @@ vibecoding --version
 
 ### Q: How to clear the conversation?
 
-A: 
+A:
 ```bash
 /clear
 ```
+
+## IDE Integration Questions
+
+### Q: Can I use VibeCoding in my IDE?
+
+A: Yes! VibeCoding supports the Agent Client Protocol (ACP) for IDE integration. Supported IDEs:
+- Visual Studio Code
+- JetBrains IDEs (IntelliJ IDEA, GoLand, WebStorm, etc.)
+
+See the [ACP Protocol](acp.md) documentation for setup instructions.
+
+### Q: How to set up VS Code integration?
+
+A: Add to your VS Code `settings.json`:
+```json
+{
+  "acp.agents": {
+    "vibecoding": {
+      "command": "vibecoding",
+      "args": ["acp", "--mode", "agent"]
+    }
+  }
+}
+```
+
+See the [ACP Protocol](acp.md) documentation for detailed instructions.
 
 ## Sandbox Questions
 
@@ -161,16 +252,33 @@ A:
 
 ## Tool Questions
 
+### Q: What tools are available?
+
+A: VibeCoding has 7 built-in tools:
+- `read`: Read file content (including images)
+- `write`: Create/overwrite files
+- `edit`: Precise text replacement
+- `bash`: Execute shell commands
+- `grep`: Regex content search
+- `find`: Filename search
+- `ls`: Directory listing
+
+See the [Tool System](tools.md) documentation for details.
+
+### Q: Can VibeCoding read images?
+
+A: Yes! The `read` tool supports PNG, JPEG, GIF, and WebP images. Images are sent as base64-encoded data to the LLM for analysis.
+
 ### Q: What to do if tools don't work?
 
-A: 
+A:
 1. Check sandbox level
 2. Check file permissions
 3. Use `--debug` for detailed logs
 
 ### Q: How to restrict tool permissions?
 
-A: Use Plan mode (read-only) or configure sandbox level.
+A: Use Plan mode (read-only) or configure sandbox level. In Agent mode, bash commands require approval by default (configurable via whitelist/blacklist).
 
 ## Build Questions
 
@@ -217,10 +325,14 @@ A: See [Development Guide](development.md).
 
 ### Q: Is there community support?
 
-A: 
+A:
 - GitHub Issues: Report bugs
 - GitHub Discussions: Ask questions and discuss
 
 ### Q: What is the license?
 
 A: MIT License
+
+### Q: What is the current version?
+
+A: The current version is v0.1.9. See the [Changelog](changelog.md) for version history.
