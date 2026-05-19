@@ -18,30 +18,11 @@
 
 Welcome to the VibeCoding Documentation Center!
 
-<<<<<<< HEAD
 ## Features
 
 - Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs
 - Rich terminal UI with sessions, context management, skills, and sandboxed tool execution
 - ACP support: run VibeCoding as an Agent Client Protocol stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
-=======
-## What is VibeCoding?
-
-VibeCoding is a terminal-based AI coding assistant that helps you write, debug, refactor, and understand code. It supports multiple LLM providers including DeepSeek (default), OpenAI, Anthropic, and any OpenAI/Anthropic-compatible API.
-
-### Key Features
-
-- 🤖 **Multi-Provider Support** — DeepSeek, OpenAI, Anthropic, and custom providers
-- 🔧 **7 Built-in Tools** — File operations, code search, command execution
-- 🛡️ **Sandbox Security** — Process-level isolation via bubblewrap
-- 📝 **Session Management** — Persistent conversation history with branching
-- 🎯 **3 Operation Modes** — Plan (read-only), Agent (standard), YOLO (full access)
-- 🧩 **Skills System** — Reusable prompt snippets for project conventions
-- 💻 **IDE Integration** — ACP protocol for VS Code and JetBrains
-- 🖼️ **Image Support** — Read and analyze image files
-- ⚡ **Prompt Cache** — Reduces API costs by caching repeated prefixes
-- 🎨 **Rich TUI** — Markdown rendering, syntax highlighting, thinking display
->>>>>>> a543dfae0c5b47e8da257cbdcc346cb763d2c930
 
 ## Table of Contents
 
@@ -111,7 +92,3 @@ go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 - Use the `/help` command for interactive help
 - Check the [CLI Reference](cli-reference.md) for all commands
 - Read the [FAQ](faq.md) for common questions
-<<<<<<< HEAD
-=======
-- Visit [GitHub Issues](https://github.com/startvibecoding/vibecoding/issues) to report bugs
->>>>>>> a543dfae0c5b47e8da257cbdcc346cb763d2c930
