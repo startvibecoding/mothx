@@ -660,7 +660,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 			s.notify(sessionID, sessionUpdate{
 				SessionUpdate: "tool_call",
 				ToolCallID:    ev.ToolCall.ID,
-				Title:         ev.ToolCall.Name,
+				Title:         toolTitle(ev.ToolCall.Name, ev.ToolArgs),
 				Kind:          "other",
 				Status:        "pending",
 				RawInput:      toolRawInput(ev.ToolArgs),
@@ -670,7 +670,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    ev.ToolCallID,
-			Title:         ev.ToolName,
+			Title:         toolTitle(ev.ToolName, ev.ToolArgs),
 			Status:        "in_progress",
 			RawInput:      toolRawInput(ev.ToolArgs),
 		})
@@ -789,6 +789,58 @@ func toolRawInput(args map[string]any) map[string]any {
 		raw[key] = value
 	}
 	return raw
+}
+
+func toolTitle(name string, args map[string]any) string {
+	if args == nil {
+		return name
+	}
+
+	var details []string
+	switch name {
+	case "bash":
+		details = appendStringArg(details, "command", args)
+	case "read", "write", "edit", "ls":
+		details = appendStringArg(details, "path", args)
+	case "grep":
+		details = appendStringArg(details, "pattern", args)
+		details = appendStringArg(details, "path", args)
+	case "find":
+		details = appendStringArg(details, "pattern", args)
+		details = appendStringArg(details, "path", args)
+	default:
+		for _, key := range []string{"command", "path", "pattern", "query", "name"} {
+			details = appendStringArg(details, key, args)
+			if len(details) > 0 {
+				break
+			}
+		}
+	}
+
+	if len(details) == 0 {
+		return name
+	}
+	return name + ": " + truncateTitle(strings.Join(details, " "))
+}
+
+func appendStringArg(details []string, key string, args map[string]any) []string {
+	value, ok := args[key].(string)
+	if !ok || strings.TrimSpace(value) == "" {
+		return details
+	}
+	if key == "command" {
+		return append(details, value)
+	}
+	return append(details, key+"="+value)
+}
+
+func truncateTitle(title string) string {
+	const maxTitleLength = 160
+	title = strings.TrimSpace(strings.ReplaceAll(title, "\n", " "))
+	if len(title) <= maxTitleLength {
+		return title
+	}
+	return title[:maxTitleLength-3] + "..."
 }
 
 func normalizeStopReason(reason string) string {
