@@ -201,6 +201,25 @@
 
 ---
 
+## v0.1.0
+
+### ✨ Features
+
+- **Xiaomi MiMo Thinking Format Support**
+  - Added `thinkingFormat` configuration option for Xiaomi MiMo API
+  - OpenAI provider: MiMo endpoints use `thinking: {type: "enabled"}` format
+  - Anthropic provider: MiMo endpoints omit `budget_tokens`
+  - URL auto-detection: auto-detects `xiaomimimo` endpoints when `thinkingFormat` is not set
+  - Debug logging: enabled via `VIBECODING_DEBUG` environment variable
+
+### 🛠 Improvements
+
+- **Configuration Flexibility**
+  - `thinkingFormat` passed from config to provider, no longer relies solely on URL detection
+  - Anthropic `budget_tokens` changed from required to optional (pointer type + `omitempty`)
+
+---
+
 ## v0.0.9
 
 ### ✨ Features

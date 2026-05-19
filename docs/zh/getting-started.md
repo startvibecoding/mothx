@@ -201,8 +201,55 @@ vibecoding --continue
 vibecoding --resume <session-id>
 ```
 
+## 技能系统
+
+技能是可复用的提示片段，帮助强制执行项目约定：
+
+```bash
+# 列出可用技能
+> /skills
+
+# 激活技能
+> /skill my-conventions
+```
+
+创建技能的方式是添加 `SKILL.md` 文件：
+- **全局**: `~/.vibecoding/skills/<name>/SKILL.md`（所有项目可用）
+- **项目**: `.skills/<name>/SKILL.md`（项目特定，覆盖全局）
+
+详见 [技能系统](skills.md) 文档。
+
+## IDE 集成
+
+VibeCoding 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
+
+### VS Code
+
+在 `settings.json` 中添加：
+```json
+{
+  "acp.agents": {
+    "vibecoding": {
+      "command": "vibecoding",
+      "args": ["acp", "--mode", "agent"]
+    }
+  }
+}
+```
+
+### JetBrains IDE
+
+导航到 `Settings → Tools → ACP Agents` 并添加：
+- **Name**: VibeCoding
+- **Command**: `vibecoding`
+- **Arguments**: `acp --mode agent`
+
+详见 [ACP 协议](acp.md) 文档。
+
 ## 下一步
 
 - 阅读 [配置详解](configuration.md) 自定义设置
 - 查看 [工具参考](tools.md) 了解可用工具
 - 了解 [安全模型](security.md) 保护你的系统
+- 探索 [技能系统](skills.md) 创建可复用提示片段
+- 设置 [IDE 集成](acp.md) 在 VS Code 或 JetBrains 中使用

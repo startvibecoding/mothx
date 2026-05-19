@@ -57,6 +57,8 @@ type server struct {
 	sessions map[string]*sessionRuntime
 	pending  map[string]chan json.RawMessage
 
+	toolTitles map[string]string
+
 	nextID int64
 	r      *bufio.Reader
 	w      io.Writer
@@ -226,12 +228,13 @@ func Run(opts RunOptions) error {
 	}
 
 	srv := &server{
-		settings: settings,
-		cwd:      cwd,
-		sessions: make(map[string]*sessionRuntime),
-		pending:  make(map[string]chan json.RawMessage),
-		r:        bufio.NewReader(os.Stdin),
-		w:        os.Stdout,
+		settings:   settings,
+		cwd:        cwd,
+		sessions:   make(map[string]*sessionRuntime),
+		pending:    make(map[string]chan json.RawMessage),
+		toolTitles: make(map[string]string),
+		r:          bufio.NewReader(os.Stdin),
+		w:          os.Stdout,
 	}
 
 	p, model, err := createProvider(settings, opts.Provider, opts.Model)
@@ -657,20 +660,22 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 		})
 	case agent.EventToolCall:
 		if ev.ToolCall != nil {
+			title := s.rememberToolTitle(ev.ToolCall.ID, ev.ToolCall.Name, ev.ToolArgs)
 			s.notify(sessionID, sessionUpdate{
 				SessionUpdate: "tool_call",
 				ToolCallID:    ev.ToolCall.ID,
-				Title:         toolTitle(ev.ToolCall.Name, ev.ToolArgs),
+				Title:         title,
 				Kind:          "other",
 				Status:        "pending",
 				RawInput:      toolRawInput(ev.ToolArgs),
 			})
 		}
 	case agent.EventToolExecutionStart:
+		title := s.rememberToolTitle(ev.ToolCallID, ev.ToolName, ev.ToolArgs)
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    ev.ToolCallID,
-			Title:         toolTitle(ev.ToolName, ev.ToolArgs),
+			Title:         title,
 			Status:        "in_progress",
 			RawInput:      toolRawInput(ev.ToolArgs),
 		})
@@ -682,7 +687,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    ev.ToolCallID,
-			Title:         ev.ToolName,
+			Title:         s.toolTitleFor(ev.ToolCallID, ev.ToolName),
 			Status:        status,
 			RawOutput:     map[string]any{"content": ev.ToolResult},
 		})
@@ -789,6 +794,26 @@ func toolRawInput(args map[string]any) map[string]any {
 		raw[key] = value
 	}
 	return raw
+}
+
+func (s *server) rememberToolTitle(toolCallID, name string, args map[string]any) string {
+	title := toolTitle(name, args)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if existing := s.toolTitles[toolCallID]; existing != "" && existing != name {
+		return existing
+	}
+	s.toolTitles[toolCallID] = title
+	return title
+}
+
+func (s *server) toolTitleFor(toolCallID, fallback string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if title := s.toolTitles[toolCallID]; title != "" {
+		return title
+	}
+	return fallback
 }
 
 func toolTitle(name string, args map[string]any) string {
