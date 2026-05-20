@@ -198,8 +198,8 @@ func TestAnthropicCache_ProxySplitUsage(t *testing.T) {
 	if u.TotalTokens != 1008 {
 		t.Errorf("TotalTokens = %d, want 1008", u.TotalTokens)
 	}
-	// 500/500 = 100%
-	if got, want := u.CacheInfo(), "Cache: 100%"; got != want {
+	// 500/(500+500) = 50%
+	if got, want := u.CacheInfo(), "Cache: 50%"; got != want {
 		t.Errorf("CacheInfo() = %q, want %q", got, want)
 	}
 }

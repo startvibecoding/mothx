@@ -31,9 +31,9 @@ Alias: `vc`
 
 | Parameter | Short | Description |
 |-----------|-------|-------------|
-| `--print` | `-P` | Non-interactive mode, print response and exit |
+| `--print` | `-P` | Non-interactive mode, print response and exit. If a tool would require approval, the command exits with an error instead of auto-approving. |
 | `--verbose` | - | Verbose output |
-| `--debug` | - | Enable debug logging |
+| `--debug` | - | Enable debug logging (also enables provider request/response debug output) |
 
 ### Security
 

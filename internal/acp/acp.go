@@ -216,6 +216,9 @@ type permissionOutcome struct {
 // Run starts the ACP stdio server.
 func Run(opts RunOptions) error {
 	config.Verbose = opts.Verbose || opts.Debug
+	if opts.Debug {
+		_ = os.Setenv("VIBECODING_DEBUG", "1")
+	}
 
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -279,7 +282,7 @@ func Run(opts RunOptions) error {
 	}
 	srv.sbMgr = sbMgr
 
-	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), cwd+"/.skills")
+	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), filepath.Join(cwd, ".skills"))
 	_ = skillsMgr.Load()
 	srv.skillsMgr = skillsMgr
 

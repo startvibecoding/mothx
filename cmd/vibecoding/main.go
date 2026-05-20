@@ -15,8 +15,8 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/spf13/cobra"
 
-	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/acp"
+	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
@@ -157,6 +157,9 @@ func run(args []string, opts runOptions) error {
 
 	// Enable config verbose logging
 	config.Verbose = opts.verbose || opts.debug
+	if opts.debug {
+		_ = os.Setenv("VIBECODING_DEBUG", "1")
+	}
 
 	// Load settings
 	settings, err := config.LoadSettings()
@@ -227,7 +230,7 @@ func run(args []string, opts runOptions) error {
 	}
 
 	// Load skills
-	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), cwd+"/.skills")
+	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), filepath.Join(cwd, ".skills"))
 	if err := skillsMgr.Load(); err != nil && opts.verbose {
 		fmt.Fprintf(os.Stderr, "Warning: load skills: %v\n", err)
 	}
@@ -539,8 +542,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 	for event := range eventCh {
 		switch event.Type {
 		case agent.EventToolApprovalRequest:
-			// CLI print mode: auto-approve tool calls since we can't interactively ask
-			a.HandleApprovalResponse(event.ApprovalID, true)
+			return fmt.Errorf("tool approval required in print mode for %s; rerun interactively, use --mode yolo, or whitelist the command", event.ApprovalTool)
 		case agent.EventTextDelta:
 			textBuffer.WriteString(event.TextDelta)
 		case agent.EventToolCall:
@@ -593,7 +595,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 					cacheInfo = " | " + info
 				}
 				fmt.Fprintf(os.Stderr, "Tokens: %d↓/%d↑ $%.4f%s\n",
-					event.Usage.Input, event.Usage.Output, event.Usage.Cost.Total, cacheInfo)
+					event.Usage.TotalInputTokens(), event.Usage.Output, event.Usage.Cost.Total, cacheInfo)
 			}
 		case agent.EventCompactionStart:
 			fmt.Fprintf(os.Stderr, "\n⏳ Compacting context...\n")

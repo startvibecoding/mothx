@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.1.12
+
+### 🐛 Bug Fixes
+
+- **Unified Cache Hit Rate Semantics**
+  - Restored cache hit rate calculation to use the full prompt footprint (`CacheRead / TotalInputTokens()`)
+  - Aligned CLI print mode token display with TUI cache-aware totals
+  - Updated Anthropic cache tests and shared provider usage tests to match the unified definition
+
+- **Approval Safety in Non-Interactive and YOLO Flows**
+  - Made `bashBlacklist` effective in approval checks with higher priority than `bashWhitelist`
+  - Blacklisted bash commands now still require approval in `yolo` mode
+  - `--print` mode now fails fast instead of auto-approving commands that would require user confirmation
+
+### 🛠 Improvements
+
+- **Debug Output Consistency**
+  - `--debug` now also enables provider-level request/response debug output
+  - Applied the same behavior to ACP mode
+
+- **Cross-Platform Path Handling**
+  - Replaced string-based `.skills` path construction with `filepath.Join(...)`
+
+### 📖 Documentation
+
+- Updated CLI reference to document stricter `--print` behavior and debug output behavior
+- Updated configuration guide for approval precedence and `VIBECODING_DEBUG`
+
+### 🧪 Testing
+
+- Added approval behavior tests for whitelist/blacklist and `yolo` mode
+- Added print mode regression test for approval-required tool calls
+- Expanded cache-related provider tests to cover the unified cache hit rate definition
+
+---
+
 ## v0.1.11
 
 ### 🛠 Improvements

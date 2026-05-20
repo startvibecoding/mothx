@@ -31,33 +31,33 @@ func TestUsageCacheInfo(t *testing.T) {
 			name:      "cache_25pct",
 			input:     1000,
 			cacheRead: 250,
-			want:      "Cache: 25%",
+			want:      "Cache: 20%",
 		},
 		{
 			name:      "cache_50pct",
 			input:     1000,
 			cacheRead: 500,
-			want:      "Cache: 50%",
+			want:      "Cache: 33%",
 		},
 		{
 			name:      "cache_75pct",
 			input:     1000,
 			cacheRead: 750,
-			want:      "Cache: 75%",
+			want:      "Cache: 43%",
 		},
 		{
 			name:      "cache_100pct_exact",
 			input:     1000,
 			cacheRead: 1000,
-			want:      "Cache: 100%",
+			want:      "Cache: 50%",
 		},
 		{
-			name:      "prompt_tokens_use_total_tokens_when_present",
-			input:     400,
-			cacheRead: 200,
+			name:       "prompt_tokens_use_total_tokens_when_present",
+			input:      400,
+			cacheRead:  200,
 			cacheWrite: 100,
-			total:     700,
-			want:      "Cache: 29%",
+			total:      700,
+			want:       "Cache: 29%",
 		},
 		// ── Rounding ─────────────────────────────────────────────────────────
 		// 333/1000 = 33.3… → rounds to 33%
@@ -65,28 +65,28 @@ func TestUsageCacheInfo(t *testing.T) {
 			name:      "rounding_down_33pct",
 			input:     1000,
 			cacheRead: 333,
-			want:      "Cache: 33%",
+			want:      "Cache: 25%",
 		},
 		// 667/1000 = 66.7… → rounds to 67%
 		{
 			name:      "rounding_up_67pct",
 			input:     1000,
 			cacheRead: 667,
-			want:      "Cache: 67%",
+			want:      "Cache: 40%",
 		},
 		// Small counts: 3/4 = 75%
 		{
 			name:      "small_counts_75pct",
 			input:     4,
 			cacheRead: 3,
-			want:      "Cache: 75%",
+			want:      "Cache: 43%",
 		},
 		// ── Defensive cap: cache read > input ────────────────────────────────
 		{
 			name:      "cache_read_exceeds_input_capped_at_100pct",
 			input:     100,
 			cacheRead: 200,
-			want:      "Cache: 100%",
+			want:      "Cache: 67%",
 		},
 		// ── Cache write only (Anthropic first-turn: no reads yet) ─────────────
 		{
@@ -106,7 +106,7 @@ func TestUsageCacheInfo(t *testing.T) {
 		{
 			name:      "cache_read_without_input_empty",
 			cacheRead: 500,
-			want:      "",
+			want:      "Cache: 100%",
 		},
 		// ── Both cache read and write, no input ──────────────────────────────
 		// Read > 0 so case 1 (Input > 0 && CacheRead > 0) doesn't match;
@@ -116,16 +116,22 @@ func TestUsageCacheInfo(t *testing.T) {
 			name:       "read_and_write_no_input_empty",
 			cacheRead:  200,
 			cacheWrite: 300,
-			want:       "",
+			want:       "Cache: 40%",
+		},
+		{
+			name:      "anthropic_proxy_split_usage_50pct",
+			input:     500,
+			cacheRead: 500,
+			want:      "Cache: 50%",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := &Usage{
-				Input:      tt.input,
-				CacheRead:  tt.cacheRead,
-				CacheWrite: tt.cacheWrite,
+				Input:       tt.input,
+				CacheRead:   tt.cacheRead,
+				CacheWrite:  tt.cacheWrite,
 				TotalTokens: tt.total,
 			}
 			got := u.CacheInfo()
@@ -181,9 +187,9 @@ func TestUsagePromptTokens(t *testing.T) {
 
 func TestUsageTotalInputTokens(t *testing.T) {
 	tests := []struct {
-		name       string
-		usage      *Usage
-		wantInput  int
+		name      string
+		usage     *Usage
+		wantInput int
 	}{
 		{
 			name:      "nil usage",

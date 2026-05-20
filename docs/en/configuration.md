@@ -381,6 +381,7 @@ Any setting can be overridden via environment variables:
 | `VIBECODING_MODEL` | defaultModel |
 | `VIBECODING_MODE` | defaultMode |
 | `VIBECODING_THINKING` | defaultThinkingLevel |
+| `VIBECODING_DEBUG` | Provider-level request/response debug output |
 
 ## Configuration Examples
 
@@ -479,6 +480,11 @@ Agent mode approval configuration, controls bash command approval behavior.
 
 #### Approval Flow
 
+- `bashBlacklist` has higher priority than `bashWhitelist`
+- In `agent` mode, blacklisted bash commands always require approval even if they also match the whitelist
+- In `yolo` mode, blacklisted bash commands still require approval
+- In `--print` mode, commands that would require approval fail immediately instead of being auto-approved
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Approval Flow                             │
@@ -490,7 +496,11 @@ Agent mode approval configuration, controls bash command approval behavior.
 │  Check mode                                                  │
 │  ├─ Plan mode → Deny (read-only)                             │
 │  ├─ Agent mode → Continue checking                           │
-│  └─ YOLO mode → Auto-approve                                 │
+│  └─ YOLO mode → Auto-approve unless blacklisted              │
+│                                                              │
+│  Blacklist check (highest priority):                         │
+│  ├─ Command matches blacklist → Require user approval        │
+│  └─ Otherwise continue                                       │
 │                                                              │
 │  In Agent mode:                                              │
 │  ├─ Non-bash tool → Auto-approve                             │

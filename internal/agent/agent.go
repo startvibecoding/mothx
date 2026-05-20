@@ -1022,32 +1022,57 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 
 // NeedsApproval checks if a tool call needs user approval based on the current mode.
 func (a *Agent) NeedsApproval(toolName string, args map[string]any) bool {
+	if toolName != "bash" {
+		return false
+	}
+	if a.isBashBlacklisted(args) {
+		return true
+	}
 	switch a.config.Mode {
 	case "plan":
 		// Plan mode: no tools should be executed (read-only tools don't need approval)
 		return false
 	case "agent":
-		// Agent mode: only bash needs approval (with whitelist check)
-		if toolName != "bash" {
-			return false
-		}
-		// Check whitelist
-		if a.config.Settings != nil {
-			if command, ok := args["command"].(string); ok {
-				for _, prefix := range a.config.Settings.Approval.BashWhitelist {
-					if strings.HasPrefix(command, prefix) {
-						return false // Whitelisted, no approval needed
-					}
-				}
-			}
-		}
-		return true
+		// Agent mode: only whitelisted bash can skip approval.
+		return !a.isBashWhitelisted(args)
 	case "yolo":
-		// YOLO mode: no approval needed
+		// YOLO mode: allow bash unless explicitly blacklisted above.
 		return false
 	default:
 		return false
 	}
+}
+
+func (a *Agent) isBashWhitelisted(args map[string]any) bool {
+	if a.config.Settings == nil {
+		return false
+	}
+	command, ok := args["command"].(string)
+	if !ok {
+		return false
+	}
+	for _, prefix := range a.config.Settings.Approval.BashWhitelist {
+		if strings.HasPrefix(command, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Agent) isBashBlacklisted(args map[string]any) bool {
+	if a.config.Settings == nil {
+		return false
+	}
+	command, ok := args["command"].(string)
+	if !ok {
+		return false
+	}
+	for _, prefix := range a.config.Settings.Approval.BashBlacklist {
+		if strings.HasPrefix(command, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // RequestApproval sends an approval request and waits for the user's response.

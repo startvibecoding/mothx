@@ -117,8 +117,10 @@ type Usage struct {
 	Cost        Cost `json:"cost"`
 }
 
-// PromptTokens returns the total prompt tokens sent for the turn, including
-// cached tokens when the provider reports them separately.
+// PromptTokens returns the provider-reported prompt token count for the turn.
+// For OpenAI-compatible APIs this is the full prompt footprint. For Anthropic,
+// Input is normalized to the non-cached prompt portion, so callers that need the
+// full prompt footprint should use TotalInputTokens instead.
 func (u *Usage) PromptTokens() int {
 	if u == nil {
 		return 0
@@ -133,7 +135,7 @@ func (u *Usage) PromptTokens() int {
 }
 
 // TotalInputTokens returns the full input footprint for the turn, including
-// cached reads and writes when the provider reports them separately.
+// cache reads and cache writes when those are reported separately.
 func (u *Usage) TotalInputTokens() int {
 	if u == nil {
 		return 0
@@ -149,7 +151,13 @@ func (u *Usage) TotalInputTokens() int {
 
 // CacheInfo returns a short display string for cache activity (e.g. "Cache: 75%"),
 // or an empty string when there is no cache data to show.
+//
+// Cache percentage uses the full prompt footprint as the denominator so the
+// value means "what portion of this turn's prompt came from cache".
 func (u *Usage) CacheInfo() string {
+	if u == nil {
+		return ""
+	}
 	totalInputTokens := u.TotalInputTokens()
 	switch {
 	case totalInputTokens > 0 && u.CacheRead > 0:

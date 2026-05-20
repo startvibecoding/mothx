@@ -439,6 +439,11 @@ Agent 模式审批配置，控制 bash 命令的审批行为。
 
 #### 审批流程
 
+- `bashBlacklist` 的优先级高于 `bashWhitelist`
+- 在 `agent` 模式下，命中黑名单的 bash 命令即使同时命中白名单，仍然必须审批
+- 在 `yolo` 模式下，命中黑名单的 bash 命令仍然需要审批
+- 在 `--print` 模式下，凡是本应触发审批的命令都会直接报错退出，不会自动批准
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Approval Flow                             │
@@ -450,7 +455,11 @@ Agent 模式审批配置，控制 bash 命令的审批行为。
 │  检查模式                                                    │
 │  ├─ Plan 模式 → 拒绝 (只读)                                  │
 │  ├─ Agent 模式 → 继续检查                                    │
-│  └─ YOLO 模式 → 自动批准                                     │
+│  └─ YOLO 模式 → 自动批准（除非命中黑名单）                   │
+│                                                              │
+│  黑名单检查（最高优先级）                                    │
+│  ├─ 命令匹配黑名单 → 需要用户审批                            │
+│  └─ 否则继续                                                 │
 │                                                              │
 │  Agent 模式下:                                               │
 │  ├─ 非 bash 工具 → 自动批准                                  │
@@ -516,13 +525,12 @@ export DEEPSEEK_API_KEY=sk-...
 
 可以通过环境变量覆盖任何设置:
 
-| 环境变量 | 覆盖的配置 |
-|----------|-----------|
 | `VIBECODING_DIR` | 配置目录 |
 | `VIBECODING_PROVIDER` | defaultProvider |
 | `VIBECODING_MODEL` | defaultModel |
 | `VIBECODING_MODE` | defaultMode |
 | `VIBECODING_THINKING` | defaultThinkingLevel |
+| `VIBECODING_DEBUG` | provider 级请求/响应调试输出 |
 
 ## 配置示例
 
