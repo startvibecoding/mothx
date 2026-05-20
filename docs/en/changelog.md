@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.11
+
+### 🛠 Improvements
+
+- **Command Structure Refactoring**
+  - Extracted root command creation into separate function for better testability
+  - Added unit tests for command initialization and configuration
+  - Improved code modularity and maintainability
+
+### 📖 Documentation
+
+- **License & Documentation Updates**
+  - Added MIT license file
+  - Added Chinese README (README_zh.md) for broader accessibility
+  - Updated npm package versions
+
+---
+
 ## v0.1.10
 
 ### ✨ Features

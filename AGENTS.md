@@ -212,4 +212,4 @@ Update README files (`docs/en/README.md` and `docs/zh/README.md`) when there are
 
 ### Current Version
 
-The current version is `v0.1.9`. The next version should be `v0.1.10`.
+The current version is `v0.1.11`. The next version should be `v0.1.12`.
