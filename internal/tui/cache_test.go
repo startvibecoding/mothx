@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/vibecoding/internal/provider"
 )
 
 // ansiRe matches ANSI CSI escape sequences (colours, bold, etc.).
@@ -295,6 +296,50 @@ func TestAbortClearsQueuedInput(t *testing.T) {
 		t.Fatalf("len(inputQueue) after abort = %d, want 0", got)
 	}
 }
+
+func TestHandleAgentEventStatusAndWarningMessage(t *testing.T) {
+	a := &App{}
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventStatus, StatusMessage: "stream warning"})
+	a.handleAgentEvent(agent.Event{
+		Type:    agent.EventMessageStart,
+		Message: provider.NewUserMessage("[System] explain what you are doing"),
+	})
+
+	joined := stripANSI(strings.Join(a.messages, "\n"))
+	if !strings.Contains(joined, "stream warning") {
+		t.Fatalf("messages = %q, want status message", joined)
+	}
+	if !strings.Contains(joined, "[System] explain what you are doing") {
+		t.Fatalf("messages = %q, want warning user message", joined)
+	}
+}
+
+func TestListenEventsPassesThroughDoneAndError(t *testing.T) {
+	eventCh := make(chan agent.Event, 2)
+	eventCh <- agent.Event{Type: agent.EventDone}
+	eventCh <- agent.Event{Type: agent.EventError, Error: assertErr("boom")}
+	close(eventCh)
+
+	msg := listenEvents(eventCh)()
+	if ev, ok := msg.(agentEventMsg); !ok || ev.event.Type != agent.EventDone {
+		t.Fatalf("first msg = %#v, want agentEventMsg(EventDone)", msg)
+	}
+
+	msg = listenEvents(eventCh)()
+	if ev, ok := msg.(agentEventMsg); !ok || ev.event.Type != agent.EventError || ev.event.Error == nil || ev.event.Error.Error() != "boom" {
+		t.Fatalf("second msg = %#v, want agentEventMsg(EventError boom)", msg)
+	}
+
+	msg = listenEvents(eventCh)()
+	if _, ok := msg.(agentDoneMsg); !ok {
+		t.Fatalf("third msg = %#v, want agentDoneMsg", msg)
+	}
+}
+
+type assertErr string
+
+func (e assertErr) Error() string { return string(e) }
 
 func teaKeyMsgForTest(s string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}

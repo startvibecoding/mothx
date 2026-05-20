@@ -23,6 +23,9 @@ Welcome to the VibeCoding Documentation Center!
 - Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs
 - Rich terminal UI with sessions, context management, skills, and sandboxed tool execution
 - ACP support: run VibeCoding as an Agent Client Protocol stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
+- Safer approval handling: `bashBlacklist` now overrides whitelist entries, including in YOLO mode, and `--print` exits early when approval would be required
+- Unified cache metrics across TUI and print mode for cache hit rate and token totals
+- Consistent provider debug output via `--debug`, including ACP mode
 
 ## Table of Contents
 

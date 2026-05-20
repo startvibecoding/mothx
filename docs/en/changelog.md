@@ -27,6 +27,7 @@
 
 - Updated CLI reference to document stricter `--print` behavior and debug output behavior
 - Updated configuration guide for approval precedence and `VIBECODING_DEBUG`
+- Updated root README and documentation landing pages to highlight safer approval handling, unified cache metrics, and provider debug behavior
 
 ### 🧪 Testing
 

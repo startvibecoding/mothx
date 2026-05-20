@@ -332,6 +332,84 @@ func TestBashToolExecute(t *testing.T) {
 	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
+	if !strings.Contains(result.Text, "[command]\necho hello") {
+		t.Fatalf("expected command section, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[stdout]\nhello") {
+		t.Fatalf("expected stdout section with command output, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[stderr]\n(no output)") {
+		t.Fatalf("expected empty stderr section, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[exit_code]\n0") {
+		t.Fatalf("expected zero exit code, got: %s", result.Text)
+	}
+}
+
+func TestBashToolExecuteStderrOnly(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "echo problem >&2",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "[stdout]\n(no output)") {
+		t.Fatalf("expected empty stdout section, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[stderr]\nproblem") {
+		t.Fatalf("expected stderr section with output, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[exit_code]\n0") {
+		t.Fatalf("expected zero exit code, got: %s", result.Text)
+	}
+}
+
+func TestBashToolExecuteNoOutput(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "true",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "[stdout]\n(no output)") {
+		t.Fatalf("expected empty stdout section, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[stderr]\n(no output)") {
+		t.Fatalf("expected empty stderr section, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[exit_code]\n0") {
+		t.Fatalf("expected zero exit code, got: %s", result.Text)
+	}
+}
+
+func TestBashToolExecuteNonZeroExitCode(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "echo boom >&2; exit 7",
+	})
+
+	if err != nil {
+		t.Fatalf("expected non-zero exit to be returned as tool output, got error: %v", err)
+	}
+	if !strings.Contains(result.Text, "[stderr]\nboom") {
+		t.Fatalf("expected stderr section with output, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Text, "[exit_code]\n7") {
+		t.Fatalf("expected exit code 7, got: %s", result.Text)
+	}
 }
 
 func TestBashToolAsync(t *testing.T) {

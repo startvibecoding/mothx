@@ -11,7 +11,6 @@ VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X main.version=$(VERSION) -X github.com/startvibecoding/vibecoding/internal/ua.Version=$(VERSION)"
 DIST_DIR=dist
 CHECKSUM_FILE=$(DIST_DIR)/checksums.txt
-VENDORED_BIN_DIR=bin/vendored
 
 # Platforms and architectures
 PLATFORMS=linux darwin windows
@@ -64,24 +63,6 @@ prepare-vendored:
 build: prepare-vendored
 	go build $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/vibecoding
 
-vendored-tools:
-	@echo "Extracting vendored fd/rg for all supported targets..."
-	@mkdir -p $(VENDORED_BIN_DIR)
-	@for target in \
-		linux amd64 \
-		linux arm64 \
-		linux-musl amd64 \
-		darwin amd64 \
-		darwin arm64 \
-		windows amd64 \
-		windows arm64; do \
-		set -- $$target; \
-		os=$$1; arch=$$2; \
-		ext=""; [ "$$os" = "windows" ] && ext=".exe"; \
-		./scripts/extract-vendored-tool.sh fd $$os $$arch $(VENDORED_BIN_DIR)/fd-$$os-$$arch$$ext; \
-		./scripts/extract-vendored-tool.sh rg $$os $$arch $(VENDORED_BIN_DIR)/rg-$$os-$$arch$$ext; \
-	done
-
 # Platform builds
 build-linux:
 	@echo "Building for Linux..."
@@ -107,13 +88,10 @@ build-windows:
 	GOOS=windows GOARCH=arm64 go build $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-arm64.exe ./cmd/vibecoding
 
 # Build all platforms
-build-all: build-linux build-linux-musl build-darwin build-windows vendored-tools
+build-all: prepare-vendored build-linux build-linux-musl build-darwin build-windows
 	@echo ""
 	@echo "Build complete! Binaries in bin/"
 	@ls -lh bin/
-	@echo ""
-	@echo "Vendored tool binaries in $(VENDORED_BIN_DIR)/"
-	@ls -lh $(VENDORED_BIN_DIR)/
 
 # Install
 install:
@@ -145,7 +123,7 @@ run: build
 	./bin/$(BINARY_NAME)
 
 # Distribution: tar.gz for Linux and macOS
-dist-tarball: build-linux build-linux-musl build-darwin vendored-tools
+dist-tarball: prepare-vendored build-linux build-linux-musl build-darwin
 	@echo ""
 	@echo "Creating tarball packages..."
 	@for os in linux darwin; do \
@@ -158,7 +136,7 @@ dist-tarball: build-linux build-linux-musl build-darwin vendored-tools
 	./scripts/build-tarball.sh linux-musl amd64 $(VERSION)
 
 # Distribution: deb for Linux
-dist-deb: build-linux build-linux-musl vendored-tools
+dist-deb: prepare-vendored build-linux build-linux-musl
 	@echo ""
 	@echo "Creating Debian packages..."
 	@for arch in amd64 arm64; do \
@@ -169,7 +147,7 @@ dist-deb: build-linux build-linux-musl vendored-tools
 	./scripts/build-deb.sh amd64-musl $(VERSION)
 
 # Distribution: zip for Windows
-dist-zip: build-windows vendored-tools
+dist-zip: prepare-vendored build-windows
 	@echo ""
 	@echo "Creating Windows zip packages..."
 	@for arch in amd64 arm64; do \

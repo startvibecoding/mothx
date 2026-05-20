@@ -1724,12 +1724,6 @@ func listenEvents(eventCh <-chan agent.Event) tea.Cmd {
 		if !ok {
 			return agentDoneMsg{}
 		}
-		if event.Type == agent.EventError {
-			return agentDoneMsg{err: event.Error}
-		}
-		if event.Type == agent.EventDone {
-			return agentDoneMsg{}
-		}
 		return agentEventMsg{event: event}
 	}
 }

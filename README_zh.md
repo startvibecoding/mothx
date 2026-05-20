@@ -23,6 +23,9 @@
 - **丰富终端界面**：使用 BubbleTea 构建的终端界面，支持 Markdown 渲染和代码高亮
 - **缓存命中率**：页脚实时显示缓存命中百分比，每轮缓存统计
 - **ACP 支持**：可作为代理客户端协议（ACP）标准输入输出代理运行，用于编辑器集成和兼容客户端，包括 VS Code、Zed 和 JetBrains IDE（如 IntelliJ IDEA/WebStorm），通过 ACP 兼容插件
+- **更安全的审批处理**：`bashBlacklist` 现在优先于白名单生效，包括在 YOLO 模式下；当 `--print` 遇到需要审批的命令时会直接失败退出
+- **统一的缓存指标**：TUI 与 print 模式现在使用一致的缓存感知 token 统计与缓存命中率语义
+- **更一致的 Provider 调试**：`--debug` 现在会稳定启用 provider 级请求/响应调试输出，ACP 模式同样适用
 
 ## 快速开始
 

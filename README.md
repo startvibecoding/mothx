@@ -23,6 +23,9 @@
 - **Rich TUI**: Terminal UI built with BubbleTea, with Markdown rendering and code highlighting
 - **Cache Hit Rate**: Real-time cache hit percentage display in footer, with per-turn cache statistics
 - **ACP Support**: Run as an Agent Client Protocol (ACP) stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
+- **Safer Approval Handling**: `bashBlacklist` now takes precedence over whitelist entries, including in YOLO mode, and `--print` fails fast when approval would be required
+- **Unified Cache Metrics**: TUI and print mode now use the same cache-aware token accounting and cache hit rate semantics
+- **Provider Debugging**: `--debug` now enables provider-level request/response diagnostics consistently, including ACP mode
 
 ## Quick Start
 
