@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- Compact VibeCoding button icon - optimized for small sizes -->
+  
+  <!-- Terminal window -->
+  <rect x="2" y="3" width="12" height="9" rx="1.5" fill="white" stroke="black" stroke-width="1"/>
+  
+  <!-- Title bar -->
+  <rect x="2" y="3" width="12" height="3" rx="1.5" fill="white" stroke="black" stroke-width="1"/>
+  <rect x="2" y="4.5" width="12" height="1.5" fill="white"/>
+  
+  <!-- Window buttons -->
+  <circle cx="5" cy="4.5" r="0.6" fill="black"/>
+  <circle cx="7" cy="4.5" r="0.6" fill="black"/>
+  <circle cx="9" cy="4.5" r="0.6" fill="black"/>
+  
+  <!-- Code prompt -->
+  <text x="4" y="10" font-family="monospace" font-size="5" fill="black" font-weight="bold">>_</text>
+</svg>

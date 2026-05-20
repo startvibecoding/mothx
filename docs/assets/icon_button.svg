@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <!-- Terminal window icon - simplified, bold lines, black & white -->
+  
+  <!-- Background -->
+  <rect width="24" height="24" rx="4" fill="white" stroke="black" stroke-width="1.5"/>
+  
+  <!-- Terminal window -->
+  <rect x="4" y="5" width="16" height="12" rx="2" fill="white" stroke="black" stroke-width="1.5"/>
+  
+  <!-- Title bar -->
+  <rect x="4" y="5" width="16" height="4" rx="2" fill="white" stroke="black" stroke-width="1.5"/>
+  <rect x="4" y="7" width="16" height="2" fill="white"/>
+  
+  <!-- Window buttons -->
+  <circle cx="8" cy="7" r="1" fill="black"/>
+  <circle cx="11" cy="7" r="1" fill="black"/>
+  <circle cx="14" cy="7" r="1" fill="black"/>
+  
+  <!-- Code prompt -->
+  <text x="7" y="14" font-family="monospace" font-size="5" fill="black" font-weight="bold">> vc</text>
+  
+  <!-- Cursor -->
+  <rect x="7" y="15" width="2" height="3" fill="black"/>
+</svg>
