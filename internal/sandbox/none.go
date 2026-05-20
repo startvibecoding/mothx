@@ -2,7 +2,9 @@ package sandbox
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"strings"
 )
 
 // NoneSandbox executes commands without any sandbox restrictions.
@@ -13,7 +15,8 @@ func NewNoneSandbox() *NoneSandbox {
 	return &NoneSandbox{}
 }
 
-// WrapCommand returns a plain command without any wrapping.
+// WrapCommand returns a plain command without any sandbox restrictions.
+// It inherits the full parent environment and overlays opts.EnvVars on top.
 func (s *NoneSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts ExecOpts) *exec.Cmd {
 	c := exec.CommandContext(ctx, shell, "-c", cmd)
 
@@ -21,10 +24,23 @@ func (s *NoneSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts E
 		c.Dir = opts.WorkDir
 	}
 
-	// Set environment variables
+	// Inherit full parent environment, then overlay opts.EnvVars.
+	env := os.Environ()
 	for k, v := range opts.EnvVars {
-		c.Env = append(c.Env, k+"="+v)
+		prefix := k + "="
+		replaced := false
+		for i, e := range env {
+			if strings.HasPrefix(e, prefix) {
+				env[i] = k + "=" + v
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			env = append(env, k+"="+v)
+		}
 	}
+	c.Env = env
 
 	return c
 }

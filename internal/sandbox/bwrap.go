@@ -113,7 +113,8 @@ func (s *BwrapSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts 
 	c := exec.CommandContext(ctx, s.bwrapPath, args...)
 	c.Dir = opts.WorkDir
 
-	// Pass through allowed environment variables
+	// Pass through allowed environment variables.
+	// bwrap inherits c.Env into the sandbox; --setenv in buildBwrapArgs overrides specific keys.
 	c.Env = s.buildEnv(opts)
 
 	return c
@@ -211,7 +212,7 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		args = append(args, "--chdir", s.projectDir)
 	}
 
-	// Environment variables
+	// Environment variables: override specific keys inside the sandbox
 	for k, v := range opts.EnvVars {
 		args = append(args, "--setenv", k, v)
 	}
