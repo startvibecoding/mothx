@@ -16,6 +16,7 @@ type ContentBlock struct {
 	Type         string         `json:"type"` // "text", "image", "thinking", "toolCall"
 	Text         string         `json:"text,omitempty"`
 	Thinking     string         `json:"thinking,omitempty"`
+	Signature    string         `json:"signature,omitempty"` // required for thinking block replay
 	Image        *ImageContent  `json:"image,omitempty"`
 	ToolCall     *ToolCallBlock `json:"toolCall,omitempty"`
 	CacheControl *CacheControl  `json:"cache_control,omitempty"` // cache breakpoint marker
@@ -242,24 +243,26 @@ type ToolDefinition struct {
 type StreamEventType int
 
 const (
-	StreamStart      StreamEventType = iota // Stream started
-	StreamTextDelta                         // Text content delta
-	StreamThinkDelta                        // Thinking content delta
-	StreamToolCall                          // Tool call event
-	StreamUsage                             // Usage statistics
-	StreamDone                              // Stream completed
-	StreamError                             // Error occurred
+	StreamStart           StreamEventType = iota // Stream started
+	StreamTextDelta                              // Text content delta
+	StreamThinkDelta                             // Thinking content delta
+	StreamThinkSignature                         // Thinking block signature (for multi-turn replay)
+	StreamToolCall                               // Tool call event
+	StreamUsage                                  // Usage statistics
+	StreamDone                                   // Stream completed
+	StreamError                                  // Error occurred
 )
 
 // StreamEvent represents a single event from a streaming response.
 type StreamEvent struct {
-	Type       StreamEventType
-	TextDelta  string         // for StreamTextDelta
-	ThinkDelta string         // for StreamThinkDelta
-	ToolCall   *ToolCallBlock // for StreamToolCall
-	Usage      *Usage         // for StreamUsage
-	Error      error          // for StreamError
-	StopReason string         // for StreamDone: "stop", "length", "toolUse", "error", "aborted"
+	Type           StreamEventType
+	TextDelta      string         // for StreamTextDelta
+	ThinkDelta     string         // for StreamThinkDelta
+	ThinkSignature string         // for StreamThinkSignature
+	ToolCall       *ToolCallBlock // for StreamToolCall
+	Usage          *Usage         // for StreamUsage
+	Error          error          // for StreamError
+	StopReason     string         // for StreamDone: "stop", "length", "toolUse", "error", "aborted"
 }
 
 // ChatParams contains all parameters for a chat request.

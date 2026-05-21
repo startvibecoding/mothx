@@ -444,12 +444,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		streamCh := a.config.Provider.Chat(ctx, params)
 
 		var (
-			textContent  string
-			thinkContent string
-			toolCalls    []provider.ToolCallBlock
-			usage        *provider.Usage
-			stopReason   string
-			streamErr    error
+			textContent    string
+			thinkContent   string
+			thinkSignature string
+			toolCalls      []provider.ToolCallBlock
+			usage          *provider.Usage
+			stopReason     string
+			streamErr      error
 		)
 
 		// Process stream events
@@ -463,6 +464,8 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			case provider.StreamThinkDelta:
 				thinkContent += event.ThinkDelta
 				ch <- Event{Type: EventThinkDelta, ThinkDelta: event.ThinkDelta}
+			case provider.StreamThinkSignature:
+				thinkSignature = event.ThinkSignature
 			case provider.StreamToolCall:
 				if event.ToolCall != nil {
 					toolCalls = append(toolCalls, *event.ToolCall)
@@ -503,8 +506,9 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		var contents []provider.ContentBlock
 		if thinkContent != "" {
 			contents = append(contents, provider.ContentBlock{
-				Type:     "thinking",
-				Thinking: thinkContent,
+				Type:      "thinking",
+				Thinking:  thinkContent,
+				Signature: thinkSignature,
 			})
 		}
 		if textContent != "" {

@@ -126,6 +126,7 @@ type anthropicContentBlock struct {
 	Type         string                 `json:"type"`
 	Text         string                 `json:"text,omitempty"`
 	Thinking     string                 `json:"thinking,omitempty"`
+	Signature    string                 `json:"signature,omitempty"`
 	Source       *anthropicImage        `json:"source,omitempty"`
 	ID           string                 `json:"id,omitempty"`
 	Name         string                 `json:"name,omitempty"`
@@ -149,18 +150,25 @@ type anthropicTool struct {
 }
 
 type anthropicResponse struct {
-	Type         string          `json:"type"`
-	Index        int             `json:"index,omitempty"`
-	Delta        *anthropicDelta `json:"delta,omitempty"`
-	ContentBlock *contentBlock   `json:"content_block,omitempty"`
-	Message      *anthropicMsg   `json:"message,omitempty"`
-	Usage        *anthropicUsage `json:"usage,omitempty"`
+	Type         string                 `json:"type"`
+	Index        int                    `json:"index,omitempty"`
+	Delta        *anthropicDelta        `json:"delta,omitempty"`
+	ContentBlock *contentBlock          `json:"content_block,omitempty"`
+	Message      *anthropicMsg          `json:"message,omitempty"`
+	Usage        *anthropicUsage        `json:"usage,omitempty"`
+	Error        *anthropicStreamError  `json:"error,omitempty"`
+}
+
+type anthropicStreamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
 }
 
 type anthropicDelta struct {
 	Type        string `json:"type"`
 	Text        string `json:"text,omitempty"`
 	Thinking    string `json:"thinking,omitempty"`
+	Signature   string `json:"signature,omitempty"`
 	StopReason  string `json:"stop_reason,omitempty"`
 	PartialJSON string `json:"partial_json,omitempty"`
 }
@@ -297,6 +305,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	var (
 		textContent      string
 		reasonContent    string
+		thinkSignature   string
 		toolCalls        []provider.ToolCallBlock
 		toolCallBuffers  = make(map[int]*strings.Builder)
 		stopReason       string
@@ -357,6 +366,8 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			case "thinking_delta":
 				reasonContent += event.Delta.Thinking
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: event.Delta.Thinking}
+			case "signature_delta":
+				thinkSignature += event.Delta.Signature
 			case "input_json_delta":
 				if toolCallIndex >= 0 {
 					if buf, ok := toolCallBuffers[toolCallIndex]; ok {
@@ -365,6 +376,10 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				}
 			}
 		case "content_block_stop":
+			if currentBlockType == "thinking" && thinkSignature != "" {
+				ch <- provider.StreamEvent{Type: provider.StreamThinkSignature, ThinkSignature: thinkSignature}
+				thinkSignature = ""
+			}
 			if currentBlockType == "tool_use" && toolCallIndex >= 0 && toolCallIndex < len(toolCalls) {
 				if buf, ok := toolCallBuffers[toolCallIndex]; ok {
 					toolCalls[toolCallIndex].Arguments = json.RawMessage(buf.String())
@@ -395,6 +410,16 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 					usage.CacheWrite = event.Usage.CacheCreationInputTokens
 				}
 			}
+		case "error":
+			errMsg := "stream error"
+			if event.Error != nil {
+				errMsg = event.Error.Message
+				if event.Error.Type != "" {
+					errMsg = event.Error.Type + ": " + errMsg
+				}
+			}
+			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("%s", errMsg), StopReason: "error"}
+			return
 		}
 	}
 
@@ -468,7 +493,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessag
 						block = anthropicContentBlock{Type: "image", Source: &anthropicImage{Type: "base64", MediaType: c.Image.MimeType, Data: c.Image.Data}}
 					}
 				case "thinking":
-					block = anthropicContentBlock{Type: "thinking", Thinking: c.Thinking}
+					block = anthropicContentBlock{Type: "thinking", Thinking: c.Thinking, Signature: c.Signature}
 				case "toolCall":
 					if c.ToolCall != nil {
 						input := make(map[string]interface{})
