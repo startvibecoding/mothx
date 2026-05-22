@@ -468,6 +468,9 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 				thinkSignature = event.ThinkSignature
 			case provider.StreamToolCall:
 				if event.ToolCall != nil {
+					if event.ToolCall.ID == "" {
+						event.ToolCall.ID = fmt.Sprintf("toolcall_%d", len(toolCalls))
+					}
 					toolCalls = append(toolCalls, *event.ToolCall)
 					// Parse arguments for the event
 					var args map[string]any

@@ -185,3 +185,32 @@ func TestOpenAICache_ProxySplitUsage(t *testing.T) {
 		t.Errorf("CacheInfo() = %q, want %q", got, want)
 	}
 }
+
+func TestOpenAIToolCall_MissingIDGetsFallback(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-tool-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"type\":\"function\",\"function\":{\"name\":\"bash\",\"arguments\":\"{\\\"command\\\":\"}}]},\"finish_reason\":null}]}\n" +
+		"data: {\"id\":\"chatcmpl-tool-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"type\":\"function\",\"function\":{\"arguments\":\"\\\"echo hi\\\"}\"}}]},\"finish_reason\":null}]}\n" +
+		"data: {\"id\":\"chatcmpl-tool-1\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n" +
+		"data: [DONE]\n"
+
+	events := chatAndCollect(t, newTestServer(t, sse))
+
+	var got *provider.ToolCallBlock
+	for _, e := range events {
+		if e.Type == provider.StreamToolCall && e.ToolCall != nil {
+			got = e.ToolCall
+			break
+		}
+	}
+	if got == nil {
+		t.Fatal("expected StreamToolCall event")
+	}
+	if got.ID != "toolcall_0" {
+		t.Fatalf("ToolCall.ID = %q, want %q", got.ID, "toolcall_0")
+	}
+	if got.Name != "bash" {
+		t.Fatalf("ToolCall.Name = %q, want %q", got.Name, "bash")
+	}
+	if string(got.Arguments) != "{\"command\":\"echo hi\"}" {
+		t.Fatalf("ToolCall.Arguments = %q, want %q", string(got.Arguments), "{\"command\":\"echo hi\"}")
+	}
+}

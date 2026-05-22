@@ -404,6 +404,12 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 
 	for i, tc := range toolCalls {
 		if buf, ok := toolCallBuffers[i]; ok {
+			if tc.ID == "" {
+				// Some OpenAI-compatible providers omit tool call IDs in stream deltas.
+				// Generate a stable fallback ID so subsequent tool results can always
+				// bind to the corresponding assistant tool call.
+				tc.ID = fmt.Sprintf("toolcall_%d", i)
+			}
 			tc.Arguments = json.RawMessage(buf.String())
 			toolCalls[i] = tc
 			ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: &toolCalls[i]}
