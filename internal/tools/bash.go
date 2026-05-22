@@ -233,24 +233,33 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	err := cmd.Run()
 
-	output := stdout.String()
-	if stderr.Len() > 0 {
-		if output != "" {
-			output += "\n"
+	stdoutStr := strings.TrimRight(stdout.String(), "\n")
+	stderrStr := strings.TrimRight(stderr.String(), "\n")
+	if stdoutStr == "" {
+		stdoutStr = "(no output)"
+	}
+	if stderrStr == "" {
+		stderrStr = "(no output)"
+	}
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
 		}
-		output += "STDERR:\n" + stderr.String()
 	}
 
-	// Build result with command info
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("$ %s\n", command))
-	result.WriteString(fmt.Sprintf("(in %s)\n\n", workDir))
-
-	if output == "" {
-		result.WriteString("(no output)")
-	} else {
-		result.WriteString(output)
-	}
+	result.WriteString("[command]\n")
+	result.WriteString(command)
+	result.WriteString("\n[cwd]\n")
+	result.WriteString(workDir)
+	result.WriteString("\n[stdout]\n")
+	result.WriteString(stdoutStr)
+	result.WriteString("\n[stderr]\n")
+	result.WriteString(stderrStr)
+	result.WriteString("\n[exit_code]\n")
+	result.WriteString(fmt.Sprintf("%d", exitCode))
 
 	// Truncate large outputs
 	const maxOutput = 50000
@@ -266,8 +275,8 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		if errors.Is(err, exec.ErrWaitDelay) {
 			return NewTextToolResult(resultStr), nil
 		}
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return NewTextToolResult(fmt.Sprintf("%s\nExit code: %d", resultStr, exitErr.ExitCode())), nil
+		if _, ok := err.(*exec.ExitError); ok {
+			return NewTextToolResult(resultStr), nil
 		}
 		return ToolResult{}, fmt.Errorf("command failed: %w\n%s", err, resultStr)
 	}

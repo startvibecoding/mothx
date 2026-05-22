@@ -122,10 +122,10 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		maxResults = int(v)
 	}
 
-	// 获取 fd 路径
-	fdPath := vendored.FdPath()
-	if fdPath == "" {
-		return ToolResult{}, fmt.Errorf("fd 未安装，请先运行 make prepare-vendored")
+	// 选择可用的 fd 命令（优先 vendored，其次系统 fd/fdfind）
+	fdPath, err := resolveFdPath()
+	if err != nil {
+		return ToolResult{}, err
 	}
 
 	// 将 glob 模式转为正则
@@ -154,7 +154,7 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		// fd 返回 1 表示没有匹配
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
@@ -175,4 +175,18 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	// fd 输出就是每行一个路径，与原实现格式一致
 	return NewTextToolResult(output), nil
+}
+
+func resolveFdPath() (string, error) {
+	fdPath := vendored.FdPath()
+	if fdPath == "" {
+		return "", fmt.Errorf("无法确定 fd 路径")
+	}
+
+	// 缺失或不可执行时，尝试从 go:embed 释放到 ~/.vibecoding/bin/
+	if err := vendored.Ensure(); err != nil {
+		return "", fmt.Errorf("准备 fd 失败: %w", err)
+	}
+
+	return fdPath, nil
 }

@@ -87,6 +87,12 @@ func extractBinary(dest string, data []byte) error {
 	// 检查是否已存在
 	if info, err := os.Stat(dest); err == nil {
 		if info.Size() == int64(len(data)) {
+			// 确保已有文件可执行，避免 fork/exec permission denied。
+			if info.Mode()&0o111 == 0 {
+				if chmodErr := os.Chmod(dest, 0o755); chmodErr != nil {
+					return fmt.Errorf("设置 %s 可执行权限失败: %w", dest, chmodErr)
+				}
+			}
 			return nil // 已存在且大小一致，跳过
 		}
 	}

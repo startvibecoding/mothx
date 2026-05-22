@@ -82,9 +82,9 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	}
 
 	// 获取 rg 路径
-	rgPath := vendored.RgPath()
-	if rgPath == "" {
-		return ToolResult{}, fmt.Errorf("ripgrep (rg) 未安装，请先运行 make prepare-vendored")
+	rgPath, err := resolveRgPath()
+	if err != nil {
+		return ToolResult{}, err
 	}
 
 	// 构建 rg 命令参数
@@ -107,7 +107,7 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		// rg 返回 1 表示没有匹配，这不是错误
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
@@ -129,4 +129,18 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// rg 默认输出格式: file:line:content
 	// 与原实现格式一致: file:line: content
 	return NewTextToolResult(output), nil
+}
+
+func resolveRgPath() (string, error) {
+	rgPath := vendored.RgPath()
+	if rgPath == "" {
+		return "", fmt.Errorf("无法确定 rg 路径")
+	}
+
+	// 缺失或不可执行时，尝试从 go:embed 释放到 ~/.vibecoding/bin/
+	if err := vendored.Ensure(); err != nil {
+		return "", fmt.Errorf("准备 rg 失败: %w", err)
+	}
+
+	return rgPath, nil
 }

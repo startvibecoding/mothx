@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.1.15
+
+### 🐛 Bug Fixes
+
+- **Vendored Search Tool Availability**
+  - Fixed `grep` and `find` so they prepare embedded `rg` / `fd` binaries on demand instead of failing when vendored tools have not been extracted yet
+  - Restored executable permissions for already-extracted vendored binaries to avoid `permission denied` failures on reuse
+
+- **Bash Tool Result Handling**
+  - Fixed bash tool responses to report stdout, stderr, working directory, and exit code in a stable structured format
+  - Preserved non-zero command exits as normal tool results with explicit `exit_code` output instead of mixing shell failures into transport-level errors
+  - Standardized empty stdout/stderr rendering as `(no output)` for more predictable downstream handling
+
+---
+
 ## v0.1.14
 
 ### 🐛 Bug Fixes
