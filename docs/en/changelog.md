@@ -1,5 +1,61 @@
 # Changelog
 
+## v0.1.14
+
+### 🐛 Bug Fixes
+
+- **Session Continue Context Injection (`-c`)**
+  - Fixed a TUI state coupling issue where continued sessions could display history but fail to inject that history into the model context for follow-up prompts
+  - Split session history state into separate UI-display and agent-injection flags to ensure resumed conversations keep prior context
+  - Reset agent history-injection state consistently when the agent is recreated (abort/mode/model/skill/session switches)
+  - Added missing TUI handlers for `EventStatus` and `EventMessageStart` so status/warning messages are rendered reliably
+
+### 🧪 Testing
+
+- Added regressions that cover:
+  - history injection when UI history is already loaded
+  - real startup ordering (`Init()` history load, then follow-up input) for continued sessions
+
+---
+
+## v0.1.13
+
+### 🐛 Bug Fixes
+
+- **Streaming Event and Tool Call Robustness**
+  - Preserved terminal agent events in the TUI event listener so done/error/status handling is not dropped during streaming
+  - Added Anthropic thinking signature streaming and replay support, and surfaced SSE `error` events as proper stream errors
+  - Generated fallback tool call IDs for OpenAI-compatible streamed tool calls when providers omit IDs, with an extra defensive fallback in the agent loop
+
+- **Sandbox Environment Inheritance**
+  - Fixed `none` sandbox execution so commands inherit the parent environment, including variables such as `$HOME`
+  - Clarified bubblewrap environment override handling to match runtime behavior
+
+### 🛠 Improvements
+
+- **Vendored Tool Build Flow**
+  - Unified build and distribution targets around `prepare-vendored`
+  - Removed the old `vendored-tools` release step and deprecated the stale extract helper script
+
+- **Documentation Site Layout**
+  - Expanded the docs landing page content width for better large-screen readability
+
+- **Package Metadata**
+  - Updated npm package versions for installer packages
+
+### 📖 Documentation
+
+- Updated README and docs landing pages to highlight safer approval handling, unified cache metrics, and consistent provider debugging
+- Simplified `AGENTS.md` guidance for repository agents
+
+### 🧪 Testing
+
+- Added bash tool output coverage for stdout-only, stderr-only, no-output, and non-zero exit cases
+- Added TUI regression tests for status/warning rendering and done/error event passthrough
+- Added OpenAI streaming regression coverage for tool calls with missing IDs
+
+---
+
 ## v0.1.12
 
 ### 🐛 Bug Fixes

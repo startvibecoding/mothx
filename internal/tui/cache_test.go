@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -8,7 +11,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/vibecoding/internal/session"
+	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
 // ansiRe matches ANSI CSI escape sequences (colours, bold, etc.).
@@ -371,5 +377,147 @@ func TestCacheHighlightThresholdMath(t *testing.T) {
 			t.Errorf("input=%d cacheRead=%d pct=%.4f: highlight=%v, want %v",
 				c.input, c.cacheRead, pct, got, c.wantHigh)
 		}
+	}
+}
+
+type historyInjectMockProvider struct{}
+
+func (p *historyInjectMockProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	ch := make(chan provider.StreamEvent, 2)
+	ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "ok"}
+	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: "end_turn"}
+	close(ch)
+	return ch
+}
+
+func (p *historyInjectMockProvider) Name() string { return "mock" }
+func (p *historyInjectMockProvider) Models() []*provider.Model {
+	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}
+}
+func (p *historyInjectMockProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.Models() {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
+func TestProcessInputLoadsSessionHistoryIntoAgentEvenWhenUIHistoryAlreadyLoaded(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+	sessionDir := filepath.Join(tmp, "sessions")
+
+	sess := session.New(cwd, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	sess.AppendMessage(provider.NewUserMessage("old user"))
+	sess.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}}))
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	a := &App{
+		provider:            &historyInjectMockProvider{},
+		model:               &provider.Model{ID: "mock-model", Name: "Mock"},
+		settings:            settings,
+		session:             sess,
+		registry:            tools.NewRegistry(cwd, nil),
+		historyLoaded:       true, // UI already rendered history
+		assistantRaw:        make(map[int]string),
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      make(map[int]bool),
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+	}
+
+	a.processInput("new question")
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if a.agent != nil {
+			msgs := a.agent.GetMessages()
+			if len(msgs) >= 4 {
+				if msgs[0].Role != "user" || msgs[0].Content != "old user" {
+					t.Fatalf("first message = %+v, want old history user message", msgs[0])
+				}
+				if msgs[1].Role != "assistant" {
+					t.Fatalf("second message role = %s, want assistant", msgs[1].Role)
+				}
+				if msgs[2].Role != "user" || msgs[2].Content != "new question" {
+					t.Fatalf("third message = %+v, want new user message", msgs[2])
+				}
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timeout waiting for agent messages")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestInitThenProcessInputStillInjectsSessionHistory(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+	sessionDir := filepath.Join(tmp, "sessions")
+
+	sess := session.New(cwd, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	sess.AppendMessage(provider.NewUserMessage("history user"))
+	sess.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "history assistant"}}))
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	app := NewApp(
+		&historyInjectMockProvider{},
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		sess,
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		nil,
+		"agent",
+	)
+
+	// Simulate real startup flow: Init() loads history into UI and flips historyLoaded.
+	_ = app.Init()
+
+	if !app.historyLoaded {
+		t.Fatalf("historyLoaded = false, want true after Init")
+	}
+
+	app.processInput("follow-up")
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if app.agent != nil {
+			msgs := app.agent.GetMessages()
+			if len(msgs) >= 4 {
+				if msgs[0].Role != "user" || msgs[0].Content != "history user" {
+					t.Fatalf("first message = %+v, want history user", msgs[0])
+				}
+				if msgs[1].Role != "assistant" {
+					t.Fatalf("second message role = %s, want assistant", msgs[1].Role)
+				}
+				if msgs[2].Role != "user" || msgs[2].Content != "follow-up" {
+					t.Fatalf("third message = %+v, want follow-up user message", msgs[2])
+				}
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timeout waiting for agent messages")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

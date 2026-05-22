@@ -142,8 +142,9 @@ type App struct {
 	spinnerIndex int
 
 	// Session history
-	sessionMu     sync.Mutex
-	historyLoaded bool
+	sessionMu          sync.Mutex
+	historyLoaded      bool
+	agentHistoryLoaded bool
 
 	// Render throttling
 	lastRender     time.Time
@@ -375,6 +376,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if a.agent != nil {
 					a.agent.Abort()
 					a.agent = nil // Reset agent so next request creates a fresh one with new abort channel
+					a.agentHistoryLoaded = false
 				}
 				a.inputQueueMu.Lock()
 				a.inputQueue = a.inputQueue[:0]
@@ -953,6 +955,7 @@ func (a *App) cycleMode() {
 	if a.isThinking && a.agent != nil {
 		a.agent.Abort()
 		a.agent = nil
+		a.agentHistoryLoaded = false
 		a.inputQueueMu.Lock()
 		a.inputQueue = a.inputQueue[:0]
 		a.lastInputTime = time.Time{}
@@ -961,6 +964,7 @@ func (a *App) cycleMode() {
 		a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
 	} else {
 		a.agent = nil
+		a.agentHistoryLoaded = false
 	}
 
 	var modeLabel string
@@ -1008,15 +1012,18 @@ func (a *App) processInput(input string) tea.Cmd {
 
 		// Load history messages from session if available and not yet loaded
 		a.sessionMu.Lock()
-		historyLoaded := a.historyLoaded
+		agentHistoryLoaded := a.agentHistoryLoaded
 		a.sessionMu.Unlock()
-		if a.session != nil && !historyLoaded {
+		if a.session != nil && !agentHistoryLoaded {
 			a.sessionMu.Lock()
 			historyMessages := a.session.GetMessages()
 			a.sessionMu.Unlock()
 
 			if len(historyMessages) > 0 {
 				a.agent.LoadHistoryMessages(historyMessages)
+				a.sessionMu.Lock()
+				a.agentHistoryLoaded = true
+				a.sessionMu.Unlock()
 			}
 		}
 	}
@@ -1044,6 +1051,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				if a.isThinking && a.agent != nil {
 					a.agent.Abort()
 					a.agent = nil
+					a.agentHistoryLoaded = false
 					a.inputQueueMu.Lock()
 					a.inputQueue = a.inputQueue[:0]
 					a.lastInputTime = time.Time{}
@@ -1052,6 +1060,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 					a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
 				} else {
 					a.agent = nil
+					a.agentHistoryLoaded = false
 				}
 				a.addMessage(statusStyle.Render(fmt.Sprintf("Mode: %s", strings.ToUpper(a.mode))))
 			default:
@@ -1094,6 +1103,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			a.model = newModel
 			// Reset agent so next message uses the new model
 			a.agent = nil
+			a.agentHistoryLoaded = false
 			a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID)))
 		} else {
 			// Show current model and available models
@@ -1123,6 +1133,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 	case "/clear":
 		a.messages = nil
 		a.agent = nil
+		a.agentHistoryLoaded = false
 		a.contextUsage = nil
 		a.totalInputTokens = 0
 		a.totalCacheRead = 0
@@ -1225,6 +1236,7 @@ func (a *App) activateSkill(name string) {
 
 	// Reset agent so next message uses the updated context
 	a.agent = nil
+	a.agentHistoryLoaded = false
 
 	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Skill '%s' activated (%s): %s", name, skill.Source, skill.Description)))
 }
@@ -1394,6 +1406,7 @@ func (a *App) sessionsSet(id string) {
 	// Switch session
 	a.session = newSess
 	a.historyLoaded = false
+	a.agentHistoryLoaded = false
 
 	// Reset agent and UI state
 	a.agent = nil
@@ -1438,6 +1451,7 @@ func (a *App) sessionsClear() {
 
 	a.session = newSess
 	a.historyLoaded = false
+	a.agentHistoryLoaded = false
 
 	// Reset agent and UI state
 	a.agent = nil
@@ -1697,6 +1711,18 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.addMessage(statusStyle.Render("✅ " + event.StatusMessage))
 		} else {
 			a.addMessage(statusStyle.Render("✅ Context compacted"))
+		}
+		return listenEvents(a.eventCh)
+
+	case agent.EventStatus:
+		if event.StatusMessage != "" {
+			a.addMessage(statusStyle.Render(event.StatusMessage))
+		}
+		return listenEvents(a.eventCh)
+
+	case agent.EventMessageStart:
+		if event.Message.Role == "user" && event.Message.Content != "" {
+			a.addMessage(userStyle.Render("You: ") + event.Message.Content)
 		}
 		return listenEvents(a.eventCh)
 
