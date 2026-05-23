@@ -918,12 +918,30 @@ func (a *App) printMessageOnce(idx int) {
 	if idx < 0 || a.printedMessageIdx[idx] {
 		return
 	}
+	if a.printedMessageIdx == nil {
+		a.printedMessageIdx = make(map[int]bool)
+	}
 	msg := a.renderMessageAt(idx)
 	if strings.TrimSpace(msg) == "" {
 		return
 	}
 	a.printedMessageIdx[idx] = true
 	a.printHistory(msg)
+}
+
+func (a *App) commitActiveStream() {
+	hadActive := a.currentThinkIdx >= 0 || a.currentAssistantIdx >= 0
+	if a.currentThinkIdx >= 0 {
+		a.printMessageOnce(a.currentThinkIdx)
+	}
+	if a.currentAssistantIdx >= 0 {
+		a.printMessageOnce(a.currentAssistantIdx)
+	}
+	if hadActive {
+		a.currentThinkIdx = -1
+		a.currentAssistantIdx = -1
+		a.updateViewportContent()
+	}
 }
 
 func (a *App) flushPendingPrints() tea.Cmd {
@@ -1630,6 +1648,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventToolCall:
 		if event.ToolCall != nil {
+			a.commitActiveStream()
 			// Store tool args for later display
 			msgIdx := len(a.messages) // Will be the index after append
 			a.toolResults = append(a.toolResults, toolResult{
@@ -1684,6 +1703,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventToolApprovalRequest:
+		a.commitActiveStream()
 		// Queue the approval request
 		a.approvalQueue = append(a.approvalQueue, pendingApproval{
 			approvalID: event.ApprovalID,

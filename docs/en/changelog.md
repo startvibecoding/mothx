@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.1.18
+
+### 🐛 Bug Fixes
+
+- **TUI Nil Pointer Panic**
+  - Fixed a nil pointer panic in `printMessageOnce` when `printedMessageIdx` map was not initialized
+  - Added nil check before accessing the map in the message printing logic
+
+- **Stream Commit Before Tool Execution**
+  - Added `commitActiveStream()` method to flush streaming content (thinking and assistant messages) to output before tool execution
+  - Now properly commits active stream before `EventToolCall` and `EventToolApprovalRequest` handling
+  - Ensures thinking and partial assistant responses are visible when tools run or approval is requested
+
+### 🧪 Testing
+
+- Added `TestHandleAgentEventCommitsStreamBeforeApproval` regression test for stream commit ordering
+
+---
+
 ## v0.1.17
 
 ### 🛠 Improvements

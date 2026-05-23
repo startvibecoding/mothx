@@ -282,6 +282,42 @@ func TestHandleAgentEventReservesAssistantSlotBeforeTextDelta(t *testing.T) {
 	}
 }
 
+func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
+	a := &App{
+		messages:            []string{"You: hi"},
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+		printedMessageIdx:   make(map[int]bool),
+		assistantRaw:        make(map[int]string),
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      make(map[int]bool),
+	}
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventTurnStart})
+	a.handleAgentEvent(agent.Event{Type: agent.EventThinkDelta, ThinkDelta: "thinking"})
+	a.handleAgentEvent(agent.Event{Type: agent.EventTextDelta, TextDelta: "I need to run a command."})
+	a.handleAgentEvent(agent.Event{
+		Type:         agent.EventToolApprovalRequest,
+		ApprovalID:   "approval-1",
+		ApprovalTool: "bash",
+		ApprovalArgs: map[string]any{"command": "go test ./internal/tui"},
+	})
+
+	joined := stripANSI(strings.Join(a.pendingPrints, "\n"))
+	thinkAt := strings.Index(joined, "think: thinking")
+	assistantAt := strings.Index(joined, "Assistant: I need to run a command.")
+	approvalAt := strings.Index(joined, "Approval required for [bash]")
+	if thinkAt < 0 || assistantAt < 0 || approvalAt < 0 {
+		t.Fatalf("pending prints missing expected content: %q", joined)
+	}
+	if !(thinkAt < assistantAt && assistantAt < approvalAt) {
+		t.Fatalf("pending prints out of order: %q", joined)
+	}
+	if a.currentThinkIdx != -1 || a.currentAssistantIdx != -1 {
+		t.Fatalf("active stream indices = think %d assistant %d, want both reset", a.currentThinkIdx, a.currentAssistantIdx)
+	}
+}
+
 func TestAbortClearsQueuedInput(t *testing.T) {
 	a := &App{
 		inputQueue: make([]InputEvent, 0, 4),

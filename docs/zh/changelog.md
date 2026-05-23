@@ -1,5 +1,24 @@
 # 更新日志
 
+## v0.1.18
+
+### 🐛 问题修复
+
+- **TUI Nil 指针 panic**
+  - 修复 `printMessageOnce` 在 `printedMessageIdx` map 未初始化时导致的 nil 指针 panic
+  - 添加 nil 检查，确保在消息打印逻辑中安全访问 map
+
+- **工具执行前提交流**
+  - 添加 `commitActiveStream()` 方法，用于在工具执行前将流式内容（thinking 和 assistant 消息）刷新到输出
+  - 现在在 `EventToolCall` 和 `EventToolApprovalRequest` 处理前正确提交活跃的流
+  - 确保在工具运行或请求审批时能看到 thinking 和部分 assistant 响应
+
+### 🧪 测试
+
+- 新增 `TestHandleAgentEventCommitsStreamBeforeApproval` 回归测试，覆盖流提交顺序
+
+---
+
 ## v0.1.17
 
 ### 🛠 改进
