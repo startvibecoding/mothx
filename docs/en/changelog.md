@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.1.16
+
+### 🛠 Improvements
+
+- **Session Open by ID or Path**
+  - New `OpenByPathOrID` function allows opening sessions by either file path or session ID
+  - `OpenByID` now supports prefix matching with ambiguity detection
+  - `ContinueRecent` initializes new sessions immediately so they are ready for messages
+
+- **Session Save Error Handling**
+  - `AppendMessage` and `AppendCompaction` now return errors to the caller
+  - Agent loop surfaces session-save failures as `EventError` instead of silently dropping them
+
+- **Vendored Tool Test Guard**
+  - Makefile `test` target now depends on `prepare-vendored` and a new `test-vendored` check
+  - Tests fail early with a clear message if `rg`/`fd` binaries are missing for the current platform
+
+### 🧪 Testing
+
+- Added CLI flag parsing tests for root and ACP subcommands
+- Added settings merge tests covering project overrides and environment variables
+- Added session tests for `OpenByPathOrID`, prefix ambiguity, corrupt lines, and parent chain tracking
+
+---
+
 ## v0.1.15
 
 ### 🐛 Bug Fixes

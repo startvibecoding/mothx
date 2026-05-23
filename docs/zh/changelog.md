@@ -1,5 +1,30 @@
 # 更新日志
 
+## v0.1.16
+
+### 🛠 改进
+
+- **通过 ID 或路径打开会话**
+  - 新增 `OpenByPathOrID` 函数，支持通过文件路径或会话 ID 打开会话
+  - `OpenByID` 现在支持前缀匹配，并具备歧义检测
+  - `ContinueRecent` 在创建新会话时立即初始化，确保可直接写入消息
+
+- **会话保存错误处理**
+  - `AppendMessage` 和 `AppendCompaction` 现在会向调用方返回错误
+  - Agent 循环将会话保存失败作为 `EventError` 上报，不再静默丢弃
+
+- **内嵌工具测试守卫**
+  - Makefile `test` 目标现在依赖 `prepare-vendored` 和新增的 `test-vendored` 检查
+  - 若当前平台缺少 `rg`/`fd` 二进制文件，测试会提前失败并给出明确提示
+
+### 🧪 测试
+
+- 新增 CLI flag 解析测试，覆盖 root 和 ACP 子命令
+- 新增配置合并测试，覆盖项目级覆盖和环境变量
+- 新增会话测试，覆盖 `OpenByPathOrID`、前缀歧义、损坏行和父链追踪
+
+---
+
 ## v0.1.15
 
 ### 🐛 问题修复
