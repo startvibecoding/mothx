@@ -83,7 +83,23 @@ func ContinueRecent(cwd, sessionDir string) (*Manager, error) {
 		return Open(sessions[0].Path)
 	}
 
-	return New(cwd, sessionDir), nil
+	m := New(cwd, sessionDir)
+	if err := m.Init(); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// OpenByPathOrID opens a session using either an explicit file path or a
+// session ID for the supplied working directory.
+func OpenByPathOrID(cwd, sessionDir, value string) (*Manager, error) {
+	if value == "" {
+		return nil, fmt.Errorf("session value is empty")
+	}
+	if strings.HasSuffix(value, ".jsonl") || strings.ContainsRune(value, os.PathSeparator) {
+		return Open(value)
+	}
+	return OpenByID(cwd, sessionDir, value)
 }
 
 // SessionInfo contains metadata about a session file.
@@ -179,16 +195,39 @@ func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	var match *Manager
 	for _, s := range sessions {
 		mgr, err := Open(s.Path)
 		if err != nil {
 			continue
 		}
-		if hdr := mgr.GetHeader(); hdr != nil && hdr.ID == sessionID {
+		hdr := mgr.GetHeader()
+		if hdr == nil {
+			continue
+		}
+		if hdr.ID == sessionID {
 			return mgr, nil
 		}
+		if strings.HasPrefix(hdr.ID, sessionID) || strings.HasPrefix(sessionFileID(s.Path), sessionID) {
+			if match != nil {
+				return nil, fmt.Errorf("session ID %s is ambiguous for cwd %s", sessionID, cwd)
+			}
+			match = mgr
+		}
+	}
+	if match != nil {
+		return match, nil
 	}
 	return nil, fmt.Errorf("session %s not found for cwd %s", sessionID, cwd)
+}
+
+func sessionFileID(path string) string {
+	base := filepath.Base(path)
+	base = strings.TrimSuffix(base, ".jsonl")
+	if idx := strings.Index(base, "_"); idx >= 0 {
+		return base[idx+1:]
+	}
+	return ""
 }
 
 // AppendMessage adds a message entry.
@@ -477,11 +516,7 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 	for _, s := range sessions {
 		d := SessionDetail{SessionInfo: s}
 		// Extract ID from filename: YYYYMMDD-HHMMSS_ID.jsonl
-		base := filepath.Base(s.Path)
-		base = strings.TrimSuffix(base, ".jsonl")
-		if idx := strings.Index(base, "_"); idx >= 0 {
-			d.ID = base[idx+1:]
-		}
+		d.ID = sessionFileID(s.Path)
 
 		// Read session to count messages and get preview
 		mgr := &Manager{file: s.Path}

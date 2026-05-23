@@ -1,4 +1,4 @@
-.PHONY: help build build-all install test lint fmt clean run
+.PHONY: help build build-all install test test-vendored lint fmt clean run
 .PHONY: build-linux build-linux-musl build-darwin build-windows
 .PHONY: dist dist-linux dist-darwin dist-windows dist-deb dist-tarball dist-zip
 .PHONY: clean-all checksums
@@ -98,8 +98,20 @@ install:
 	go install $(LDFLAGS) ./cmd/vibecoding
 
 # Test
-test:
+test: prepare-vendored test-vendored
 	go test -v -race ./...
+
+test-vendored:
+	@case "$$(go env GOOS)-$$(go env GOARCH)" in \
+		windows-*) ext=".exe" ;; \
+		*) ext="" ;; \
+	esac; \
+	dir="internal/vendored/bin/$$(go env GOOS)-$$(go env GOARCH)"; \
+	if [ ! -f "$$dir/rg$$ext" ] || [ ! -f "$$dir/fd$$ext" ]; then \
+		echo "Missing vendored rg/fd for $$(go env GOOS)-$$(go env GOARCH)."; \
+		echo "Run: make prepare-vendored"; \
+		exit 1; \
+	fi
 
 # Lint
 lint:

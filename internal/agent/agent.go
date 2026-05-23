@@ -348,7 +348,10 @@ func (a *Agent) Run(ctx context.Context, userMsg string) <-chan Event {
 
 		// Save to session
 		if a.config.Session != nil {
-			a.config.Session.AppendMessage(msg)
+			if _, err := a.config.Session.AppendMessage(msg); err != nil {
+				ch <- Event{Type: EventError, Error: fmt.Errorf("save user message to session: %w", err)}
+				return
+			}
 		}
 
 		// Run agent loop
@@ -540,7 +543,10 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		// Save to session
 		if a.config.Session != nil {
-			a.config.Session.AppendMessage(assistantMsg)
+			if _, err := a.config.Session.AppendMessage(assistantMsg); err != nil {
+				ch <- Event{Type: EventError, Error: fmt.Errorf("save assistant message to session: %w", err)}
+				return
+			}
 		}
 
 		// Calculate cost
@@ -617,7 +623,10 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		a.mu.Unlock()
 		for _, result := range toolResults {
 			if a.config.Session != nil {
-				a.config.Session.AppendMessage(result)
+				if _, err := a.config.Session.AppendMessage(result); err != nil {
+					ch <- Event{Type: EventError, Error: fmt.Errorf("save tool result to session: %w", err)}
+					return
+				}
 			}
 		}
 
@@ -1010,7 +1019,10 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 
 	// Save compaction to session
 	if a.config.Session != nil {
-		a.config.Session.AppendCompaction(result.Summary, "", result.TokensBefore)
+		if _, err := a.config.Session.AppendCompaction(result.Summary, "", result.TokensBefore); err != nil {
+			ch <- Event{Type: EventCompactionEnd, Error: fmt.Errorf("save compaction to session: %w", err)}
+			return fmt.Errorf("save compaction to session: %w", err)
+		}
 	}
 
 	ch <- Event{

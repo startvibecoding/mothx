@@ -1,8 +1,10 @@
 package session
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -368,9 +370,17 @@ func TestContinueRecentNew(t *testing.T) {
 		t.Fatal("expected non-nil manager")
 	}
 
-	// Should be a new session (no file)
-	if m.file != "" {
-		t.Errorf("expected empty file for new session, got '%s'", m.file)
+	if m.file == "" {
+		t.Fatal("expected new session file")
+	}
+	if m.header == nil {
+		t.Fatal("expected new session header")
+	}
+	if _, err := os.Stat(m.file); err != nil {
+		t.Fatalf("expected session file to exist: %v", err)
+	}
+	if _, err := m.AppendMessage(provider.NewUserMessage("Hello")); err != nil {
+		t.Fatalf("append message to new continued session: %v", err)
 	}
 }
 
@@ -383,6 +393,117 @@ func TestContinueRecentDefaultDir(t *testing.T) {
 
 	if m == nil {
 		t.Fatal("expected non-nil manager")
+	}
+}
+
+func TestOpenByPathOrID(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m1 := New("/tmp/test", sessionDir)
+	if err := m1.InitWithID("session-test-id"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	byPath, err := OpenByPathOrID("/tmp/test", sessionDir, m1.file)
+	if err != nil {
+		t.Fatalf("open by path: %v", err)
+	}
+	if byPath.file != m1.file {
+		t.Errorf("expected file %q, got %q", m1.file, byPath.file)
+	}
+
+	byID, err := OpenByPathOrID("/tmp/test", sessionDir, "session-test-id")
+	if err != nil {
+		t.Fatalf("open by id: %v", err)
+	}
+	if byID.file != m1.file {
+		t.Errorf("expected file %q, got %q", m1.file, byID.file)
+	}
+
+	shortID := sessionFileID(m1.file)
+	byShortID, err := OpenByPathOrID("/tmp/test", sessionDir, shortID)
+	if err != nil {
+		t.Fatalf("open by short id: %v", err)
+	}
+	if byShortID.file != m1.file {
+		t.Errorf("expected file %q, got %q", m1.file, byShortID.file)
+	}
+}
+
+func TestOpenByPathOrIDAmbiguousPrefix(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	ids := []string{"abcdef01", "abcdef02"}
+	for _, id := range ids {
+		m := New("/tmp/test", sessionDir)
+		if err := m.InitWithID(id); err != nil {
+			t.Fatalf("init session %s: %v", id, err)
+		}
+	}
+
+	_, err := OpenByPathOrID("/tmp/test", sessionDir, "abc")
+	if err == nil {
+		t.Fatal("expected ambiguous prefix error")
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("err = %q, want ambiguous", err)
+	}
+}
+
+func TestLoadRejectsCorruptSessionLine(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "session.jsonl")
+	data := fmt.Sprintf(
+		"{\"type\":\"%s\",\"version\":%d,\"id\":\"session-id\",\"timestamp\":\"%s\",\"cwd\":\"/tmp/test\"}\nnot-json\n",
+		EntrySession,
+		CurrentVersion,
+		time.Now().Format(time.RFC3339Nano),
+	)
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatalf("write session: %v", err)
+	}
+
+	_, err := Open(path)
+	if err == nil {
+		t.Fatal("expected corrupt session error")
+	}
+	if !strings.Contains(err.Error(), "corrupt line") {
+		t.Fatalf("err = %q, want corrupt line", err)
+	}
+}
+
+func TestAppendEntriesMaintainParentChain(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	if err := m.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	firstID, err := m.AppendMessage(provider.NewUserMessage("first"))
+	if err != nil {
+		t.Fatalf("append first: %v", err)
+	}
+	secondID, err := m.AppendModelChange("openai", "model")
+	if err != nil {
+		t.Fatalf("append second: %v", err)
+	}
+
+	if len(m.entries) != 2 {
+		t.Fatalf("entries = %d, want 2", len(m.entries))
+	}
+	second, ok := m.entries[1].(ModelChangeEntry)
+	if !ok {
+		t.Fatalf("entry type = %T, want ModelChangeEntry", m.entries[1])
+	}
+	if second.ParentID == nil || *second.ParentID != firstID {
+		t.Fatalf("second parent = %#v, want %s", second.ParentID, firstID)
+	}
+	if leaf := m.GetLeafID(); leaf == nil || *leaf != secondID {
+		t.Fatalf("leaf = %#v, want %s", leaf, secondID)
 	}
 }
 

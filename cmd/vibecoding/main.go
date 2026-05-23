@@ -289,13 +289,13 @@ func run(args []string, opts runOptions) error {
 			}
 		}
 	} else if opts.session != "" {
-		sess, err = session.Open(opts.session)
+		sess, err = session.OpenByPathOrID(cwd, settings.GetSessionDir(), opts.session)
 		if err != nil {
 			return fmt.Errorf("open session: %w", err)
 		}
 		sessionInfo = fmt.Sprintf("📂 Opened session: %s", sess.GetFile())
 	} else if opts.resume != "" {
-		sess, err = session.Open(opts.resume)
+		sess, err = session.OpenByPathOrID(cwd, settings.GetSessionDir(), opts.resume)
 		if err != nil {
 			return fmt.Errorf("resume session: %w", err)
 		}

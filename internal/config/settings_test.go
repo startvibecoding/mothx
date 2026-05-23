@@ -157,6 +157,125 @@ func TestLoadSettings(t *testing.T) {
 	}
 }
 
+func TestLoadSettingsAppliesProjectOverridesAndEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	configDir := filepath.Join(tmpDir, "config")
+	if err := os.Setenv("VIBECODING_DIR", configDir); err != nil {
+		t.Fatalf("set VIBECODING_DIR: %v", err)
+	}
+	if err := os.Setenv("VIBECODING_PROVIDER", "env-provider"); err != nil {
+		t.Fatalf("set VIBECODING_PROVIDER: %v", err)
+	}
+	if err := os.Setenv("VIBECODING_MODEL", "env-model"); err != nil {
+		t.Fatalf("set VIBECODING_MODEL: %v", err)
+	}
+	if err := os.Setenv("VIBECODING_MODE", "plan"); err != nil {
+		t.Fatalf("set VIBECODING_MODE: %v", err)
+	}
+	if err := os.Setenv("VIBECODING_THINKING", "high"); err != nil {
+		t.Fatalf("set VIBECODING_THINKING: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("VIBECODING_DIR")
+		_ = os.Unsetenv("VIBECODING_PROVIDER")
+		_ = os.Unsetenv("VIBECODING_MODEL")
+		_ = os.Unsetenv("VIBECODING_MODE")
+		_ = os.Unsetenv("VIBECODING_THINKING")
+	}()
+
+	if err := os.MkdirAll(".vibe", 0700); err != nil {
+		t.Fatalf("mkdir .vibe: %v", err)
+	}
+	projectSettings := `{
+		"sessionDir": "./sessions",
+		"providers": {
+			"project-provider": {
+				"baseUrl": "https://example.test",
+				"api": "openai-chat",
+				"models": [{"id": "project-model", "name": "Project Model"}]
+			}
+		},
+		"contextFiles": {"enabled": false, "extraFiles": ["extra.md"]},
+		"approval": {"bashWhitelist": ["go test "]}
+	}`
+	if err := os.WriteFile(ProjectSettingsPath(), []byte(projectSettings), 0600); err != nil {
+		t.Fatalf("write project settings: %v", err)
+	}
+
+	s, err := LoadSettings()
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+
+	if s.DefaultProvider != "env-provider" {
+		t.Fatalf("DefaultProvider = %q, want env-provider", s.DefaultProvider)
+	}
+	if s.DefaultModel != "env-model" {
+		t.Fatalf("DefaultModel = %q, want env-model", s.DefaultModel)
+	}
+	if s.DefaultMode != "plan" {
+		t.Fatalf("DefaultMode = %q, want plan", s.DefaultMode)
+	}
+	if s.DefaultThinkingLevel != "high" {
+		t.Fatalf("DefaultThinkingLevel = %q, want high", s.DefaultThinkingLevel)
+	}
+	if s.SessionDir != "./sessions" {
+		t.Fatalf("SessionDir = %q, want ./sessions", s.SessionDir)
+	}
+	if s.GetProviderConfig("project-provider") == nil {
+		t.Fatal("expected merged project provider")
+	}
+	if s.GetProviderConfig("deepseek-openai") == nil {
+		t.Fatal("expected default provider to remain after project merge")
+	}
+	if s.ContextFiles.Enabled {
+		t.Fatal("expected project contextFiles override to disable context files")
+	}
+	if len(s.ContextFiles.ExtraFiles) != 1 || s.ContextFiles.ExtraFiles[0] != "extra.md" {
+		t.Fatalf("ExtraFiles = %#v, want extra.md", s.ContextFiles.ExtraFiles)
+	}
+	if len(s.Approval.BashWhitelist) != 1 || s.Approval.BashWhitelist[0] != "go test " {
+		t.Fatalf("BashWhitelist = %#v, want go test", s.Approval.BashWhitelist)
+	}
+}
+
+func TestMergeSettingsIgnoresNilProviderAndKeepsExistingProviders(t *testing.T) {
+	base := &Settings{
+		Providers: map[string]*ProviderConfig{
+			"base": {API: "openai-chat"},
+		},
+		DefaultProvider: "base",
+	}
+	project := &Settings{
+		Providers: map[string]*ProviderConfig{
+			"base": nil,
+			"new":  {API: "anthropic"},
+		},
+		DefaultProvider: "project",
+	}
+
+	mergeSettings(base, project)
+
+	if base.DefaultProvider != "project" {
+		t.Fatalf("DefaultProvider = %q, want project", base.DefaultProvider)
+	}
+	if base.Providers["base"] == nil {
+		t.Fatal("expected nil provider override to be ignored")
+	}
+	if base.Providers["new"] == nil || base.Providers["new"].API != "anthropic" {
+		t.Fatalf("new provider = %#v, want anthropic provider", base.Providers["new"])
+	}
+}
+
 func TestResolveKey(t *testing.T) {
 	s := &Settings{
 		Providers: map[string]*ProviderConfig{
