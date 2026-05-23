@@ -564,6 +564,38 @@ func TestFindToolExecute(t *testing.T) {
 	}
 }
 
+func TestFindToolExecuteUsesNativeGlob(t *testing.T) {
+	tmpDir := t.TempDir()
+	nestedDir := filepath.Join(tmpDir, "nested")
+	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nestedDir, "test.txt"), []byte("Hello"), 0644); err != nil {
+		t.Fatalf("write nested file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("Hello"), 0644); err != nil {
+		t.Fatalf("write root file: %v", err)
+	}
+
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewFindTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"pattern":  "**/*.txt",
+		"path":     ".",
+		"maxDepth": float64(2),
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result.Text, filepath.Join("nested", "test.txt")) {
+		t.Fatalf("result = %q, want nested/test.txt", result.Text)
+	}
+}
+
 func TestLsTool(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)

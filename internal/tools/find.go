@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/vendored"
@@ -61,42 +60,6 @@ func (t *FindTool) Parameters() json.RawMessage {
 	}`)
 }
 
-// globToRegex 将 glob 模式转换为正则表达式
-// 例如: *.go → \.go$, *.test.* → \.test\..*
-func globToRegex(pattern string) string {
-	var result strings.Builder
-	result.WriteString("^")
-
-	for i := 0; i < len(pattern); i++ {
-		c := pattern[i]
-		switch c {
-		case '*':
-			result.WriteString(".*")
-		case '?':
-			result.WriteString(".")
-		case '.':
-			result.WriteString("\\.")
-		case '{':
-			// 处理 {a,b} 这种模式
-			result.WriteString("(?:")
-		case '}':
-			result.WriteString(")")
-		case ',':
-			// 在 {a,b} 内部的逗号
-			result.WriteString("|")
-		default:
-			// 转义特殊正则字符
-			if strings.ContainsRune(`\+^${}|[]()`, rune(c)) {
-				result.WriteByte('\\')
-			}
-			result.WriteByte(c)
-		}
-	}
-
-	result.WriteString("$")
-	return result.String()
-}
-
 func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	pattern, _ := params["pattern"].(string)
 	if pattern == "" {
@@ -128,16 +91,10 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		return ToolResult{}, err
 	}
 
-	// 将 glob 模式转为正则
-	regexPattern := globToRegex(pattern)
-	// 验证正则是否有效
-	if _, err := regexp.Compile(regexPattern); err != nil {
-		return ToolResult{}, fmt.Errorf("invalid pattern %q: %w", pattern, err)
-	}
-
 	// 构建 fd 命令参数
 	args := []string{
 		"--color=never",
+		"--glob",
 		fmt.Sprintf("--max-results=%d", maxResults),
 	}
 
@@ -145,8 +102,7 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		args = append(args, fmt.Sprintf("--max-depth=%d", maxDepth))
 	}
 
-	// fd 使用正则匹配
-	args = append(args, "--", regexPattern, searchPath)
+	args = append(args, "--", pattern, searchPath)
 
 	// 执行 fd
 	cmd := exec.CommandContext(ctx, fdPath, args...)
