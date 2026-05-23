@@ -385,6 +385,8 @@ func TestContinueRecentNew(t *testing.T) {
 }
 
 func TestContinueRecentDefaultDir(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	// Test with empty session dir (should use default)
 	m, err := ContinueRecent("/tmp/test", "")
 	if err != nil {

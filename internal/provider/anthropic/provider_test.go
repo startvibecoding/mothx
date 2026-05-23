@@ -2,8 +2,10 @@ package anthropic
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -13,6 +15,14 @@ import (
 
 func newTestServer(t *testing.T, sse string) *httptest.Server {
 	t.Helper()
+	defer func() {
+		if r := recover(); r != nil {
+			if strings.Contains(fmt.Sprint(r), "httptest: failed to listen on a port") {
+				t.Skipf("local httptest listener unavailable: %v", r)
+			}
+			panic(r)
+		}
+	}()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)

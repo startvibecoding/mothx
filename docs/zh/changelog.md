@@ -1,5 +1,39 @@
 # 更新日志
 
+## v0.1.17
+
+### 🛠 改进
+
+- **TUI 原生滚动历史**
+  - 重构 TUI 历史渲染：已完成消息会输出到终端原生 scrollback，而不是固定高度 viewport
+  - 移除虚拟滚动条与鼠标捕获方案，鼠标滚轮现在使用终端自身的历史滚动行为
+  - 保留实时流式内容、输入框、footer、上下文/缓存状态以及工具输出控制
+
+- **TUI 请求计时器**
+  - 响应运行期间显示本次请求耗时
+  - 请求完成后在 footer 保留上一次请求耗时
+
+- **事件循环解耦**
+  - 新增共享的 agent event 消费辅助逻辑
+  - 将 TUI 的 agent event bridge 从主 app 文件拆出，并让 CLI print 模式复用同一套事件消费逻辑
+
+- **Windows 控制台兼容性**
+  - 在可用时启用 Windows Virtual Terminal 控制台模式，改善 Windows 10 PowerShell 下的显示兼容性
+
+### 🐛 问题修复
+
+- 修复 TUI 启动时在 Bubble Tea 开始消费消息前打印初始/会话历史导致的卡死问题
+- 修复 `go test -race` 发现的 agent 消息历史数据竞争
+- 修复 mock provider 在 context 已取消时未稳定返回取消错误的问题
+
+### 🧪 测试
+
+- 全量 `make test` 已通过 race detection
+- 新增 TUI 启动历史打印不阻塞的回归测试
+- 增强受限环境下依赖本地 HTTP listener 或默认 home 目录会话路径的测试稳定性
+
+---
+
 ## v0.1.16
 
 ### 🛠 改进

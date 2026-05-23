@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.1.17
+
+### 🛠 Improvements
+
+- **TUI Native Scrollback**
+  - Reworked TUI history rendering so completed messages are printed into the terminal's native scrollback instead of a fixed-height viewport
+  - Removed the virtual scrollbar and mouse-capture approach; mouse wheel scrolling now uses normal terminal history behavior
+  - Kept live streaming content, input, footer, context/cache status, and tool output controls in the Bubble Tea view
+
+- **TUI Request Timers**
+  - Added per-request elapsed time display while a response is running
+  - Footer now keeps the last request duration after completion
+
+- **Event Loop Decoupling**
+  - Added shared agent event consumption helpers
+  - Split the TUI agent-event bridge out of the main app file and reused the event loop from CLI print mode
+
+- **Windows Console Compatibility**
+  - Enabled Windows virtual terminal console modes where available for better PowerShell rendering on Windows 10
+
+### 🐛 Bug Fixes
+
+- Fixed a TUI startup deadlock caused by printing initial/session history before Bubble Tea had started consuming program messages
+- Fixed an agent message-history data race found by `go test -race`
+- Fixed mock provider cancellation handling for already-canceled contexts
+
+### 🧪 Testing
+
+- Full `make test` now passes with race detection
+- Added TUI regression coverage for startup history printing without blocking
+- Hardened tests that depend on local HTTP listeners or default home-directory session paths in restricted environments
+
+---
+
 ## v0.1.16
 
 ### 🛠 Improvements

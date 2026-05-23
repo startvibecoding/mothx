@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/sys/windows"
@@ -22,6 +23,24 @@ func initConsole() error {
 	// Set output code page to UTF-8 so text renders correctly
 	if err := windows.SetConsoleOutputCP(cpUTF8); err != nil {
 		return fmt.Errorf("set console output code page: %w", err)
+	}
+	if err := enableVirtualTerminal(os.Stdout.Fd(), windows.ENABLE_PROCESSED_OUTPUT|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
+		return err
+	}
+	if err := enableVirtualTerminal(os.Stdin.Fd(), windows.ENABLE_EXTENDED_FLAGS); err != nil {
+		return err
+	}
+	return nil
+}
+
+func enableVirtualTerminal(fd uintptr, flags uint32) error {
+	handle := windows.Handle(fd)
+	var mode uint32
+	if err := windows.GetConsoleMode(handle, &mode); err != nil {
+		return nil
+	}
+	if err := windows.SetConsoleMode(handle, mode|flags); err != nil {
+		return fmt.Errorf("set console mode: %w", err)
 	}
 	return nil
 }

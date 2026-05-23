@@ -539,7 +539,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 
 	var textBuffer strings.Builder
 
-	for event := range eventCh {
+	err = agent.ConsumeEvents(ctx, eventCh, agent.EventHandlerFunc(func(_ context.Context, event agent.Event) error {
 		switch event.Type {
 		case agent.EventToolApprovalRequest:
 			return fmt.Errorf("tool approval required in print mode for %s; rerun interactively, use --mode yolo, or whitelist the command", event.ApprovalTool)
@@ -608,6 +608,10 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 				fmt.Fprintf(os.Stderr, "✅ Context compacted\n")
 			}
 		}
+		return nil
+	}))
+	if err != nil {
+		return err
 	}
 
 	return nil

@@ -326,18 +326,19 @@ func TestListenEventsPassesThroughDoneAndError(t *testing.T) {
 	eventCh <- agent.Event{Type: agent.EventDone}
 	eventCh <- agent.Event{Type: agent.EventError, Error: assertErr("boom")}
 	close(eventCh)
+	app := &App{eventCh: eventCh}
 
-	msg := listenEvents(eventCh)()
+	msg := app.listenAgentEvents()()
 	if ev, ok := msg.(agentEventMsg); !ok || ev.event.Type != agent.EventDone {
 		t.Fatalf("first msg = %#v, want agentEventMsg(EventDone)", msg)
 	}
 
-	msg = listenEvents(eventCh)()
+	msg = app.listenAgentEvents()()
 	if ev, ok := msg.(agentEventMsg); !ok || ev.event.Type != agent.EventError || ev.event.Error == nil || ev.event.Error.Error() != "boom" {
 		t.Fatalf("second msg = %#v, want agentEventMsg(EventError boom)", msg)
 	}
 
-	msg = listenEvents(eventCh)()
+	msg = app.listenAgentEvents()()
 	if _, ok := msg.(agentDoneMsg); !ok {
 		t.Fatalf("third msg = %#v, want agentDoneMsg", msg)
 	}
@@ -349,6 +350,35 @@ func (e assertErr) Error() string { return string(e) }
 
 func teaKeyMsgForTest(s string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+}
+
+func TestInitWithProgramDoesNotBlock(t *testing.T) {
+	a := NewApp(
+		&historyInjectMockProvider{},
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		config.DefaultSettings(),
+		nil,
+		tools.NewRegistry(t.TempDir(), nil),
+		"",
+		"",
+		nil,
+		"agent",
+	)
+	a.SetInitialMessage("hello")
+	p := tea.NewProgram(a)
+	a.SetProgram(p)
+
+	done := make(chan struct{})
+	go func() {
+		_ = a.Init()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("Init blocked while printing initial history")
+	}
 }
 
 // TestCacheHighlightThresholdMath verifies the arithmetic of the 50% boundary

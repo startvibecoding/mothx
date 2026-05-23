@@ -27,6 +27,13 @@ func (p *MockProvider) Chat(ctx context.Context, params ChatParams) <-chan Strea
 		defer close(ch)
 		p.callCount++
 
+		select {
+		case <-ctx.Done():
+			ch <- StreamEvent{Type: StreamError, Error: ctx.Err()}
+			return
+		default:
+		}
+
 		for _, event := range p.responses {
 			select {
 			case <-ctx.Done():

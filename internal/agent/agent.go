@@ -343,8 +343,10 @@ func (a *Agent) Run(ctx context.Context, userMsg string) <-chan Event {
 
 		// Add user message to conversation
 		msg := provider.NewUserMessage(userMsg)
+		a.mu.Lock()
 		a.messages = append(a.messages, msg)
 		a.context.Messages = append(a.context.Messages, msg)
+		a.mu.Unlock()
 
 		// Save to session
 		if a.config.Session != nil {

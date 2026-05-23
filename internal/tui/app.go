@@ -10,12 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/cellbuf"
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
@@ -96,8 +95,8 @@ type App struct {
 	activeSkills     map[string]string // skill name -> skill context string
 
 	// UI Components
-	viewport viewport.Model
-	input    textinput.Model
+	input textinput.Model
+	timer stopwatch.Model
 
 	// State
 	messages    []string
@@ -108,7 +107,6 @@ type App struct {
 	width       int
 	height      int
 	ready       bool
-	autoScroll  bool
 
 	// Paste markers storage
 	pasteCounter int
@@ -121,8 +119,11 @@ type App struct {
 	inputBatchSize int
 	inputDelay     time.Duration
 
-	// Full content for native scrollbar support
-	fullContent string
+	// Live content stays in the managed Bubble Tea view while it is streaming.
+	// Completed transcript entries are printed through Bubble Tea's unmanaged
+	// print path so the terminal's native scrollback owns history.
+	liveContent   string
+	pendingPrints []string
 
 	// Initial message to display
 	initialMessage string
@@ -140,6 +141,8 @@ type App struct {
 
 	// Spinner state
 	spinnerIndex int
+	requestStart time.Time
+	lastDuration time.Duration
 
 	// Session history
 	sessionMu          sync.Mutex
@@ -160,6 +163,7 @@ type App struct {
 	// Current streaming message indices (-1 = none)
 	currentAssistantIdx int
 	currentThinkIdx     int
+	printedMessageIdx   map[int]bool
 
 	// Markdown rendering for assistant messages
 	mdRenderer        *glamour.TermRenderer
@@ -185,8 +189,6 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 	input.Focus()
 	input.CharLimit = 0
 
-	vp := viewport.New(80, 20)
-
 	// Determine initial mode: use provided mode, fall back to settings default
 	mode := initialMode
 	if mode == "" {
@@ -209,8 +211,7 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		activeSkills:        make(map[string]string),
 		skillsMgr:           skillsMgr,
 		input:               input,
-		viewport:            vp,
-		autoScroll:          true,
+		timer:               stopwatch.NewWithInterval(time.Second),
 		pastes:              make(map[int]string),
 		inputQueue:          make([]InputEvent, 0, 100),
 		inputBatchSize:      10,
@@ -218,6 +219,7 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		renderInterval:      16 * time.Millisecond, // ~60fps
 		currentAssistantIdx: -1,
 		currentThinkIdx:     -1,
+		printedMessageIdx:   make(map[int]bool),
 		assistantRaw:        make(map[int]string),
 		assistantRendered:   make(map[int]string),
 		assistantDirty:      make(map[int]bool),
@@ -283,15 +285,20 @@ func (a *App) LoadHistoryMessages() {
 
 // Init implements tea.Model.
 func (a *App) Init() tea.Cmd {
+	var cmds []tea.Cmd
+
 	// Show initial message if set
 	if a.initialMessage != "" {
 		a.messages = append(a.messages, statusStyle.Render(a.initialMessage))
+		a.printHistory(a.messages[len(a.messages)-1])
 	}
 
 	// Load history messages from session
 	a.LoadHistoryMessages()
+	a.updateViewportContent()
 
-	return tea.Batch(textinput.Blink, a.processInputQueue())
+	cmds = append(cmds, a.flushPendingPrints(), textinput.Blink, a.processInputQueue())
+	return tea.Batch(cmds...)
 }
 
 // processInputQueue returns a command that processes queued input events
@@ -329,15 +336,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		a.ready = true
 
-		// Calculate heights: input (1 line) + footer (1 line) + some padding
-		heightUsed := 3 // input + footer + padding
-		chatHeight := msg.Height - heightUsed
-		if chatHeight < 3 {
-			chatHeight = 3
-		}
-
-		a.viewport.Width = msg.Width
-		a.viewport.Height = chatHeight
 		a.input.Width = msg.Width - 4
 
 		a.updateViewportContent()
@@ -356,6 +354,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.isThinking {
 			a.spinnerIndex = (a.spinnerIndex + 1) % len(spinnerChars)
 			cmds = append(cmds, a.tickSpinner())
+		}
+		return a, tea.Batch(cmds...)
+
+	case stopwatch.TickMsg, stopwatch.StartStopMsg, stopwatch.ResetMsg:
+		var timerCmd tea.Cmd
+		a.timer, timerCmd = a.timer.Update(msg)
+		if timerCmd != nil {
+			cmds = append(cmds, timerCmd)
 		}
 		return a, tea.Batch(cmds...)
 
@@ -384,7 +390,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.inputQueueMu.Unlock()
 				a.input.Reset()
 				a.isThinking = false
+				a.finishRequestTimer()
 				a.addMessage(statusStyle.Render("⏹ Aborted"))
+				return a, a.timer.Stop()
 			} else {
 				a.input.Reset()
 			}
@@ -427,22 +435,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.cycleMode()
 			return a, nil
 		case "pgup":
-			a.viewport.HalfViewUp()
-			a.autoScroll = false
 			return a, nil
 		case "pgdown":
-			a.viewport.HalfViewDown()
-			if a.viewport.AtBottom() {
-				a.autoScroll = true
-			}
 			return a, nil
 		case "home":
-			a.viewport.GotoTop()
-			a.autoScroll = false
 			return a, nil
 		case "end":
-			a.viewport.GotoBottom()
-			a.autoScroll = true
 			return a, nil
 		case "ctrl+o":
 			// Toggle tool output expansion
@@ -465,30 +463,29 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentStartMsg:
 		a.isThinking = true
 		a.spinnerIndex = 0
+		a.requestStart = time.Now()
+		a.lastDuration = 0
 		a.addMessage(userStyle.Render("You: ") + msg.input)
-		return a, tea.Batch(listenEvents(a.eventCh), a.tickSpinner())
+		return a, tea.Batch(a.listenAgentEvents(), a.tickSpinner(), a.timer.Reset(), a.timer.Start())
 
 	case agentEventMsg:
 		return a, a.handleAgentEvent(msg.event)
 
 	case agentDoneMsg:
 		a.isThinking = false
+		a.finishRequestTimer()
 		if msg.err != nil {
 			a.addMessage(errorStyle.Render("Error: ") + msg.err.Error())
 		}
-		return a, nil
+		return a, a.timer.Stop()
 	}
 
 	// Update components
-	var inputCmd, vpCmd tea.Cmd
+	var inputCmd tea.Cmd
 	a.input, inputCmd = a.input.Update(msg)
-	a.viewport, vpCmd = a.viewport.Update(msg)
 
 	if inputCmd != nil {
 		cmds = append(cmds, inputCmd)
-	}
-	if vpCmd != nil {
-		cmds = append(cmds, vpCmd)
 	}
 
 	return a, tea.Batch(cmds...)
@@ -584,12 +581,11 @@ func (a *App) View() string {
 
 	footer := a.renderFooter()
 
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		a.viewport.View(),
-		a.input.View(),
-		footer,
-	)
+	parts := []string{a.input.View(), footer}
+	if a.liveContent != "" {
+		parts = append([]string{a.liveContent}, parts...)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // handlePaste handles large pastes by creating markers
@@ -661,80 +657,73 @@ func (a *App) expandPasteMarkers(text string) string {
 }
 
 func (a *App) updateViewportContent() {
-	// Rebuild messages based on expansion state
-	var displayMessages []string
-
-	// Build a set of message indices that are tool results
-	toolMsgIndices := make(map[int]int) // msgIndex -> toolResults index
-	for i, tr := range a.toolResults {
-		toolMsgIndices[tr.msgIndex] = i
+	a.liveContent = ""
+	if a.currentThinkIdx >= 0 && a.currentThinkIdx < len(a.messages) {
+		a.liveContent = a.messages[a.currentThinkIdx]
 	}
-
-	for idx, msg := range a.messages {
-		if trIdx, ok := toolMsgIndices[idx]; ok {
-			result := a.toolResults[trIdx]
-			if a.toolOutputExpanded {
-				// Show full content with arguments
-				var content string
-				if result.toolArgs != nil {
-					argsStr := formatToolArgs(result.toolName, result.toolArgs)
-					if result.fullContent != "" {
-						content = fmt.Sprintf("🔧 [%s]\n%s\n---\n%s", result.toolName, argsStr, result.fullContent)
-					} else {
-						content = fmt.Sprintf("🔧 [%s]\n%s", result.toolName, argsStr)
-					}
-				} else if result.fullContent != "" {
-					content = fmt.Sprintf("🔧 [%s]\n%s", result.toolName, result.fullContent)
-				} else {
-					content = fmt.Sprintf("🔧 [%s]", result.toolName)
-				}
-				displayMessages = append(displayMessages, toolStyle.Render(content))
-			} else {
-				// Show summary
-				displayMessages = append(displayMessages, toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", result.toolName, result.summary)))
+	if a.currentAssistantIdx >= 0 {
+		assistant := a.renderAssistantMessage(a.currentAssistantIdx)
+		if assistant != "" {
+			if a.liveContent != "" {
+				a.liveContent += "\n\n"
 			}
-		} else if raw, ok := a.assistantRaw[idx]; ok {
-			// Assistant message: render markdown if renderer is available
-			if raw == "" {
-				continue
-			}
-			if a.assistantDirty[idx] && a.mdRenderer != nil {
-				rendered, err := a.mdRenderer.Render(raw)
-				if err == nil {
-					a.assistantRendered[idx] = rendered
-				}
-				a.assistantDirty[idx] = false
-			}
-			prefix := assistantStyle.Render("Assistant: ")
-			if rendered, ok := a.assistantRendered[idx]; ok && rendered != "" {
-				displayMessages = append(displayMessages, prefix+rendered)
-			} else {
-				displayMessages = append(displayMessages, prefix+raw)
-			}
-		} else {
-			displayMessages = append(displayMessages, msg)
+			a.liveContent += assistant
 		}
-	}
-
-	a.fullContent = strings.Join(displayMessages, "\n\n")
-	a.viewport.SetContent(a.wrapContent(a.fullContent))
-	if a.autoScroll {
-		a.viewport.GotoBottom()
 	}
 }
 
-// wrapContent wraps content to fit within the viewport width.
-// This ensures logical lines in the viewport match visual lines after wrapping.
-func (a *App) wrapContent(content string) string {
-	if a.width <= 0 {
-		return content
+func (a *App) renderMessageAt(idx int) string {
+	for i, tr := range a.toolResults {
+		if tr.msgIndex == idx {
+			return a.renderToolResult(a.toolResults[i])
+		}
 	}
-	lines := strings.Split(content, "\n")
-	wrapped := make([]string, 0, len(lines))
-	for _, line := range lines {
-		wrapped = append(wrapped, cellbuf.Wrap(line, a.width, ""))
+	if _, ok := a.assistantRaw[idx]; ok {
+		return a.renderAssistantMessage(idx)
 	}
-	return strings.Join(wrapped, "\n")
+	if idx >= 0 && idx < len(a.messages) {
+		return a.messages[idx]
+	}
+	return ""
+}
+
+func (a *App) renderToolResult(result toolResult) string {
+	if a.toolOutputExpanded {
+		var content string
+		if result.toolArgs != nil {
+			argsStr := formatToolArgs(result.toolName, result.toolArgs)
+			if result.fullContent != "" {
+				content = fmt.Sprintf("🔧 [%s]\n%s\n---\n%s", result.toolName, argsStr, result.fullContent)
+			} else {
+				content = fmt.Sprintf("🔧 [%s]\n%s", result.toolName, argsStr)
+			}
+		} else if result.fullContent != "" {
+			content = fmt.Sprintf("🔧 [%s]\n%s", result.toolName, result.fullContent)
+		} else {
+			content = fmt.Sprintf("🔧 [%s]", result.toolName)
+		}
+		return toolStyle.Render(content)
+	}
+	return toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", result.toolName, result.summary))
+}
+
+func (a *App) renderAssistantMessage(idx int) string {
+	raw := a.assistantRaw[idx]
+	if raw == "" {
+		return ""
+	}
+	if a.assistantDirty[idx] && a.mdRenderer != nil {
+		rendered, err := a.mdRenderer.Render(raw)
+		if err == nil {
+			a.assistantRendered[idx] = rendered
+		}
+		a.assistantDirty[idx] = false
+	}
+	prefix := assistantStyle.Render("Assistant: ")
+	if rendered, ok := a.assistantRendered[idx]; ok && rendered != "" {
+		return prefix + rendered
+	}
+	return prefix + raw
 }
 
 // formatToolArgs formats tool arguments for display
@@ -894,8 +883,11 @@ func (a *App) renderFooter() string {
 
 	status := fmt.Sprintf(" %s | %s | %s%s%s", modeStr, modelName, cwd, contextStr, cacheStr)
 	if a.isThinking {
-		status += " | " + spinnerChars[a.spinnerIndex]
+		status += " | " + spinnerChars[a.spinnerIndex] + " " + formatDuration(a.timer.Elapsed())
 	} else {
+		if a.lastDuration > 0 {
+			status += " | last " + formatDuration(a.lastDuration)
+		}
 		if a.toolOutputExpanded {
 			status += " | Tab:mode Esc:abort Ctrl+O:collapse"
 		} else {
@@ -908,7 +900,55 @@ func (a *App) renderFooter() string {
 
 func (a *App) addMessage(msg string) {
 	a.messages = append(a.messages, msg)
-	a.updateViewportContent()
+	a.printHistory(msg)
+}
+
+func (a *App) printHistory(msg string) {
+	if strings.TrimSpace(msg) == "" {
+		return
+	}
+	if a.program != nil {
+		go a.program.Println(msg)
+		return
+	}
+	a.pendingPrints = append(a.pendingPrints, msg)
+}
+
+func (a *App) printMessageOnce(idx int) {
+	if idx < 0 || a.printedMessageIdx[idx] {
+		return
+	}
+	msg := a.renderMessageAt(idx)
+	if strings.TrimSpace(msg) == "" {
+		return
+	}
+	a.printedMessageIdx[idx] = true
+	a.printHistory(msg)
+}
+
+func (a *App) flushPendingPrints() tea.Cmd {
+	if len(a.pendingPrints) == 0 {
+		return nil
+	}
+	prints := append([]string(nil), a.pendingPrints...)
+	a.pendingPrints = nil
+
+	cmds := make([]tea.Cmd, 0, len(prints))
+	for _, msg := range prints {
+		cmds = append(cmds, tea.Println(msg))
+	}
+	return tea.Batch(cmds...)
+}
+
+func (a *App) finishRequestTimer() {
+	if !a.requestStart.IsZero() {
+		a.lastDuration = time.Since(a.requestStart)
+		a.requestStart = time.Time{}
+		return
+	}
+	if elapsed := a.timer.Elapsed(); elapsed > 0 {
+		a.lastDuration = elapsed
+	}
 }
 
 // showNextApproval pops the next approval request from the queue and displays it.
@@ -961,6 +1001,7 @@ func (a *App) cycleMode() {
 		a.lastInputTime = time.Time{}
 		a.inputQueueMu.Unlock()
 		a.isThinking = false
+		a.finishRequestTimer()
 		a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
 	} else {
 		a.agent = nil
@@ -1033,7 +1074,7 @@ func (a *App) processInput(input string) tea.Cmd {
 
 	return tea.Batch(
 		func() tea.Msg { return agentStartMsg{input: input} },
-		listenEvents(a.eventCh),
+		a.listenAgentEvents(),
 	)
 }
 
@@ -1057,6 +1098,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 					a.lastInputTime = time.Time{}
 					a.inputQueueMu.Unlock()
 					a.isThinking = false
+					a.finishRequestTimer()
 					a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
 				} else {
 					a.agent = nil
@@ -1143,6 +1185,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.activeSkills = make(map[string]string)
 		a.extraContext = a.baseExtraContext
 		a.updateViewportContent()
+		a.addMessage(statusStyle.Render("✅ Conversation cleared"))
 	case "/quit":
 		return tea.Quit
 	case "/sessions":
@@ -1166,7 +1209,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.addMessage(statusStyle.Render("  Tab       - Cycle mode (plan/agent/yolo)"))
 		a.addMessage(statusStyle.Render("  Esc       - Abort current operation"))
 		a.addMessage(statusStyle.Render("  Ctrl+O    - Toggle tool output"))
-		a.addMessage(statusStyle.Render("  PgUp/PgDn - Scroll viewport"))
+		a.addMessage(statusStyle.Render("  Mouse wheel - Scroll terminal history"))
 	default:
 		// Handle /skill:<name> syntax (colon-separated)
 		if strings.HasPrefix(command, "/skill:") {
@@ -1419,6 +1462,7 @@ func (a *App) sessionsSet(id string) {
 	a.assistantRaw = make(map[int]string)
 	a.assistantRendered = make(map[int]string)
 	a.assistantDirty = make(map[int]bool)
+	a.printedMessageIdx = make(map[int]bool)
 	a.currentAssistantIdx = -1
 	a.currentThinkIdx = -1
 
@@ -1464,6 +1508,7 @@ func (a *App) sessionsClear() {
 	a.assistantRaw = make(map[int]string)
 	a.assistantRendered = make(map[int]string)
 	a.assistantDirty = make(map[int]bool)
+	a.printedMessageIdx = make(map[int]bool)
 	a.currentAssistantIdx = -1
 	a.currentThinkIdx = -1
 	a.updateViewportContent()
@@ -1563,7 +1608,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		}
 		a.assistantDirty[a.currentAssistantIdx] = true
 		a.scheduleRender()
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventThinkDelta:
 		if a.currentThinkIdx >= 0 && a.currentThinkIdx < len(a.messages) {
@@ -1573,7 +1618,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.messages = append(a.messages, thinkStyle.Render("think: ")+event.ThinkDelta)
 		}
 		a.scheduleRender()
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventTurnStart:
 		// Reserve display slots before streaming deltas arrive so later tool output
@@ -1581,7 +1626,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.currentAssistantIdx = len(a.messages)
 		a.assistantRaw[a.currentAssistantIdx] = ""
 		a.messages = append(a.messages, "")
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventToolCall:
 		if event.ToolCall != nil {
@@ -1595,7 +1640,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			})
 			a.addMessage(toolStyle.Render(fmt.Sprintf("🔧 [%s] ...", event.ToolCall.Name)))
 		}
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventToolResult:
 		// Find the matching tool result entry and update it
@@ -1632,10 +1677,11 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				} else {
 					a.messages[idx] = toolStyle.Render(fmt.Sprintf("🔧 [%s] %s", event.ToolName, a.toolResults[foundIdx].summary))
 				}
+				a.printHistory(a.renderMessageAt(idx))
 			}
 		}
 		a.scheduleRender()
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventToolApprovalRequest:
 		// Queue the approval request
@@ -1649,34 +1695,50 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.showNextApproval()
 		}
 		a.scheduleRender()
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventTurnEnd:
 		if event.ContextUsage != nil {
 			a.contextUsage = event.ContextUsage
 		}
-		a.currentAssistantIdx = -1
-		a.currentThinkIdx = -1
-		return listenEvents(a.eventCh)
-
-	case agent.EventDone:
-		a.isThinking = false
-		a.autoScroll = true
-		if event.ContextUsage != nil {
-			a.contextUsage = event.ContextUsage
+		if a.currentThinkIdx >= 0 {
+			a.printMessageOnce(a.currentThinkIdx)
+		}
+		if a.currentAssistantIdx >= 0 {
+			a.printMessageOnce(a.currentAssistantIdx)
 		}
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
-		return listenEvents(a.eventCh)
+		a.updateViewportContent()
+		return a.listenAgentEvents()
+
+	case agent.EventDone:
+		a.isThinking = false
+		a.finishRequestTimer()
+		if event.ContextUsage != nil {
+			a.contextUsage = event.ContextUsage
+		}
+		if a.currentThinkIdx >= 0 {
+			a.printMessageOnce(a.currentThinkIdx)
+		}
+		if a.currentAssistantIdx >= 0 {
+			a.printMessageOnce(a.currentAssistantIdx)
+		}
+		a.currentAssistantIdx = -1
+		a.currentThinkIdx = -1
+		a.updateViewportContent()
+		return tea.Batch(a.timer.Stop(), a.listenAgentEvents())
 
 	case agent.EventError:
 		a.isThinking = false
+		a.finishRequestTimer()
 		if event.Error != nil {
 			a.addMessage(errorStyle.Render("Error: ") + event.Error.Error())
 		}
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
-		return listenEvents(a.eventCh)
+		a.updateViewportContent()
+		return tea.Batch(a.timer.Stop(), a.listenAgentEvents())
 
 	case agent.EventUsage:
 		if event.ContextUsage != nil {
@@ -1698,11 +1760,11 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.addMessage(statusStyle.Render(costStr))
 		}
 		a.scheduleRender()
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventCompactionStart:
 		a.addMessage(statusStyle.Render("⏳ Compacting context..."))
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventCompactionEnd:
 		if event.Error != nil {
@@ -1712,22 +1774,22 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		} else {
 			a.addMessage(statusStyle.Render("✅ Context compacted"))
 		}
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventStatus:
 		if event.StatusMessage != "" {
 			a.addMessage(statusStyle.Render(event.StatusMessage))
 		}
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	case agent.EventMessageStart:
 		if event.Message.Role == "user" && event.Message.Content != "" {
 			a.addMessage(userStyle.Render("You: ") + event.Message.Content)
 		}
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 
 	default:
-		return listenEvents(a.eventCh)
+		return a.listenAgentEvents()
 	}
 }
 
@@ -1738,18 +1800,19 @@ func truncate(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
+func formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return "<1s"
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm%02ds", int(d.Minutes()), int(d.Seconds())%60)
+	}
+	return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
+}
+
 // Message types
 type agentStartMsg struct{ input string }
-type agentEventMsg struct{ event agent.Event }
-type agentDoneMsg struct{ err error }
 type renderRequestMsg struct{}
-
-func listenEvents(eventCh <-chan agent.Event) tea.Cmd {
-	return func() tea.Msg {
-		event, ok := <-eventCh
-		if !ok {
-			return agentDoneMsg{}
-		}
-		return agentEventMsg{event: event}
-	}
-}
