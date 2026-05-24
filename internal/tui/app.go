@@ -141,6 +141,7 @@ type App struct {
 
 	// Context usage
 	contextUsage *ctxpkg.ContextUsage
+	currentPlan  *tools.TaskPlan
 
 	// Cache usage tracking (cumulative)
 	totalInputTokens int
@@ -621,6 +622,9 @@ func (a *App) View() string {
 	if a.liveContent != "" {
 		parts = append([]string{a.liveContent}, parts...)
 	}
+	if planPanel := a.renderPlanPanel(); planPanel != "" {
+		parts = append([]string{planPanel}, parts...)
+	}
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
@@ -748,6 +752,58 @@ func (a *App) renderAssistantMessage(idx int) string {
 		return prefix + rendered
 	}
 	return prefix + raw
+}
+
+func (a *App) renderPlanPanel() string {
+	if a.currentPlan == nil || len(a.currentPlan.Steps) == 0 {
+		return ""
+	}
+	var lines []string
+	title := a.currentPlan.Title
+	if title == "" {
+		title = "Plan"
+	}
+	lines = append(lines, statusStyle.Render(title))
+	for _, step := range a.currentPlan.Steps {
+		lines = append(lines, statusStyle.Render(fmt.Sprintf("%s %s", planStatusMarker(step.Status), step.Title)))
+	}
+	if a.currentPlan.Note != "" {
+		lines = append(lines, statusStyle.Render("note: "+a.currentPlan.Note))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func planStatusMarker(status string) string {
+	switch status {
+	case "running":
+		return ">"
+	case "done":
+		return "x"
+	case "failed":
+		return "!"
+	default:
+		return "-"
+	}
+}
+
+func formatPlanForDisplay(plan *tools.TaskPlan) string {
+	if plan == nil || len(plan.Steps) == 0 {
+		return "Plan updated."
+	}
+	var sb strings.Builder
+	title := plan.Title
+	if title == "" {
+		title = "Plan"
+	}
+	sb.WriteString(title)
+	for _, step := range plan.Steps {
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("%s %s", planStatusMarker(step.Status), step.Title))
+	}
+	if plan.Note != "" {
+		sb.WriteString("\nnote: " + plan.Note)
+	}
+	return sb.String()
 }
 
 // formatToolArgs formats tool arguments for display
@@ -1221,15 +1277,29 @@ func (a *App) showNextApproval() {
 		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s]", next.toolName)))
 	}
 	if len(next.args) > 0 {
-		var buf strings.Builder
-		enc := json.NewEncoder(&buf)
-		enc.SetEscapeHTML(false)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(next.args); err == nil {
-			a.addMessage(warningStyle.Render(strings.TrimRight(buf.String(), "\n")))
-		}
+		a.addMessage(warningStyle.Render(formatApprovalArgs(next.args)))
 	}
 	a.addMessage(warningStyle.Render("Approve? (y/n): "))
+}
+
+func formatApprovalArgs(args map[string]any) string {
+	safeArgs := make(map[string]any, len(args))
+	for k, v := range args {
+		if k == "content" {
+			text := fmt.Sprintf("%v", v)
+			safeArgs[k] = fmt.Sprintf("(%d bytes)", len(text))
+			continue
+		}
+		safeArgs[k] = v
+	}
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(safeArgs); err != nil {
+		return fmt.Sprintf("%v", safeArgs)
+	}
+	return strings.TrimRight(buf.String(), "\n")
 }
 
 func (a *App) cycleMode() {
@@ -1941,6 +2011,12 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				a.printHistory(a.renderMessageAt(idx))
 			}
 		}
+		a.scheduleRender()
+		return a.listenAgentEvents()
+
+	case agent.EventPlanUpdate:
+		a.currentPlan = event.Plan
+		a.addMessage(statusStyle.Render(formatPlanForDisplay(event.Plan)))
 		a.scheduleRender()
 		return a.listenAgentEvents()
 

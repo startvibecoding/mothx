@@ -50,6 +50,7 @@ You are in READ-ONLY mode. You can analyze code and create plans but CANNOT modi
 
 Permissions:
 - READ: ✅ (read, grep, find, ls)
+- PLAN: ✅
 - WRITE: ❌
 - EDIT: ❌
 - BASH: ❌
@@ -75,17 +76,19 @@ You can read/write files and execute commands to accomplish tasks.
 
 Permissions:
 - READ: ✅ Auto-execute
-- WRITE: ✅ Auto-execute
-- EDIT: ✅ Auto-execute
+- PLAN: ✅ Auto-execute
+- WRITE: ⚠️ Requires user approval when write confirmation is enabled
+- EDIT: ⚠️ Requires user approval when write confirmation is enabled
 - BASH: ⚠️ Requires user approval (unless whitelisted)
 
 Best practices:
+- Use the plan tool before making multi-step code changes, and update the plan as steps move from pending to running to done or failed
 - Read files before modifying them to understand context
 - Use the edit tool for precise, targeted changes
 - Use the write tool for new files or complete rewrites
 - Verify your changes work when possible
 - Explain your reasoning as you work
-- Wait for user approval before executing bash commands
+- Wait for user approval before executing bash commands or applying write/edit changes when confirmation is requested
 `)
 
 	case "yolo":
@@ -94,6 +97,7 @@ You have unrestricted system access. Execute tasks efficiently without asking fo
 
 Permissions:
 - READ: ✅ Auto-execute
+- PLAN: ✅ Auto-execute
 - WRITE: ✅ Auto-execute
 - EDIT: ✅ Auto-execute
 - BASH: ✅ Auto-execute

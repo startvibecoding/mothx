@@ -572,6 +572,10 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 					formatLineRanges(event.ToolDiff.AddedLines),
 				)
 			}
+		case agent.EventPlanUpdate:
+			if event.Plan != nil {
+				fmt.Fprintf(os.Stderr, "\n%s\n", formatTaskPlan(event.Plan))
+			}
 		case agent.EventDone:
 			// Flush remaining text buffer
 			if textBuffer.Len() > 0 {
@@ -623,6 +627,39 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 	}
 
 	return nil
+}
+
+func formatTaskPlan(plan *tools.TaskPlan) string {
+	if plan == nil || len(plan.Steps) == 0 {
+		return "Plan updated."
+	}
+	var sb strings.Builder
+	title := plan.Title
+	if title == "" {
+		title = "Plan"
+	}
+	sb.WriteString(title)
+	for _, step := range plan.Steps {
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("%s %s", planStatusMarker(step.Status), step.Title))
+	}
+	if plan.Note != "" {
+		sb.WriteString("\nnote: " + plan.Note)
+	}
+	return sb.String()
+}
+
+func planStatusMarker(status string) string {
+	switch status {
+	case "running":
+		return ">"
+	case "done":
+		return "x"
+	case "failed":
+		return "!"
+	default:
+		return "-"
+	}
 }
 
 func formatLineRanges(lines []int) string {

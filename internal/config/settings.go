@@ -100,6 +100,8 @@ type ApprovalSettings struct {
 	BashWhitelist []string `json:"bashWhitelist,omitempty"`
 	// BashBlacklist is a list of command prefixes that always require approval (even in yolo mode if configured)
 	BashBlacklist []string `json:"bashBlacklist,omitempty"`
+	// ConfirmBeforeWrite requires user approval before write/edit tools run in agent mode.
+	ConfirmBeforeWrite *bool `json:"confirmBeforeWrite,omitempty"`
 }
 
 func DefaultSettings() *Settings {
@@ -143,9 +145,14 @@ func DefaultSettings() *Settings {
 		Theme:      "dark",
 		Retry:      RetrySettings{Enabled: true, MaxRetries: 3, BaseDelayMs: 2000},
 		Approval: ApprovalSettings{
-			BashWhitelist: []string{"go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "},
+			BashWhitelist:      []string{"go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "},
+			ConfirmBeforeWrite: boolPtr(true),
 		},
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func ConfigDir() string {
@@ -274,7 +281,7 @@ func mergeSettings(s, proj *Settings) {
 	if proj.Retry.Enabled != s.Retry.Enabled || proj.Retry.MaxRetries != 0 || proj.Retry.BaseDelayMs != 0 {
 		s.Retry = proj.Retry
 	}
-	if len(proj.Approval.BashWhitelist) > 0 || len(proj.Approval.BashBlacklist) > 0 {
+	if len(proj.Approval.BashWhitelist) > 0 || len(proj.Approval.BashBlacklist) > 0 || proj.Approval.ConfirmBeforeWrite != nil {
 		s.Approval = proj.Approval
 	}
 

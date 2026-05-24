@@ -56,6 +56,7 @@ type ToolResult struct {
 	Text     string                  // Plain text result (always populated for display/logging)
 	Contents []provider.ContentBlock // Rich content blocks (text + images) for the LLM
 	Diff     *FileDiff               // Optional structured file diff for UI/reporting
+	Plan     *TaskPlan               // Optional structured task plan for UI/reporting
 }
 
 // FileDiff describes a file change produced by a write-like tool.
@@ -69,6 +70,19 @@ type FileDiff struct {
 	Truncated    bool
 }
 
+// TaskPlan describes a structured task plan emitted by the plan tool.
+type TaskPlan struct {
+	Title string
+	Steps []PlanStep
+	Note  string
+}
+
+// PlanStep describes one step in a task plan.
+type PlanStep struct {
+	Title  string
+	Status string
+}
+
 // NewTextToolResult creates a plain text tool result.
 func NewTextToolResult(text string) ToolResult {
 	return ToolResult{Text: text}
@@ -77,6 +91,11 @@ func NewTextToolResult(text string) ToolResult {
 // NewDiffToolResult creates a text tool result with structured diff metadata.
 func NewDiffToolResult(text string, diff *FileDiff) ToolResult {
 	return ToolResult{Text: text, Diff: diff}
+}
+
+// NewPlanToolResult creates a text tool result with structured plan metadata.
+func NewPlanToolResult(text string, plan *TaskPlan) ToolResult {
+	return ToolResult{Text: text, Plan: plan}
 }
 
 // NewImageToolResult creates a tool result that includes an image.
@@ -249,6 +268,7 @@ func (r *Registry) RegisterDefaults() {
 	r.Register(NewLsTool(r))
 	r.Register(NewGrepTool(r))
 	r.Register(NewFindTool(r))
+	r.Register(NewPlanTool(r))
 	r.Register(NewWriteTool(r))
 	r.Register(NewEditTool(r))
 	bashTool := NewBashTool(r)
@@ -265,7 +285,7 @@ func (r *Registry) ModeTools(mode string) []provider.ToolDefinition {
 		var defs []provider.ToolDefinition
 		for _, t := range r.All() {
 			switch t.Name() {
-			case "read", "grep", "find", "ls":
+			case "read", "grep", "find", "ls", "plan":
 				defs = append(defs, ToolDefinition(t))
 			}
 		}

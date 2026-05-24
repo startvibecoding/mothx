@@ -35,6 +35,7 @@ const (
 	EventToolResult
 	EventToolApprovalRequest  // Request user approval for tool execution
 	EventToolApprovalResponse // User response to approval request
+	EventPlanUpdate           // Structured task plan update
 
 	// Status events
 	EventStatus
@@ -74,6 +75,9 @@ type Event struct {
 	ToolDiff      *tools.FileDiff
 	ToolError     error
 	PartialResult any
+
+	// Plan events
+	Plan *tools.TaskPlan
 
 	// Approval events
 	ApprovalID     string         // Unique ID for approval request

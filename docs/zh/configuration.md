@@ -412,7 +412,8 @@ Agent 模式审批配置，控制 bash 命令的审批行为。
 {
   "approval": {
     "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
-    "bashBlacklist": ["rm -rf", "sudo"]
+    "bashBlacklist": ["rm -rf", "sudo"],
+    "confirmBeforeWrite": true
   }
 }
 ```
@@ -421,6 +422,7 @@ Agent 模式审批配置，控制 bash 命令的审批行为。
 |------|------|--------|------|
 | `bashWhitelist` | []string | 见下文 | 自动批准的命令前缀列表 |
 | `bashBlacklist` | []string | [] | 始终需要审批的命令前缀列表 |
+| `confirmBeforeWrite` | bool | true | Agent 模式下 `write`/`edit` 执行前需要审批 |
 
 #### 默认白名单
 
@@ -441,6 +443,7 @@ Agent 模式审批配置，控制 bash 命令的审批行为。
 
 - `bashBlacklist` 的优先级高于 `bashWhitelist`
 - 在 `agent` 模式下，命中黑名单的 bash 命令即使同时命中白名单，仍然必须审批
+- 在 `agent` 模式下，启用 `confirmBeforeWrite` 时 `write` 和 `edit` 需要审批
 - 在 `yolo` 模式下，命中黑名单的 bash 命令仍然需要审批
 - 在 `--print` 模式下，凡是本应触发审批的命令都会直接报错退出，不会自动批准
 

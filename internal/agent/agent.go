@@ -856,10 +856,12 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	resultContent := result.Text
 	resultContents := result.Contents
 	resultDiff := result.Diff
+	resultPlan := result.Plan
 	if err != nil {
 		resultContent = err.Error()
 		resultContents = nil
 		resultDiff = nil
+		resultPlan = nil
 	}
 
 	// Apply after-tool-call hook
@@ -880,6 +882,16 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 			}
 			isError = afterResult.IsError
 			resultContents = nil
+			resultPlan = nil
+		}
+	}
+
+	if resultPlan != nil {
+		ch <- Event{
+			Type:       EventPlanUpdate,
+			ToolCallID: tc.ID,
+			ToolName:   tc.Name,
+			Plan:       resultPlan,
 		}
 	}
 
@@ -1047,6 +1059,11 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 
 // NeedsApproval checks if a tool call needs user approval based on the current mode.
 func (a *Agent) NeedsApproval(toolName string, args map[string]any) bool {
+	if (toolName == "write" || toolName == "edit") && a.config.Mode == "agent" {
+		return a.config.Settings != nil &&
+			a.config.Settings.Approval.ConfirmBeforeWrite != nil &&
+			*a.config.Settings.Approval.ConfirmBeforeWrite
+	}
 	if toolName != "bash" {
 		return false
 	}

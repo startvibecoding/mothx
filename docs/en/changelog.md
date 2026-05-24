@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.1.21
+
+### ✨ Features
+
+- **Plan/Apply Workflow**
+  - Added a built-in `plan` tool for structured task plans with `pending`, `running`, `done`, and `failed` step statuses
+  - TUI now shows the current task plan and records plan updates in the transcript
+  - Print mode and ACP now surface plan updates for non-interactive and editor-client flows
+
+- **Apply Confirmation**
+  - Added `approval.confirmBeforeWrite` to require approval before `write` and `edit` in agent mode
+  - Enabled write/edit confirmation by default in generated settings
+  - TUI approval prompts summarize write content by byte size instead of dumping full file content
+
+### 🧪 Testing
+
+- Added coverage for the `plan` tool and write/edit approval gating
+
+---
+
 ## v0.1.20
 
 ### ✨ Features

@@ -248,6 +248,13 @@ func TestLoadSettingsAppliesProjectOverridesAndEnv(t *testing.T) {
 	}
 }
 
+func TestDefaultSettingsConfirmBeforeWrite(t *testing.T) {
+	s := DefaultSettings()
+	if s.Approval.ConfirmBeforeWrite == nil || !*s.Approval.ConfirmBeforeWrite {
+		t.Fatal("expected confirmBeforeWrite to be enabled by default")
+	}
+}
+
 func TestMergeSettingsIgnoresNilProviderAndKeepsExistingProviders(t *testing.T) {
 	base := &Settings{
 		Providers: map[string]*ProviderConfig{

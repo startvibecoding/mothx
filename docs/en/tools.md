@@ -13,6 +13,7 @@ VibeCoding provides a set of built-in tools for file operations, code search, an
 | `grep` | Regex content search | Read-only |
 | `find` | Filename search | Read-only |
 | `ls` | List directory contents | Read-only |
+| `plan` | Publish task plan/status | Read-only |
 
 ## Tool Details
 
@@ -52,6 +53,35 @@ Supported image formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
 
 ---
 
+### plan - Task Planning
+
+Publish or update a visible task plan. Steps support `pending`, `running`, `done`, and `failed` statuses.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `title` | string | - | Short plan title |
+| `steps` | array | ✓ | Ordered plan steps |
+| `note` | string | - | Optional short note |
+
+**Example:**
+
+```json
+{
+  "title": "Implement structured diffs",
+  "steps": [
+    {"title": "Read tool result flow", "status": "done"},
+    {"title": "Update write/edit results", "status": "running"},
+    {"title": "Run focused tests", "status": "pending"}
+  ]
+}
+```
+
+**Returns:** Structured plan metadata for TUI, print mode, and ACP clients.
+
+---
+
 ### write - File Writing
 
 Create new files or overwrite existing files.
@@ -72,7 +102,7 @@ Create new files or overwrite existing files.
 }
 ```
 
-**Returns:** Success/failure message
+**Returns:** Success/failure message with structured diff metadata when content changes.
 
 ---
 
@@ -114,6 +144,8 @@ Precise text replacement for modifying existing files.
 2. Use `read` first to get file content and ensure `oldText` is correct
 3. Use sufficiently long `oldText` to ensure unique matching
 4. A single call can contain multiple edit operations
+
+**Returns:** Success/failure message with structured diff metadata when content changes.
 
 ---
 

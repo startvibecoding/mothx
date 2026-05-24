@@ -30,6 +30,25 @@ func TestNeedsApproval_NonBashNeverNeedsApproval(t *testing.T) {
 	}
 }
 
+func TestNeedsApproval_AgentModeWriteConfirm(t *testing.T) {
+	confirm := true
+	a := newApprovalTestAgent(t, "agent", config.ApprovalSettings{ConfirmBeforeWrite: &confirm})
+	if !a.NeedsApproval("write", map[string]any{"path": "README.md"}) {
+		t.Fatal("write should require approval when confirmBeforeWrite is enabled")
+	}
+	if !a.NeedsApproval("edit", map[string]any{"path": "README.md"}) {
+		t.Fatal("edit should require approval when confirmBeforeWrite is enabled")
+	}
+}
+
+func TestNeedsApproval_YoloModeWriteDoesNotConfirm(t *testing.T) {
+	confirm := true
+	a := newApprovalTestAgent(t, "yolo", config.ApprovalSettings{ConfirmBeforeWrite: &confirm})
+	if a.NeedsApproval("write", map[string]any{"path": "README.md"}) {
+		t.Fatal("write should not require approval in yolo mode")
+	}
+}
+
 func TestNeedsApproval_AgentModeWhitelistSkipsApproval(t *testing.T) {
 	a := newApprovalTestAgent(t, "agent", config.ApprovalSettings{
 		BashWhitelist: []string{"go ", "make "},

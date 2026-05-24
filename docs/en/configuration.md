@@ -453,7 +453,8 @@ Agent mode approval configuration, controls bash command approval behavior.
 {
   "approval": {
     "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
-    "bashBlacklist": ["rm -rf", "sudo"]
+    "bashBlacklist": ["rm -rf", "sudo"],
+    "confirmBeforeWrite": true
   }
 }
 ```
@@ -462,6 +463,7 @@ Agent mode approval configuration, controls bash command approval behavior.
 |-------|------|---------|-------------|
 | `bashWhitelist` | []string | See below | Auto-approved command prefix list |
 | `bashBlacklist` | []string | [] | Commands always requiring approval |
+| `confirmBeforeWrite` | bool | true | Require approval before `write`/`edit` in agent mode |
 
 #### Default Whitelist
 
@@ -482,6 +484,7 @@ Agent mode approval configuration, controls bash command approval behavior.
 
 - `bashBlacklist` has higher priority than `bashWhitelist`
 - In `agent` mode, blacklisted bash commands always require approval even if they also match the whitelist
+- In `agent` mode, `write` and `edit` require approval when `confirmBeforeWrite` is enabled
 - In `yolo` mode, blacklisted bash commands still require approval
 - In `--print` mode, commands that would require approval fail immediately instead of being auto-approved
 

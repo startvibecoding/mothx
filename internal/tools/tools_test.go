@@ -59,7 +59,7 @@ func TestRegisterDefaults(t *testing.T) {
 	r := NewRegistry("/tmp", sb)
 	r.RegisterDefaults()
 
-	expectedTools := []string{"read", "write", "edit", "bash", "jobs", "kill", "grep", "find", "ls"}
+	expectedTools := []string{"read", "write", "edit", "bash", "jobs", "kill", "grep", "find", "ls", "plan"}
 
 	for _, name := range expectedTools {
 		_, ok := r.Get(name)
@@ -92,6 +92,9 @@ func TestModeTools(t *testing.T) {
 	if planToolNames["write"] {
 		t.Error("expected no 'write' in plan mode")
 	}
+	if !planToolNames["plan"] {
+		t.Error("expected 'plan' in plan mode")
+	}
 
 	if planToolNames["bash"] {
 		t.Error("expected no 'bash' in plan mode")
@@ -99,8 +102,38 @@ func TestModeTools(t *testing.T) {
 
 	// Agent mode - all tools
 	agentTools := r.ModeTools("agent")
-	if len(agentTools) != 9 {
-		t.Errorf("expected 9 tools in agent mode, got %d", len(agentTools))
+	if len(agentTools) != 10 {
+		t.Errorf("expected 10 tools in agent mode, got %d", len(agentTools))
+	}
+}
+
+func TestPlanToolExecute(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewPlanTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"title": "Ship feature",
+		"steps": []any{
+			map[string]any{"title": "Read code", "status": "done"},
+			map[string]any{"title": "Implement change", "status": "running"},
+		},
+		"note": "Keep scope small",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Plan == nil {
+		t.Fatal("expected structured plan")
+	}
+	if result.Plan.Title != "Ship feature" {
+		t.Fatalf("plan title = %q, want Ship feature", result.Plan.Title)
+	}
+	if len(result.Plan.Steps) != 2 || result.Plan.Steps[1].Status != "running" {
+		t.Fatalf("plan steps = %#v", result.Plan.Steps)
+	}
+	if !strings.Contains(result.Text, "[running] Implement change") {
+		t.Fatalf("expected formatted plan text, got: %s", result.Text)
 	}
 }
 
@@ -680,8 +713,8 @@ func TestDefinitions(t *testing.T) {
 
 	defs := r.Definitions()
 
-	if len(defs) != 9 {
-		t.Errorf("expected 9 definitions, got %d", len(defs))
+	if len(defs) != 10 {
+		t.Errorf("expected 10 definitions, got %d", len(defs))
 	}
 }
 
@@ -692,7 +725,7 @@ func TestAll(t *testing.T) {
 
 	all := r.All()
 
-	if len(all) != 9 {
-		t.Errorf("expected 9 tools, got %d", len(all))
+	if len(all) != 10 {
+		t.Errorf("expected 10 tools, got %d", len(all))
 	}
 }

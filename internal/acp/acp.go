@@ -699,8 +699,48 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 			RawOutput:     rawOutput,
 		})
 	case agent.EventToolResult:
+	case agent.EventPlanUpdate:
+		if ev.Plan != nil {
+			s.notify(sessionID, sessionUpdate{
+				SessionUpdate: "agent_message_chunk",
+				Content:       &contentBlock{Type: "text", Text: formatACPPlan(ev.Plan)},
+			})
+		}
 	case agent.EventUsage:
 	case agent.EventDone:
+	}
+}
+
+func formatACPPlan(plan *tools.TaskPlan) string {
+	if plan == nil || len(plan.Steps) == 0 {
+		return "Plan updated."
+	}
+	var b strings.Builder
+	title := plan.Title
+	if title == "" {
+		title = "Plan"
+	}
+	b.WriteString(title)
+	for _, step := range plan.Steps {
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("%s %s", planStatusMarker(step.Status), step.Title))
+	}
+	if plan.Note != "" {
+		b.WriteString("\nnote: " + plan.Note)
+	}
+	return b.String()
+}
+
+func planStatusMarker(status string) string {
+	switch status {
+	case "running":
+		return ">"
+	case "done":
+		return "x"
+	case "failed":
+		return "!"
+	default:
+		return "-"
 	}
 }
 
