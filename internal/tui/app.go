@@ -80,7 +80,8 @@ type toolResult struct {
 	toolArgs    map[string]any // Tool call arguments
 	summary     string         // Short summary for collapsed view
 	fullContent string         // Full content for expanded view
-	msgIndex    int            // Index in a.messages where this tool message lives
+	diff        *tools.FileDiff
+	msgIndex    int // Index in a.messages where this tool message lives
 }
 
 // App is the main TUI application.
@@ -844,6 +845,48 @@ func summarizeWriteToolResult(result string) string {
 	return "Written"
 }
 
+func summarizeFileDiff(diff *tools.FileDiff) string {
+	if diff == nil {
+		return ""
+	}
+	suffix := ""
+	if diff.Truncated {
+		suffix = " large"
+	}
+	return fmt.Sprintf("+%d -%d%s (-%s +%s)",
+		diff.Added,
+		diff.Deleted,
+		suffix,
+		formatLineRangesForDisplay(diff.DeletedLines),
+		formatLineRangesForDisplay(diff.AddedLines),
+	)
+}
+
+func formatLineRangesForDisplay(lines []int) string {
+	if len(lines) == 0 {
+		return "none"
+	}
+	var ranges []string
+	start, prev := lines[0], lines[0]
+	for _, line := range lines[1:] {
+		if line == prev+1 {
+			prev = line
+			continue
+		}
+		ranges = append(ranges, formatLineRangeForDisplay(start, prev))
+		start, prev = line, line
+	}
+	ranges = append(ranges, formatLineRangeForDisplay(start, prev))
+	return strings.Join(ranges, ",")
+}
+
+func formatLineRangeForDisplay(start, end int) string {
+	if start == end {
+		return fmt.Sprintf("%d", start)
+	}
+	return fmt.Sprintf("%d-%d", start, end)
+}
+
 func (a *App) openLatestToolModal() {
 	a.toolModalOpen = true
 	a.toolModalPinnedBottom = true
@@ -865,6 +908,9 @@ func formatToolModalContent(result toolResult) string {
 	}
 	if result.fullContent != "" {
 		parts = append(parts, "---", result.fullContent)
+	}
+	if result.diff != nil && result.diff.Unified != "" {
+		parts = append(parts, "--- diff", result.diff.Unified)
 	}
 	if len(parts) == 0 {
 		return "(no output)"
@@ -1859,6 +1905,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			if a.toolResults[j].toolCallID == event.ToolCallID {
 				foundIdx = j
 				a.toolResults[j].fullContent = event.ToolResult
+				a.toolResults[j].diff = event.ToolDiff
 
 				// Create summary based on tool type
 				switch event.ToolName {
@@ -1868,9 +1915,17 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 					lines := strings.Split(event.ToolResult, "\n")
 					a.toolResults[j].summary = fmt.Sprintf("%d lines", len(lines))
 				case "write":
-					a.toolResults[j].summary = summarizeWriteToolResult(event.ToolResult)
+					if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
+						a.toolResults[j].summary = summary
+					} else {
+						a.toolResults[j].summary = summarizeWriteToolResult(event.ToolResult)
+					}
 				case "edit":
-					a.toolResults[j].summary = "Applied"
+					if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
+						a.toolResults[j].summary = summary
+					} else {
+						a.toolResults[j].summary = "Applied"
+					}
 				default:
 					a.toolResults[j].summary = truncate(event.ToolResult, 50)
 				}

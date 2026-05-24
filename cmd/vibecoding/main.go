@@ -563,6 +563,14 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 			// Show full tool result for bash commands
 			if event.ToolName == "bash" {
 				fmt.Fprintf(os.Stderr, "\n%s\n", event.ToolResult)
+			} else if event.ToolDiff != nil {
+				fmt.Fprintf(os.Stderr, "\n[change: %s] +%d -%d (-%s +%s)\n",
+					event.ToolDiff.Path,
+					event.ToolDiff.Added,
+					event.ToolDiff.Deleted,
+					formatLineRanges(event.ToolDiff.DeletedLines),
+					formatLineRanges(event.ToolDiff.AddedLines),
+				)
 			}
 		case agent.EventDone:
 			// Flush remaining text buffer
@@ -615,6 +623,31 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 	}
 
 	return nil
+}
+
+func formatLineRanges(lines []int) string {
+	if len(lines) == 0 {
+		return "none"
+	}
+	var ranges []string
+	start, prev := lines[0], lines[0]
+	for _, line := range lines[1:] {
+		if line == prev+1 {
+			prev = line
+			continue
+		}
+		ranges = append(ranges, formatLineRange(start, prev))
+		start, prev = line, line
+	}
+	ranges = append(ranges, formatLineRange(start, prev))
+	return strings.Join(ranges, ",")
+}
+
+func formatLineRange(start, end int) string {
+	if start == end {
+		return fmt.Sprintf("%d", start)
+	}
+	return fmt.Sprintf("%d-%d", start, end)
 }
 
 // flushTextBuffer renders and prints the accumulated text buffer.

@@ -69,23 +69,52 @@ func (t *WriteTool) Execute(ctx context.Context, params map[string]any) (ToolRes
 	if data, err := os.ReadFile(path); err == nil {
 		oldContent = string(data)
 	}
+	diff := BuildFileDiff(path, oldContent, content)
 
 	// Write file atomically, preserving existing permissions
 	if err := writeFileAtomic(path, []byte(content)); err != nil {
 		return ToolResult{}, fmt.Errorf("write file: %w", err)
 	}
 
-	return NewTextToolResult(fmt.Sprintf("File written: %s (%d bytes)\n%s", path, len(content), formatWriteDiffSummary(oldContent, content))), nil
+	return NewDiffToolResult(fmt.Sprintf("File written: %s (%d bytes)\n%s", path, len(content), formatFileDiffSummary(diff)), diff), nil
 }
 
 func formatWriteDiffSummary(oldContent, newContent string) string {
-	deleted, added := diffLineChanges(splitDiffLines(oldContent), splitDiffLines(newContent))
-	return fmt.Sprintf("Diff: +%d -%d\n- lines: %s\n+ lines: %s",
-		len(added),
-		len(deleted),
-		formatLineRanges(deleted),
-		formatLineRanges(added),
+	return formatFileDiffSummary(BuildFileDiff("", oldContent, newContent))
+}
+
+func formatFileDiffSummary(diff *FileDiff) string {
+	if diff == nil {
+		return "Diff: +0 -0\n- lines: none\n+ lines: none"
+	}
+	suffix := ""
+	if diff.Truncated {
+		suffix = " (large file; line ranges approximate)"
+	}
+	return fmt.Sprintf("Diff: +%d -%d%s\n- lines: %s\n+ lines: %s",
+		diff.Added,
+		diff.Deleted,
+		suffix,
+		formatLineRanges(diff.DeletedLines),
+		formatLineRanges(diff.AddedLines),
 	)
+}
+
+// BuildFileDiff returns a compact, structured line diff for display and audit.
+func BuildFileDiff(path, oldContent, newContent string) *FileDiff {
+	oldLines := splitDiffLines(oldContent)
+	newLines := splitDiffLines(newContent)
+	deleted, added := diffLineChanges(oldLines, newLines)
+	truncated := len(oldLines)*len(newLines) > 200000
+	return &FileDiff{
+		Path:         path,
+		Added:        len(added),
+		Deleted:      len(deleted),
+		AddedLines:   added,
+		DeletedLines: deleted,
+		Unified:      formatUnifiedDiff(path, oldLines, newLines, deleted, added, truncated),
+		Truncated:    truncated,
+	}
 }
 
 func splitDiffLines(content string) []string {
@@ -141,6 +170,137 @@ func diffLineChanges(oldLines, newLines []string) ([]int, []int) {
 		added = append(added, j+1)
 	}
 	return deleted, added
+}
+
+func formatUnifiedDiff(path string, oldLines, newLines []string, deleted, added []int, truncated bool) string {
+	var sb strings.Builder
+	oldPath := path
+	newPath := path
+	if oldPath == "" {
+		oldPath = "old"
+		newPath = "new"
+	}
+	sb.WriteString("--- " + oldPath + "\n")
+	sb.WriteString("+++ " + newPath + "\n")
+	if truncated {
+		sb.WriteString("@@ large file diff omitted @@\n")
+		sb.WriteString(fmt.Sprintf("-%s\n", formatLineRanges(deleted)))
+		sb.WriteString(fmt.Sprintf("+%s\n", formatLineRanges(added)))
+		return sb.String()
+	}
+	if len(deleted) == 0 && len(added) == 0 {
+		return sb.String()
+	}
+	deletedSet := lineSet(deleted)
+	addedSet := lineSet(added)
+	records := makeDiffRecords(oldLines, newLines, deletedSet, addedSet)
+	for _, hunk := range selectDiffHunks(records, 3) {
+		oldStart, oldCount, newStart, newCount := hunkRanges(records[hunk.start:hunk.end])
+		sb.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount))
+		for _, record := range records[hunk.start:hunk.end] {
+			sb.WriteByte(record.kind)
+			sb.WriteString(record.text)
+			sb.WriteByte('\n')
+		}
+	}
+	return sb.String()
+}
+
+type diffRecord struct {
+	kind    byte
+	text    string
+	oldLine int
+	newLine int
+}
+
+type diffHunk struct {
+	start int
+	end   int
+}
+
+func makeDiffRecords(oldLines, newLines []string, deletedSet, addedSet map[int]bool) []diffRecord {
+	var records []diffRecord
+	oldIdx, newIdx := 1, 1
+	for oldIdx <= len(oldLines) || newIdx <= len(newLines) {
+		switch {
+		case oldIdx <= len(oldLines) && deletedSet[oldIdx]:
+			records = append(records, diffRecord{kind: '-', text: oldLines[oldIdx-1], oldLine: oldIdx})
+			oldIdx++
+		case newIdx <= len(newLines) && addedSet[newIdx]:
+			records = append(records, diffRecord{kind: '+', text: newLines[newIdx-1], newLine: newIdx})
+			newIdx++
+		case oldIdx <= len(oldLines) && newIdx <= len(newLines):
+			records = append(records, diffRecord{kind: ' ', text: oldLines[oldIdx-1], oldLine: oldIdx, newLine: newIdx})
+			oldIdx++
+			newIdx++
+		case oldIdx <= len(oldLines):
+			records = append(records, diffRecord{kind: '-', text: oldLines[oldIdx-1], oldLine: oldIdx})
+			oldIdx++
+		case newIdx <= len(newLines):
+			records = append(records, diffRecord{kind: '+', text: newLines[newIdx-1], newLine: newIdx})
+			newIdx++
+		}
+	}
+	return records
+}
+
+func selectDiffHunks(records []diffRecord, contextLines int) []diffHunk {
+	var hunks []diffHunk
+	for i, record := range records {
+		if record.kind == ' ' {
+			continue
+		}
+		start := i - contextLines
+		if start < 0 {
+			start = 0
+		}
+		end := i + contextLines + 1
+		if end > len(records) {
+			end = len(records)
+		}
+		if len(hunks) > 0 && start <= hunks[len(hunks)-1].end {
+			if end > hunks[len(hunks)-1].end {
+				hunks[len(hunks)-1].end = end
+			}
+			continue
+		}
+		hunks = append(hunks, diffHunk{start: start, end: end})
+	}
+	return hunks
+}
+
+func hunkRanges(records []diffRecord) (int, int, int, int) {
+	oldStart, newStart := 0, 0
+	oldCount, newCount := 0, 0
+	for _, record := range records {
+		if record.oldLine > 0 {
+			if oldStart == 0 {
+				oldStart = record.oldLine
+			}
+			oldCount++
+		}
+		if record.newLine > 0 {
+			if newStart == 0 {
+				newStart = record.newLine
+			}
+			newCount++
+		}
+	}
+	if oldStart == 0 {
+		oldStart = 1
+	}
+	if newStart == 0 {
+		newStart = 1
+	}
+	return oldStart, oldCount, newStart, newCount
+}
+
+func lineSet(lines []int) map[int]bool {
+	result := make(map[int]bool, len(lines))
+	for _, line := range lines {
+		result[line] = true
+	}
+	return result
 }
 
 func allLineNumbers(count int) []int {

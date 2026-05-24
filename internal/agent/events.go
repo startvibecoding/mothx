@@ -3,6 +3,7 @@ package agent
 import (
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
 // EventType identifies the type of agent event.
@@ -70,6 +71,7 @@ type Event struct {
 	ToolName      string
 	ToolArgs      map[string]any
 	ToolResult    string
+	ToolDiff      *tools.FileDiff
 	ToolError     error
 	PartialResult any
 

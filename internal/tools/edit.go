@@ -84,7 +84,8 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("read file: %w", err)
 	}
-	content := string(data)
+	originalContent := string(data)
+	content := originalContent
 
 	editsRaw, ok := params["edits"].([]any)
 	if !ok || len(editsRaw) == 0 {
@@ -156,5 +157,6 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		return ToolResult{}, fmt.Errorf("write file: %w", err)
 	}
 
-	return NewTextToolResult(fmt.Sprintf("Applied %d edit(s) to %s", len(edits), path)), nil
+	diff := BuildFileDiff(path, originalContent, content)
+	return NewDiffToolResult(fmt.Sprintf("Applied %d edit(s) to %s\n%s", len(edits), path, formatFileDiffSummary(diff)), diff), nil
 }

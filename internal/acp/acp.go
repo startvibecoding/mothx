@@ -687,12 +687,16 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 		if ev.ToolError != nil {
 			status = "failed"
 		}
+		rawOutput := map[string]any{"content": ev.ToolResult}
+		if ev.ToolDiff != nil {
+			rawOutput["diff"] = ev.ToolDiff
+		}
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    ev.ToolCallID,
 			Title:         s.toolTitleFor(ev.ToolCallID, ev.ToolName),
 			Status:        status,
-			RawOutput:     map[string]any{"content": ev.ToolResult},
+			RawOutput:     rawOutput,
 		})
 	case agent.EventToolResult:
 	case agent.EventUsage:

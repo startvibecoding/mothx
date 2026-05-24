@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.1.20
+
+### ✨ Features
+
+- **Structured File Change Reporting**
+  - `write` and `edit` now attach structured file diff metadata to tool results
+  - TUI tool details show full unified diffs while collapsed tool rows keep a compact `+N -N` summary
+  - Print mode now emits clear file change summaries for non-interactive runs
+  - ACP tool updates include diff metadata in raw output for compatible clients
+
+### 🧪 Testing
+
+- Added coverage for structured diff metadata from `write` and `edit`
+
+---
+
 ## v0.1.19
 
 ### ✨ Features

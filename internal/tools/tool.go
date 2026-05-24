@@ -55,11 +55,28 @@ func writeFileAtomic(path string, data []byte) error {
 type ToolResult struct {
 	Text     string                  // Plain text result (always populated for display/logging)
 	Contents []provider.ContentBlock // Rich content blocks (text + images) for the LLM
+	Diff     *FileDiff               // Optional structured file diff for UI/reporting
+}
+
+// FileDiff describes a file change produced by a write-like tool.
+type FileDiff struct {
+	Path         string
+	Added        int
+	Deleted      int
+	AddedLines   []int
+	DeletedLines []int
+	Unified      string
+	Truncated    bool
 }
 
 // NewTextToolResult creates a plain text tool result.
 func NewTextToolResult(text string) ToolResult {
 	return ToolResult{Text: text}
+}
+
+// NewDiffToolResult creates a text tool result with structured diff metadata.
+func NewDiffToolResult(text string, diff *FileDiff) ToolResult {
+	return ToolResult{Text: text, Diff: diff}
 }
 
 // NewImageToolResult creates a tool result that includes an image.

@@ -238,6 +238,15 @@ func TestWriteToolExecute(t *testing.T) {
 	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
+	if result.Diff == nil {
+		t.Fatal("expected structured diff")
+	}
+	if result.Diff.Added != 1 || result.Diff.Deleted != 0 {
+		t.Fatalf("diff = +%d -%d, want +1 -0", result.Diff.Added, result.Diff.Deleted)
+	}
+	if !strings.Contains(result.Diff.Unified, "+Hello, World!") {
+		t.Fatalf("expected unified diff to include added content, got: %s", result.Diff.Unified)
+	}
 
 	// Verify file was written
 	content, err := os.ReadFile(filepath.Join(tmpDir, "test.txt"))
@@ -289,6 +298,18 @@ func TestEditToolExecute(t *testing.T) {
 
 	if result.Text == "" {
 		t.Error("expected non-empty result")
+	}
+	if result.Diff == nil {
+		t.Fatal("expected structured diff")
+	}
+	if result.Diff.Added != 1 || result.Diff.Deleted != 1 {
+		t.Fatalf("diff = +%d -%d, want +1 -1", result.Diff.Added, result.Diff.Deleted)
+	}
+	if !strings.Contains(result.Text, "Diff: +1 -1") {
+		t.Fatalf("expected diff summary in result text, got: %s", result.Text)
+	}
+	if !strings.Contains(result.Diff.Unified, "-Hello, World!") || !strings.Contains(result.Diff.Unified, "+Hello, Go!") {
+		t.Fatalf("expected unified diff replacement, got: %s", result.Diff.Unified)
 	}
 
 	// Verify edit was applied

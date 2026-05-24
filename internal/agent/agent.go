@@ -855,9 +855,11 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	isError := err != nil
 	resultContent := result.Text
 	resultContents := result.Contents
+	resultDiff := result.Diff
 	if err != nil {
 		resultContent = err.Error()
 		resultContents = nil
+		resultDiff = nil
 	}
 
 	// Apply after-tool-call hook
@@ -886,6 +888,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 		ToolCallID: tc.ID,
 		ToolName:   tc.Name,
 		ToolResult: resultContent,
+		ToolDiff:   resultDiff,
 		ToolError:  err,
 	}
 	ch <- Event{
@@ -893,6 +896,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 		ToolCallID: tc.ID,
 		ToolName:   tc.Name,
 		ToolResult: resultContent,
+		ToolDiff:   resultDiff,
 		ToolError:  err,
 	}
 
