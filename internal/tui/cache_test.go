@@ -110,6 +110,55 @@ func TestWindowResizeMarksAssistantMarkdownDirty(t *testing.T) {
 	}
 }
 
+func TestLiveAssistantMessageDoesNotRenderMarkdown(t *testing.T) {
+	app := &App{
+		width:               50,
+		assistantRaw:        map[int]string{0: strings.Repeat("https://example.com/path/", 8)},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	app.updateViewportContent()
+	if len(app.assistantRendered) != 0 {
+		t.Fatalf("assistantRendered len = %d, want 0 while streaming", len(app.assistantRendered))
+	}
+	if !strings.Contains(stripANSI(app.liveContent), "Assistant: ") {
+		t.Fatalf("liveContent missing assistant prefix: %q", app.liveContent)
+	}
+}
+
+func TestViewClampsLiveContentToKeepInputVisible(t *testing.T) {
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent")
+	app.ready = true
+	app.width = 80
+	app.height = 8
+	app.input.Width = 76
+	app.liveContent = strings.Join([]string{
+		"line 1",
+		"line 2",
+		"line 3",
+		"line 4",
+		"line 5",
+		"line 6",
+		"line 7",
+		"line 8",
+	}, "\n")
+
+	got := stripANSI(app.View())
+	if strings.Contains(got, "line 1") {
+		t.Fatalf("View() kept oldest live line despite limited height:\n%s", got)
+	}
+	if !strings.Contains(got, app.input.Placeholder) {
+		t.Fatalf("View() missing input placeholder:\n%s", got)
+	}
+	if !strings.Contains(got, "Tab:mode") {
+		t.Fatalf("View() missing footer:\n%s", got)
+	}
+}
+
 // ─── formatCachePercent ───────────────────────────────────────────────────────
 
 func TestFormatCachePercent(t *testing.T) {

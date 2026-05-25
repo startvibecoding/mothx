@@ -621,7 +621,7 @@ func (a *App) View() string {
 
 	parts := []string{a.input.View(), footer}
 	if a.liveContent != "" {
-		parts = append([]string{a.liveContent}, parts...)
+		parts = append([]string{a.clampedLiveContent(footer)}, parts...)
 	}
 	if planPanel := a.renderPlanPanel(); planPanel != "" {
 		parts = append([]string{planPanel}, parts...)
@@ -703,7 +703,7 @@ func (a *App) updateViewportContent() {
 		a.liveContent = a.messages[a.currentThinkIdx]
 	}
 	if a.currentAssistantIdx >= 0 {
-		assistant := a.renderAssistantMessage(a.currentAssistantIdx)
+		assistant := a.renderLiveAssistantMessage(a.currentAssistantIdx)
 		if assistant != "" {
 			if a.liveContent != "" {
 				a.liveContent += "\n\n"
@@ -733,6 +733,34 @@ func (a *App) assistantMarkdownWidth() int {
 		return 20
 	}
 	return width
+}
+
+func (a *App) liveContentHeight(footer string) int {
+	height := a.height
+	if height <= 0 {
+		return 0
+	}
+	used := lipgloss.Height(a.input.View()) + lipgloss.Height(footer)
+	if panel := a.renderPlanPanel(); panel != "" {
+		used += lipgloss.Height(panel)
+	}
+	available := height - used
+	if available < 1 {
+		return 1
+	}
+	return available
+}
+
+func (a *App) clampedLiveContent(footer string) string {
+	maxLines := a.liveContentHeight(footer)
+	if maxLines <= 0 {
+		return a.liveContent
+	}
+	lines := strings.Split(strings.TrimRight(a.liveContent, "\n"), "\n")
+	if len(lines) <= maxLines {
+		return a.liveContent
+	}
+	return strings.Join(lines[len(lines)-maxLines:], "\n")
 }
 
 func (a *App) markAssistantRenderedDirty() {
@@ -790,6 +818,46 @@ func (a *App) renderAssistantMessage(idx int) string {
 		return prefix + rendered
 	}
 	return prefix + raw
+}
+
+func (a *App) renderLiveAssistantMessage(idx int) string {
+	raw := a.assistantRaw[idx]
+	if raw == "" {
+		return ""
+	}
+	return assistantStyle.Render("Assistant: ") + wrapPlainText(raw, a.assistantMarkdownWidth())
+}
+
+func wrapPlainText(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		out = append(out, wrapPlainLine(line, width)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+func wrapPlainLine(line string, width int) []string {
+	if lipgloss.Width(line) <= width {
+		return []string{line}
+	}
+	var lines []string
+	var current strings.Builder
+	currentWidth := 0
+	for _, r := range line {
+		rw := lipgloss.Width(string(r))
+		if currentWidth > 0 && currentWidth+rw > width {
+			lines = append(lines, current.String())
+			current.Reset()
+			currentWidth = 0
+		}
+		current.WriteRune(r)
+		currentWidth += rw
+	}
+	lines = append(lines, current.String())
+	return lines
 }
 
 func (a *App) renderPlanPanel() string {
