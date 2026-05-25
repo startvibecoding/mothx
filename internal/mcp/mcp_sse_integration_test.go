@@ -1,4 +1,4 @@
-package acp
+package mcp
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 func TestMCPServerSSECallFlow(t *testing.T) {
 	var (
 		mu          sync.Mutex
-		messageReqs []rpcRequest
+		messageReqs []RPCRequest
 		streamW     http.ResponseWriter
 		flusher     http.Flusher
 	)
@@ -46,7 +46,7 @@ func TestMCPServerSSECallFlow(t *testing.T) {
 
 	message := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		var req rpcRequest
+		var req RPCRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "bad json"})
@@ -111,18 +111,18 @@ func TestMCPServerSSECallFlow(t *testing.T) {
 
 	reg := tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox())
 	reg.RegisterDefaults()
-	clients, err := connectMCPServers(context.Background(), []mcpServerConfig{
+	clients, err := ConnectServers(context.Background(), []ServerConfig{
 		{
 			Name:       "sse-server",
 			Type:       "sse",
 			URL:        stream.URL,
 			MessageURL: message.URL,
 		},
-	}, reg, mcpCallbacks{})
+	}, reg, Callbacks{})
 	if err != nil {
-		t.Fatalf("connectMCPServers sse failed: %v", err)
+		t.Fatalf("ConnectServers sse failed: %v", err)
 	}
-	defer closeMCPClients(clients)
+	defer CloseClients(clients)
 
 	var echoTool tools.Tool
 	for _, tt := range reg.All() {
@@ -172,7 +172,7 @@ func TestMCPServerSSENotificationCallback(t *testing.T) {
 
 	message := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		var req rpcRequest
+		var req RPCRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		// Keep initialize/list calls deterministic via direct response to avoid stream-ready races.
 		switch req.Method {
@@ -208,9 +208,9 @@ func TestMCPServerSSENotificationCallback(t *testing.T) {
 
 	reg := tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox())
 	reg.RegisterDefaults()
-	clients, err := connectMCPServers(context.Background(), []mcpServerConfig{
+	clients, err := ConnectServers(context.Background(), []ServerConfig{
 		{Name: "notify-sse", Type: "sse", URL: stream.URL, MessageURL: message.URL},
-	}, reg, mcpCallbacks{
+	}, reg, Callbacks{
 		OnNotification: func(serverName, method string, params json.RawMessage) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -220,7 +220,7 @@ func TestMCPServerSSENotificationCallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("connect sse failed: %v", err)
 	}
-	defer closeMCPClients(clients)
+	defer CloseClients(clients)
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {

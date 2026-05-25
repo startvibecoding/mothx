@@ -1,4 +1,4 @@
-package acp
+package mcp
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		var req rpcRequest
+		var req RPCRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte(`{"error":"bad json"}`))
@@ -119,9 +119,9 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 	registry := tools.NewRegistry(tmp, sandbox.NewNoneSandbox())
 	registry.RegisterDefaults()
 
-	clients, err := connectMCPServers(context.Background(), []mcpServerConfig{
+	clients, err := ConnectServers(context.Background(), []ServerConfig{
 		{Name: "mock-http", Type: "http", URL: srv.URL},
-	}, registry, mcpCallbacks{
+	}, registry, Callbacks{
 		OnNotification: func(serverName, method string, params json.RawMessage) {
 			if serverName == "mock-http" && method == "notifications/progress" {
 				mu.Lock()
@@ -129,9 +129,9 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 				mu.Unlock()
 			}
 		},
-		OnSamplingCreateMessage: func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *rpcError) {
+		OnSamplingCreateMessage: func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *RPCError) {
 			if serverName != "mock-http" {
-				return nil, &rpcError{Code: -32000, Message: "bad server"}
+				return nil, &RPCError{Code: -32000, Message: "bad server"}
 			}
 			mu.Lock()
 			sampled = true
@@ -140,9 +140,9 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("connectMCPServers failed: %v", err)
+		t.Fatalf("ConnectServers failed: %v", err)
 	}
-	defer closeMCPClients(clients)
+	defer CloseClients(clients)
 	if len(clients) != 1 {
 		t.Fatalf("expected 1 client, got %d", len(clients))
 	}
@@ -180,13 +180,13 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		t.Fatalf("unexpected prompt output: %q", promptOut.Text)
 	}
 
-	clients[0].handleInboundRequest(rpcRequest{
+	clients[0].handleInboundRequest(RPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`1`),
 		Method:  "sampling/createMessage",
 		Params:  json.RawMessage(`{"messages":[{"role":"user","content":"hi"}]}`),
 	})
-	clients[0].handleInboundRequest(rpcRequest{
+	clients[0].handleInboundRequest(RPCRequest{
 		JSONRPC: "2.0",
 		Method:  "notifications/progress",
 		Params:  json.RawMessage(`{"progress":0.5}`),
@@ -219,13 +219,13 @@ func TestMCPHTTPSessionIDHeaderRoundTrip(t *testing.T) {
 
 	registry := tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox())
 	registry.RegisterDefaults()
-	clients, err := connectMCPServers(context.Background(), []mcpServerConfig{
+	clients, err := ConnectServers(context.Background(), []ServerConfig{
 		{Name: "sid-server", Type: "http", URL: srv.URL},
-	}, registry, mcpCallbacks{})
+	}, registry, Callbacks{})
 	if err != nil {
 		t.Fatalf("connect failed: %v", err)
 	}
-	defer closeMCPClients(clients)
+	defer CloseClients(clients)
 	if clients[0].sessionID != sid {
 		t.Fatalf("expected session id %q, got %q", sid, clients[0].sessionID)
 	}

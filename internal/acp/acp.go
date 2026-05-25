@@ -16,6 +16,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
+	"github.com/startvibecoding/vibecoding/internal/mcp"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/provider/anthropic"
 	"github.com/startvibecoding/vibecoding/internal/provider/openai"
@@ -73,7 +74,7 @@ type sessionRuntime struct {
 	cancel   context.CancelFunc
 	promptID string
 	cancelMu sync.Mutex
-	mcp      []*mcpClient
+	mcp      []*mcp.Client
 }
 
 type rpcRequest struct {
@@ -89,13 +90,7 @@ type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
 	Result  any             `json:"result,omitempty"`
-	Error   *rpcError       `json:"error,omitempty"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
+	Error   *mcp.RPCError `json:"error,omitempty"`
 }
 
 type clientInfo struct {
@@ -138,7 +133,7 @@ type sessionCaps struct {
 
 type newSessionRequest struct {
 	Cwd        string            `json:"cwd"`
-	McpServers []mcpServerConfig `json:"mcpServers,omitempty"`
+	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
 }
 
 type newSessionResult struct {
@@ -148,7 +143,7 @@ type newSessionResult struct {
 type loadSessionRequest struct {
 	SessionID  string            `json:"sessionId"`
 	Cwd        string            `json:"cwd"`
-	McpServers []mcpServerConfig `json:"mcpServers,omitempty"`
+	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
 }
 
 type promptRequest struct {
@@ -301,7 +296,7 @@ func Run(opts RunOptions) error {
 			}
 			srv.writeMessage(map[string]any{
 				"jsonrpc": "2.0",
-				"error":   &rpcError{Code: -32700, Message: err.Error()},
+				"error":   &mcp.RPCError{Code: -32700, Message: err.Error()},
 			})
 			continue
 		}
@@ -324,7 +319,7 @@ func Run(opts RunOptions) error {
 			srv.handleCancel(req)
 		default:
 			if len(req.ID) > 0 {
-				srv.writeResponse(req.ID, nil, &rpcError{Code: -32601, Message: "method not found"})
+				srv.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32601, Message: "method not found"})
 			}
 		}
 	}
@@ -454,7 +449,7 @@ func (s *server) handleInitialize(req rpcRequest) {
 			SessionCapabilities: sessionCaps{
 				Cancel: true,
 			},
-			McPCapabilities: map[string]bool{"stdio": true, "http": false, "sse": false},
+			McPCapabilities: map[string]bool{"stdio": true, "http": true, "sse": true},
 		},
 		AgentInfo: clientInfo{
 			Name:    "vibecoding",
@@ -469,31 +464,31 @@ func (s *server) handleInitialize(req rpcRequest) {
 func (s *server) handleNewSession(req rpcRequest) {
 	var in newSessionRequest
 	if err := json.Unmarshal(req.Params, &in); err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "invalid params"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
 		return
 	}
 	if strings.TrimSpace(in.Cwd) == "" {
 		in.Cwd = s.cwd
 	}
 	if !filepath.IsAbs(in.Cwd) {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "cwd must be an absolute path"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "cwd must be an absolute path"})
 		return
 	}
 	mgr := session.New(in.Cwd, s.settings.GetSessionDir())
 	if err := mgr.InitWithID(""); err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
 		return
 	}
 	id := mgr.GetHeader().ID
 	registry := s.newToolRegistry()
-	mcpClients, err := connectMCPServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(id))
+	mcpClients, err := mcp.ConnectServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(id))
 	if err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
 		return
 	}
 	s.mu.Lock()
 	if old := s.sessions[id]; old != nil {
-		closeMCPClients(old.mcp)
+		mcp.CloseClients(old.mcp)
 	}
 	s.sessions[id] = &sessionRuntime{id: id, mgr: mgr, registry: registry, mcp: mcpClients}
 	s.mu.Unlock()
@@ -503,31 +498,31 @@ func (s *server) handleNewSession(req rpcRequest) {
 func (s *server) handleLoadSession(req rpcRequest) {
 	var in loadSessionRequest
 	if err := json.Unmarshal(req.Params, &in); err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "invalid params"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
 		return
 	}
 	if strings.TrimSpace(in.Cwd) == "" {
 		in.Cwd = s.cwd
 	}
 	if !filepath.IsAbs(in.Cwd) {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "cwd must be an absolute path"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "cwd must be an absolute path"})
 		return
 	}
 	registry := s.newToolRegistry()
-	mcpClients, err := connectMCPServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(in.SessionID))
+	mcpClients, err := mcp.ConnectServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(in.SessionID))
 	if err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
 		return
 	}
 	mgr, err := session.OpenByID(in.Cwd, s.settings.GetSessionDir(), in.SessionID)
 	if err != nil {
-		closeMCPClients(mcpClients)
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
+		mcp.CloseClients(mcpClients)
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
 		return
 	}
 	s.mu.Lock()
 	if old := s.sessions[in.SessionID]; old != nil {
-		closeMCPClients(old.mcp)
+		mcp.CloseClients(old.mcp)
 	}
 	s.sessions[in.SessionID] = &sessionRuntime{id: in.SessionID, mgr: mgr, registry: registry, mcp: mcpClients}
 	s.mu.Unlock()
@@ -540,26 +535,26 @@ func (s *server) handleLoadSession(req rpcRequest) {
 func (s *server) handlePrompt(req rpcRequest) {
 	var in promptRequest
 	if err := json.Unmarshal(req.Params, &in); err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "invalid params"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
 		return
 	}
 	rt := s.sessionForPrompt(in.SessionID)
 	if rt == nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: "unknown session"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: "unknown session"})
 		return
 	}
 	userText := promptToText(in.Prompt)
 	if userText == "" {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "empty prompt"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "empty prompt"})
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	promptKey := rawIDKey(req.ID)
+	promptKey := mcp.RawIDKey(req.ID)
 	rt.cancelMu.Lock()
 	if rt.cancel != nil {
 		rt.cancelMu.Unlock()
 		cancel()
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: "session already has an active prompt"})
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: "session already has an active prompt"})
 		return
 	}
 	rt.cancel = cancel
@@ -610,7 +605,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			}
 		}
 		if runErr != nil && stopReason != "cancelled" {
-			s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: runErr.Error()})
+			s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: runErr.Error()})
 			return
 		}
 		s.writeResponse(req.ID, promptResult{StopReason: stopReason, UserMessageID: in.MessageID}, nil)
@@ -745,19 +740,19 @@ func planStatusMarker(status string) string {
 	}
 }
 
-func (s *server) buildMCPCallbacks(sessionID string) mcpCallbacks {
-	return mcpCallbacks{
+func (s *server) buildMCPCallbacks(sessionID string) mcp.Callbacks {
+	return mcp.Callbacks{
 		OnNotification: func(serverName, method string, params json.RawMessage) {
 			s.handleMCPNotification(sessionID, serverName, method, params)
 		},
-		OnSamplingCreateMessage: func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *rpcError) {
+		OnSamplingCreateMessage: func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *mcp.RPCError) {
 			return s.handleMCPSamplingCreateMessage(ctx, sessionID, serverName, params)
 		},
 	}
 }
 
 func (s *server) handleMCPNotification(sessionID, serverName, method string, params json.RawMessage) {
-	callID := "mcp-notify-" + sanitizeToolName(serverName)
+	callID := "mcp-notify-" + mcp.SanitizeToolName(serverName)
 	title := "mcp_notification: " + serverName
 	s.mu.Lock()
 	if !s.mcpNotify[callID] {
@@ -795,10 +790,10 @@ func (s *server) handleMCPNotification(sessionID, serverName, method string, par
 	}
 }
 
-func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, serverName string, params json.RawMessage) (json.RawMessage, *rpcError) {
+func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, serverName string, params json.RawMessage) (json.RawMessage, *mcp.RPCError) {
 	prompt, systemPrompt, maxTokens := extractSamplingInput(params)
 	if strings.TrimSpace(prompt) == "" {
-		return nil, &rpcError{Code: -32602, Message: "sampling/createMessage requires non-empty messages"}
+		return nil, &mcp.RPCError{Code: -32602, Message: "sampling/createMessage requires non-empty messages"}
 	}
 	if maxTokens <= 0 {
 		maxTokens = s.settings.MaxOutputTokens
@@ -825,7 +820,7 @@ func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, 
 			// noop
 		case provider.StreamError:
 			if ev.Error != nil {
-				return nil, &rpcError{Code: -32000, Message: ev.Error.Error()}
+				return nil, &mcp.RPCError{Code: -32000, Message: ev.Error.Error()}
 			}
 		}
 	}
@@ -842,7 +837,7 @@ func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, 
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
-		return nil, &rpcError{Code: -32000, Message: err.Error()}
+		return nil, &mcp.RPCError{Code: -32000, Message: err.Error()}
 	}
 	s.notify(sessionID, sessionUpdate{
 		SessionUpdate: "agent_message_chunk",
@@ -1135,7 +1130,7 @@ func (s *server) readRequest() (rpcRequest, error) {
 	return req, nil
 }
 
-func (s *server) writeResponse(id json.RawMessage, result any, errResp *rpcError) {
+func (s *server) writeResponse(id json.RawMessage, result any, errResp *mcp.RPCError) {
 	resp := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      id,

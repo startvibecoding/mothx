@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.1.22
+
+### ✨ Features
+
+- **CLI/TUI MCP Auto-Loading**
+  - CLI/TUI startup now loads global and project `mcp.json`, connects configured MCP servers, and registers MCP tools before the agent tool list is frozen
+
+### 🧪 Testing
+
+- Added MCP config loader coverage for placeholder template filtering
+
+### 🛠 Improvements
+
+- **Shared MCP Runtime**
+  - Moved MCP connection/tool registration out of ACP-only code into a shared runtime used by ACP and normal CLI/TUI sessions
+  - Starter-template placeholder MCP servers are ignored during automatic startup loading
+
+---
+
 ## v0.1.21
 
 ### ✨ Features

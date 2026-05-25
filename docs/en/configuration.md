@@ -358,6 +358,59 @@ Skill system configuration.
 
 The `"~/.vibecoding/skills"` path uses `~` expansion which works on Linux/macOS. On Windows, use `%APPDATA%\vibecoding\skills` or an absolute path.
 
+## MCP Configuration
+
+MCP servers are configured in standalone `mcp.json` files, not in `settings.json`.
+
+VibeCoding loads MCP configuration at startup from:
+
+1. Global config: `~/.vibecoding/mcp.json` on Linux/macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
+2. Project config: `.vibe/mcp.json`
+
+Create a template from the TUI:
+
+```text
+/init_mcp project full
+/init_mcp global basic
+/mcps
+```
+
+Example:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "local-tools",
+      "type": "stdio",
+      "command": "/absolute/path/to/mcp-server",
+      "args": ["--port", "8080"],
+      "env": [
+        {"name": "API_KEY", "value": "sk-..."}
+      ]
+    },
+    {
+      "name": "remote-tools",
+      "type": "http",
+      "url": "https://mcp.example.com",
+      "headers": [
+        {"name": "Authorization", "value": "Bearer token"}
+      ]
+    }
+  ]
+}
+```
+
+Supported transports:
+
+- `stdio`: requires an absolute `command` path
+- `http`: streamable HTTP endpoint via `url`
+- `sse`: legacy SSE stream via `url` plus `messageUrl`
+
+MCP tools are registered after built-in tools and `skill_ref`, but before the agent is created. The agent freezes its system prompt and tool definitions for the session, so changes to `mcp.json` require restarting the client.
+
+Tool names use `mcp_<server_name>_<tool_name>`. If a name already exists, VibeCoding appends a numeric suffix instead of replacing an existing tool. Starter-template placeholders such as `/absolute/path/to/mcp-server`, `example.com`, and `replace-me` are ignored during automatic startup loading.
+
 ## Authentication Configuration
 
 ### Option 1: Environment Variables

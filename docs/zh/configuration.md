@@ -399,6 +399,59 @@ UI 主题。
 
 可选值: `dark`, `light`
 
+## MCP 配置
+
+MCP 服务器配置保存在独立的 `mcp.json` 文件中，不写入 `settings.json`。
+
+VibeCoding 启动时会从以下位置加载 MCP 配置：
+
+1. 全局配置：Linux/macOS 为 `~/.vibecoding/mcp.json`，Windows 为 `%APPDATA%\vibecoding\mcp.json`
+2. 项目配置：`.vibe/mcp.json`
+
+可在 TUI 中创建模板：
+
+```text
+/init_mcp project full
+/init_mcp global basic
+/mcps
+```
+
+示例：
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "local-tools",
+      "type": "stdio",
+      "command": "/absolute/path/to/mcp-server",
+      "args": ["--port", "8080"],
+      "env": [
+        {"name": "API_KEY", "value": "sk-..."}
+      ]
+    },
+    {
+      "name": "remote-tools",
+      "type": "http",
+      "url": "https://mcp.example.com",
+      "headers": [
+        {"name": "Authorization", "value": "Bearer token"}
+      ]
+    }
+  ]
+}
+```
+
+支持的传输类型：
+
+- `stdio`：要求 `command` 为绝对路径
+- `http`：通过 `url` 连接 streamable HTTP 端点
+- `sse`：通过 `url` 连接 legacy SSE 流，并通过 `messageUrl` 发送请求
+
+MCP 工具会在内置工具和 `skill_ref` 之后、agent 创建之前注册。agent 会冻结当前会话的 system prompt 和工具定义，因此修改 `mcp.json` 后需要重启客户端才会生效。
+
+工具名称采用 `mcp_<server_name>_<tool_name>`。如果名称冲突，VibeCoding 会追加数字后缀，不会覆盖已有工具。自动启动加载会忽略 starter 模板里的占位项，例如 `/absolute/path/to/mcp-server`、`example.com` 和 `replace-me`。
+
 ### retry
 
 API 调用重试配置。

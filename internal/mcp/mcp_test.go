@@ -1,4 +1,4 @@
-package acp
+package mcp
 
 import (
 	"bytes"
@@ -34,7 +34,7 @@ func TestMCPContentToText(t *testing.T) {
 func TestReadLoopRespondsPing(t *testing.T) {
 	in := bytes.NewBufferString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n")
 	var out bytes.Buffer
-	client := &mcpClient{
+	client := &Client{
 		name:  "test",
 		stdin: nopWriteCloser{Writer: &out},
 	}
@@ -50,7 +50,7 @@ func TestReadLoopRespondsPing(t *testing.T) {
 }
 
 func TestPromptToolFormatsMessages(t *testing.T) {
-	client := &mcpClient{name: "srv"}
+	client := &Client{name: "srv"}
 	tool := &mcpPromptTool{
 		client: client,
 		info:   mcpPromptInfo{Name: "draft"},
@@ -80,11 +80,11 @@ func TestPromptToolFormatsMessages(t *testing.T) {
 }
 
 func TestHandleInboundNotificationNoPanic(t *testing.T) {
-	c := &mcpClient{name: "srv"}
-	c.handleInboundNotification(rpcRequest{Method: "notifications/progress"})
-	c.handleInboundNotification(rpcRequest{Method: "logging/message"})
-	c.handleInboundNotification(rpcRequest{Method: "notifications/cancelled"})
-	c.handleInboundNotification(rpcRequest{Method: "notifications/unknown"})
+	c := &Client{name: "srv"}
+	c.handleInboundNotification(RPCRequest{Method: "notifications/progress"})
+	c.handleInboundNotification(RPCRequest{Method: "logging/message"})
+	c.handleInboundNotification(RPCRequest{Method: "notifications/cancelled"})
+	c.handleInboundNotification(RPCRequest{Method: "notifications/unknown"})
 }
 
 func TestExtractSamplingPrompt(t *testing.T) {
@@ -102,7 +102,7 @@ func TestExtractSamplingPrompt(t *testing.T) {
 
 func TestResourceToolURIOverride(t *testing.T) {
 	tl := &mcpResourceTool{
-		client: &mcpClient{name: "srv"},
+		client: &Client{name: "srv"},
 		info:   mcpResourceInfo{URI: "file://a"},
 		name:   "mcp_srv_resource_file_a",
 	}

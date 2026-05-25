@@ -110,6 +110,8 @@ The server sends `session/update` notifications with the following event types:
 
 VibeCoding supports connecting to **MCP (Model Context Protocol)** servers during ACP sessions. This allows the agent to access external tools and data sources.
 
+ACP sessions use the same MCP connection and tool-registration runtime as normal CLI/TUI sessions. The difference is that ACP clients pass `mcpServers` during session creation/loading, while normal CLI/TUI sessions load `mcp.json` at process startup.
+
 ### Configuring MCP Servers
 
 MCP servers are configured by the IDE client and passed to VibeCoding when creating or loading sessions. The configuration format:
@@ -147,6 +149,8 @@ MCP servers are configured by the IDE client and passed to VibeCoding when creat
 ### MCP Tool Registration
 
 When an MCP server is connected, VibeCoding automatically discovers and registers all tools exposed by the server. The tools are registered with the naming convention `mcp_<server_name>_<tool_name>`, allowing the agent to use them alongside built-in tools.
+
+Registration happens before the agent freezes its system prompt and tool definitions for the session. MCP server changes therefore require creating/loading a new ACP session with the updated `mcpServers` payload.
 
 In addition to `tools/*`, VibeCoding now also discovers:
 

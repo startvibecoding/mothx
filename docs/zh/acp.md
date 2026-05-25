@@ -110,6 +110,8 @@ VibeCoding 在初始化时声明以下 ACP 能力：
 
 VibeCoding 支持在 ACP 会话期间连接 **MCP (Model Context Protocol)** 服务器。这让代理能够访问外部工具和数据源。
 
+ACP 会话与普通 CLI/TUI 会话复用同一套 MCP 连接和工具注册运行时。区别是 ACP 客户端在创建/加载会话时传入 `mcpServers`，普通 CLI/TUI 会话则在进程启动时加载 `mcp.json`。
+
 ### 配置 MCP 服务器
 
 MCP 服务器由 IDE 客户端配置，并在创建或加载会话时传递给 VibeCoding。配置格式：
@@ -147,6 +149,8 @@ MCP 服务器由 IDE 客户端配置，并在创建或加载会话时传递给 V
 ### MCP 工具注册
 
 当 MCP 服务器连接后，VibeCoding 自动发现并注册服务器暴露的所有工具。工具按照 `mcp_<server_name>_<tool_name>` 的命名约定注册，代理可以像使用内置工具一样使用它们。
+
+注册发生在 agent 冻结当前会话的 system prompt 和工具定义之前。因此 MCP 服务器变更后，需要用更新后的 `mcpServers` payload 创建或加载新的 ACP 会话。
 
 除 `tools/*` 外，VibeCoding 现在还会发现：
 

@@ -1,4 +1,4 @@
-package acp
+package mcp
 
 import (
 	"bufio"
@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
@@ -30,24 +31,9 @@ const (
 	mcpMaxListPages      = 100
 )
 
-type mcpServerConfig struct {
-	Type       string   `json:"type,omitempty"`
-	Name       string   `json:"name"`
-	Command    string   `json:"command,omitempty"`
-	URL        string   `json:"url,omitempty"`
-	MessageURL string   `json:"messageUrl,omitempty"`
-	Args       []string `json:"args"`
-	Headers    []struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
-	} `json:"headers,omitempty"`
-	Env []struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
-	} `json:"env,omitempty"`
-}
+type ServerConfig = config.MCPServer
 
-type mcpClient struct {
+type Client struct {
 	name    string
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
@@ -64,17 +50,32 @@ type mcpClient struct {
 	headers    map[string]string
 	sseCancel  context.CancelFunc
 	sessionID  string
-	callbacks  mcpCallbacks
+	callbacks  Callbacks
 }
 
-type mcpCallbacks struct {
+type Callbacks struct {
 	OnNotification          func(serverName, method string, params json.RawMessage)
-	OnSamplingCreateMessage func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *rpcError)
+	OnSamplingCreateMessage func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *RPCError)
+}
+
+type RPCRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   json.RawMessage `json:"error,omitempty"`
+}
+
+type RPCError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
 }
 
 type mcpResponse struct {
 	Result json.RawMessage
-	Error  *rpcError
+	Error  *RPCError
 }
 
 type mcpToolInfo struct {
@@ -137,8 +138,8 @@ type mcpContentBlock struct {
 	JSON     json.RawMessage `json:"json,omitempty"`
 }
 
-func connectMCPServers(ctx context.Context, configs []mcpServerConfig, registry *tools.Registry, callbacks mcpCallbacks) ([]*mcpClient, error) {
-	var clients []*mcpClient
+func ConnectServers(ctx context.Context, configs []ServerConfig, registry *tools.Registry, callbacks Callbacks) ([]*Client, error) {
+	var clients []*Client
 	seenServers := make(map[string]struct{})
 	registeredToolNames := make(map[string]struct{})
 	for _, t := range registry.All() {
@@ -147,19 +148,19 @@ func connectMCPServers(ctx context.Context, configs []mcpServerConfig, registry 
 	for _, cfg := range configs {
 		trimmedName := strings.TrimSpace(cfg.Name)
 		if _, ok := seenServers[trimmedName]; ok {
-			closeMCPClients(clients)
+			CloseClients(clients)
 			return nil, fmt.Errorf("duplicate MCP server name %q", cfg.Name)
 		}
 		seenServers[trimmedName] = struct{}{}
 		client, err := newMCPClient(ctx, cfg, callbacks)
 		if err != nil {
-			closeMCPClients(clients)
+			CloseClients(clients)
 			return nil, err
 		}
 		clients = append(clients, client)
 		toolInfos, err := client.listTools(ctx)
 		if err != nil {
-			closeMCPClients(clients)
+			CloseClients(clients)
 			return nil, err
 		}
 		for _, info := range toolInfos {
@@ -196,13 +197,13 @@ func connectMCPServers(ctx context.Context, configs []mcpServerConfig, registry 
 	return clients, nil
 }
 
-func closeMCPClients(clients []*mcpClient) {
+func CloseClients(clients []*Client) {
 	for _, client := range clients {
 		client.Close()
 	}
 }
 
-func newMCPClient(ctx context.Context, cfg mcpServerConfig, callbacks mcpCallbacks) (*mcpClient, error) {
+func newMCPClient(ctx context.Context, cfg ServerConfig, callbacks Callbacks) (*Client, error) {
 	if strings.TrimSpace(cfg.Name) == "" {
 		return nil, fmt.Errorf("MCP server name is required")
 	}
@@ -222,7 +223,7 @@ func newMCPClient(ctx context.Context, cfg mcpServerConfig, callbacks mcpCallbac
 	}
 }
 
-func newMCPStdioClient(ctx context.Context, cfg mcpServerConfig, callbacks mcpCallbacks) (*mcpClient, error) {
+func newMCPStdioClient(ctx context.Context, cfg ServerConfig, callbacks Callbacks) (*Client, error) {
 	if strings.TrimSpace(cfg.Command) == "" {
 		return nil, fmt.Errorf("MCP server %q command is required", cfg.Name)
 	}
@@ -249,7 +250,7 @@ func newMCPStdioClient(ctx context.Context, cfg mcpServerConfig, callbacks mcpCa
 		return nil, fmt.Errorf("start MCP server %q: %w", cfg.Name, err)
 	}
 
-	client := &mcpClient{
+	client := &Client{
 		name:      cfg.Name,
 		cmd:       cmd,
 		stdin:     stdin,
@@ -284,7 +285,7 @@ func newMCPStdioClient(ctx context.Context, cfg mcpServerConfig, callbacks mcpCa
 	return client, nil
 }
 
-func newMCPHTTPClient(ctx context.Context, cfg mcpServerConfig, legacySSE bool, callbacks mcpCallbacks) (*mcpClient, error) {
+func newMCPHTTPClient(ctx context.Context, cfg ServerConfig, legacySSE bool, callbacks Callbacks) (*Client, error) {
 	rawURL := strings.TrimSpace(cfg.URL)
 	if rawURL == "" {
 		return nil, fmt.Errorf("MCP server %q url is required for %s transport", cfg.Name, cfg.Type)
@@ -302,7 +303,7 @@ func newMCPHTTPClient(ctx context.Context, cfg mcpServerConfig, legacySSE bool, 
 		}
 		headers[name] = h.Value
 	}
-	client := &mcpClient{
+	client := &Client{
 		name:       cfg.Name,
 		pending:    make(map[string]chan mcpResponse),
 		transport:  cfg.Type,
@@ -343,7 +344,7 @@ func newMCPHTTPClient(ctx context.Context, cfg mcpServerConfig, legacySSE bool, 
 	return client, nil
 }
 
-func (c *mcpClient) listTools(ctx context.Context) ([]mcpToolInfo, error) {
+func (c *Client) listTools(ctx context.Context) ([]mcpToolInfo, error) {
 	listCtx, cancel := context.WithTimeout(ctx, mcpListToolsTimeout)
 	defer cancel()
 
@@ -371,7 +372,7 @@ func (c *mcpClient) listTools(ctx context.Context) ([]mcpToolInfo, error) {
 	return nil, fmt.Errorf("list MCP tools for %q: too many pages", c.name)
 }
 
-func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]any) (mcpCallToolResult, error) {
+func (c *Client) callTool(ctx context.Context, name string, args map[string]any) (mcpCallToolResult, error) {
 	result, err := c.call(ctx, "tools/call", map[string]any{
 		"name":      name,
 		"arguments": args,
@@ -389,7 +390,7 @@ func (c *mcpClient) callTool(ctx context.Context, name string, args map[string]a
 	return out, nil
 }
 
-func (c *mcpClient) listResources(ctx context.Context) ([]mcpResourceInfo, error) {
+func (c *Client) listResources(ctx context.Context) ([]mcpResourceInfo, error) {
 	listCtx, cancel := context.WithTimeout(ctx, mcpListToolsTimeout)
 	defer cancel()
 
@@ -417,7 +418,7 @@ func (c *mcpClient) listResources(ctx context.Context) ([]mcpResourceInfo, error
 	return nil, fmt.Errorf("list MCP resources for %q: too many pages", c.name)
 }
 
-func (c *mcpClient) readResource(ctx context.Context, uri string) (mcpResourceReadResult, error) {
+func (c *Client) readResource(ctx context.Context, uri string) (mcpResourceReadResult, error) {
 	result, err := c.call(ctx, "resources/read", map[string]any{"uri": uri})
 	if err != nil {
 		return mcpResourceReadResult{}, err
@@ -429,7 +430,7 @@ func (c *mcpClient) readResource(ctx context.Context, uri string) (mcpResourceRe
 	return out, nil
 }
 
-func (c *mcpClient) listPrompts(ctx context.Context) ([]mcpPromptInfo, error) {
+func (c *Client) listPrompts(ctx context.Context) ([]mcpPromptInfo, error) {
 	listCtx, cancel := context.WithTimeout(ctx, mcpListToolsTimeout)
 	defer cancel()
 
@@ -457,7 +458,7 @@ func (c *mcpClient) listPrompts(ctx context.Context) ([]mcpPromptInfo, error) {
 	return nil, fmt.Errorf("list MCP prompts for %q: too many pages", c.name)
 }
 
-func (c *mcpClient) getPrompt(ctx context.Context, name string, args map[string]any) (mcpPromptGetResult, error) {
+func (c *Client) getPrompt(ctx context.Context, name string, args map[string]any) (mcpPromptGetResult, error) {
 	params := map[string]any{"name": name}
 	if len(args) > 0 {
 		params["arguments"] = args
@@ -473,7 +474,7 @@ func (c *mcpClient) getPrompt(ctx context.Context, name string, args map[string]
 	return out, nil
 }
 
-func (c *mcpClient) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+func (c *Client) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	if c.transport == "http" {
 		return c.callHTTP(ctx, method, params)
 	}
@@ -513,7 +514,7 @@ func (c *mcpClient) call(ctx context.Context, method string, params any) (json.R
 	}
 }
 
-func (c *mcpClient) callSSE(ctx context.Context, method string, params any) (json.RawMessage, error) {
+func (c *Client) callSSE(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	id := atomic.AddInt64(&c.nextID, 1)
 	key := fmt.Sprintf("%d", id)
 	ch := make(chan mcpResponse, 1)
@@ -542,7 +543,7 @@ func (c *mcpClient) callSSE(ctx context.Context, method string, params any) (jso
 	}
 }
 
-func (c *mcpClient) notify(method string, params any) error {
+func (c *Client) notify(method string, params any) error {
 	if c.transport == "http" || c.transport == "sse" {
 		ctx, cancel := context.WithTimeout(context.Background(), mcpCallTimeout)
 		defer cancel()
@@ -559,11 +560,11 @@ func (c *mcpClient) notify(method string, params any) error {
 	return c.writeMessage(msg)
 }
 
-func (c *mcpClient) callHTTP(ctx context.Context, method string, params any) (json.RawMessage, error) {
+func (c *Client) callHTTP(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	return c.callHTTPInternal(ctx, method, params, false, nil)
 }
 
-func (c *mcpClient) callHTTPInternal(ctx context.Context, method string, params any, isNotification bool, reqID *int64) (json.RawMessage, error) {
+func (c *Client) callHTTPInternal(ctx context.Context, method string, params any, isNotification bool, reqID *int64) (json.RawMessage, error) {
 	msg := map[string]any{
 		"jsonrpc": "2.0",
 		"method":  method,
@@ -621,12 +622,12 @@ func (c *mcpClient) callHTTPInternal(ctx context.Context, method string, params 
 	if strings.Contains(ct, "text/event-stream") {
 		return parseSSECallResponse(resp.Body, id)
 	}
-	var rpcResp rpcRequest
+	var rpcResp RPCRequest
 	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
 		return nil, err
 	}
 	if len(rpcResp.Error) > 0 {
-		var rpcErr rpcError
+		var rpcErr RPCError
 		if err := json.Unmarshal(rpcResp.Error, &rpcErr); err == nil {
 			return nil, fmt.Errorf("%s", rpcErr.Message)
 		}
@@ -645,11 +646,11 @@ func parseSSECallResponse(r io.Reader, expectID int64) (json.RawMessage, error) 
 			payload.WriteString(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
 		}
 		if line == "" && payload.Len() > 0 {
-			var rpcResp rpcRequest
+			var rpcResp RPCRequest
 			if err := json.Unmarshal([]byte(payload.String()), &rpcResp); err == nil {
-				if rawIDKey(rpcResp.ID) == fmt.Sprintf("%d", expectID) || len(rpcResp.ID) == 0 {
+				if RawIDKey(rpcResp.ID) == fmt.Sprintf("%d", expectID) || len(rpcResp.ID) == 0 {
 					if len(rpcResp.Error) > 0 {
-						var rpcErr rpcError
+						var rpcErr RPCError
 						if err := json.Unmarshal(rpcResp.Error, &rpcErr); err == nil {
 							return nil, fmt.Errorf("%s", rpcErr.Message)
 						}
@@ -667,7 +668,7 @@ func parseSSECallResponse(r io.Reader, expectID int64) (json.RawMessage, error) 
 	return nil, errors.New("no RPC response found in SSE stream")
 }
 
-func (c *mcpClient) writeMessage(msg any) error {
+func (c *Client) writeMessage(msg any) error {
 	if c.closed.Load() {
 		return errors.New("MCP client is closed")
 	}
@@ -690,7 +691,7 @@ func (c *mcpClient) writeMessage(msg any) error {
 	return err
 }
 
-func (c *mcpClient) postRPCMessage(ctx context.Context, msg any) error {
+func (c *Client) postRPCMessage(ctx context.Context, msg any) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -726,11 +727,11 @@ func (c *mcpClient) postRPCMessage(ctx context.Context, msg any) error {
 	return nil
 }
 
-func (c *mcpClient) readLoop(r io.Reader) {
+func (c *Client) readLoop(r io.Reader) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for scanner.Scan() {
-		var msg rpcRequest
+		var msg RPCRequest
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
 			continue
 		}
@@ -741,7 +742,7 @@ func (c *mcpClient) readLoop(r io.Reader) {
 		if len(msg.ID) == 0 {
 			continue
 		}
-		key := rawIDKey(msg.ID)
+		key := RawIDKey(msg.ID)
 		c.mu.Lock()
 		ch, ok := c.pending[key]
 		if ok {
@@ -751,11 +752,11 @@ func (c *mcpClient) readLoop(r io.Reader) {
 		if ok {
 			resp := mcpResponse{Result: msg.Result}
 			if len(msg.Error) > 0 {
-				var rpcErr rpcError
+				var rpcErr RPCError
 				if err := json.Unmarshal(msg.Error, &rpcErr); err == nil {
 					resp.Error = &rpcErr
 				} else {
-					resp.Error = &rpcError{Code: -32000, Message: string(msg.Error)}
+					resp.Error = &RPCError{Code: -32000, Message: string(msg.Error)}
 				}
 			}
 			ch <- resp
@@ -768,7 +769,7 @@ func (c *mcpClient) readLoop(r io.Reader) {
 	c.closePending(fmt.Errorf("MCP server %q output closed", c.name))
 }
 
-func (c *mcpClient) readSSELoop(ctx context.Context, streamURL string) {
+func (c *Client) readSSELoop(ctx context.Context, streamURL string) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, streamURL, nil)
 	if err != nil {
 		c.closePending(fmt.Errorf("MCP server %q sse request: %v", c.name, err))
@@ -810,7 +811,7 @@ func (c *mcpClient) readSSELoop(ctx context.Context, streamURL string) {
 		}
 		payload := strings.Join(dataLines, "")
 		dataLines = dataLines[:0]
-		var msg rpcRequest
+		var msg RPCRequest
 		if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 			continue
 		}
@@ -821,7 +822,7 @@ func (c *mcpClient) readSSELoop(ctx context.Context, streamURL string) {
 		if len(msg.ID) == 0 {
 			continue
 		}
-		key := rawIDKey(msg.ID)
+		key := RawIDKey(msg.ID)
 		c.mu.Lock()
 		ch, ok := c.pending[key]
 		if ok {
@@ -833,11 +834,11 @@ func (c *mcpClient) readSSELoop(ctx context.Context, streamURL string) {
 		}
 		respMsg := mcpResponse{Result: msg.Result}
 		if len(msg.Error) > 0 {
-			var rpcErr rpcError
+			var rpcErr RPCError
 			if err := json.Unmarshal(msg.Error, &rpcErr); err == nil {
 				respMsg.Error = &rpcErr
 			} else {
-				respMsg.Error = &rpcError{Code: -32000, Message: string(msg.Error)}
+				respMsg.Error = &RPCError{Code: -32000, Message: string(msg.Error)}
 			}
 		}
 		ch <- respMsg
@@ -849,23 +850,23 @@ func (c *mcpClient) readSSELoop(ctx context.Context, streamURL string) {
 	c.closePending(fmt.Errorf("MCP server %q sse stream closed", c.name))
 }
 
-func (c *mcpClient) removePending(key string) {
+func (c *Client) removePending(key string) {
 	c.mu.Lock()
 	delete(c.pending, key)
 	c.mu.Unlock()
 }
 
-func (c *mcpClient) closePending(err error) {
+func (c *Client) closePending(err error) {
 	c.mu.Lock()
 	pending := c.pending
 	c.pending = make(map[string]chan mcpResponse)
 	c.mu.Unlock()
 	for _, ch := range pending {
-		ch <- mcpResponse{Error: &rpcError{Code: -32000, Message: err.Error()}}
+		ch <- mcpResponse{Error: &RPCError{Code: -32000, Message: err.Error()}}
 	}
 }
 
-func (c *mcpClient) Close() {
+func (c *Client) Close() {
 	if !c.closed.CompareAndSwap(false, true) {
 		return
 	}
@@ -881,30 +882,30 @@ func (c *mcpClient) Close() {
 	}
 }
 
-func rawIDKey(id json.RawMessage) string {
+func RawIDKey(id json.RawMessage) string {
 	return strings.Trim(string(id), "\"")
 }
 
 type mcpTool struct {
-	client *mcpClient
+	client *Client
 	info   mcpToolInfo
 	name   string
 }
 
 type mcpResourceTool struct {
-	client *mcpClient
+	client *Client
 	info   mcpResourceInfo
 	name   string
 }
 
 type mcpPromptTool struct {
-	client *mcpClient
+	client *Client
 	info   mcpPromptInfo
 	name   string
 }
 
-func newMCPTool(client *mcpClient, info mcpToolInfo, existing map[string]struct{}) tools.Tool {
-	base := "mcp_" + sanitizeToolName(client.name) + "_" + sanitizeToolName(info.Name)
+func newMCPTool(client *Client, info mcpToolInfo, existing map[string]struct{}) tools.Tool {
+	base := "mcp_" + SanitizeToolName(client.name) + "_" + SanitizeToolName(info.Name)
 	name := uniqueToolName(base, existing)
 	return &mcpTool{
 		client: client,
@@ -948,12 +949,12 @@ func (t *mcpTool) Execute(ctx context.Context, params map[string]any) (tools.Too
 	return tools.NewTextToolResult(text), err
 }
 
-func newMCPResourceTool(client *mcpClient, info mcpResourceInfo, existing map[string]struct{}) tools.Tool {
+func newMCPResourceTool(client *Client, info mcpResourceInfo, existing map[string]struct{}) tools.Tool {
 	id := info.Name
 	if strings.TrimSpace(id) == "" {
 		id = info.URI
 	}
-	base := "mcp_" + sanitizeToolName(client.name) + "_resource_" + sanitizeToolName(id)
+	base := "mcp_" + SanitizeToolName(client.name) + "_resource_" + SanitizeToolName(id)
 	return &mcpResourceTool{
 		client: client,
 		info:   info,
@@ -988,8 +989,8 @@ func (t *mcpResourceTool) Execute(ctx context.Context, params map[string]any) (t
 	return tools.NewTextToolResult(text), err
 }
 
-func newMCPPromptTool(client *mcpClient, info mcpPromptInfo, existing map[string]struct{}) tools.Tool {
-	base := "mcp_" + sanitizeToolName(client.name) + "_prompt_" + sanitizeToolName(info.Name)
+func newMCPPromptTool(client *Client, info mcpPromptInfo, existing map[string]struct{}) tools.Tool {
+	base := "mcp_" + SanitizeToolName(client.name) + "_prompt_" + SanitizeToolName(info.Name)
 	return &mcpPromptTool{
 		client: client,
 		info:   info,
@@ -1031,7 +1032,7 @@ func (t *mcpPromptTool) Execute(ctx context.Context, params map[string]any) (too
 	return tools.NewTextToolResult(text), err
 }
 
-func sanitizeToolName(name string) string {
+func SanitizeToolName(name string) string {
 	var b strings.Builder
 	for _, r := range name {
 		switch {
@@ -1089,7 +1090,7 @@ func uniqueToolName(base string, existing map[string]struct{}) string {
 	return fmt.Sprintf("%s_%d", base, time.Now().UnixNano())
 }
 
-func (c *mcpClient) handleInboundRequest(msg rpcRequest) {
+func (c *Client) handleInboundRequest(msg RPCRequest) {
 	if len(msg.ID) == 0 {
 		c.handleInboundNotification(msg)
 		return
@@ -1143,7 +1144,7 @@ func (c *mcpClient) handleInboundRequest(msg rpcRequest) {
 	}
 }
 
-func (c *mcpClient) handleInboundNotification(msg rpcRequest) {
+func (c *Client) handleInboundNotification(msg RPCRequest) {
 	if c.callbacks.OnNotification != nil {
 		c.callbacks.OnNotification(c.name, msg.Method, msg.Params)
 	}

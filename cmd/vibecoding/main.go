@@ -20,6 +20,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
+	"github.com/startvibecoding/vibecoding/internal/mcp"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/provider/anthropic"
 	"github.com/startvibecoding/vibecoding/internal/provider/openai"
@@ -315,6 +316,16 @@ func run(args []string, opts runOptions) error {
 	if skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(skillsMgr))
 	}
+
+	mcpServers, err := mcp.LoadConfiguredServers(cwd)
+	if err != nil {
+		return err
+	}
+	mcpClients, err := mcp.ConnectServers(context.Background(), mcpServers, registry, mcp.Callbacks{})
+	if err != nil {
+		return fmt.Errorf("connect MCP servers: %w", err)
+	}
+	defer mcp.CloseClients(mcpClients)
 
 	// Build extra system context
 	extraContext := contextStr + skillsContext
