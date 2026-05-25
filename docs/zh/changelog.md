@@ -7,6 +7,11 @@
 - **CLI/TUI MCP 自动加载**
   - CLI/TUI 启动时现在会加载全局与项目 `mcp.json`，连接已配置的 MCP 服务器，并在 agent 工具列表冻结前注册 MCP 工具
 
+### 🐛 问题修复
+
+- **Markdown 渲染样式**
+  - 将 CLI print 模式和 TUI 的 Markdown 渲染从 Glamour 自动样式检测改为固定 `dark` 样式，提升不同终端中的显示一致性
+
 ### 🧪 测试
 
 - 新增 MCP 配置加载测试，覆盖模板占位服务器过滤

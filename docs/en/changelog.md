@@ -7,6 +7,11 @@
 - **CLI/TUI MCP Auto-Loading**
   - CLI/TUI startup now loads global and project `mcp.json`, connects configured MCP servers, and registers MCP tools before the agent tool list is frozen
 
+### 🐛 Bug Fixes
+
+- **Markdown Rendering Style**
+  - Switched CLI print mode and TUI markdown rendering from Glamour auto-style detection to the fixed `dark` style for more consistent terminal output
+
 ### 🧪 Testing
 
 - Added MCP config loader coverage for placeholder template filtering
