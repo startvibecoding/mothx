@@ -2,7 +2,9 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -57,7 +59,267 @@ func mustUsage(t *testing.T, events []provider.StreamEvent) *provider.Usage {
 	return nil
 }
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 // ─── standard Anthropic SSE scenarios ────────────────────────────────────────
+
+func TestConvertMessagesPreservesCacheControlOnSingleTextBlock(t *testing.T) {
+	p := NewProvider("fake-key", "https://api.anthropic.com")
+	msgs := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			{
+				Role: "user",
+				Contents: []provider.ContentBlock{
+					{
+						Type:         "text",
+						Text:         "cached text",
+						CacheControl: &provider.CacheControl{Type: "ephemeral"},
+					},
+				},
+			},
+		},
+	})
+
+	if len(msgs) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(msgs))
+	}
+	blocks, ok := msgs[0].Content.([]anthropicContentBlock)
+	if !ok {
+		t.Fatalf("content type = %T, want []anthropicContentBlock", msgs[0].Content)
+	}
+	if len(blocks) != 1 {
+		t.Fatalf("len(blocks) = %d, want 1", len(blocks))
+	}
+	if blocks[0].CacheControl == nil || blocks[0].CacheControl.Type != "ephemeral" {
+		t.Fatalf("cache_control = %#v, want ephemeral", blocks[0].CacheControl)
+	}
+}
+
+func TestConvertMessagesOmitsCacheControlWhenDisabled(t *testing.T) {
+	p := NewProvider("fake-key", "https://api.anthropic.com")
+	p.SetCacheControlEnabled(boolPtr(false))
+	msgs := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			{
+				Role: "user",
+				Contents: []provider.ContentBlock{
+					{
+						Type:         "text",
+						Text:         "cached text",
+						CacheControl: &provider.CacheControl{Type: "ephemeral"},
+					},
+				},
+			},
+		},
+	})
+
+	if got, ok := msgs[0].Content.(string); !ok || got != "cached text" {
+		t.Fatalf("content = %#v (%T), want simple text", msgs[0].Content, msgs[0].Content)
+	}
+}
+
+func TestChatRequestPreservesCacheControlOnSingleTextBlock(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProvider("fake-key", srv.URL)
+	p.SetCacheControlEnabled(boolPtr(true))
+	params := provider.ChatParams{
+		ModelID: "claude-test",
+		Messages: []provider.Message{
+			{
+				Role: "user",
+				Contents: []provider.ContentBlock{
+					{
+						Type:         "text",
+						Text:         "cached text",
+						CacheControl: &provider.CacheControl{Type: "ephemeral"},
+					},
+				},
+			},
+		},
+		Abort: make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+
+	if len(req.Messages) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(req.Messages))
+	}
+	rawContent, err := json.Marshal(req.Messages[0].Content)
+	if err != nil {
+		t.Fatalf("marshal content: %v", err)
+	}
+	var blocks []anthropicContentBlock
+	if err := json.Unmarshal(rawContent, &blocks); err != nil {
+		t.Fatalf("content is not a block array: %v\ncontent: %s", err, rawContent)
+	}
+	if len(blocks) != 1 {
+		t.Fatalf("len(blocks) = %d, want 1", len(blocks))
+	}
+	if blocks[0].CacheControl == nil || blocks[0].CacheControl.Type != "ephemeral" {
+		t.Fatalf("cache_control = %#v, want ephemeral", blocks[0].CacheControl)
+	}
+}
+
+func TestAnthropicThinkingFormatDeepSeek(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{ID: "deepseek-test", Reasoning: true},
+	})
+	p.SetThinkingFormat("deepseek")
+	params := provider.ChatParams{
+		ModelID:       "deepseek-test",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingXHigh,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+
+	if req.Thinking == nil || req.Thinking.Type != "enabled" || req.Thinking.BudgetTokens != nil {
+		t.Fatalf("thinking = %#v, want enabled without budget_tokens", req.Thinking)
+	}
+	if req.OutputConfig == nil || req.OutputConfig.Effort != "max" {
+		t.Fatalf("output_config = %#v, want effort max", req.OutputConfig)
+	}
+}
+
+func TestAnthropicThinkingOmittedForNonReasoningModel(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{ID: "claude-opus-test", Reasoning: false},
+	})
+	params := provider.ChatParams{
+		ModelID:       "claude-opus-test",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingMedium,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+
+	if req.Thinking != nil {
+		t.Fatalf("thinking = %#v, want nil for non-reasoning model", req.Thinking)
+	}
+	if req.OutputConfig != nil {
+		t.Fatalf("output_config = %#v, want nil for non-reasoning model", req.OutputConfig)
+	}
+}
+
+func TestAnthropicThinkingAdaptiveForOpus47(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{ID: "claude-opus-4-7", Reasoning: true},
+	})
+	params := provider.ChatParams{
+		ModelID:       "claude-opus-4-7",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingHigh,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+
+	if req.Thinking == nil || req.Thinking.Type != "adaptive" || req.Thinking.BudgetTokens != nil {
+		t.Fatalf("thinking = %#v, want adaptive without budget_tokens", req.Thinking)
+	}
+	if req.OutputConfig == nil || req.OutputConfig.Effort != "high" {
+		t.Fatalf("output_config = %#v, want effort high", req.OutputConfig)
+	}
+}
 
 // TestAnthropicCache_FirstTurn: cache is created for the first time.
 // message_start carries cache_creation_input_tokens; no cache_read yet.

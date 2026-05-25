@@ -18,6 +18,12 @@
 
 ### 🛠 Improvements
 
+- **DeepSeek Thinking Format**
+  - Added `thinkingFormat: "deepseek"` for DeepSeek reasoning requests
+  - OpenAI-compatible requests now send `thinking: {type: "enabled"}` with `reasoning_effort`
+  - Anthropic-compatible requests now send `thinking: {type: "enabled"}` with `output_config.effort`
+  - Kept `thinkingFormat: "xiaomi"` as the legacy thinking-only format
+
 - **Shared MCP Runtime**
   - Moved MCP connection/tool registration out of ACP-only code into a shared runtime used by ACP and normal CLI/TUI sessions
   - Starter-template placeholder MCP servers are ignored during automatic startup loading

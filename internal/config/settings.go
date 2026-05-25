@@ -40,7 +40,7 @@ type ProviderConfig struct {
 	APIKey         string        `json:"apiKey,omitempty"`
 	BaseURL        string        `json:"baseUrl,omitempty"`
 	API            string        `json:"api,omitempty"`
-	ThinkingFormat string        `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "xiaomi"
+	ThinkingFormat string        `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "deepseek", "xiaomi"
 	CacheControl   *bool         `json:"cacheControl,omitempty"`   // enable cache_control markers (nil=auto, true=force on, false=force off)
 	Models         []ModelConfig `json:"models"`
 }

@@ -111,7 +111,7 @@ VibeCoding 使用两个配置文件:
 | `baseUrl` | string | ✓ | API 基础 URL |
 | `apiKey` | string | - | API 密钥 (可选，也可通过环境变量) |
 | `api` | string | - | API 类型: `openai-chat` 或 `anthropic-messages` |
-| `thinkingFormat` | string | - | 思考参数格式: `""`, `"openai"`, `"anthropic"`, `"xiaomi"` |
+| `thinkingFormat` | string | - | 思考参数格式: `""`, `"openai"`, `"anthropic"`, `"deepseek"`, `"xiaomi"` |
 | `models` | array | - | 可用模型列表 |
 
 #### api 字段
@@ -134,18 +134,19 @@ VibeCoding 使用两个配置文件:
 - `""` (空): 根据 URL 自动检测
 - `"openai"`: 使用 OpenAI `reasoning_effort` 格式
 - `"anthropic"`: 使用 Anthropic `thinking` 带 `budget_tokens`
-- `"xiaomi"`: 使用 `thinking: {type: "enabled"}` 格式 (用于小米 MiMo API)
+- `"deepseek"`: 使用 DeepSeek `thinking: {type: "enabled"}`，并通过 OpenAI 格式的 `reasoning_effort` 或 Anthropic 格式的 `output_config.effort` 控制强度
+- `"xiaomi"`: 旧的 thinking-only 格式，仅发送 `thinking: {type: "enabled"}`
 
-未设置时，如果 URL 包含 `xiaomimimo` 则自动检测为 `xiaomi` 格式。
+未设置时，如果 URL 包含 `deepseek` 会自动检测为 `deepseek` 格式；如果 URL 包含 `xiaomimimo` 则自动检测为 `xiaomi` 格式。
 
 ```json
 {
   "providers": {
-    "xiaomi": {
-      "baseUrl": "https://api.xiaomimimo.com/v1",
+    "deepseek-openai": {
+      "baseUrl": "https://api.deepseek.com",
       "apiKey": "sk-...",
       "api": "openai-chat",
-      "thinkingFormat": "xiaomi"
+      "thinkingFormat": "deepseek"
     }
   }
 }

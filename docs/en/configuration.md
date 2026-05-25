@@ -111,7 +111,7 @@ Multi-provider configuration. Each provider contains:
 | `baseUrl` | string | ✓ | API base URL |
 | `apiKey` | string | - | API key (optional, can also use environment variables) |
 | `api` | string | - | API type: `openai-chat` or `anthropic-messages` |
-| `thinkingFormat` | string | - | Thinking parameter format: `""`, `"openai"`, `"anthropic"`, `"xiaomi"` |
+| `thinkingFormat` | string | - | Thinking parameter format: `""`, `"openai"`, `"anthropic"`, `"deepseek"`, `"xiaomi"` |
 | `models` | array | - | List of available models |
 
 #### api field
@@ -134,18 +134,19 @@ Specifies how thinking/reasoning parameters are sent to the API:
 - `""` (empty): Auto-detect based on URL
 - `"openai"`: Use OpenAI `reasoning_effort` format
 - `"anthropic"`: Use Anthropic `thinking` with `budget_tokens`
-- `"xiaomi"`: Use `thinking: {type: "enabled"}` format (for Xiaomi MiMo API)
+- `"deepseek"`: Use DeepSeek `thinking: {type: "enabled"}` with `reasoning_effort` (OpenAI format) or `output_config.effort` (Anthropic format)
+- `"xiaomi"`: Legacy thinking-only format, `thinking: {type: "enabled"}`
 
-When not set, automatically detects `xiaomi` format if URL contains `xiaomimimo`.
+When not set, automatically detects `deepseek` format if URL contains `deepseek`, and `xiaomi` format if URL contains `xiaomimimo`.
 
 ```json
 {
   "providers": {
-    "xiaomi": {
-      "baseUrl": "https://api.xiaomimimo.com/v1",
+    "deepseek-openai": {
+      "baseUrl": "https://api.deepseek.com",
       "apiKey": "sk-...",
       "api": "openai-chat",
-      "thinkingFormat": "xiaomi"
+      "thinkingFormat": "deepseek"
     }
   }
 }

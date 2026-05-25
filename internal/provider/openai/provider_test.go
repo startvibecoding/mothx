@@ -2,7 +2,9 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -55,6 +57,51 @@ func mustUsage(t *testing.T, events []provider.StreamEvent) *provider.Usage {
 	}
 	t.Fatal("no StreamUsage event received")
 	return nil
+}
+
+func TestOpenAIThinkingFormatDeepSeekAutoDetect(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL+"/deepseek", []*provider.Model{
+		{ID: "deepseek-test", Reasoning: true},
+	})
+	params := provider.ChatParams{
+		ModelID:       "deepseek-test",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingXHigh,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req openAIRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+
+	if req.Thinking == nil || req.Thinking.Type != "enabled" {
+		t.Fatalf("thinking = %#v, want enabled", req.Thinking)
+	}
+	if req.ReasoningEffort != "max" {
+		t.Fatalf("reasoning_effort = %q, want max", req.ReasoningEffort)
+	}
 }
 
 // ─── standard OpenAI SSE scenarios ───────────────────────────────────────────

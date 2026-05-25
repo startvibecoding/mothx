@@ -25,7 +25,7 @@ type Provider struct {
 
 	// Configuration options
 	disableReasoning bool   // Disable reasoning_content support for incompatible APIs
-	thinkingFormat   string // "", "openai", "xiaomi"
+	thinkingFormat   string // "", "openai", "deepseek", "xiaomi"
 }
 
 // DefaultModels returns the default OpenAI model list.
@@ -94,7 +94,8 @@ func (p *Provider) IsReasoningDisabled() bool {
 }
 
 // SetThinkingFormat sets the thinking parameter format.
-// "openai" = reasoning_effort, "xiaomi" = thinking: {type: enabled}
+// "openai" = reasoning_effort, "deepseek" = thinking + reasoning_effort,
+// "xiaomi" = legacy thinking-only format.
 func (p *Provider) SetThinkingFormat(format string) {
 	p.thinkingFormat = format
 }
@@ -232,21 +233,22 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		if !p.disableReasoning && params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 			// Determine thinking format: explicit config > URL auto-detect > default
 			format := p.thinkingFormat
-			if format == "" && strings.Contains(p.baseURL, "xiaomimimo") {
-				format = "xiaomi"
+			if format == "" {
+				lowerBaseURL := strings.ToLower(p.baseURL)
+				if strings.Contains(lowerBaseURL, "deepseek") {
+					format = "deepseek"
+				} else if strings.Contains(lowerBaseURL, "xiaomimimo") {
+					format = "xiaomi"
+				}
 			}
 			switch format {
+			case "deepseek":
+				reqBody.Thinking = &thinkingConfig{Type: "enabled"}
+				reqBody.ReasoningEffort = deepseekReasoningEffort(params.ThinkingLevel)
 			case "xiaomi":
 				reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 			default: // "openai" or ""
-				switch params.ThinkingLevel {
-				case provider.ThinkingMinimal, provider.ThinkingLow:
-					reqBody.ReasoningEffort = "low"
-				case provider.ThinkingMedium:
-					reqBody.ReasoningEffort = "medium"
-				case provider.ThinkingHigh, provider.ThinkingXHigh:
-					reqBody.ReasoningEffort = "high"
-				}
+				reqBody.ReasoningEffort = openAIReasoningEffort(params.ThinkingLevel)
 			}
 		}
 
@@ -420,6 +422,28 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: usage}
 	}
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: stopReason}
+}
+
+func openAIReasoningEffort(level provider.ThinkingLevel) string {
+	switch level {
+	case provider.ThinkingMinimal, provider.ThinkingLow:
+		return "low"
+	case provider.ThinkingMedium:
+		return "medium"
+	case provider.ThinkingHigh, provider.ThinkingXHigh:
+		return "high"
+	default:
+		return ""
+	}
+}
+
+func deepseekReasoningEffort(level provider.ThinkingLevel) string {
+	switch level {
+	case provider.ThinkingXHigh:
+		return "max"
+	default:
+		return "high"
+	}
 }
 
 func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {

@@ -23,7 +23,7 @@ type Provider struct {
 	baseURL string
 	client  *http.Client
 
-	thinkingFormat      string // "", "anthropic", "xiaomi"
+	thinkingFormat      string // "", "anthropic", "deepseek", "xiaomi"
 	cacheControlEnabled *bool  // nil=auto (on for official API, off for proxies), true=force on, false=force off
 }
 
@@ -75,7 +75,8 @@ func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Pr
 }
 
 // SetThinkingFormat sets the thinking parameter format.
-// "anthropic" = thinking with budget_tokens, "xiaomi" = thinking without budget_tokens
+// "anthropic" = thinking with budget_tokens, "deepseek" = thinking with output_config,
+// "xiaomi" = legacy thinking-only format.
 func (p *Provider) SetThinkingFormat(format string) {
 	p.thinkingFormat = format
 }
@@ -99,18 +100,24 @@ func (p *Provider) IsCacheControlEnabled() bool {
 }
 
 type anthropicRequest struct {
-	Model     string             `json:"model"`
-	Messages  []anthropicMessage `json:"messages"`
-	System    interface{}        `json:"system,omitempty"` // string or []anthropicContentBlock for cache_control
-	Tools     []anthropicTool    `json:"tools,omitempty"`
-	MaxTokens int                `json:"max_tokens"`
-	Stream    bool               `json:"stream"`
-	Thinking  *anthropicThinking `json:"thinking,omitempty"`
+	Model        string                 `json:"model"`
+	Messages     []anthropicMessage     `json:"messages"`
+	System       interface{}            `json:"system,omitempty"` // string or []anthropicContentBlock for cache_control
+	Tools        []anthropicTool        `json:"tools,omitempty"`
+	MaxTokens    int                    `json:"max_tokens"`
+	Stream       bool                   `json:"stream"`
+	Thinking     *anthropicThinking     `json:"thinking,omitempty"`
+	OutputConfig *anthropicOutputConfig `json:"output_config,omitempty"`
 }
 
 type anthropicThinking struct {
 	Type         string `json:"type"`
 	BudgetTokens *int   `json:"budget_tokens,omitempty"`
+	Display      string `json:"display,omitempty"`
+}
+
+type anthropicOutputConfig struct {
+	Effort string `json:"effort"`
 }
 
 type anthropicMessage struct {
@@ -211,6 +218,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 				modelID = "claude-sonnet-4-20250514"
 			}
 		}
+		model := p.GetModel(modelID)
 
 		maxTokens := params.MaxTokens
 		if maxTokens == 0 {
@@ -239,18 +247,34 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			}
 		}
 
-		if params.ThinkingLevel != provider.ThinkingOff {
+		if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 			// Determine thinking format: explicit config > URL auto-detect > default
 			format := p.thinkingFormat
-			if format == "" && strings.Contains(p.baseURL, "xiaomimimo") {
-				format = "xiaomi"
+			if format == "" {
+				lowerBaseURL := strings.ToLower(p.baseURL)
+				if strings.Contains(lowerBaseURL, "deepseek") {
+					format = "deepseek"
+				} else if strings.Contains(lowerBaseURL, "xiaomimimo") {
+					format = "xiaomi"
+				}
 			}
 			switch format {
+			case "deepseek":
+				reqBody.Thinking = &anthropicThinking{Type: "enabled"}
+				reqBody.OutputConfig = &anthropicOutputConfig{Effort: deepseekReasoningEffort(params.ThinkingLevel)}
 			case "xiaomi":
 				reqBody.Thinking = &anthropicThinking{Type: "enabled"}
+			case "adaptive":
+				reqBody.Thinking = &anthropicThinking{Type: "adaptive", Display: "summarized"}
+				reqBody.OutputConfig = &anthropicOutputConfig{Effort: anthropicAdaptiveEffort(params.ThinkingLevel)}
 			default: // "anthropic" or ""
-				budget := thinkingBudget(params.ThinkingLevel)
-				reqBody.Thinking = &anthropicThinking{Type: "enabled", BudgetTokens: &budget}
+				if isAnthropicAdaptiveModel(modelID) {
+					reqBody.Thinking = &anthropicThinking{Type: "adaptive", Display: "summarized"}
+					reqBody.OutputConfig = &anthropicOutputConfig{Effort: anthropicAdaptiveEffort(params.ThinkingLevel)}
+				} else {
+					budget := thinkingBudget(params.ThinkingLevel)
+					reqBody.Thinking = &anthropicThinking{Type: "enabled", BudgetTokens: &budget}
+				}
 			}
 		}
 
@@ -512,7 +536,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessag
 				}
 				blocks = append(blocks, block)
 			}
-			if len(blocks) == 1 && blocks[0].Type == "text" {
+			if len(blocks) == 1 && blocks[0].Type == "text" && blocks[0].CacheControl == nil {
 				am.Content = blocks[0].Text
 			} else {
 				am.Content = blocks
@@ -531,6 +555,36 @@ func (p *Provider) convertTools(tools []provider.ToolDefinition) []anthropicTool
 		result = append(result, anthropicTool{Name: t.Name, Description: t.Description, InputSchema: t.Parameters})
 	}
 	return result
+}
+
+func deepseekReasoningEffort(level provider.ThinkingLevel) string {
+	switch level {
+	case provider.ThinkingXHigh:
+		return "max"
+	default:
+		return "high"
+	}
+}
+
+func isAnthropicAdaptiveModel(modelID string) bool {
+	return strings.HasPrefix(modelID, "claude-opus-4-7") ||
+		strings.HasPrefix(modelID, "claude-opus-4-6") ||
+		strings.HasPrefix(modelID, "claude-sonnet-4-6")
+}
+
+func anthropicAdaptiveEffort(level provider.ThinkingLevel) string {
+	switch level {
+	case provider.ThinkingMinimal, provider.ThinkingLow:
+		return "low"
+	case provider.ThinkingMedium:
+		return "medium"
+	case provider.ThinkingHigh:
+		return "high"
+	case provider.ThinkingXHigh:
+		return "xhigh"
+	default:
+		return "high"
+	}
 }
 
 func thinkingBudget(level provider.ThinkingLevel) int {

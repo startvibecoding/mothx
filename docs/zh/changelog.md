@@ -18,6 +18,12 @@
 
 ### 🛠 改进
 
+- **DeepSeek Thinking 格式**
+  - 新增 `thinkingFormat: "deepseek"`，用于 DeepSeek 推理请求
+  - OpenAI 兼容请求现在会发送 `thinking: {type: "enabled"}` 和 `reasoning_effort`
+  - Anthropic 兼容请求现在会发送 `thinking: {type: "enabled"}` 和 `output_config.effort`
+  - 保留 `thinkingFormat: "xiaomi"` 作为旧的 thinking-only 格式
+
 - **共享 MCP 运行时**
   - 将 MCP 连接与工具注册从 ACP 私有实现提取为共享运行时，ACP 与普通 CLI/TUI 会话复用同一套逻辑
   - 自动启动加载时会忽略 starter 模板中的占位 MCP 服务器
