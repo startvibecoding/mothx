@@ -318,6 +318,29 @@ func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
 	}
 }
 
+func TestFormatApprovalArgsEditShowsPathAndDiff(t *testing.T) {
+	args := map[string]any{
+		"path": "README.md",
+		"edits": []any{
+			map[string]any{
+				"oldText": "Hello\nWorld\n",
+				"newText": "Hello\nGophers\n",
+			},
+		},
+	}
+
+	got := formatApprovalArgs("edit", args)
+	if !strings.Contains(got, "path: README.md") {
+		t.Fatalf("formatApprovalArgs(edit) missing path: %q", got)
+	}
+	if !strings.Contains(got, "@@ -1,2 +1,2 @@") {
+		t.Fatalf("formatApprovalArgs(edit) missing hunk header: %q", got)
+	}
+	if !strings.Contains(got, "-World") || !strings.Contains(got, "+Gophers") {
+		t.Fatalf("formatApprovalArgs(edit) missing line diff: %q", got)
+	}
+}
+
 func TestAbortClearsQueuedInput(t *testing.T) {
 	a := &App{
 		inputQueue: make([]InputEvent, 0, 4),
