@@ -233,10 +233,7 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		assistantDirty:      make(map[int]bool),
 	}
 
-	// Initialize markdown renderer (best-effort; may fail in test/headless env)
-	if r, err := glamour.NewTermRenderer(glamour.WithAutoStyle()); err == nil {
-		app.mdRenderer = r
-	}
+	app.configureMarkdownRenderer()
 
 	return app
 }
@@ -340,11 +337,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		oldWidth := a.width
 		a.width = msg.Width
 		a.height = msg.Height
 		a.ready = true
 
 		a.input.Width = msg.Width - 4
+		if oldWidth != a.width {
+			a.configureMarkdownRenderer()
+			a.markAssistantRenderedDirty()
+		}
 
 		a.updateViewportContent()
 		return a, nil
@@ -708,6 +710,37 @@ func (a *App) updateViewportContent() {
 			}
 			a.liveContent += assistant
 		}
+	}
+}
+
+func (a *App) configureMarkdownRenderer() {
+	width := a.assistantMarkdownWidth()
+	if r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width),
+	); err == nil {
+		a.mdRenderer = r
+	}
+}
+
+func (a *App) assistantMarkdownWidth() int {
+	width := a.width
+	if width <= 0 {
+		width = 80
+	}
+	width -= lipgloss.Width("Assistant: ")
+	if width < 20 {
+		return 20
+	}
+	return width
+}
+
+func (a *App) markAssistantRenderedDirty() {
+	if a.assistantDirty == nil {
+		a.assistantDirty = make(map[int]bool)
+	}
+	for idx := range a.assistantRendered {
+		a.assistantDirty[idx] = true
 	}
 }
 

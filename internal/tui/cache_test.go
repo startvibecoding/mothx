@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -63,6 +64,49 @@ func TestRenderEditToolResultShowsCompactDiff(t *testing.T) {
 
 	if got != want {
 		t.Fatalf("renderToolResult(edit) =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestAssistantMarkdownRendererUsesViewportWidth(t *testing.T) {
+	app := &App{
+		width:               60,
+		assistantRaw:        map[int]string{0: "请看 https://gitee.com/oschina/platform/pulls/11938 这里"},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	got := stripANSI(app.renderAssistantMessage(0))
+	flattened := strings.ReplaceAll(strings.ReplaceAll(got, "\n", ""), " ", "")
+	if !strings.Contains(flattened, "https://gitee.com/oschina/platform/pulls/11938") {
+		t.Fatalf("renderAssistantMessage() = %q, want URL order preserved", got)
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("rendered line width = %d, want <= %d: %q", width, app.width, line)
+		}
+	}
+}
+
+func TestWindowResizeMarksAssistantMarkdownDirty(t *testing.T) {
+	app := &App{
+		assistantRaw:        map[int]string{0: "hello"},
+		assistantRendered:   map[int]string{0: "old"},
+		assistantDirty:      make(map[int]bool),
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+	}
+
+	model, _ := app.Update(tea.WindowSizeMsg{Width: 72, Height: 24})
+	updated := model.(*App)
+
+	if updated.mdRenderer == nil {
+		t.Fatal("mdRenderer is nil after resize")
+	}
+	if !updated.assistantDirty[0] {
+		t.Fatal("assistantDirty[0] = false, want true after resize")
 	}
 }
 
