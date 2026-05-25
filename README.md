@@ -133,11 +133,13 @@ vibecoding --no-sandbox
 
 | Location | Platform | Scope |
 |----------|----------|-------|
-| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) |
+| `~/.vibecoding/settings.json` | Linux | Global (all projects) |
+| `~/Library/Application Support/vibecoding/settings.json` | macOS | Global (all projects) |
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) |
 | `.vibe/settings.json` | All | Project (overrides global) |
 
 > **Windows users:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`.
+> Override the global config directory with `VIBECODING_DIR` environment variable.
 
 ### Example Settings
 
@@ -170,10 +172,13 @@ vibecoding --no-sandbox
   },
   "approval": {
     "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
-    "bashBlacklist": ["rm -rf", "sudo"]
+    "bashBlacklist": ["rm -rf", "sudo"],
+    "confirmBeforeWrite": true
   }
 }
 ```
+
+For the full list of settings including `cacheControl`, idle compression, sandbox paths, shell configuration, and API key formats, see the [Configuration Guide](docs/en/configuration.md).
 
 ### Environment Variables
 
@@ -186,6 +191,7 @@ vibecoding --no-sandbox
 | `VIBECODING_MODE` | Override default mode |
 | `VIBECODING_THINKING` | Override default thinking level |
 | `VIBECODING_USER_AGENT` | Custom User-Agent string |
+| `VIBECODING_DEBUG` | Enable provider-level request/response debug output |
 
 ## Sandbox Security
 

@@ -6,13 +6,16 @@ VibeCoding uses two configuration files:
 
 | File | Platform | Scope | Priority |
 |------|----------|-------|----------|
-| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) | Low |
+| `~/.vibecoding/settings.json` | Linux | Global (all projects) | Low |
+| `~/Library/Application Support/vibecoding/settings.json` | macOS | Global (all projects) | Low |
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) | Low |
 | `.vibe/settings.json` | All | Project-level | High |
 
+> **Tip:** You can override the global config directory with the `VIBECODING_DIR` environment variable.
+
 > **Windows:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`, so the full path is typically `C:\Users\<Username>\AppData\Roaming\vibecoding\settings.json`.
 
-Project-level configuration overrides global configuration.
+Project-level configuration overrides global configuration. When both exist, scalar fields from the project file overwrite the global values; the `providers` map is deep-merged per-key (project providers are added to or replace global providers, not the entire map).
 
 ## Configuration Structure
 
@@ -25,19 +28,23 @@ Project-level configuration overrides global configuration.
       "baseUrl": "https://api.deepseek.com/anthropic",
       "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "anthropic-messages",
+      "thinkingFormat": "deepseek",
+      "cacheControl": false,
       "models": [
         {
           "id": "deepseek-v4-flash",
           "name": "DeepSeek-V4-Flash",
           "contextWindow": 1000000,
-          "maxTokens": 384000
+          "maxTokens": 384000,
+          "cost": { "input": 0.5, "output": 2.0 }
         },
         {
           "id": "deepseek-v4-pro",
           "name": "DeepSeek-V4-Pro",
           "reasoning": true,
           "contextWindow": 1000000,
-          "maxTokens": 384000
+          "maxTokens": 384000,
+          "cost": { "input": 1, "output": 4 }
         }
       ]
     },
@@ -50,69 +57,109 @@ Project-level configuration overrides global configuration.
           "id": "deepseek-v4-flash",
           "name": "DeepSeek-V4-Flash",
           "contextWindow": 1000000,
-          "maxTokens": 384000
+          "maxTokens": 384000,
+          "cost": { "input": 0.5, "output": 2.0 }
         },
         {
           "id": "deepseek-v4-pro",
           "name": "DeepSeek-V4-Pro",
           "reasoning": true,
           "contextWindow": 1000000,
-          "maxTokens": 384000
+          "maxTokens": 384000,
+          "cost": { "input": 1, "output": 4 }
         }
       ]
-    },
-    "my-custom": {
-      "baseUrl": "https://my-api.example.com/v1",
-      "api": "openai-chat",
-      "models": []
     }
   },
   "defaultProvider": "deepseek-openai",
   "defaultModel": "deepseek-v4-flash",
   "defaultMode": "agent",
-  "enablePlanTool": true,
   "defaultThinkingLevel": "medium",
-  "maxOutputTokens": 384000,
+  "enablePlanTool": true,
   "maxContextTokens": 1000000,
+  "maxOutputTokens": 384000,
+  "contextFiles": {
+    "enabled": true,
+    "extraFiles": ["/path/to/extra-context.md"]
+  },
+  "skillsDir": "~/.vibecoding/skills",
   "compaction": {
     "enabled": true,
     "reserveTokens": 16384,
-    "keepRecentTokens": 20000
+    "keepRecentTokens": 20000,
+    "idleCompressionEnabled": false,
+    "idleTimeoutSeconds": 90,
+    "idleMinTokensForCompress": 150000
   },
   "sandbox": {
-    "enabled": true,
-    "level": "standard",
-    "allowNetwork": false
+    "enabled": false,
+    "level": "none",
+    "bwrapPath": "",
+    "allowNetwork": false,
+    "allowedRead": ["/usr", "/lib", "/lib64", "/bin", "/sbin"],
+    "allowedWrite": [],
+    "deniedPaths": ["/etc/shadow", "/root", "/home"],
+    "passEnv": ["PATH", "HOME", "USER", "LANG", "TERM", "SHELL"],
+    "tmpSize": "100m"
   },
-  "contextFiles": {
+  "sessionDir": "~/.vibecoding/sessions",
+  "shellPath": "/bin/bash",
+  "shellCommandPrefix": "",
+  "theme": "dark",
+  "retry": {
     "enabled": true,
-    "extraFiles": [
-      "/path/to/extra-context.md"
-    ]
+    "maxRetries": 3,
+    "baseDelayMs": 2000
   },
-  "skills": {
-    "enabled": true,
-    "dirs": [
-      "~/.vibecoding/skills",
-      ".skills"
-    ]
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "],
+    "bashBlacklist": ["rm -rf", "sudo"],
+    "confirmBeforeWrite": true
   }
 }
 ```
+
+## All Configuration Fields
+
+### Top-Level Fields Reference
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `providers` | object | *(see below)* | Provider configurations (keyed by name) |
+| `defaultProvider` | string | `"deepseek-openai"` | Which provider to use by default |
+| `defaultModel` | string | `"deepseek-v4-flash"` | Which model ID to use by default |
+| `defaultMode` | string | `"agent"` | Default run mode: `plan`, `agent`, or `yolo` |
+| `defaultThinkingLevel` | string | `"medium"` | Default thinking level |
+| `enablePlanTool` | bool | `true` | Register the built-in `plan` tool |
+| `maxContextTokens` | int | `0` (auto) | Override maximum context token count |
+| `maxOutputTokens` | int | `0` (auto) | Override maximum output token count |
+| `contextFiles` | object | *(see below)* | Context file loading settings |
+| `skillsDir` | string | `"~/.vibecoding/skills"` | Global skills directory path |
+| `compaction` | object | *(see below)* | Context compaction settings |
+| `sandbox` | object | *(see below)* | Sandbox execution settings |
+| `sessionDir` | string | `"~/.vibecoding/sessions"` | Session file storage directory |
+| `shellPath` | string | `""` (auto) | Custom shell path for Bash tool |
+| `shellCommandPrefix` | string | `""` | Prefix prepended to every shell command |
+| `theme` | string | `"dark"` | UI theme: `"dark"` or `"light"` |
+| `retry` | object | *(see below)* | API call retry settings |
+| `approval` | object | *(see below)* | Bash command approval settings |
+
+---
 
 ## Configuration Details
 
 ### providers
 
-Multi-provider configuration. Each provider contains:
+Multi-provider configuration. Each provider is an object keyed by a user-chosen name:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `baseUrl` | string | ✓ | API base URL |
-| `apiKey` | string | - | API key (optional, can also use environment variables) |
-| `api` | string | - | API type: `openai-chat` or `anthropic-messages` |
-| `thinkingFormat` | string | - | Thinking parameter format: `""`, `"openai"`, `"anthropic"`, `"deepseek"`, `"xiaomi"` |
-| `models` | array | - | List of available models |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `baseUrl` | string | ✓ | — | API base URL |
+| `apiKey` | string | — | `""` | API key (see [Authentication](#authentication-configuration) below) |
+| `api` | string | — | auto-detect | API protocol: `"openai-chat"` or `"anthropic-messages"` |
+| `thinkingFormat` | string | — | auto-detect | Thinking parameter format (see below) |
+| `cacheControl` | bool | — | `false` | Enable Anthropic prompt caching; set `true` when using Claude models |
+| `models` | array | — | `[]` | List of available models |
 
 #### api field
 
@@ -131,13 +178,17 @@ If not specified, auto-detected based on `baseUrl`:
 
 Specifies how thinking/reasoning parameters are sent to the API:
 
-- `""` (empty): Auto-detect based on URL
-- `"openai"`: Use OpenAI `reasoning_effort` format
-- `"anthropic"`: Use Anthropic `thinking` with `budget_tokens`
-- `"deepseek"`: Use DeepSeek `thinking: {type: "enabled"}` with `reasoning_effort` (OpenAI format) or `output_config.effort` (Anthropic format)
-- `"xiaomi"`: Legacy thinking-only format, `thinking: {type: "enabled"}`
+| Value | Behavior |
+|-------|----------|
+| `""` (empty) | Auto-detect based on URL |
+| `"openai"` | Use OpenAI `reasoning_effort` format |
+| `"anthropic"` | Use Anthropic `thinking` with `budget_tokens` |
+| `"deepseek"` | Use DeepSeek `thinking: {type: "enabled"}` + `reasoning_effort` (OpenAI) or `output_config.effort` (Anthropic) |
+| `"xiaomi"` | Legacy thinking-only format: `thinking: {type: "enabled"}` |
 
-When not set, automatically detects `deepseek` format if URL contains `deepseek`, and `xiaomi` format if URL contains `xiaomimimo`.
+When not set, automatically detects:
+- URL contains `deepseek` → `"deepseek"`
+- URL contains `xiaomimimo` → `"xiaomi"`
 
 ```json
 {
@@ -152,7 +203,59 @@ When not set, automatically detects `deepseek` format if URL contains `deepseek`
 }
 ```
 
+#### cacheControl field
+
+Enable Anthropic-style prompt caching. When set to `true`, VibeCoding adds cache control headers to requests. **You should enable this when using Claude models through the Anthropic API** to reduce cost and latency.
+
+```json
+{
+  "providers": {
+    "anthropic": {
+      "baseUrl": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}",
+      "api": "anthropic-messages",
+      "cacheControl": true,
+      "models": [
+        {
+          "id": "claude-sonnet-4-20250514",
+          "name": "Claude Sonnet 4",
+          "contextWindow": 200000,
+          "maxTokens": 8192,
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cacheRead": 0.3,
+            "cacheWrite": 3.75
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
 #### models array
+
+Each model in the `models` array:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `id` | string | — | Model ID sent to the API |
+| `name` | string | — | Human-readable display name |
+| `reasoning` | bool | `false` | Whether the model supports thinking/reasoning |
+| `contextWindow` | int | `0` | Context window size (tokens) |
+| `maxTokens` | int | `0` | Maximum output tokens per response |
+| `input` | []string | `[]` | Supported input modalities: `"text"`, `"image"` |
+| `cost` | object | `null` | Pricing per million tokens |
+
+The `cost` object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input` | float | Cost per million input tokens |
+| `output` | float | Cost per million output tokens |
+| `cacheRead` | float | Cost per million cached read tokens (Anthropic) |
+| `cacheWrite` | float | Cost per million cached write tokens (Anthropic) |
 
 ```json
 {
@@ -169,146 +272,91 @@ When not set, automatically detects `deepseek` format if URL contains `deepseek`
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Model ID |
-| `name` | string | Display name |
-| `contextWindow` | int | Context window size (tokens) |
-| `maxTokens` | int | Maximum output tokens |
-| `reasoning` | bool | Whether reasoning/thinking is supported |
-| `input` | []string | Supported input types (text, image) |
-| `cost` | object | Pricing (per million tokens) |
+---
 
 ### defaultProvider
 
-Default provider name. Corresponds to a key in `providers`.
+Default provider name. Must match a key in `providers`.
 
 ```json
-{
-  "defaultProvider": "deepseek-openai"
-}
+{ "defaultProvider": "deepseek-openai" }
 ```
 
 ### defaultModel
 
-Default model ID.
+Default model ID. Must match an `id` in the chosen provider's `models` list.
 
 ```json
-{
-  "defaultModel": "deepseek-v4-flash"
-}
+{ "defaultModel": "deepseek-v4-flash" }
 ```
 
 ### defaultMode
 
-Default run mode.
+Default run mode:
+
+| Value | Description |
+|-------|-------------|
+| `plan` | Read-only analysis mode — no file writes, sandboxed |
+| `agent` | Standard read/write mode (default) — Bash requires approval |
+| `yolo` | Full access mode — all tools auto-execute |
 
 ```json
-{
-  "defaultMode": "agent"
-}
+{ "defaultMode": "agent" }
 ```
-
-Options:
-- `plan`: Read-only analysis mode
-- `agent`: Standard read/write mode (default)
-- `yolo`: Full access mode
-
-### enablePlanTool
-
-Whether to register the built-in `plan` tool.
-
-```json
-{
-  "enablePlanTool": true
-}
-```
-
-Options:
-- `true`: Register `plan` tool (default)
-- `false`: Do not register `plan` tool
 
 ### defaultThinkingLevel
 
-Default thinking level.
+Default thinking level for reasoning models:
+
+| Value | Description |
+|-------|-------------|
+| `off` | Disable thinking |
+| `minimal` | Minimal thinking |
+| `low` | Low level |
+| `medium` | Medium level (default) |
+| `high` | High level |
+| `xhigh` | Highest level |
 
 ```json
-{
-  "defaultThinkingLevel": "medium"
-}
+{ "defaultThinkingLevel": "medium" }
 ```
 
-Options:
-- `off`: Disable thinking
-- `minimal`: Minimal thinking
-- `low`: Low level
-- `medium`: Medium level
-- `high`: High level
-- `xhigh`: Highest level
+### enablePlanTool
 
-### maxOutputTokens
-
-Maximum output token count.
+Whether to register the built-in `plan` tool that allows the agent to create and track structured task plans.
 
 ```json
-{
-  "maxOutputTokens": 384000
-}
+{ "enablePlanTool": true }
 ```
+
+Set to `false` to disable it (e.g., if you prefer the agent not to use structured plans).
 
 ### maxContextTokens
 
-Maximum context token count.
+Override the maximum context token count. When set to `0` (default), the value is derived from the model's `contextWindow`.
 
 ```json
-{
-  "maxContextTokens": 200000
-}
+{ "maxContextTokens": 200000 }
 ```
 
-### compaction
+### maxOutputTokens
 
-Context compression configuration for managing long conversations.
+Override the maximum output token count. When set to `0` (default), the value is derived from the model's `maxTokens`.
 
 ```json
-{
-  "compaction": {
-    "enabled": true,
-    "reserveTokens": 16384,
-    "keepRecentTokens": 20000
-  }
-}
+{ "maxOutputTokens": 16384 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enabled` | bool | true | Whether to enable compression |
-| `reserveTokens` | int | 16384 | Tokens reserved for model response |
-| `keepRecentTokens` | int | 20000 | Tokens kept for recent messages |
-
-### sandbox
-
-Sandbox configuration.
-
-```json
-{
-  "sandbox": {
-    "enabled": true,
-    "level": "standard",
-    "allowNetwork": false
-  }
-}
-```
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enabled` | bool | false | Whether to enable sandbox |
-| `level` | string | standard | Sandbox level (none, standard, strict) |
-| `allowNetwork` | bool | false | Whether to allow network access |
+---
 
 ### contextFiles
 
-Context file configuration.
+Context file loading settings.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Whether to automatically load context files |
+| `extraFiles` | []string | `[]` | Additional context file paths to load |
 
 ```json
 {
@@ -322,16 +370,11 @@ Context file configuration.
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `enabled` | bool | true | Whether to automatically load context files |
-| `extraFiles` | []string | [] | Extra context file paths |
-
 #### Auto-loaded Context Files
 
 VibeCoding automatically searches for and loads the following files:
 
-1. **Global files** (Linux/macOS: `~/.vibecoding/`, Windows: `%APPDATA%\vibecoding\`):
+1. **Global files** (in the global config directory):
    - `AGENTS.md`
    - `CLAUDE.md`
 
@@ -341,23 +384,299 @@ VibeCoding automatically searches for and loads the following files:
    - `.vibe/AGENTS.md`
    - `.vibe/CLAUDE.md`
 
-### skills
+---
 
-Skill system configuration.
+### skillsDir
+
+Path to the global skills directory. Supports `~` expansion.
+
+| Platform | Default |
+|----------|---------|
+| Linux | `~/.vibecoding/skills` |
+| macOS | `~/Library/Application Support/vibecoding/skills` |
+| Windows | `%APPDATA%\vibecoding\skills` |
+
+```json
+{ "skillsDir": "~/.vibecoding/skills" }
+```
+
+Skills are loaded from:
+- **Global skills**: `<skillsDir>/<name>/SKILL.md`
+- **Project skills**: `.skills/<name>/SKILL.md` (override global)
+
+---
+
+### compaction
+
+Context compaction (compression) configuration for managing long conversations. When the context window fills up, VibeCoding can automatically summarize older messages to keep the conversation going.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable automatic context compaction |
+| `reserveTokens` | int | `16384` | Tokens reserved for the model's response |
+| `keepRecentTokens` | int | `20000` | Recent message tokens to keep uncompacted |
+| `idleCompressionEnabled` | bool | `false` | Enable proactive compression during idle periods |
+| `idleTimeoutSeconds` | int | `90` | Seconds of user inactivity before idle compression triggers |
+| `idleMinTokensForCompress` | int | `150000` | Minimum context tokens before idle compression is worthwhile |
 
 ```json
 {
-  "skills": {
+  "compaction": {
     "enabled": true,
-    "dirs": [
-      "~/.vibecoding/skills",
-      ".skills"
-    ]
+    "reserveTokens": 16384,
+    "keepRecentTokens": 20000,
+    "idleCompressionEnabled": true,
+    "idleTimeoutSeconds": 90,
+    "idleMinTokensForCompress": 150000
   }
 }
 ```
 
-The `"~/.vibecoding/skills"` path uses `~` expansion which works on Linux/macOS. On Windows, use `%APPDATA%\vibecoding\skills` or an absolute path.
+#### Idle Compression
+
+When enabled, VibeCoding proactively compresses the context during periods of inactivity (e.g., while you're reading output or thinking about your next prompt). This reduces latency for your next request because the context is already smaller.
+
+- **`idleCompressionEnabled`**: Off by default. Turn it on if you frequently have long conversations.
+- **`idleTimeoutSeconds`**: How long VibeCoding waits after the last interaction before triggering idle compression. Default: 90 seconds.
+- **`idleMinTokensForCompress`**: Idle compression only triggers if the current context exceeds this threshold. Default: 150,000 tokens.
+
+---
+
+### sandbox
+
+Sandbox configuration for secure command execution. Uses [bubblewrap (bwrap)](https://github.com/containers/bubblewrap) on Linux.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable sandboxed execution |
+| `level` | string | `"none"` | Sandbox level: `"none"`, `"standard"`, `"strict"` |
+| `bwrapPath` | string | `""` (auto) | Custom path to the `bwrap` binary |
+| `allowNetwork` | bool | `false` | Allow network access inside sandbox |
+| `allowedRead` | []string | *(platform-specific)* | Paths readable inside the sandbox |
+| `allowedWrite` | []string | `[]` | Additional paths writable inside the sandbox |
+| `deniedPaths` | []string | *(platform-specific)* | Paths explicitly denied inside the sandbox |
+| `passEnv` | []string | *(platform-specific)* | Environment variables passed into the sandbox |
+| `tmpSize` | string | `"100m"` | Size limit for the sandbox's `/tmp` tmpfs mount |
+
+```json
+{
+  "sandbox": {
+    "enabled": true,
+    "level": "standard",
+    "bwrapPath": "/usr/bin/bwrap",
+    "allowNetwork": false,
+    "allowedRead": ["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc/ssl"],
+    "allowedWrite": ["/tmp/my-build"],
+    "deniedPaths": ["/etc/shadow", "/root"],
+    "passEnv": ["PATH", "HOME", "USER", "LANG", "TERM", "SHELL", "GOPATH"],
+    "tmpSize": "200m"
+  }
+}
+```
+
+#### Sandbox Levels
+
+| Level | File System | Network | Use Case |
+|-------|------------|---------|----------|
+| `none` | Full access | ✓ | No sandboxing (YOLO mode default) |
+| `standard` | Project read-write | ✗ | Everyday development (Agent mode) |
+| `strict` | Project read-only | ✗ | Code review / analysis (Plan mode) |
+
+#### Platform Defaults for allowedRead
+
+**Linux:**
+```json
+["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc/ld.so.cache", "/etc/ssl", "/etc/ca-certificates", "/dev/null", "/dev/urandom", "/dev/zero", "/proc/self", "/proc/meminfo", "/proc/cpuinfo"]
+```
+
+**macOS:**
+```json
+["/usr", "/lib", "/bin", "/sbin", "/System", "/Library"]
+```
+
+**Windows:**
+```json
+["C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)"]
+```
+
+#### Platform Defaults for deniedPaths
+
+**Linux / macOS:**
+```json
+["/etc/shadow", "/etc/gshadow", "/etc/passwd", "/root", "/home"]
+```
+
+**Windows:**
+```json
+["C:\\Users\\<Username>\\Documents", "C:\\Users\\<Username>\\Desktop"]
+```
+
+#### Platform Defaults for passEnv
+
+**All platforms:** `PATH`, `HOME`, `USER`, `LANG`, `LC_ALL`, `TERM`
+
+**Linux additionally:** `SHELL`, `GOPATH`, `GOROOT`, `GOPROXY`, `GOMODCACHE`, `NODE_PATH`
+
+**macOS additionally:** `SHELL`, `TMPDIR`
+
+**Windows additionally:** `APPDATA`, `LOCALAPPDATA`, `COMPUTERNAME`, `USERPROFILE`, `SYSTEMROOT`
+
+---
+
+### sessionDir
+
+Directory for storing session files (JSONL format). Supports `~` expansion.
+
+| Platform | Default |
+|----------|---------|
+| Linux | `~/.vibecoding/sessions` |
+| macOS | `~/Library/Application Support/vibecoding/sessions` |
+| Windows | `%APPDATA%\vibecoding\sessions` |
+
+```json
+{ "sessionDir": "~/.vibecoding/sessions" }
+```
+
+---
+
+### shellPath
+
+Custom shell path for the Bash tool. When empty (default), VibeCoding uses the platform default:
+
+| Platform | Default |
+|----------|---------|
+| Linux | `$SHELL` or `/bin/bash` |
+| macOS | `$SHELL` or `/bin/zsh` |
+| Windows | `powershell.exe` or `cmd.exe` |
+
+```json
+{ "shellPath": "/usr/bin/fish" }
+```
+
+### shellCommandPrefix
+
+A string prepended to every shell command before execution. Useful for setting up environment or activating virtualenvs.
+
+```json
+{ "shellCommandPrefix": "source ~/.venv/bin/activate && " }
+```
+
+When empty (default), commands are executed directly.
+
+---
+
+### theme
+
+UI color theme for the terminal interface.
+
+| Value | Description |
+|-------|-------------|
+| `"dark"` | Dark background theme (default) |
+| `"light"` | Light background theme |
+
+```json
+{ "theme": "dark" }
+```
+
+---
+
+### retry
+
+API call retry configuration with exponential backoff.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `true` | Enable automatic retries on transient API errors |
+| `maxRetries` | int | `3` | Maximum number of retry attempts |
+| `baseDelayMs` | int | `2000` | Base delay in milliseconds (doubled on each retry) |
+
+```json
+{
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  }
+}
+```
+
+---
+
+### approval
+
+Agent mode approval configuration. Controls which Bash commands auto-execute and which require user confirmation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `bashWhitelist` | []string | *(see below)* | Command prefixes that auto-approve in agent mode |
+| `bashBlacklist` | []string | `[]` | Command prefixes that **always** require approval |
+| `confirmBeforeWrite` | bool | `true` | Require user approval before `Write`/`Edit` tools run in agent mode |
+
+#### Default Whitelist
+
+```json
+["go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "]
+```
+
+#### Approval Flow
+
+```
+Agent requests tool execution
+│
+▼
+Check mode
+├─ Plan mode → Deny (read-only)
+├─ Agent mode → Continue checking
+└─ YOLO mode → Auto-approve unless blacklisted
+│
+▼
+Blacklist check (highest priority):
+├─ Command matches blacklist → Require user approval
+└─ Otherwise continue
+│
+▼
+In Agent mode:
+├─ Write/Edit tool + confirmBeforeWrite=true → Require user approval
+├─ Non-Bash tool → Auto-approve
+├─ Command matches whitelist → Auto-approve
+└─ Otherwise → Require user approval
+│
+▼
+In --print mode:
+  Commands that would need approval → Fail immediately
+```
+
+#### Example Configurations
+
+**Only allow git and npm:**
+```json
+{
+  "approval": {
+    "bashWhitelist": ["git ", "npm "]
+  }
+}
+```
+
+**Custom blacklist:**
+```json
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git "],
+    "bashBlacklist": ["rm -rf", "sudo", "dd "]
+  }
+}
+```
+
+**Disable write confirmation (trust the agent):**
+```json
+{
+  "approval": {
+    "confirmBeforeWrite": false
+  }
+}
+```
+
+---
 
 ## MCP Configuration
 
@@ -365,7 +684,7 @@ MCP servers are configured in standalone `mcp.json` files, not in `settings.json
 
 VibeCoding loads MCP configuration at startup from:
 
-1. Global config: `~/.vibecoding/mcp.json` on Linux/macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
+1. Global config: `~/.vibecoding/mcp.json` on Linux, `~/Library/Application Support/vibecoding/mcp.json` on macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
 2. Project config: `.vibe/mcp.json`
 
 Create a template from the TUI:
@@ -412,17 +731,91 @@ MCP tools are registered after built-in tools and `skill_ref`, but before the ag
 
 Tool names use `mcp_<server_name>_<tool_name>`. If a name already exists, VibeCoding appends a numeric suffix instead of replacing an existing tool. Starter-template placeholders such as `/absolute/path/to/mcp-server`, `example.com`, and `replace-me` are ignored during automatic startup loading.
 
+---
+
 ## Authentication Configuration
 
-### Option 1: Environment Variables
+VibeCoding supports multiple ways to provide API keys, with flexible resolution logic.
+
+### Key Resolution Order
+
+When VibeCoding needs the API key for a provider, it checks in this order:
+
+1. **Provider `apiKey` field** in `settings.json` — if set, resolved using the rules below
+2. **Derived environment variable** — provider name is converted to an env var: e.g., `deepseek-openai` → `DEEPSEEK_OPENAI_API_KEY`
+
+### apiKey Field Formats
+
+The `apiKey` field in a provider config supports three formats:
+
+| Format | Example | Behavior |
+|--------|---------|----------|
+| `${VAR}` | `"${DEEPSEEK_API_KEY}"` | Reads the value of environment variable `VAR` |
+| `!command` | `"!pass show deepseek-key"` | Executes a shell command and uses its stdout |
+| Plain string | `"sk-abc123..."` | Used as-is (⚠️ not recommended for shared configs) |
+
+#### Environment Variable Reference
+
+```json
+{
+  "providers": {
+    "deepseek-openai": {
+      "apiKey": "${DEEPSEEK_API_KEY}"
+    }
+  }
+}
+```
+
+Then set the environment variable:
 
 ```bash
 export DEEPSEEK_API_KEY=sk-...
 ```
 
-### Option 2: Inline in Configuration File
+#### Shell Command (Password Manager Integration)
 
-Configure directly in `settings.json` providers:
+Prefix with `!` to run a shell command. VibeCoding uses `sh -c` on Linux/macOS and `powershell.exe` on Windows.
+
+```json
+{
+  "providers": {
+    "anthropic": {
+      "apiKey": "!pass show api/anthropic"
+    },
+    "openai": {
+      "apiKey": "!security find-generic-password -s openai-api -w"
+    }
+  }
+}
+```
+
+This is useful for integrating with password managers like `pass`, `1password-cli`, macOS Keychain, or any other secret store.
+
+#### Derived Environment Variable Fallback
+
+If no `apiKey` is configured for a provider, VibeCoding derives an environment variable name from the provider name:
+
+| Provider Name | Derived Env Var |
+|---------------|-----------------|
+| `deepseek-openai` | `DEEPSEEK_OPENAI_API_KEY` |
+| `deepseek-anthropic` | `DEEPSEEK_ANTHROPIC_API_KEY` |
+| `my-custom-provider` | `MY_CUSTOM_PROVIDER_API_KEY` |
+| `anthropic` | `ANTHROPIC_API_KEY` |
+| `openai` | `OPENAI_API_KEY` |
+
+The rule: replace `-` with `_`, uppercase everything, append `_API_KEY`.
+
+### Authentication Examples
+
+**Option 1: Environment Variables (simplest)**
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+```
+
+With default config, VibeCoding will look for `DEEPSEEK_OPENAI_API_KEY` for the `deepseek-openai` provider. But if the provider's `apiKey` is set to `${DEEPSEEK_API_KEY}`, it reads that env var instead.
+
+**Option 2: Inline in Configuration File**
 
 ```json
 {
@@ -434,27 +827,40 @@ Configure directly in `settings.json` providers:
 }
 ```
 
-### Key Resolution Order
+**Option 3: Password Manager**
 
-1. Environment variable (`DEEPSEEK_API_KEY`)
-2. Inline in configuration file (`settings.json` providers.<name>.apiKey)
+```json
+{
+  "providers": {
+    "deepseek-openai": {
+      "apiKey": "!pass show deepseek"
+    }
+  }
+}
+```
+
+---
 
 ## Environment Variable Overrides
 
-Any setting can be overridden via environment variables:
+These environment variables override settings at runtime:
 
-| Environment Variable | Overridden Setting |
-|---------------------|-------------------|
-| `VIBECODING_DIR` | Configuration directory |
-| `VIBECODING_PROVIDER` | defaultProvider |
-| `VIBECODING_MODEL` | defaultModel |
-| `VIBECODING_MODE` | defaultMode |
-| `VIBECODING_THINKING` | defaultThinkingLevel |
-| `VIBECODING_DEBUG` | Provider-level request/response debug output |
+| Environment Variable | Overrides | Example |
+|---------------------|-----------|---------|
+| `VIBECODING_DIR` | Global config directory | `export VIBECODING_DIR=/custom/config` |
+| `VIBECODING_PROVIDER` | `defaultProvider` | `export VIBECODING_PROVIDER=anthropic` |
+| `VIBECODING_MODEL` | `defaultModel` | `export VIBECODING_MODEL=claude-sonnet-4-20250514` |
+| `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |
+| `VIBECODING_THINKING` | `defaultThinkingLevel` | `export VIBECODING_THINKING=high` |
+| `VIBECODING_DEBUG` | Enable provider-level request/response debug output | `export VIBECODING_DEBUG=1` |
+
+---
 
 ## Configuration Examples
 
 ### Minimal Configuration
+
+Only need to set the default provider and model. Everything else uses sensible defaults.
 
 ```json
 {
@@ -465,16 +871,35 @@ Any setting can be overridden via environment variables:
 
 ### Multi-Provider Configuration
 
+Switch between providers at runtime using `/provider` or `--provider`:
+
 ```json
 {
   "providers": {
     "deepseek-anthropic": {
       "baseUrl": "https://api.deepseek.com/anthropic",
+      "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "anthropic-messages"
     },
     "deepseek-openai": {
       "baseUrl": "https://api.deepseek.com",
+      "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "openai-chat"
+    },
+    "anthropic": {
+      "baseUrl": "https://api.anthropic.com",
+      "apiKey": "${ANTHROPIC_API_KEY}",
+      "api": "anthropic-messages",
+      "cacheControl": true,
+      "models": [
+        {
+          "id": "claude-sonnet-4-20250514",
+          "name": "Claude Sonnet 4",
+          "contextWindow": 200000,
+          "maxTokens": 8192,
+          "cost": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75 }
+        }
+      ]
     }
   },
   "defaultProvider": "deepseek-openai",
@@ -482,7 +907,7 @@ Any setting can be overridden via environment variables:
 }
 ```
 
-### Custom API Endpoint
+### Custom API Endpoint / Proxy
 
 ```json
 {
@@ -490,119 +915,66 @@ Any setting can be overridden via environment variables:
     "my-proxy": {
       "baseUrl": "https://my-proxy.example.com/v1",
       "api": "openai-chat",
-      "apiKey": "my-key",
+      "apiKey": "${MY_PROXY_API_KEY}",
       "models": [
         {
-          "id": "deepseek-v4-flash",
-          "name": "DeepSeek-V4-Flash (via proxy)"
+          "id": "gpt-4o",
+          "name": "GPT-4o (via proxy)",
+          "contextWindow": 128000,
+          "maxTokens": 16384
         }
       ]
     }
   },
-  "defaultProvider": "my-proxy"
+  "defaultProvider": "my-proxy",
+  "defaultModel": "gpt-4o"
 }
 ```
 
-### Enable Sandbox
+### Enable Sandbox with Custom Paths
 
 ```json
 {
   "sandbox": {
     "enabled": true,
-    "level": "standard"
+    "level": "standard",
+    "allowNetwork": false,
+    "allowedRead": ["/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc/ssl", "/opt/go"],
+    "passEnv": ["PATH", "HOME", "USER", "LANG", "TERM", "SHELL", "GOPATH", "GOROOT"],
+    "tmpSize": "200m"
   }
 }
 ```
 
-### approval
-
-Agent mode approval configuration, controls bash command approval behavior.
+### Enable Idle Compression for Long Sessions
 
 ```json
 {
-  "approval": {
-    "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn "],
-    "bashBlacklist": ["rm -rf", "sudo"],
-    "confirmBeforeWrite": true
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 20000,
+    "idleCompressionEnabled": true,
+    "idleTimeoutSeconds": 60,
+    "idleMinTokensForCompress": 100000
   }
 }
 ```
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `bashWhitelist` | []string | See below | Auto-approved command prefix list |
-| `bashBlacklist` | []string | [] | Commands always requiring approval |
-| `confirmBeforeWrite` | bool | true | Require approval before `write`/`edit` in agent mode |
+### Project-Level Override
 
-#### Default Whitelist
+Place in `.vibe/settings.json` to override specific settings for a project:
 
-```json
-[
-  "go ",
-  "make ",
-  "git ",
-  "npm ",
-  "yarn ",
-  "node ",
-  "python ",
-  "pip "
-]
-```
-
-#### Approval Flow
-
-- `bashBlacklist` has higher priority than `bashWhitelist`
-- In `agent` mode, blacklisted bash commands always require approval even if they also match the whitelist
-- In `agent` mode, `write` and `edit` require approval when `confirmBeforeWrite` is enabled
-- In `yolo` mode, blacklisted bash commands still require approval
-- In `--print` mode, commands that would require approval fail immediately instead of being auto-approved
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Approval Flow                             │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Agent requests bash command execution                       │
-│  │                                                           │
-│  ▼                                                           │
-│  Check mode                                                  │
-│  ├─ Plan mode → Deny (read-only)                             │
-│  ├─ Agent mode → Continue checking                           │
-│  └─ YOLO mode → Auto-approve unless blacklisted              │
-│                                                              │
-│  Blacklist check (highest priority):                         │
-│  ├─ Command matches blacklist → Require user approval        │
-│  └─ Otherwise continue                                       │
-│                                                              │
-│  In Agent mode:                                              │
-│  ├─ Non-bash tool → Auto-approve                             │
-│  ├─ Command matches whitelist → Auto-approve                 │
-│  └─ Otherwise → Require user approval                        │
-│                                                              │
-│  User approval:                                              │
-│  ├─ Enter y/yes → Execute command                            │
-│  └─ Enter n/no → Deny execution                              │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### Example Configurations
-
-**Only allow git and npm:**
 ```json
 {
+  "defaultMode": "yolo",
+  "defaultThinkingLevel": "high",
+  "shellCommandPrefix": "source .venv/bin/activate && ",
   "approval": {
-    "bashWhitelist": ["git ", "npm "]
+    "bashWhitelist": ["python ", "pytest ", "pip ", "make "],
+    "confirmBeforeWrite": false
   }
 }
 ```
 
-**Custom blacklist:**
-```json
-{
-  "approval": {
-    "bashWhitelist": ["go ", "make ", "git "],
-    "bashBlacklist": ["rm -rf", "sudo", "dd "]
-  }
-}
-```
+This merges with your global settings — only the fields you specify are overridden.
