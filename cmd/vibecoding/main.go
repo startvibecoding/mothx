@@ -511,7 +511,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		wordWrap = w
 	}
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(wordWrap),
 	)
 	if err != nil {

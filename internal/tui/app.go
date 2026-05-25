@@ -716,7 +716,7 @@ func (a *App) updateViewportContent() {
 func (a *App) configureMarkdownRenderer() {
 	width := a.assistantMarkdownWidth()
 	if r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(width),
 	); err == nil {
 		a.mdRenderer = r
