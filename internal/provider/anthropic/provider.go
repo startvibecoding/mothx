@@ -462,49 +462,17 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessage {
 	cacheEnabled := p.IsCacheControlEnabled()
 	var messages []anthropicMessage
-	for _, msg := range params.Messages {
+	for i := 0; i < len(params.Messages); i++ {
+		msg := params.Messages[i]
 		am := anthropicMessage{Role: msg.Role}
 		if msg.Role == "toolResult" {
-			am.Role = "user"
-			if len(msg.Contents) > 0 {
-				// Rich tool result: send text as tool_result, images as separate user message.
-				// Many API routing layers only detect images in user messages, not inside tool_result.
-				var imageBlocks []anthropicContentBlock
-				var textContent string
-				var hasCacheControl bool
-				for _, c := range msg.Contents {
-					switch c.Type {
-					case "text":
-						textContent = c.Text
-						if c.CacheControl != nil {
-							hasCacheControl = true
-						}
-					case "image":
-						if c.Image != nil {
-							imageBlocks = append(imageBlocks, anthropicContentBlock{Type: "image", Source: &anthropicImage{Type: "base64", MediaType: c.Image.MimeType, Data: c.Image.Data}})
-						}
-					}
-				}
-				// Send tool_result with text only
-				if textContent != "" {
-					resultBlock := anthropicContentBlock{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: textContent, IsError: msg.IsError}
-					if hasCacheControl && cacheEnabled {
-						resultBlock.CacheControl = &anthropicCacheControl{Type: "ephemeral"}
-					}
-					am.Content = []anthropicContentBlock{resultBlock}
-					messages = append(messages, am)
-				} else {
-					am.Content = []anthropicContentBlock{{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: msg.Content, IsError: msg.IsError}}
-					messages = append(messages, am)
-				}
-				// Send images as a separate user message
-				if len(imageBlocks) > 0 {
-					imageMsg := anthropicMessage{Role: "user", Content: imageBlocks}
-					messages = append(messages, imageMsg)
-				}
-				continue
-			}
-			am.Content = []anthropicContentBlock{{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: msg.Content, IsError: msg.IsError}}
+			// Anthropic requires all tool_result blocks for the preceding assistant
+			// tool_use blocks to be in the next user message, before any other
+			// content. Group consecutive tool results to preserve that shape.
+			blocks, next := p.convertToolResultRun(params.Messages, i, cacheEnabled)
+			messages = append(messages, anthropicMessage{Role: "user", Content: blocks})
+			i = next - 1
+			continue
 		} else if len(msg.Contents) > 0 {
 			var blocks []anthropicContentBlock
 			for _, c := range msg.Contents {
@@ -547,6 +515,57 @@ func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessag
 		messages = append(messages, am)
 	}
 	return messages
+}
+
+func (p *Provider) convertToolResultRun(messages []provider.Message, start int, cacheEnabled bool) ([]anthropicContentBlock, int) {
+	var resultBlocks []anthropicContentBlock
+	var imageBlocks []anthropicContentBlock
+	i := start
+	for i < len(messages) && messages[i].Role == "toolResult" {
+		resultBlock, images := p.convertToolResultMessage(messages[i], cacheEnabled)
+		resultBlocks = append(resultBlocks, resultBlock)
+		imageBlocks = append(imageBlocks, images...)
+		i++
+	}
+	return append(resultBlocks, imageBlocks...), i
+}
+
+func (p *Provider) convertToolResultMessage(msg provider.Message, cacheEnabled bool) (anthropicContentBlock, []anthropicContentBlock) {
+	textContent := msg.Content
+	var imageBlocks []anthropicContentBlock
+	var hasCacheControl bool
+
+	if len(msg.Contents) > 0 {
+		var textParts []string
+		for _, c := range msg.Contents {
+			switch c.Type {
+			case "text":
+				if c.Text != "" {
+					textParts = append(textParts, c.Text)
+				}
+				if c.CacheControl != nil {
+					hasCacheControl = true
+				}
+			case "image":
+				if c.Image != nil {
+					imageBlocks = append(imageBlocks, anthropicContentBlock{Type: "image", Source: &anthropicImage{Type: "base64", MediaType: c.Image.MimeType, Data: c.Image.Data}})
+				}
+			}
+		}
+		if len(textParts) > 0 {
+			textContent = strings.Join(textParts, "\n")
+		}
+	}
+
+	if strings.TrimSpace(textContent) == "" {
+		textContent = "Tool completed with no output."
+	}
+
+	resultBlock := anthropicContentBlock{Type: "tool_result", ToolUseID: msg.ToolCallID, Content: textContent, IsError: msg.IsError}
+	if hasCacheControl && cacheEnabled {
+		resultBlock.CacheControl = &anthropicCacheControl{Type: "ephemeral"}
+	}
+	return resultBlock, imageBlocks
 }
 
 func (p *Provider) convertTools(tools []provider.ToolDefinition) []anthropicTool {

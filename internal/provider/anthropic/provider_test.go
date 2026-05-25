@@ -185,6 +185,75 @@ func TestChatRequestPreservesCacheControlOnSingleTextBlock(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesAnthropicToolResultEmptyContentFallback(t *testing.T) {
+	p := NewProvider("fake-key", "https://api.anthropic.com")
+	msgs := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			provider.NewToolResultMessage("toolu_1", "bash", "", false),
+		},
+	})
+
+	if len(msgs) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(msgs))
+	}
+	if msgs[0].Role != "user" {
+		t.Fatalf("role = %q, want user", msgs[0].Role)
+	}
+	blocks, ok := msgs[0].Content.([]anthropicContentBlock)
+	if !ok {
+		t.Fatalf("content type = %T, want []anthropicContentBlock", msgs[0].Content)
+	}
+	if len(blocks) != 1 {
+		t.Fatalf("len(blocks) = %d, want 1", len(blocks))
+	}
+	if blocks[0].Type != "tool_result" {
+		t.Fatalf("block type = %q, want tool_result", blocks[0].Type)
+	}
+	if blocks[0].ToolUseID != "toolu_1" {
+		t.Fatalf("tool_use_id = %q, want toolu_1", blocks[0].ToolUseID)
+	}
+	if blocks[0].Content != "Tool completed with no output." {
+		t.Fatalf("content = %#v, want fallback text", blocks[0].Content)
+	}
+}
+
+func TestConvertMessagesAnthropicGroupsConsecutiveToolResults(t *testing.T) {
+	p := NewProvider("fake-key", "https://api.anthropic.com")
+	msgs := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			provider.NewToolResultMessage("toolu_1", "read", "first", false),
+			provider.NewToolResultMessageWithContents("toolu_2", "screenshot", "image result", []provider.ContentBlock{
+				{Type: "text", Text: "second"},
+				{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc123"}},
+			}, false),
+			provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "done"}}),
+		},
+	})
+
+	if len(msgs) != 2 {
+		t.Fatalf("len(messages) = %d, want 2", len(msgs))
+	}
+	if msgs[0].Role != "user" {
+		t.Fatalf("role = %q, want user", msgs[0].Role)
+	}
+	blocks, ok := msgs[0].Content.([]anthropicContentBlock)
+	if !ok {
+		t.Fatalf("content type = %T, want []anthropicContentBlock", msgs[0].Content)
+	}
+	if len(blocks) != 3 {
+		t.Fatalf("len(blocks) = %d, want 3", len(blocks))
+	}
+	if blocks[0].Type != "tool_result" || blocks[0].ToolUseID != "toolu_1" || blocks[0].Content != "first" {
+		t.Fatalf("first block = %#v, want first tool_result", blocks[0])
+	}
+	if blocks[1].Type != "tool_result" || blocks[1].ToolUseID != "toolu_2" || blocks[1].Content != "second" {
+		t.Fatalf("second block = %#v, want second tool_result", blocks[1])
+	}
+	if blocks[2].Type != "image" || blocks[2].Source == nil || blocks[2].Source.Data != "abc123" {
+		t.Fatalf("third block = %#v, want image block after tool results", blocks[2])
+	}
+}
+
 func TestAnthropicThinkingFormatDeepSeek(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
