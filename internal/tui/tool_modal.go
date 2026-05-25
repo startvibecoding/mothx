@@ -67,6 +67,9 @@ func (a *App) renderExpandedMessageAt(idx int) string {
 
 func (a *App) renderExpandedToolResult(result toolResult) string {
 	content := formatToolHeader(result)
+	if result.toolName == "edit" {
+		content = formatEditedToolResult(result)
+	}
 	details := formatToolModalContent(result)
 	if strings.TrimSpace(details) != "" {
 		content += "\n" + details

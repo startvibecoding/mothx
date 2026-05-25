@@ -22,6 +22,50 @@ var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
 
+func trimLineRightSpace(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func TestRenderEditToolResultShowsCompactDiff(t *testing.T) {
+	app := &App{}
+	result := toolResult{
+		toolName: "edit",
+		toolArgs: map[string]any{"path": "internal/acp/acp.go"},
+		diff: &tools.FileDiff{
+			Path:    "internal/acp/acp.go",
+			Added:   1,
+			Deleted: 1,
+			Unified: strings.Join([]string{
+				"--- internal/acp/acp.go",
+				"+++ internal/acp/acp.go",
+				"@@ -551,3 +551,3 @@",
+				" \tctx, cancel := context.WithCancel(context.Background())",
+				"-\tpromptKey := rawIDKey(req.ID)",
+				"+\tpromptKey := mcp.RawIDKey(req.ID)",
+				" \trt.cancelMu.Lock()",
+				"",
+			}, "\n"),
+		},
+	}
+
+	got := trimLineRightSpace(stripANSI(app.renderToolResult(result)))
+	want := strings.Join([]string{
+		"• Edited internal/acp/acp.go (+1 -1)",
+		"    551       ctx, cancel := context.WithCancel(context.Background())",
+		"    552  -    promptKey := rawIDKey(req.ID)",
+		"    552  +    promptKey := mcp.RawIDKey(req.ID)",
+		"    553       rt.cancelMu.Lock()",
+	}, "\n")
+
+	if got != want {
+		t.Fatalf("renderToolResult(edit) =\n%q\nwant\n%q", got, want)
+	}
+}
+
 // ─── formatCachePercent ───────────────────────────────────────────────────────
 
 func TestFormatCachePercent(t *testing.T) {

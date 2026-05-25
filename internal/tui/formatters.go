@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,6 +98,80 @@ func formatToolHeader(result toolResult) string {
 		return fmt.Sprintf("🔧 [%s]", result.toolName)
 	}
 	return fmt.Sprintf("🔧 [%s] %s", result.toolName, path)
+}
+
+func formatEditedToolResult(result toolResult) string {
+	path := toolPath(result.toolArgs)
+	if result.diff != nil && result.diff.Path != "" {
+		path = result.diff.Path
+	}
+	if path == "" {
+		path = "(unknown)"
+	}
+
+	summary := result.summary
+	if result.diff != nil {
+		summary = fmt.Sprintf("(+%d -%d)", result.diff.Added, result.diff.Deleted)
+	}
+
+	header := fmt.Sprintf("• Edited %s", path)
+	if summary != "" {
+		header += " " + summary
+	}
+
+	if result.diff == nil || strings.TrimSpace(result.diff.Unified) == "" {
+		return header
+	}
+
+	diffLines := formatUnifiedDiffExcerpt(result.diff.Unified)
+	if diffLines == "" {
+		return header
+	}
+	return header + "\n" + diffLines
+}
+
+var unifiedHunkRe = regexp.MustCompile(`^@@ -([0-9]+)(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@`)
+
+func formatUnifiedDiffExcerpt(unified string) string {
+	var lines []string
+	oldLine, newLine := 0, 0
+	for _, line := range strings.Split(strings.TrimRight(unified, "\n"), "\n") {
+		if strings.HasPrefix(line, "--- ") || strings.HasPrefix(line, "+++ ") || line == "" {
+			continue
+		}
+		if matches := unifiedHunkRe.FindStringSubmatch(line); matches != nil {
+			oldLine, _ = strconv.Atoi(matches[1])
+			newLine, _ = strconv.Atoi(matches[2])
+			continue
+		}
+		if oldLine == 0 && newLine == 0 {
+			continue
+		}
+
+		kind := line[0]
+		text := ""
+		if len(line) > 1 {
+			text = line[1:]
+		}
+
+		switch kind {
+		case ' ':
+			lines = append(lines, formatDiffExcerptLine(newLine, ' ', text))
+			oldLine++
+			newLine++
+		case '-':
+			lines = append(lines, formatDiffExcerptLine(oldLine, '-', text))
+			oldLine++
+		case '+':
+			lines = append(lines, formatDiffExcerptLine(newLine, '+', text))
+			newLine++
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatDiffExcerptLine(lineNo int, kind byte, text string) string {
+	return fmt.Sprintf("    %-4d %c%s", lineNo, kind, text)
 }
 
 func toolPath(args map[string]any) string {

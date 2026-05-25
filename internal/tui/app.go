@@ -727,6 +727,12 @@ func (a *App) renderMessageAt(idx int) string {
 }
 
 func (a *App) renderToolResult(result toolResult) string {
+	if result.toolName == "edit" {
+		if result.summary == "" && result.fullContent == "" && result.diff == nil {
+			return toolStyle.Render(fmt.Sprintf("%s ...", formatToolHeader(result)))
+		}
+		return toolStyle.Render(formatEditedToolResult(result))
+	}
 	summary := result.summary
 	if summary == "" {
 		summary = "..."
@@ -771,7 +777,6 @@ func (a *App) renderPlanPanel() string {
 	}
 	return strings.Join(lines, "\n")
 }
-
 
 // formatCachePercent calculates and returns the cache hit rate string, or empty string if no data.
 // The denominator uses the full input footprint so OpenAI and Anthropic can share the same
@@ -953,7 +958,6 @@ func (a *App) finishRequestTimer() {
 		a.lastDuration = elapsed
 	}
 }
-
 
 func (a *App) cycleMode() {
 	modes := []string{"plan", "agent", "yolo"}

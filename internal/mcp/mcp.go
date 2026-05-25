@@ -1090,6 +1090,47 @@ func uniqueToolName(base string, existing map[string]struct{}) string {
 	return fmt.Sprintf("%s_%d", base, time.Now().UnixNano())
 }
 
+func extractSamplingPrompt(params json.RawMessage) string {
+	var req struct {
+		Messages []struct {
+			Content any `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(params, &req); err != nil {
+		return ""
+	}
+
+	var parts []string
+	for _, msg := range req.Messages {
+		switch content := msg.Content.(type) {
+		case string:
+			if strings.TrimSpace(content) != "" {
+				parts = append(parts, content)
+			}
+		case []any:
+			for _, item := range content {
+				block, ok := item.(map[string]any)
+				if !ok {
+					continue
+				}
+				if blockType, _ := block["type"].(string); blockType != "" && blockType != "text" {
+					continue
+				}
+				text, _ := block["text"].(string)
+				if strings.TrimSpace(text) != "" {
+					parts = append(parts, text)
+				}
+			}
+		case map[string]any:
+			text, _ := content["text"].(string)
+			if strings.TrimSpace(text) != "" {
+				parts = append(parts, text)
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
 func (c *Client) handleInboundRequest(msg RPCRequest) {
 	if len(msg.ID) == 0 {
 		c.handleInboundNotification(msg)
