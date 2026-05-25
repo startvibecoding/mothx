@@ -14,9 +14,28 @@
   - Enabled write/edit confirmation by default in generated settings
   - TUI approval prompts summarize write content by byte size instead of dumping full file content
 
+- **MCP Config Commands**
+  - Added `/init_mcp` to create project/global `mcp.json` with `basic`/`full` templates and optional `--force`
+  - Added `/mcps` to list MCP servers from global and project `mcp.json` files
+  - MCP config is now maintained in standalone `mcp.json` (separate from `settings.json`)
+
 ### 🧪 Testing
 
 - Added coverage for the `plan` tool and write/edit approval gating
+- Added HTTP-based MCP integration tests for tool/resource/prompt registration and callback paths
+- Added SSE-based MCP integration tests for stream callbacks and message endpoint request/response flow
+
+### 🛠 Improvements
+
+- **ACP MCP Hardening**
+  - Added MCP transport support for `http` and `sse` (alongside existing `stdio`)
+  - Added MCP initialize/tool-discovery timeouts to avoid hanging ACP sessions
+  - Added paginated `tools/list` fetching with upper page bounds
+  - Added MCP `resources/*` and `prompts/*` discovery and tool registration
+  - Added duplicate MCP server-name detection and MCP tool-name de-duplication
+  - Added MCP inbound request/notification handling (`ping`, progress/logging/cancel notifications)
+  - Added bridge for inbound `sampling/createMessage` to the active ACP provider/model
+  - Added stricter close/error propagation
 
 ---
 

@@ -14,9 +14,28 @@
   - 新生成的默认配置会启用写入/编辑确认
   - TUI 审批提示会用字节数摘要写入内容，避免直接展示完整文件内容
 
+- **MCP 配置命令**
+  - 新增 `/init_mcp`，支持创建项目/全局 `mcp.json`，并提供 `basic`/`full` 模板及 `--force` 覆盖
+  - 新增 `/mcps`，用于列出全局与项目 `mcp.json` 中的 MCP 服务器
+  - MCP 配置改为独立 `mcp.json`（不与 `settings.json` 混用）
+
 ### 🧪 测试
 
 - 新增 `plan` 工具和 write/edit 审批门控测试覆盖
+- 新增基于 HTTP 的 MCP 集成测试，覆盖 tool/resource/prompt 注册与回调链路
+- 新增基于 SSE 的 MCP 集成测试，覆盖流通知回调与 message endpoint 请求/响应链路
+
+### 🛠 改进
+
+- **ACP MCP 健壮性增强**
+  - 新增 `http` 和 `sse` MCP 传输支持（保留现有 `stdio`）
+  - 为 MCP 初始化与工具发现增加超时控制，避免 ACP 会话长时间挂起
+  - 为 `tools/list` 增加分页拉取与页数上限保护
+  - 新增 MCP `resources/*` 与 `prompts/*` 发现和工具注册
+  - 增加 MCP 服务器重名检测与 MCP 工具名去重注册
+  - 增加 MCP 入站请求/通知处理（`ping`、progress/logging/cancel 通知）
+  - 新增入站 `sampling/createMessage` 到当前 ACP provider/model 的桥接
+  - 收紧关闭/错误传播行为
 
 ---
 

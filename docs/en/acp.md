@@ -92,7 +92,7 @@ VibeCoding advertises the following ACP capabilities during initialization:
 - **Load Session**: Load and continue previous sessions
 - **Prompt Capabilities**: Text prompts (image/audio coming soon)
 - **Session Capabilities**: Cancel active prompts
-- **MCP Capabilities**: stdio transport supported
+- **MCP Capabilities**: stdio / http / sse transport supported
 
 ### Notifications
 
@@ -119,11 +119,26 @@ MCP servers are configured by the IDE client and passed to VibeCoding when creat
   "mcpServers": [
     {
       "name": "my-database",
+      "type": "stdio",
       "command": "/absolute/path/to/mcp-server",
       "args": ["--port", "8080"],
       "env": [
         {"name": "DB_URL", "value": "postgres://localhost/mydb"}
       ]
+    },
+    {
+      "name": "remote-tools",
+      "type": "http",
+      "url": "https://mcp.example.com",
+      "headers": [
+        {"name": "Authorization", "value": "Bearer ${TOKEN}"}
+      ]
+    },
+    {
+      "name": "legacy-sse",
+      "type": "sse",
+      "url": "https://legacy.example.com/sse",
+      "messageUrl": "https://legacy.example.com/messages"
     }
   ]
 }
@@ -133,9 +148,25 @@ MCP servers are configured by the IDE client and passed to VibeCoding when creat
 
 When an MCP server is connected, VibeCoding automatically discovers and registers all tools exposed by the server. The tools are registered with the naming convention `mcp_<server_name>_<tool_name>`, allowing the agent to use them alongside built-in tools.
 
+In addition to `tools/*`, VibeCoding now also discovers:
+
+- `resources/*`: exposed as MCP resource read tools
+- `prompts/*`: exposed as MCP prompt rendering tools
+
 ### MCP Transport Support
 
-Currently only `stdio` transport is supported for MCP servers. The server command must be an absolute path.
+Supported transports:
+
+- `stdio`: requires absolute `command` path
+- `http`: streamable HTTP endpoint via `url`
+- `sse`: legacy SSE stream via `url` plus `messageUrl` for client POSTs
+
+Additional notes:
+
+- MCP server names must be unique within one session
+- `headers` can be passed for `http` / `sse` transports
+- `sampling/createMessage` is bridged to the current ACP provider/model and returns assistant text content
+- MCP progress/logging/cancel notifications are surfaced as structured ACP `tool_call_update` events
 
 ## Permission System
 

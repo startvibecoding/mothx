@@ -58,6 +58,7 @@ type server struct {
 	pending  map[string]chan json.RawMessage
 
 	toolTitles map[string]string
+	mcpNotify  map[string]bool
 
 	nextID int64
 	r      *bufio.Reader
@@ -236,6 +237,7 @@ func Run(opts RunOptions) error {
 		sessions:   make(map[string]*sessionRuntime),
 		pending:    make(map[string]chan json.RawMessage),
 		toolTitles: make(map[string]string),
+		mcpNotify:  make(map[string]bool),
 		r:          bufio.NewReader(os.Stdin),
 		w:          os.Stdout,
 	}
@@ -477,19 +479,18 @@ func (s *server) handleNewSession(req rpcRequest) {
 		s.writeResponse(req.ID, nil, &rpcError{Code: -32602, Message: "cwd must be an absolute path"})
 		return
 	}
-	registry := s.newToolRegistry()
-	mcpClients, err := connectMCPServers(context.Background(), in.McpServers, registry)
-	if err != nil {
-		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
-		return
-	}
 	mgr := session.New(in.Cwd, s.settings.GetSessionDir())
 	if err := mgr.InitWithID(""); err != nil {
-		closeMCPClients(mcpClients)
 		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
 		return
 	}
 	id := mgr.GetHeader().ID
+	registry := s.newToolRegistry()
+	mcpClients, err := connectMCPServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(id))
+	if err != nil {
+		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
+		return
+	}
 	s.mu.Lock()
 	if old := s.sessions[id]; old != nil {
 		closeMCPClients(old.mcp)
@@ -513,7 +514,7 @@ func (s *server) handleLoadSession(req rpcRequest) {
 		return
 	}
 	registry := s.newToolRegistry()
-	mcpClients, err := connectMCPServers(context.Background(), in.McpServers, registry)
+	mcpClients, err := connectMCPServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(in.SessionID))
 	if err != nil {
 		s.writeResponse(req.ID, nil, &rpcError{Code: -32000, Message: err.Error()})
 		return
@@ -742,6 +743,189 @@ func planStatusMarker(status string) string {
 	default:
 		return "-"
 	}
+}
+
+func (s *server) buildMCPCallbacks(sessionID string) mcpCallbacks {
+	return mcpCallbacks{
+		OnNotification: func(serverName, method string, params json.RawMessage) {
+			s.handleMCPNotification(sessionID, serverName, method, params)
+		},
+		OnSamplingCreateMessage: func(ctx context.Context, serverName string, params json.RawMessage) (json.RawMessage, *rpcError) {
+			return s.handleMCPSamplingCreateMessage(ctx, sessionID, serverName, params)
+		},
+	}
+}
+
+func (s *server) handleMCPNotification(sessionID, serverName, method string, params json.RawMessage) {
+	callID := "mcp-notify-" + sanitizeToolName(serverName)
+	title := "mcp_notification: " + serverName
+	s.mu.Lock()
+	if !s.mcpNotify[callID] {
+		s.mcpNotify[callID] = true
+		s.mu.Unlock()
+		s.notify(sessionID, sessionUpdate{
+			SessionUpdate: "tool_call",
+			ToolCallID:    callID,
+			Title:         title,
+			Kind:          "other",
+			Status:        "pending",
+		})
+	} else {
+		s.mu.Unlock()
+	}
+
+	rawOut := map[string]any{
+		"method": method,
+	}
+	if parsed := parseJSONRawToMap(params); parsed != nil {
+		rawOut["params"] = parsed
+	} else if trimmed := strings.TrimSpace(string(params)); trimmed != "" && trimmed != "null" {
+		rawOut["paramsText"] = trimmed
+	}
+
+	switch method {
+	case "notifications/progress", "notifications/message", "logging/message", "notifications/cancelled":
+		s.notify(sessionID, sessionUpdate{
+			SessionUpdate: "tool_call_update",
+			ToolCallID:    callID,
+			Title:         title,
+			Status:        "in_progress",
+			RawOutput:     rawOut,
+		})
+	}
+}
+
+func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, serverName string, params json.RawMessage) (json.RawMessage, *rpcError) {
+	prompt, systemPrompt, maxTokens := extractSamplingInput(params)
+	if strings.TrimSpace(prompt) == "" {
+		return nil, &rpcError{Code: -32602, Message: "sampling/createMessage requires non-empty messages"}
+	}
+	if maxTokens <= 0 {
+		maxTokens = s.settings.MaxOutputTokens
+	}
+	modelID := ""
+	if s.m != nil {
+		modelID = s.m.ID
+	}
+	chatCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	events := s.p.Chat(chatCtx, provider.ChatParams{
+		Messages:      []provider.Message{provider.NewUserMessage(prompt)},
+		SystemPrompt:  systemPrompt,
+		ThinkingLevel: s.thinkingLevel,
+		MaxTokens:     maxTokens,
+		ModelID:       modelID,
+	})
+	var outText strings.Builder
+	for ev := range events {
+		switch ev.Type {
+		case provider.StreamTextDelta:
+			outText.WriteString(ev.TextDelta)
+		case provider.StreamDone:
+			// noop
+		case provider.StreamError:
+			if ev.Error != nil {
+				return nil, &rpcError{Code: -32000, Message: ev.Error.Error()}
+			}
+		}
+	}
+	text := strings.TrimSpace(outText.String())
+	if text == "" {
+		text = "(empty response)"
+	}
+	result := map[string]any{
+		"model": modelID,
+		"role":  "assistant",
+		"content": []map[string]any{
+			{"type": "text", "text": text},
+		},
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return nil, &rpcError{Code: -32000, Message: err.Error()}
+	}
+	s.notify(sessionID, sessionUpdate{
+		SessionUpdate: "agent_message_chunk",
+		Content:       &contentBlock{Type: "text", Text: "MCP[" + serverName + "] sampling/createMessage completed"},
+	})
+	return data, nil
+}
+
+func extractSamplingPrompt(params json.RawMessage) string {
+	prompt, _, _ := extractSamplingInput(params)
+	return prompt
+}
+
+func extractSamplingInput(params json.RawMessage) (prompt string, systemPrompt string, maxTokens int) {
+	maxTokens = 0
+	if len(params) == 0 {
+		return "", "", maxTokens
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(params, &raw); err != nil {
+		return strings.TrimSpace(string(params)), "", maxTokens
+	}
+	if v, ok := raw["maxTokens"].(float64); ok && int(v) > 0 {
+		maxTokens = int(v)
+	}
+	msgs, _ := raw["messages"].([]any)
+	var parts []string
+	for _, m := range msgs {
+		msgMap, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		content := msgMap["content"]
+		role, _ := msgMap["role"].(string)
+		switch v := content.(type) {
+		case string:
+			if strings.TrimSpace(v) != "" {
+				if role == "system" {
+					if systemPrompt == "" {
+						systemPrompt = v
+					}
+					continue
+				}
+				parts = append(parts, v)
+			}
+		case []any:
+			var blockTexts []string
+			for _, item := range v {
+				block, ok := item.(map[string]any)
+				if !ok {
+					continue
+				}
+				if t, _ := block["type"].(string); t == "text" {
+					if txt, _ := block["text"].(string); strings.TrimSpace(txt) != "" {
+						blockTexts = append(blockTexts, txt)
+					}
+				}
+			}
+			if len(blockTexts) == 0 {
+				continue
+			}
+			joined := strings.Join(blockTexts, "\n")
+			if role == "system" {
+				if systemPrompt == "" {
+					systemPrompt = joined
+				}
+				continue
+			}
+			parts = append(parts, joined)
+		}
+	}
+	return strings.Join(parts, "\n"), systemPrompt, maxTokens
+}
+
+func parseJSONRawToMap(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	return m
 }
 
 func (s *server) requestPermission(sessionID, toolCallID, toolName string, args map[string]any) bool {

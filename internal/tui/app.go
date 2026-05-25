@@ -1513,6 +1513,10 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		return tea.Quit
 	case "/sessions":
 		a.handleSessionsCommand(parts)
+	case "/init_mcp":
+		a.handleInitMCPCommand(parts)
+	case "/mcps":
+		a.handleMCPsCommand()
 	case "/help":
 		a.addMessage(statusStyle.Render("Commands:"))
 		a.addMessage(statusStyle.Render("  /mode [plan|agent|yolo] - Switch or show mode"))
@@ -1525,6 +1529,9 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.addMessage(statusStyle.Render("  /sessions set <id>      - Switch to session"))
 		a.addMessage(statusStyle.Render("  /sessions clear         - Create a new session"))
 		a.addMessage(statusStyle.Render("  /sessions del <id>      - Delete a session"))
+		a.addMessage(statusStyle.Render("  /init_mcp [target] [template] [--force]"))
+		a.addMessage(statusStyle.Render("                         - Init mcp.json (target: project|global, template: basic|full)"))
+		a.addMessage(statusStyle.Render("  /mcps                   - List MCP servers (global/project mcp.json)"))
 		a.addMessage(statusStyle.Render("  /quit                   - Exit"))
 		a.addMessage(statusStyle.Render("  /help                   - Show this help"))
 		a.addMessage(statusStyle.Render(""))
@@ -1796,6 +1803,101 @@ func (a *App) sessionsSet(id string) {
 
 	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
 		match.ID, match.MessageCount)))
+}
+
+func (a *App) handleInitMCPCommand(parts []string) {
+	target := "project"
+	template := "full"
+	force := false
+
+	for _, p := range parts[1:] {
+		switch strings.ToLower(p) {
+		case "project", "global":
+			target = strings.ToLower(p)
+		case "basic", "full":
+			template = strings.ToLower(p)
+		case "--force":
+			force = true
+		default:
+			a.addMessage(errorStyle.Render("Usage: /init_mcp [project|global] [basic|full] [--force]"))
+			return
+		}
+	}
+
+	path := config.ProjectMCPPath()
+	if target == "global" {
+		path = config.GlobalMCPPath()
+	}
+
+	if !force {
+		if _, err := os.Stat(path); err == nil {
+			a.addMessage(statusStyle.Render(fmt.Sprintf("MCP config already exists: %s (use --force to overwrite)", path)))
+			return
+		}
+	}
+
+	var cfg *config.MCPConfig
+	if template == "basic" {
+		cfg = config.DefaultMCPConfig()
+	} else {
+		cfg = config.FullMCPConfigTemplate()
+	}
+
+	if err := config.SaveMCPConfig(path, cfg); err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Init MCP config failed: %v", err)))
+		return
+	}
+	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Created MCP config: %s", path)))
+	a.addMessage(statusStyle.Render(fmt.Sprintf("Template: %s | Target: %s", template, target)))
+}
+
+func (a *App) handleMCPsCommand() {
+	type sourceInfo struct {
+		label string
+		path  string
+	}
+	sources := []sourceInfo{
+		{label: "Global", path: config.GlobalMCPPath()},
+		{label: "Project", path: config.ProjectMCPPath()},
+	}
+
+	var sb strings.Builder
+	sb.WriteString("MCP servers:\n")
+	foundAny := false
+
+	for _, src := range sources {
+		sb.WriteString(fmt.Sprintf("\n%s (%s):\n", src.label, src.path))
+		cfg, err := config.LoadMCPConfig(src.path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				sb.WriteString("  (not configured)\n")
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("  (invalid: %v)\n", err))
+			continue
+		}
+		config.NormalizeMCPConfig(cfg)
+		if len(cfg.MCPServers) == 0 {
+			sb.WriteString("  (empty)\n")
+			continue
+		}
+		for _, srv := range cfg.MCPServers {
+			foundAny = true
+			target := srv.Command
+			if target == "" {
+				target = srv.URL
+			}
+			if target == "" {
+				target = "-"
+			}
+			sb.WriteString(fmt.Sprintf("  - %s [%s] %s\n", srv.Name, srv.Type, target))
+		}
+	}
+
+	if !foundAny {
+		sb.WriteString("\nUse /init_mcp to create project mcp.json.")
+	}
+	a.addMessage(statusStyle.Render(sb.String()))
 }
 
 // sessionsClear creates a new session, starting fresh.
