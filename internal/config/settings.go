@@ -41,7 +41,7 @@ type ProviderConfig struct {
 	BaseURL        string        `json:"baseUrl,omitempty"`
 	API            string        `json:"api,omitempty"`
 	ThinkingFormat string        `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "deepseek", "xiaomi"
-	CacheControl   *bool         `json:"cacheControl,omitempty"`   // enable cache_control markers (nil=auto, true=force on, false=force off)
+	CacheControl   *bool         `json:"cacheControl,omitempty"`   // enable Anthropic prompt caching (nil/false=off, true=on; set true for Claude models)
 	Models         []ModelConfig `json:"models"`
 }
 

@@ -379,7 +379,10 @@ func createProvider(settings *config.Settings, providerName, modelID string) (pr
 	case "openai":
 		p = openai.NewProvider(settings.ResolveKey(providerName), "")
 	case "anthropic":
-		p = anthropic.NewProvider(settings.ResolveKey(providerName), "")
+		ap := anthropic.NewProvider(settings.ResolveKey(providerName), "")
+		enabled := true
+		ap.SetCacheControlEnabled(&enabled)
+		p = ap
 	default:
 		return nil, nil, fmt.Errorf("unknown provider: %s", providerName)
 	}

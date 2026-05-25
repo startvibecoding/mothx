@@ -24,7 +24,7 @@ type Provider struct {
 	client  *http.Client
 
 	thinkingFormat      string // "", "anthropic", "deepseek", "xiaomi"
-	cacheControlEnabled *bool  // nil=auto (on for official API, off for proxies), true=force on, false=force off
+	cacheControlEnabled *bool  // nil=off (must be explicitly enabled), true=on, false=off
 }
 
 // DefaultModels returns the default Anthropic model list.
@@ -82,21 +82,19 @@ func (p *Provider) SetThinkingFormat(format string) {
 }
 
 // SetCacheControlEnabled sets whether to use cache_control markers.
-// nil = auto (on for official API, off for proxies)
-// true = force on
-// false = force off
+// nil = off (default), true = on, false = off
 func (p *Provider) SetCacheControlEnabled(enabled *bool) {
 	p.cacheControlEnabled = enabled
 }
 
 // IsCacheControlEnabled returns whether cache_control markers should be used.
-// Auto mode: enabled for official Anthropic API, disabled for proxies.
+// Must be explicitly enabled via SetCacheControlEnabled or provider config "cacheControl": true.
+// Defaults to false when not configured.
 func (p *Provider) IsCacheControlEnabled() bool {
 	if p.cacheControlEnabled != nil {
 		return *p.cacheControlEnabled
 	}
-	// Auto mode: only enable for official Anthropic API
-	return p.baseURL == "https://api.anthropic.com"
+	return false
 }
 
 type anthropicRequest struct {
