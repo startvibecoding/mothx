@@ -1,19 +1,5 @@
 # Changelog
 
-## v0.1.25
-
-### 🐛 Bug Fixes
-
-- **Agent Tool-Only Loop Warning Ordering**
-  - Moved the no-text tool-loop warning to be injected after tool results are appended
-  - Keeps assistant -> toolResult -> warning message ordering valid for provider and session transcripts
-  - Warning messages are now also persisted to session storage
-
-### 🧪 Testing
-
-- Added a regression test covering tool-only warning placement after tool results
-
----
 
 ## v0.1.24
 
@@ -38,6 +24,11 @@
   - Fixed consecutive `toolResult` messages to be grouped into a single `user` message
   - Anthropic API requires all `tool_result` blocks for preceding `tool_use` to appear together before other content
   - Image blocks from tool results are now appended after all result blocks in the same message
+  
+- **Agent Tool-Only Loop Warning Ordering**
+  - Moved the no-text tool-loop warning to be injected after tool results are appended
+  - Keeps assistant -> toolResult -> warning message ordering valid for provider and session transcripts
+  - Warning messages are now also persisted to session storage
 
 ### 📝 Docs
 
@@ -54,6 +45,8 @@
 
 - Added retry tests covering `IsRetryable`, `RetryDelay`, and `FormatRetryMessage`
 - Added Anthropic provider tests for consecutive tool result grouping
+- Added a regression test covering tool-only warning placement after tool results
+
 
 ---
 

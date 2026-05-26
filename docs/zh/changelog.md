@@ -1,19 +1,5 @@
 # 更新日志
 
-## v0.1.25
-
-### 🐛 问题修复
-
-- **Agent 纯工具循环告警顺序**
-  - 将无文本输出的工具循环告警改为在 tool result 追加之后再注入
-  - 保持 assistant -> toolResult -> warning 的消息顺序，确保 provider 与 session transcript 都合法
-  - 告警消息现在也会持久化写入 session 存储
-
-### 🧪 测试
-
-- 新增回归测试，覆盖 tool result 之后的纯工具循环告警插入位置
-
----
 
 ## v0.1.24
 
@@ -38,6 +24,11 @@
   - 修复连续 `toolResult` 消息未合并为单条 `user` 消息的问题
   - Anthropic API 要求前一轮 `tool_use` 对应的所有 `tool_result` 块在后续内容之前集中出现
   - 工具结果中的图片块现在会在同一消息中追加到所有结果块之后
+  
+- **Agent 纯工具循环告警顺序**
+  - 将无文本输出的工具循环告警改为在 tool result 追加之后再注入
+  - 保持 assistant -> toolResult -> warning 的消息顺序，确保 provider 与 session transcript 都合法
+  - 告警消息现在也会持久化写入 session 存储
 
 ### 📝 文档
 
@@ -54,6 +45,7 @@
 
 - 新增重试测试，覆盖 `IsRetryable`、`RetryDelay` 和 `FormatRetryMessage`
 - 新增 Anthropic provider 测试，覆盖连续 tool result 分组
+- 新增回归测试，覆盖 tool result 之后的纯工具循环告警插入位置
 
 ---
 
