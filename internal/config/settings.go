@@ -37,6 +37,7 @@ type Settings struct {
 }
 
 type ProviderConfig struct {
+	Vendor         string        `json:"vendor,omitempty"`        // Explicit vendor adapter (Decision 12/13)
 	APIKey         string        `json:"apiKey,omitempty"`
 	BaseURL        string        `json:"baseUrl,omitempty"`
 	API            string        `json:"api,omitempty"`
@@ -53,6 +54,7 @@ type ModelConfig struct {
 	MaxTokens     int         `json:"maxTokens,omitempty"`
 	Cost          *CostConfig `json:"cost,omitempty"`
 	Input         []string    `json:"input,omitempty"`
+	Compat         *ModelCompat  `json:"compat,omitempty"`       // Vendor compatibility flags (Decision 14)
 }
 
 type CostConfig struct {
@@ -61,6 +63,33 @@ type CostConfig struct {
 	CacheRead  float64 `json:"cacheRead,omitempty"`
 	CacheWrite float64 `json:"cacheWrite,omitempty"`
 }
+
+// ModelCompat defines per-model compatibility flags (Decision 14).
+// Reference: pi/packages/ai/src/models.generated.ts compat field
+type ModelCompat struct {
+	// Thinking/reasoning
+	ThinkingFormat                      string `json:"thinkingFormat,omitempty"`
+	RequiresReasoningContentOnAssistant bool   `json:"requiresReasoningContentOnAssistant,omitempty"`
+	ForceAdaptiveThinking               bool   `json:"forceAdaptiveThinking,omitempty"`
+
+	// API parameter compatibility
+	SupportsDeveloperRole   *bool  `json:"supportsDeveloperRole,omitempty"`
+	SupportsStore           *bool  `json:"supportsStore,omitempty"`
+	SupportsReasoningEffort *bool  `json:"supportsReasoningEffort,omitempty"`
+	SupportsStrictMode      *bool  `json:"supportsStrictMode,omitempty"`
+	MaxTokensField          string `json:"maxTokensField,omitempty"`
+
+	// Cache
+	SupportsCacheControlOnTools *bool `json:"supportsCacheControlOnTools,omitempty"`
+	SupportsLongCacheRetention  *bool `json:"supportsLongCacheRetention,omitempty"`
+	SendSessionAffinityHeaders  bool  `json:"sendSessionAffinityHeaders,omitempty"`
+
+	// Streaming
+	SupportsEagerToolInputStreaming *bool `json:"supportsEagerToolInputStreaming,omitempty"`
+}
+
+// BoolPtr returns a pointer to the given bool value.
+func BoolPtr(v bool) *bool { return &v }
 
 type ContextFilesSettings struct {
 	Enabled    bool     `json:"enabled"`
