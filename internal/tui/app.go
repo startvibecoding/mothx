@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
+	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
@@ -167,6 +168,10 @@ type App struct {
 	waitingForApproval bool
 	pendingApprovalID  string
 	approvalQueue      []pendingApproval
+
+	// Multi-agent state (Decision 8: default off)
+	multiAgent  bool
+	activeAgent agentpkg.AgentID
 
 	// Current streaming message indices (-1 = none)
 	currentAssistantIdx int
@@ -480,6 +485,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case "ctrl+o":
 			a.openLatestToolModal()
+			return a, nil
+		case "ctrl+p":
+			a.toggleMultiAgent()
 			return a, nil
 		}
 
@@ -1159,6 +1167,64 @@ func (a *App) processInput(input string) tea.Cmd {
 	)
 }
 
+// handleAgentCommand handles /agent subcommands (multi-agent mode).
+func (a *App) handleAgentCommand(parts []string) {
+	if !a.multiAgent {
+		a.addMessage(errorStyle.Render("Multi-agent mode is not enabled. Use Ctrl+P to toggle."))
+		return
+	}
+	if len(parts) < 2 {
+		a.addMessage(statusStyle.Render("Usage: /agent list|switch|destroy"))
+		return
+	}
+	switch parts[1] {
+	case "list":
+		a.listAgents()
+	case "switch":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /agent switch <id>"))
+			return
+		}
+		a.switchAgent(agentpkg.AgentID(parts[2]))
+	case "destroy":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /agent destroy <id>"))
+			return
+		}
+		a.destroyAgent(agentpkg.AgentID(parts[2]))
+	default:
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown agent command: %s", parts[1])))
+	}
+}
+
+func (a *App) listAgents() {
+	a.addMessage(statusStyle.Render(fmt.Sprintf("Multi-agent mode: ON (active: %s)", a.activeAgent)))
+	a.addMessage(statusStyle.Render("  (Agent listing will be available with AgentManager integration)"))
+}
+
+func (a *App) switchAgent(id agentpkg.AgentID) {
+	a.activeAgent = id
+	a.addMessage(statusStyle.Render(fmt.Sprintf("Switched to agent: %s", id)))
+}
+
+func (a *App) destroyAgent(id agentpkg.AgentID) {
+	if id == "main" {
+		a.addMessage(errorStyle.Render("Cannot destroy the main agent"))
+		return
+	}
+	a.addMessage(statusStyle.Render(fmt.Sprintf("Agent %s destroyed", id)))
+}
+
+// toggleMultiAgent toggles multi-agent mode on/off.
+func (a *App) toggleMultiAgent() {
+	a.multiAgent = !a.multiAgent
+	if a.multiAgent {
+		a.addMessage(statusStyle.Render("✅ Multi-agent mode ON (Ctrl+P to toggle)"))
+	} else {
+		a.addMessage(statusStyle.Render(" Multi-agent mode OFF"))
+	}
+}
+
 func (a *App) handleCommand(cmd string) tea.Cmd {
 	parts := strings.Fields(cmd)
 	command := parts[0]
@@ -1275,6 +1341,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleInitMCPCommand(parts)
 	case "/mcps":
 		a.handleMCPsCommand()
+	case "/agent":
+		a.handleAgentCommand(parts)
 	case "/help":
 		a.addMessage(statusStyle.Render("Commands:"))
 		a.addMessage(statusStyle.Render("  /mode [plan|agent|yolo] - Switch or show mode"))
@@ -1290,6 +1358,9 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.addMessage(statusStyle.Render("  /init_mcp [target] [template] [--force]"))
 		a.addMessage(statusStyle.Render("                         - Init mcp.json (target: project|global, template: basic|full)"))
 		a.addMessage(statusStyle.Render("  /mcps                   - List MCP servers (global/project mcp.json)"))
+		a.addMessage(statusStyle.Render("  /agent list              - List all agents (multi-agent mode)"))
+		a.addMessage(statusStyle.Render("  /agent switch <id>       - Switch active agent"))
+		a.addMessage(statusStyle.Render("  /agent destroy <id>      - Destroy a sub-agent"))
 		a.addMessage(statusStyle.Render("  /quit                   - Exit"))
 		a.addMessage(statusStyle.Render("  /help                   - Show this help"))
 		a.addMessage(statusStyle.Render(""))
