@@ -43,11 +43,11 @@
 ### Phase 1: 接口抽象 (Foundation) — 2-3天
 
 #### Step 1.1: 定义 Agent 接口
-- [ ] 新建 `agent/types.go` (公共包，非 internal，外部可引用)
+- [x] 新建 `agent/types.go` (公共包，非 internal，外部可引用)
   - Go 的 `internal/` 包外部无法 import，所以接口放在顶层 `agent/` 包
   - import path: `github.com/startvibecoding/vibecoding/agent`
-- [ ] 定义 `AgentID` 类型 (`type AgentID string`)
-- [ ] 定义 `Agent` 接口，方法列表:
+- [x] 定义 `AgentID` 类型 (`type AgentID string`)
+- [x] 定义 `Agent` 接口，方法列表:
   - `ID() AgentID`
   - `ParentID() AgentID`
   - `Run(ctx context.Context, userMsg string) <-chan Event`
@@ -60,10 +60,10 @@
   - `GetContextUsage() *ctxpkg.ContextUsage`
   - `LoadHistoryMessages(messages []provider.Message)`
   - `HandleApprovalResponse(approvalID string, approved bool)`
-- [ ] 定义 `AgentConfigView` 只读视图 (ID, ParentID, Mode, Model)
-- [ ] 定义公共类型: `Event`, `EventType`, `AgentContext`, `AgentID` (从 internal/agent/events.go 迁移到公共包)
-- [ ] 内部实现 `internal/agent/` import 公共包 `agent/`，保持内部逻辑不变
-- [ ] `make test` 通过
+- [x] 定义 `AgentConfigView` 只读视图 (ID, ParentID, Mode, Model)
+- [x] 定义公共类型: `Event`, `EventType`, `AgentContext`, `AgentID` (从 internal/agent/events.go 迁移到公共包)
+- [x] 内部实现 `internal/agent/` import 公共包 `agent/`，保持内部逻辑不变
+- [x] `make test` 通过
 
 #### Step 1.1b: 定义 Builder (决策 11)
 - [ ] 新建 `agent/builder.go` (公共包)
@@ -87,7 +87,7 @@
       approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
   }
   ```
-- [ ] 实现 Builder 方法链:
+- [x] 实现 Builder 方法链:
   - `NewBuilder() *Builder` — 创建 Builder，设置合理默认值
   - `WithProvider(p Provider) *Builder`
   - `WithModel(modelID string) *Builder`
@@ -103,12 +103,12 @@
   - `WithSessionDir(dir string) *Builder`
   - `WithCompaction(enabled bool, reserveTokens int) *Builder`
   - `WithApprovalHandler(h func(...) bool) *Builder`
-- [ ] 实现 `Build() (Agent, error)`:
+- [x] 实现 `Build() (Agent, error)`:
   - 内部创建 tools.Registry (用 workDir + sandbox)
   - 内部组装 internal agent.Config
   - 调用 internal agent.New() 创建实例
   - 返回 Agent 接口
-- [ ] 定义公共 `Provider` 接口 (agent 包内，避免开发者依赖 internal/provider):
+- [x] 定义公共 `Provider` 接口 (agent 包内，避免开发者依赖 internal/provider):
   ```go
   type Provider interface {
       Chat(ctx context.Context, params ChatParams) <-chan StreamEvent
@@ -117,7 +117,7 @@
       GetModel(id string) *ModelInfo
   }
   ```
-- [ ] 定义公共 `ChatParams`, `StreamEvent`, `ModelInfo`, `ToolDefinition` 等类型
+- [x] 定义公共 `ChatParams`, `StreamEvent`, `ModelInfo`, `ToolDefinition` 等类型
 - [ ] `make test` 通过
 
 #### Step 1.1c: Provider 三层架构 (决策 12)
@@ -321,18 +321,18 @@ type ModelCompat struct {
 - [ ] `make test` 通过
 
 #### Step 1.2: Agent struct 实现接口 + ID 字段
-- [ ] `Config` struct 增加 `ID AgentID` 和 `ParentID AgentID` 字段
-- [ ] `Agent` struct 增加 `id AgentID` 和 `parentID AgentID` 字段
-- [ ] `New()` 和 `NewWithLoopConfig()` 自动分配 ID (若未指定)
-- [ ] 实现 `ID()`, `ParentID()` 方法
+- [x] `Config` struct 增加 `ID AgentID` 和 `ParentID AgentID` 字段
+- [x] `Agent` struct 增加 `id AgentID` 和 `parentID AgentID` 字段
+- [x] `New()` 和 `NewWithLoopConfig()` 自动分配 ID (若未指定)
+- [x] 实现 `ID()`, `ParentID()` 方法
 - [ ] `make test` 通过
 
 #### Step 1.3: Event 增加 AgentID
-- [ ] `Event` struct 增加 `AgentID AgentID` 字段
-- [ ] 新增 `emit(ch chan<- Event, event Event)` helper 方法，自动注入 AgentID
-- [ ] 将 `Agent.loop()` 中所有 `ch <- Event{...}` 替换为 `a.emit(ch, Event{...})`
-- [ ] 将 `executeSingleToolCall` 中的 `ch <- Event{...}` 同样替换
-- [ ] 将 `Compact` 中的 `ch <- Event{...}` 同样替换
+- [x] `Event` struct 增加 `AgentID AgentID` 字段
+- [x] 新增 `emit(ch chan<- Event, event Event)` helper 方法，自动注入 AgentID
+- [x] 将 `Agent.loop()` 中所有 `ch <- Event{...}` 替换为 `a.emit(ch, Event{...})`
+- [x] 将 `executeSingleToolCall` 中的 `ch <- Event{...}` 同样替换
+- [x] 将 `Compact` 中的 `ch <- Event{...}` 同样替换
 - [ ] `make test` 通过
 
 ---
@@ -340,7 +340,7 @@ type ModelCompat struct {
 ### Phase 2: Registry 解耦 (Isolation) — 2-3天
 
 #### Step 2.1: Registry 工厂化
-- [ ] 新增 `RegistryConfig` 结构体:
+- [x] 新增 `RegistryConfig` 结构体:
   ```go
   type RegistryConfig struct {
       WorkDir    string
@@ -348,22 +348,22 @@ type ModelCompat struct {
       ToolFilter []string // optional: only register these tools
   }
   ```
-- [ ] 新增 `NewRegistryWithConfig(cfg RegistryConfig) *Registry`
-- [ ] 保留 `NewRegistry(workDir, sb)` 作为向后兼容包装 (内部调用 NewRegistryWithConfig)
-- [ ] 新增 `RegisterFiltered(toolNames []string)` 方法
+- [x] 新增 `NewRegistryWithConfig(cfg RegistryConfig) *Registry`
+- [x] 保留 `NewRegistry(workDir, sb)` 作为向后兼容包装 (内部调用 NewRegistryWithConfig)
+- [x] 新增 `RegisterFiltered(toolNames []string)` 方法
 
 #### Step 2.2: JobManager per-Registry
-- [ ] `Registry` struct 增加 `jobManager *JobManager` 字段
-- [ ] `Registry` 增加 `JobManager() *JobManager` getter
-- [ ] `RegisterDefaults()` 中创建 per-Registry JobManager 并注入到工具:
+- [x] `Registry` struct 增加 `jobManager *JobManager` 字段
+- [x] `Registry` 增加 `JobManager() *JobManager` getter
+- [x] `RegisterDefaults()` 中创建 per-Registry JobManager 并注入到工具:
   - `BashTool` 构造函数改为 `NewBashTool(r *Registry, jm *JobManager)`
   - `JobsTool` 构造函数改为 `NewJobsTool(r *Registry, bashTool *BashTool, jm *JobManager)`
   - `KillTool` 构造函数改为 `NewKillTool(r *Registry, bashTool *BashTool, jm *JobManager)`
 - [ ] `make test` 通过
 
 #### Step 2.3: Agent 创建注入 per-agent Registry
-- [ ] 新增 `NewWithRegistry(cfg Config, registry *tools.Registry) *Agent` 工厂方法
-- [ ] 内部逻辑与 `New()` 一致，区别在于接收独立 registry
+- [x] 新增 `NewWithRegistry(cfg Config, registry *tools.Registry) *Agent` 工厂方法
+- [x] 内部逻辑与 `New()` 一致，区别在于接收独立 registry
 - [ ] `make test` 通过
 
 ---
@@ -371,8 +371,8 @@ type ModelCompat struct {
 ### Phase 3: Agent 工厂 (Factory) — 1-2天
 
 #### Step 3.1: 提取 AgentFactory
-- [ ] 新建 `internal/agent/factory.go`
-- [ ] 定义 `AgentFactory` struct:
+- [x] 新建 `internal/agent/factory.go`
+- [x] 定义 `AgentFactory` struct:
   ```go
   type AgentFactory struct {
       provider           provider.Provider
@@ -384,7 +384,7 @@ type ModelCompat struct {
       approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
   }
   ```
-- [ ] 定义 `AgentOptions` struct:
+- [x] 定义 `AgentOptions` struct:
   ```go
   type AgentOptions struct {
       ID                AgentID
@@ -399,8 +399,8 @@ type ModelCompat struct {
       Session           *session.Manager
   }
   ```
-- [ ] 实现 `NewAgentFactory(...)` 构造函数
-- [ ] 实现 `Create(opts AgentOptions) Agent`:
+- [x] 实现 `NewAgentFactory(...)` 构造函数
+- [x] 实现 `Create(opts AgentOptions) Agent`:
   - 用 opts.WorkDir + factory.sandboxMgr 创建独立 Registry
   - 组装 Config
   - 调用 `NewWithRegistry()` 返回 Agent
