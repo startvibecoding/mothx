@@ -66,8 +66,8 @@
 - [x] `make test` 通过
 
 #### Step 1.1b: 定义 Builder (决策 11)
-- [ ] 新建 `agent/builder.go` (公共包)
-- [ ] 定义 `Builder` struct:
+- [x] 新建 `agent/builder.go` (公共包)
+- [x] 定义 `Builder` struct:
   ```go
   type Builder struct {
       provider           Provider       // 公共 Provider 接口
@@ -118,7 +118,7 @@
   }
   ```
 - [x] 定义公共 `ChatParams`, `StreamEvent`, `ModelInfo`, `ToolDefinition` 等类型
-- [ ] `make test` 通过
+- [x] `make test` 通过
 
 #### Step 1.1c: Provider 三层架构 (决策 12)
 
@@ -149,10 +149,10 @@
 > 参考 `/home/free/src/pi/packages/ai/src/models.generated.ts` 的 compat 机制:
 > 大多数厂商使用 OpenAI 或 Anthropic 兼容 API，差异通过 compat 标志位处理，而非独立 provider 实现。
 
-- [ ] `internal/provider/openai/` — OpenAI Chat Completions (已有，基础实现)
-- [ ] `internal/provider/anthropic/` — Anthropic Messages API (已有，基础实现)
-- [ ] `internal/provider/google/` — Google Gemini API
-- [ ] `internal/provider/mistral/` — Mistral Conversations API
+- [x] `internal/provider/openai/` — OpenAI Chat Completions (已有，基础实现)
+- [x] `internal/provider/anthropic/` — Anthropic Messages API (已有，基础实现)
+- [x] `internal/provider/google/` — Google Gemini API
+- [x] `internal/provider/mistral/` — Mistral Conversations API
 
 **厂商差异通过 compat 标志位处理** (而非独立 provider 包):
 
@@ -206,12 +206,12 @@ type ModelCompat struct {
 - 大多数厂商只需配置正确的 compat 标志，无需独立 provider 包
 
 **通用 fallback** (内部包):
-- [ ] `internal/provider/openai_compatible/` — OpenAI 兼容通用 provider
+- [x] `internal/provider/openai_compatible/` — OpenAI 兼容通用 provider
   - 接受任意 base URL + API key
   - 自动处理 OpenAI 兼容的流式 SSE 格式
   - 适用于: Azure OpenAI, vLLM, Ollama, LM Studio, DeepSeek, 任何 OpenAI 兼容 API
   - 作为未知厂商的默认选择
-- [ ] `internal/provider/anthropic_compatible/` — Anthropic Messages API 兼容通用 provider
+- [x] `internal/provider/anthropic_compatible/` — Anthropic Messages API 兼容通用 provider
   - 接受任意 base URL + API key
   - 自动处理 Anthropic Messages API 的流式 SSE 格式
   - 支持 thinking/extended thinking 等 Anthropic 特性
@@ -224,7 +224,7 @@ type ModelCompat struct {
 - 厂商适配内部可以复用通用 fallback 的核心逻辑，只覆盖差异部分
 
 **Provider 注册表**:
-- [ ] `internal/provider/registry.go` — Provider 注册表
+- [x] `internal/provider/registry.go` — Provider 注册表
   ```go
   type Registry struct {
       providers map[string]func(ProviderConfig) (agent.Provider, error)
@@ -233,8 +233,8 @@ type ModelCompat struct {
   - `Register(name string, factory func(ProviderConfig) (agent.Provider, error))`
   - `Create(name string, cfg ProviderConfig) (agent.Provider, error)`
   - `List() []string` — 返回已注册的 provider 名称
-- [ ] 各厂商 provider 在 init() 中自动注册
-- [ ] 用户在 settings.json 中配置 (保持现有格式，新增厂商自动可用):
+- [x] 各厂商 provider 在 init() 中自动注册
+- [x] 用户在 settings.json 中配置 (保持现有格式，新增厂商自动可用):
   ```json
   {
     "providers": {
@@ -280,7 +280,7 @@ type ModelCompat struct {
     "defaultModel": "deepseek-v4-flash"
   }
   ```
-- [ ] ProviderConfig 新增 `vendor` 字段 (可选):
+- [x] ProviderConfig 新增 `vendor` 字段 (可选):
   ```go
   type ProviderConfig struct {
       Vendor       string        `json:"vendor,omitempty"`       // 显式指定厂商适配器 (决策 12)
@@ -290,17 +290,17 @@ type ModelCompat struct {
       // ... 其余字段不变
   }
   ```
-- [ ] Provider 选择优先级 (三级 fallback):
+- [x] Provider 选择优先级 (三级 fallback):
   1. `vendor` 字段显式指定 → 走对应厂商适配层
   2. 未指定 `vendor` → 通过 `baseUrl` 自动识别厂商 (如 `api.deepseek.com` → deepseek)
   3. 无法识别 → 走通用 fallback (`openai-chat` → openai_compatible, `anthropic-messages` → anthropic_compatible)
-- [ ] `api` 字段决定 API 格式层: `"openai-chat"` / `"anthropic-messages"`
-- [ ] `vendor` 字段决定厂商适配层: `"deepseek"` / `"xiaomi"` / `"claude"` / ...
-- [ ] 两层独立正交: 同一 vendor 可用不同 api 格式 (如 deepseek 同时支持 openai-chat 和 anthropic-messages)
-- [ ] 现有配置完全兼容 (vendor 字段可选，不配则自动推断)
+- [x] `api` 字段决定 API 格式层: `"openai-chat"` / `"anthropic-messages"`
+- [x] `vendor` 字段决定厂商适配层: `"deepseek"` / `"xiaomi"` / `"claude"` / ...
+- [x] 两层独立正交: 同一 vendor 可用不同 api 格式 (如 deepseek 同时支持 openai-chat 和 anthropic-messages)
+- [x] 现有配置完全兼容 (vendor 字段可选，不配则自动推断)
 
 **公共 Builder 集成**:
-- [ ] Builder 新增 `WithProviderByName(name string, settings *config.Settings) *Builder` 便捷方法
+- [x] Builder 新增 `WithProviderByName(name string, settings *config.Settings) *Builder` 便捷方法
   - 从 settings.Providers[name] 读取 ProviderConfig
   - 三级 fallback 选择 provider:
     1. 若 config.Vendor 非空 → 查找对应厂商适配器
@@ -308,7 +308,7 @@ type ModelCompat struct {
     3. 无法识别 → 根据 config.API 选择通用 fallback (openai-chat → openai_compatible, anthropic-messages → anthropic_compatible)
   - 厂商适配器可组合 API 格式层: 如 deepseek + openai-chat = DeepSeek 适配器用 OpenAI 协议但处理 reasoning model 差异
   - 开发者也可以直接 `WithProvider(myImpl)` 传入自定义实现
-- [ ] 新增 `baseUrlToVendor(baseURL string) string` 自动识别函数:
+- [x] 新增 `baseUrlToVendor(baseURL string) string` 自动识别函数:
   - `api.deepseek.com` → `"deepseek"`
   - `api.moonshot.cn` → `"kimi"`
   - `api.minimax.chat` → `"minimax"`
@@ -318,14 +318,14 @@ type ModelCompat struct {
   - `ai.gitee.com` → `"gitee"`
   - `api.xiaomi.com` → `"xiaomi"`
   - 无法匹配 → `""` (走通用 fallback)
-- [ ] `make test` 通过
+- [x] `make test` 通过
 
 #### Step 1.2: Agent struct 实现接口 + ID 字段
 - [x] `Config` struct 增加 `ID AgentID` 和 `ParentID AgentID` 字段
 - [x] `Agent` struct 增加 `id AgentID` 和 `parentID AgentID` 字段
 - [x] `New()` 和 `NewWithLoopConfig()` 自动分配 ID (若未指定)
 - [x] 实现 `ID()`, `ParentID()` 方法
-- [ ] `make test` 通过
+- [x] `make test` 通过
 
 #### Step 1.3: Event 增加 AgentID
 - [x] `Event` struct 增加 `AgentID AgentID` 字段
@@ -333,7 +333,7 @@ type ModelCompat struct {
 - [x] 将 `Agent.loop()` 中所有 `ch <- Event{...}` 替换为 `a.emit(ch, Event{...})`
 - [x] 将 `executeSingleToolCall` 中的 `ch <- Event{...}` 同样替换
 - [x] 将 `Compact` 中的 `ch <- Event{...}` 同样替换
-- [ ] `make test` 通过
+- [x] `make test` 通过
 
 ---
 
@@ -359,12 +359,12 @@ type ModelCompat struct {
   - `BashTool` 构造函数改为 `NewBashTool(r *Registry, jm *JobManager)`
   - `JobsTool` 构造函数改为 `NewJobsTool(r *Registry, bashTool *BashTool, jm *JobManager)`
   - `KillTool` 构造函数改为 `NewKillTool(r *Registry, bashTool *BashTool, jm *JobManager)`
-- [ ] `make test` 通过
+- [x] `make test` 通过
 
 #### Step 2.3: Agent 创建注入 per-agent Registry
 - [x] 新增 `NewWithRegistry(cfg Config, registry *tools.Registry) *Agent` 工厂方法
 - [x] 内部逻辑与 `New()` 一致，区别在于接收独立 registry
-- [ ] `make test` 通过
+- [x] `make test` 通过
 
 ---
 
@@ -406,10 +406,10 @@ type ModelCompat struct {
   - 调用 `NewWithRegistry()` 返回 Agent
 
 #### Step 3.2: 迁移调用点
-- [ ] `cmd/vibecoding/main.go:564` — 用 factory.Create() 替换 agent.New()
-- [ ] `internal/tui/app.go:1133` — App 持有 factory，用 Create() 替换
-- [ ] `internal/acp/acp.go:584` — sessionRuntime 用 factory.Create() 替换
-- [ ] `make test` 通过
+- [x] `cmd/vibecoding/main.go:564` — 用 factory.Create() 替换 agent.New()
+- [x] `internal/tui/app.go:1133` — App 持有 factory，用 Create() 替换
+- [x] `internal/acp/acp.go:584` — sessionRuntime 用 factory.Create() 替换
+- [x] `make test` 通过
 
 ---
 
@@ -418,8 +418,8 @@ type ModelCompat struct {
 ### Phase 4: Agent 生命周期管理 (Lifecycle) — 2-3天
 
 #### Step 4.1: AgentManager
-- [ ] 新建 `internal/agent/manager.go`
-- [ ] 实现 `AgentManager` struct:
+- [x] 新建 `internal/agent/manager.go`
+- [x] 实现 `AgentManager` struct:
   ```go
   type AgentManager struct {
       mu       sync.RWMutex
@@ -430,7 +430,7 @@ type ModelCompat struct {
       counter  int64
   }
   ```
-- [ ] 实现方法:
+- [x] 实现方法:
   - `Create(opts AgentOptions) (Agent, error)` — 创建 + 注册 + 父子关系
   - `Get(id AgentID) (Agent, bool)` — 按 ID 查询
   - `Destroy(id AgentID) error` — 停止 + 递归销毁子 Agent
@@ -439,8 +439,8 @@ type ModelCompat struct {
   - `Parent(id AgentID) (AgentID, bool)` — 查询父 Agent
 
 #### Step 4.2: EventRouter
-- [ ] 新建 `internal/agent/router.go`
-- [ ] 实现 `EventRouter` struct:
+- [x] 新建 `internal/agent/router.go`
+- [x] 实现 `EventRouter` struct:
   ```go
   type EventRouter struct {
       mu       sync.RWMutex
@@ -448,7 +448,7 @@ type ModelCompat struct {
       global   []EventHandler
   }
   ```
-- [ ] 实现方法:
+- [x] 实现方法:
   - `RegisterAgent(id AgentID, handler EventHandler)`
   - `UnregisterAgent(id AgentID)`
   - `RegisterGlobal(handler EventHandler)`
@@ -459,8 +459,8 @@ type ModelCompat struct {
 ### Phase 5: Sub-Agent 支持 (SubAgent) — 3-5天
 
 #### Step 5.1: SubAgent 工具 (异步模式，仅主 Agent 可用)
-- [ ] 新建 `internal/tools/subagent.go`
-- [ ] 实现 4 个工具:
+- [x] 新建 `internal/tools/subagent.go`
+- [x] 实现 4 个工具:
   - `subagent_spawn` — 主 Agent 创建并启动子 Agent，返回 handle ID
     ```json
     {
@@ -486,12 +486,12 @@ type ModelCompat struct {
     ```json
     { "handle": "sub-1" }
     ```
-- [ ] 子 Agent 的 Registry 中**不注册** subagent_* 工具 (禁止嵌套派生)
-- [ ] 子 Agent 使用独立 messages/context/session (决策 6: 完全隔离)
-- [ ] 子 Agent 继承 frozen prompt + dual-marker 缓存策略 (决策 7)
+- [x] 子 Agent 的 Registry 中**不注册** subagent_* 工具 (禁止嵌套派生)
+- [x] 子 Agent 使用独立 messages/context/session (决策 6: 完全隔离)
+- [x] 子 Agent 继承 frozen prompt + dual-marker 缓存策略 (决策 7)
 
 #### Step 5.2: 安全约束
-- [ ] 定义 `SubAgentPolicy`:
+- [x] 定义 `SubAgentPolicy`:
   ```go
   type SubAgentPolicy struct {
       MaxChildren     int           // 最大子 Agent 数 (默认 5)
@@ -502,46 +502,46 @@ type ModelCompat struct {
   }
   ```
   注意: MaxDepth 固定为 1 (决策 5: 子 Agent 不可嵌套)，不作为可配置项
-- [ ] AgentManager.Create() 中集成策略检查
+- [x] AgentManager.Create() 中集成策略检查
   - 若调用者自身是子 Agent (ParentID != "")，拒绝创建
   - 检查 MaxChildren 上限
   - 检查 AllowedModes
 
 #### Step 5.3: 多 Agent 模式开关 (决策 8)
-- [ ] 新增 `--multi-agent` CLI flag (cmd/vibecoding/main.go)
-- [ ] TUI 中新增 `Ctrl+P` 快捷键切换多 Agent 模式
-- [ ] 多 Agent 模式关闭时:
+- [x] 新增 `--multi-agent` CLI flag (cmd/vibecoding/main.go)
+- [x] TUI 中新增 `Ctrl+P` 快捷键切换多 Agent 模式
+- [x] 多 Agent 模式关闭时:
   - subagent_* 工具不注册到 Registry
   - AgentManager 不创建 (或创建但限制为单 agent)
   - TUI 不显示 agent 相关命令
-- [ ] 多 Agent 模式开启时:
+- [x] 多 Agent 模式开启时:
   - subagent_* 工具注册到 Registry
   - AgentManager 可用
   - TUI 显示 `/agent list|switch|destroy` 命令
 
 #### Step 5.4: System Prompt 更新
-- [ ] 主 Agent system prompt 增加 Sub-Agent 使用说明段落 (仅多 Agent 模式下注入)
-- [ ] `make test` 通过
+- [x] 主 Agent system prompt 增加 Sub-Agent 使用说明段落 (仅多 Agent 模式下注入)
+- [x] `make test` 通过
 
 ---
 
 ### Phase 6: TUI 多 Agent 视图 (UI) — 3-5天
 
 #### Step 6.1: App 持有 AgentManager
-- [ ] `App` struct 中 `agent *agent.Agent` 改为 `agentMgr *agent.AgentManager`
-- [ ] 增加 `activeAgent agent.AgentID` 跟踪当前活跃 Agent
-- [ ] 初始创建 main agent 作为活跃 Agent
+- [x] `App` struct 中 `agent *agent.Agent` 改为 `agentMgr *agent.AgentManager`
+- [x] 增加 `activeAgent agent.AgentID` 跟踪当前活跃 Agent
+- [x] 初始创建 main agent 作为活跃 Agent
 
 #### Step 6.2: 多 Agent 事件合并
-- [ ] 实现 `mergedEventChan()` — fan-in 合并所有 Agent 事件到单一 channel
-- [ ] 事件按 AgentID 标识来源
-- [ ] 非活跃 Agent 的事件缓存，切换时回放
+- [x] 实现 `mergedEventChan()` — fan-in 合并所有 Agent 事件到单一 channel
+- [x] 事件按 AgentID 标识来源
+- [x] 非活跃 Agent 的事件缓存，切换时回放
 
 #### Step 6.3: UI 命令
-- [ ] `/agent list` — 列出所有 Agent (ID, 状态, 父子关系)
-- [ ] `/agent switch <id>` — 切换活跃 Agent
-- [ ] `/agent destroy <id>` — 销毁子 Agent
-- [ ] 底部状态栏显示当前 Agent ID 和子 Agent 数量
+- [x] `/agent list` — 列出所有 Agent (ID, 状态, 父子关系)
+- [x] `/agent switch <id>` — 切换活跃 Agent
+- [x] `/agent destroy <id>` — 销毁子 Agent
+- [x] 底部状态栏显示当前 Agent ID 和子 Agent 数量
 
 ---
 
@@ -550,8 +550,8 @@ type ModelCompat struct {
 > 决策 9: `/cron` + 自然语言管理定时任务，触发时派生 subagent 执行。依赖多 Agent 模式开启。
 
 #### Step 7.1: Cron 数据模型
-- [ ] 新建 `internal/cron/` 包
-- [ ] 定义 `CronJob` struct:
+- [x] 新建 `internal/cron/` 包
+- [x] 定义 `CronJob` struct:
   ```go
   type CronJob struct {
       ID          string    `json:"id"`
@@ -569,7 +569,7 @@ type ModelCompat struct {
       LastError   string    `json:"last_error,omitempty"`
   }
   ```
-- [ ] 定义 `CronStore` 接口:
+- [x] 定义 `CronStore` 接口:
   ```go
   type CronStore interface {
       List() ([]CronJob, error)
@@ -579,11 +579,11 @@ type ModelCompat struct {
       Delete(id string) error
   }
   ```
-- [ ] 实现 `FileCronStore` — 持久化到 `~/.vibecoding/cron.json`
+- [x] 实现 `FileCronStore` — 持久化到 `~/.vibecoding/cron.json`
 
 #### Step 7.2: Cron 调度器
-- [ ] 新建 `internal/cron/scheduler.go`
-- [ ] 实现 `Scheduler` struct:
+- [x] 新建 `internal/cron/scheduler.go`
+- [x] 实现 `Scheduler` struct:
   ```go
   type Scheduler struct {
       store    CronStore
@@ -592,15 +592,15 @@ type ModelCompat struct {
       quit     chan struct{}
   }
   ```
-- [ ] 实现方法:
+- [x] 实现方法:
   - `Start()` — 启动定时检查循环 (每 30 秒扫描一次)
   - `Stop()` — 停止调度器
   - `CheckAndRun()` — 检查到期任务，派生 subagent 执行
   - `ExecuteJob(job CronJob)` — 通过 AgentManager.Create() 创建 subagent，将 job.Prompt 作为任务发送
-- [ ] 执行完成后更新 job.LastRun / LastStatus / RunCount
+- [x] 执行完成后更新 job.LastRun / LastStatus / RunCount
 
 #### Step 7.3: /cron TUI 命令
-- [ ] TUI 中新增 `/cron` 命令族 (仅多 Agent 模式下可用):
+- [x] TUI 中新增 `/cron` 命令族 (仅多 Agent 模式下可用):
   - `/cron add <自然语言描述>` — 解析自然语言为 cron 任务
     示例: `/cron add 每天早上 9 点检查 git status 并汇报`
     内部: 调用 LLM 将自然语言转为 cron 表达式 + prompt
@@ -612,16 +612,16 @@ type ModelCompat struct {
   - `/cron logs <id>` — 查看最近执行记录
 
 #### Step 7.4: 自然语言解析
-- [ ] 利用当前 LLM Provider 将自然语言转为 cron 表达式:
+- [x] 利用当前 LLM Provider 将自然语言转为 cron 表达式:
   - 输入: `每天早上 9 点检查 git status`
   - LLM 输出: `{"schedule": "0 9 * * *", "prompt": "检查 git status 并汇报", "name": "每日 git 检查"}`
-- [ ] 若 LLM 解析失败，回退为手动输入 cron 表达式
+- [x] 若 LLM 解析失败，回退为手动输入 cron 表达式
 
 #### Step 7.5: 集成与测试
-- [ ] AgentManager 启动时自动加载并启动 Scheduler
-- [ ] AgentManager 销毁时停止 Scheduler
-- [ ] 新增测试: CronStore 持久化、Scheduler 调度准确性、/cron 命令解析
-- [ ] `make test` 通过
+- [x] AgentManager 启动时自动加载并启动 Scheduler
+- [x] AgentManager 销毁时停止 Scheduler
+- [x] 新增测试: CronStore 持久化、Scheduler 调度准确性、/cron 命令解析
+- [x] `make test` 通过
 
 ---
 
@@ -713,41 +713,41 @@ type ModelCompat struct {
 ## 验收标准
 
 ### 第一批完成后
-- [ ] `Agent` 接口定义完成，现有 `*Agent` 完全实现且通过编译
-- [ ] 公共 `Provider` 接口定义完成，内部 provider 可适配
-- [ ] Builder 模式可用: `agent.NewBuilder().WithProvider(...).Build()` 返回 Agent 接口
-- [ ] Builder 合理默认值: mode="agent", maxIterations=200, toolExecutionMode="parallel"
-- [ ] Provider 注册表可用，各厂商 provider 在 init() 中自动注册
-- [ ] DeepSeek 适配完成 (OpenAI 兼容但处理 reasoning model 差异)
-- [ ] 通用 openai_compatible fallback 可连接任意 OpenAI 兼容 API
-- [ ] `WithProviderByName("deepseek", cfg)` 便捷方法可用
-- [ ] Event 携带 AgentID，现有消费者忽略该字段，无行为变化
-- [ ] 每个 Agent 拥有独立 Registry + JobManager
-- [ ] AgentFactory 统一 3 处创建逻辑，行为与之前一致
-- [ ] 所有现有测试通过 (`make test`)
-- [ ] 新增测试: Agent 接口方法、Builder.Build()、AgentFactory.Create()、Registry 独立性、ProviderRegistry、各厂商适配
+- [x] `Agent` 接口定义完成，现有 `*Agent` 完全实现且通过编译
+- [x] 公共 `Provider` 接口定义完成，内部 provider 可适配
+- [x] Builder 模式可用: `agent.NewBuilder().WithProvider(...).Build()` 返回 Agent 接口
+- [x] Builder 合理默认值: mode="agent", maxIterations=200, toolExecutionMode="parallel"
+- [x] Provider 注册表可用，各厂商 provider 在 init() 中自动注册
+- [x] DeepSeek 适配完成 (OpenAI 兼容但处理 reasoning model 差异)
+- [x] 通用 openai_compatible fallback 可连接任意 OpenAI 兼容 API
+- [x] `WithProviderByName("deepseek", cfg)` 便捷方法可用
+- [x] Event 携带 AgentID，现有消费者忽略该字段，无行为变化
+- [x] 每个 Agent 拥有独立 Registry + JobManager
+- [x] AgentFactory 统一 3 处创建逻辑，行为与之前一致
+- [x] 所有现有测试通过 (`make test`)
+- [x] 新增测试: Agent 接口方法、Builder.Build()、AgentFactory.Create()、Registry 独立性、ProviderRegistry、各厂商适配
 
 ### 第二批完成后
-- [ ] AgentManager 支持创建/销毁/查询/父子关系
-- [ ] EventRouter 按 AgentID 正确路由事件
-- [ ] subagent_spawn/status/send/destroy 四个工具可正常工作
-- [ ] 子 Agent 有独立 workDir、sandbox、工具集、messages、context (决策 6: 完全隔离)
-- [ ] 子 Agent 继承 frozen prompt + dual-marker 缓存策略 (决策 7)
-- [ ] 子 Agent 的 Registry 中不包含 subagent_* 工具 (决策 5: 禁止嵌套)
-- [ ] 子 Agent 尝试调用 subagent_spawn 时返回错误
-- [ ] 多 Agent 模式默认关闭，`--multi-agent` 或 Ctrl+P 可开启 (决策 8)
-- [ ] 多 Agent 模式关闭时 subagent_* 工具不注册，TUI 不显示 agent 命令
-- [ ] TUI 支持 `/agent list|switch|destroy` 命令
-- [ ] 所有测试通过 + 新增 Manager/Router/SubAgent 测试
+- [x] AgentManager 支持创建/销毁/查询/父子关系
+- [x] EventRouter 按 AgentID 正确路由事件
+- [x] subagent_spawn/status/send/destroy 四个工具可正常工作
+- [x] 子 Agent 有独立 workDir、sandbox、工具集、messages、context (决策 6: 完全隔离)
+- [x] 子 Agent 继承 frozen prompt + dual-marker 缓存策略 (决策 7)
+- [x] 子 Agent 的 Registry 中不包含 subagent_* 工具 (决策 5: 禁止嵌套)
+- [x] 子 Agent 尝试调用 subagent_spawn 时返回错误
+- [x] 多 Agent 模式默认关闭，`--multi-agent` 或 Ctrl+P 可开启 (决策 8)
+- [x] 多 Agent 模式关闭时 subagent_* 工具不注册，TUI 不显示 agent 命令
+- [x] TUI 支持 `/agent list|switch|destroy` 命令
+- [x] 所有测试通过 + 新增 Manager/Router/SubAgent 测试
 
 ### 第三批完成后 (Cron)
-- [ ] `/cron add <自然语言>` 可创建定时任务
-- [ ] `/cron list|enable|disable|remove|run|logs` 各命令正常工作
-- [ ] 定时任务到期时自动派生 subagent 执行
-- [ ] 任务执行结果持久化到 cron.json
-- [ ] 任务执行完成后更新 LastRun / LastStatus / RunCount
-- [ ] 多 Agent 模式关闭时 /cron 命令不可用
-- [ ] 所有测试通过 + 新增 CronStore / Scheduler 测试
+- [x] `/cron add <自然语言>` 可创建定时任务
+- [x] `/cron list|enable|disable|remove|run|logs` 各命令正常工作
+- [x] 定时任务到期时自动派生 subagent 执行
+- [x] 任务执行结果持久化到 cron.json
+- [x] 任务执行完成后更新 LastRun / LastStatus / RunCount
+- [x] 多 Agent 模式关闭时 /cron 命令不可用
+- [x] 所有测试通过 + 新增 CronStore / Scheduler 测试
 
 ---
 
