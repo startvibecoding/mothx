@@ -1,5 +1,47 @@
 # 更新日志
 
+## v0.1.24
+
+### ✨ 新功能
+
+- **API 重试与指数退避**
+  - 对暂时性错误（5xx、网络故障、速率限制）在初始 HTTP 连接阶段自动重试
+  - 指数退避策略：`baseDelay × 2^attempt`，上限 30 秒
+  - 不会重试：用户中止（`context.Canceled`）、4xx 客户端错误、流传输中途失败
+  - 通过 `retry` 配置项（`maxRetries`、`baseDelay`、`maxDelay`）灵活调整
+  - Agent 将重试事件作为状态更新透出到 TUI 和 print 模式
+  - ACP 模式同样接收重试配置
+
+### 🐛 问题修复
+
+- **Anthropic `cache_control` 改为显式启用**
+  - 默认关闭 `cache_control`（此前会根据官方 API base URL 自动启用）
+  - 需在 provider 配置中显式设置 `cacheControl: true` 才能启用 prompt 缓存
+  - ACP provider 创建时显式为 Anthropic 启用 `cache_control`
+
+- **Anthropic Tool Result 分组**
+  - 修复连续 `toolResult` 消息未合并为单条 `user` 消息的问题
+  - Anthropic API 要求前一轮 `tool_use` 对应的所有 `tool_result` 块在后续内容之前集中出现
+  - 工具结果中的图片块现在会在同一消息中追加到所有结果块之后
+
+### 📝 文档
+
+- **配置文档全面重写**
+  - 补充缺失配置项：`cacheControl`、空闲压缩、完整沙箱字段（`bwrapPath`、`allowedRead`、`allowedWrite`、`deniedPaths`、`passEnv`、`tmpSize`）、`shellPath`、`shellCommandPrefix`、`sessionDir`、`skillsDir`、`theme`、`retry`
+  - 记录 shell 命令格式的 `apiKey`（`!cmd`），支持密码管理器集成
+  - 修正密钥解析顺序：优先使用配置中的 `apiKey`，其次使用推导的环境变量
+  - 修正 macOS 配置路径：`~/Library/Application Support/vibecoding/`
+  - 新增顶层字段参考表及所有默认值
+  - 新增各平台沙箱路径与环境变量默认值
+  - 改进示例：Claude provider `cacheControl`、空闲压缩、项目级覆盖、自定义沙箱路径
+
+### 🧪 测试
+
+- 新增重试测试，覆盖 `IsRetryable`、`RetryDelay` 和 `FormatRetryMessage`
+- 新增 Anthropic provider 测试，覆盖连续 tool result 分组
+
+---
+
 ## v0.1.23
 
 ### 🛠 改进

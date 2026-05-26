@@ -1,5 +1,47 @@
 # Changelog
 
+## v0.1.24
+
+### ✨ Features
+
+- **API Retry with Exponential Backoff**
+  - Automatic retry for transient errors (5xx, network failures, rate limits) on initial HTTP connection
+  - Exponential backoff: `baseDelay × 2^attempt`, capped at 30 seconds
+  - Does NOT retry on user abort (`context.Canceled`), 4xx client errors, or mid-stream failures
+  - Configurable via `retry` settings (`maxRetries`, `baseDelay`, `maxDelay`)
+  - Agent forwards retry events as status updates visible in TUI and print mode
+  - ACP mode also receives retry configuration
+
+### 🐛 Bug Fixes
+
+- **Anthropic `cache_control` Now Opt-In**
+  - Changed default `cache_control` behavior to off (was auto-enabled for official API base URL)
+  - Require explicit `cacheControl: true` in provider config to enable prompt caching
+  - ACP provider creation explicitly enables `cache_control` for Anthropic
+
+- **Anthropic Tool Result Grouping**
+  - Fixed consecutive `toolResult` messages to be grouped into a single `user` message
+  - Anthropic API requires all `tool_result` blocks for preceding `tool_use` to appear together before other content
+  - Image blocks from tool results are now appended after all result blocks in the same message
+
+### 📝 Docs
+
+- **Comprehensive Configuration Documentation Rewrite**
+  - Added missing settings: `cacheControl`, idle compression, full sandbox fields (`bwrapPath`, `allowedRead`, `allowedWrite`, `deniedPaths`, `passEnv`, `tmpSize`), `shellPath`, `shellCommandPrefix`, `sessionDir`, `skillsDir`, `theme`, `retry`
+  - Documented shell command `apiKey` format (`!cmd`) for password manager integration
+  - Fixed key resolution order: config `apiKey` first, then derived env var
+  - Fixed macOS config path: `~/Library/Application Support/vibecoding/`
+  - Added top-level fields reference table with all defaults
+  - Added per-platform defaults for sandbox paths and env vars
+  - Improved examples with Claude provider `cacheControl`, idle compression, project-level overrides, and custom sandbox paths
+
+### 🧪 Testing
+
+- Added retry tests covering `IsRetryable`, `RetryDelay`, and `FormatRetryMessage`
+- Added Anthropic provider tests for consecutive tool result grouping
+
+---
+
 ## v0.1.23
 
 ### 🛠 Improvements
