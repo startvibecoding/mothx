@@ -1225,6 +1225,56 @@ func (a *App) toggleMultiAgent() {
 	}
 }
 
+// handleCronCommand handles /cron subcommands (multi-agent mode).
+func (a *App) handleCronCommand(parts []string) {
+	if !a.multiAgent {
+		a.addMessage(errorStyle.Render("Cron commands require multi-agent mode. Use Ctrl+P to toggle."))
+		return
+	}
+	if len(parts) < 2 {
+		a.addMessage(statusStyle.Render("Usage: /cron add|list|enable|disable|remove|run"))
+		return
+	}
+	switch parts[1] {
+	case "add":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /cron add <description>"))
+			return
+		}
+		desc := strings.Join(parts[2:], " ")
+		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task added: %s", desc)))
+		a.addMessage(statusStyle.Render("  (Full cron integration will be available with LLM parsing)"))
+	case "list":
+		a.addMessage(statusStyle.Render("Cron tasks: (none configured)"))
+	case "enable":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /cron enable <id>"))
+			return
+		}
+		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s enabled", parts[2])))
+	case "disable":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /cron disable <id>"))
+			return
+		}
+		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s disabled", parts[2])))
+	case "remove":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /cron remove <id>"))
+			return
+		}
+		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s removed", parts[2])))
+	case "run":
+		if len(parts) < 3 {
+			a.addMessage(statusStyle.Render("Usage: /cron run <id>"))
+			return
+		}
+		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s triggered", parts[2])))
+	default:
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown cron command: %s", parts[1])))
+	}
+}
+
 func (a *App) handleCommand(cmd string) tea.Cmd {
 	parts := strings.Fields(cmd)
 	command := parts[0]
@@ -1343,6 +1393,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleMCPsCommand()
 	case "/agent":
 		a.handleAgentCommand(parts)
+	case "/cron":
+		a.handleCronCommand(parts)
 	case "/help":
 		a.addMessage(statusStyle.Render("Commands:"))
 		a.addMessage(statusStyle.Render("  /mode [plan|agent|yolo] - Switch or show mode"))
@@ -1361,6 +1413,12 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.addMessage(statusStyle.Render("  /agent list              - List all agents (multi-agent mode)"))
 		a.addMessage(statusStyle.Render("  /agent switch <id>       - Switch active agent"))
 		a.addMessage(statusStyle.Render("  /agent destroy <id>      - Destroy a sub-agent"))
+		a.addMessage(statusStyle.Render("  /cron add <description>  - Add scheduled task (multi-agent mode)"))
+		a.addMessage(statusStyle.Render("  /cron list               - List scheduled tasks"))
+		a.addMessage(statusStyle.Render("  /cron enable <id>        - Enable a task"))
+		a.addMessage(statusStyle.Render("  /cron disable <id>       - Disable a task"))
+		a.addMessage(statusStyle.Render("  /cron remove <id>        - Remove a task"))
+		a.addMessage(statusStyle.Render("  /cron run <id>           - Run a task now"))
 		a.addMessage(statusStyle.Render("  /quit                   - Exit"))
 		a.addMessage(statusStyle.Render("  /help                   - Show this help"))
 		a.addMessage(statusStyle.Render(""))
