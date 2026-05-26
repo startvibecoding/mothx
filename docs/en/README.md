@@ -9,9 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/startvibecoding/vibecoding"><img src="https://img.shields.io/github/v/release/startvibecoding/vibecoding" alt="GitHub Release"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/blob/main/LICENSE"><img src="https://img.shields.io/github/license/startvibecoding/vibecoding" alt="License"></a>
-  <a href="https://github.com/startvibecoding/vibecoding"><img src="https://img.shields.io/github/stars/startvibecoding/vibecoding?style=social" alt="GitHub Stars"></a>
+  <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
+  <a href="https://pkg.go.dev/github.com/startvibecoding/vibecoding"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/vibecoding?status.svg" alt="GoDoc"></a>
+  <a href="https://github.com/startvibecoding/vibecoding/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/vibecoding" alt="Dependencies"></a>
 </p>
 
 ---
