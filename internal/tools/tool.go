@@ -142,20 +142,52 @@ func ToolDefinition(t Tool) provider.ToolDefinition {
 
 // Registry manages available tools.
 type Registry struct {
-	mu      sync.RWMutex
-	tools   map[string]Tool
-	order   []string
-	sandbox sandbox.Sandbox
-	workDir string
+	mu         sync.RWMutex
+	tools      map[string]Tool
+	order      []string
+	sandbox    sandbox.Sandbox
+	workDir    string
+	jobManager *JobManager
 }
 
 // NewRegistry creates a new tool registry.
 func NewRegistry(workDir string, sb sandbox.Sandbox) *Registry {
 	return &Registry{
-		tools:   make(map[string]Tool),
-		workDir: workDir,
-		sandbox: sb,
+		tools:      make(map[string]Tool),
+		workDir:    workDir,
+		sandbox:    sb,
+		jobManager: NewJobManager(),
 	}
+}
+
+// RegistryConfig configures a Registry instance.
+type RegistryConfig struct {
+	WorkDir    string
+	Sandbox    sandbox.Sandbox
+	ToolFilter []string // optional: only register these tools (empty = all)
+}
+
+// NewRegistryWithConfig creates a Registry with the given config.
+func NewRegistryWithConfig(cfg RegistryConfig) *Registry {
+	r := &Registry{
+		tools:      make(map[string]Tool),
+		workDir:    cfg.WorkDir,
+		sandbox:    cfg.Sandbox,
+		jobManager: NewJobManager(),
+	}
+	if len(cfg.ToolFilter) == 0 {
+		r.RegisterDefaults()
+	} else {
+		r.RegisterFiltered(cfg.ToolFilter)
+	}
+	return r
+}
+
+// JobManager returns the registry's per-instance job manager.
+func (r *Registry) JobManager() *JobManager {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.jobManager
 }
 
 // Register adds a tool to the registry.
@@ -278,10 +310,33 @@ func (r *Registry) RegisterDefaultsWithPlanTool(enablePlanTool bool) {
 	}
 	r.Register(NewWriteTool(r))
 	r.Register(NewEditTool(r))
-	bashTool := NewBashTool(r)
+	bashTool := NewBashToolWithJM(r, r.jobManager)
 	r.Register(bashTool)
 	r.Register(NewJobsTool(r, bashTool))
 	r.Register(NewKillTool(r, bashTool))
+}
+
+// RegisterFiltered registers only the specified tools by name.
+func (r *Registry) RegisterFiltered(toolNames []string) {
+	allTools := map[string]func() Tool{
+		"read":  func() Tool { return NewReadTool(r) },
+		"ls":    func() Tool { return NewLsTool(r) },
+		"grep":  func() Tool { return NewGrepTool(r) },
+		"find":  func() Tool { return NewFindTool(r) },
+		"plan":  func() Tool { return NewPlanTool(r) },
+		"write": func() Tool { return NewWriteTool(r) },
+		"edit":  func() Tool { return NewEditTool(r) },
+	}
+	bashTool := NewBashToolWithJM(r, r.jobManager)
+	allTools["bash"] = func() Tool { return bashTool }
+	allTools["jobs"] = func() Tool { return NewJobsTool(r, bashTool) }
+	allTools["kill"] = func() Tool { return NewKillTool(r, bashTool) }
+
+	for _, name := range toolNames {
+		if factory, ok := allTools[name]; ok {
+			r.Register(factory())
+		}
+	}
 }
 
 // ModeTools returns tool definitions appropriate for the given mode.
