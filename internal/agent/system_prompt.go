@@ -9,7 +9,7 @@ import (
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
-func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string, toolSnippets map[string]string, toolGuidelines []string) string {
+func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string, toolSnippets map[string]string, toolGuidelines []string, multiAgent bool) string {
 	var sb strings.Builder
 
 	// Get platform-specific shell
@@ -132,6 +132,25 @@ Focus on getting the task done quickly and correctly.
 `, guidelines))
 
 	// Behavior guidelines are now included in the Guidelines section above
+
+	// Sub-Agent section (Decision 8: only in multi-agent mode)
+	if multiAgent {
+		sb.WriteString(`
+## Sub-Agent Tools
+You can delegate subtasks to sub-agents using the following tools:
+- subagent_spawn: Create and start a sub-agent for a subtask (returns handle)
+- subagent_status: Check sub-agent status and get results
+- subagent_send: Send follow-up instructions to a running sub-agent
+- subagent_destroy: Destroy a finished sub-agent to release resources
+
+Use sub-agents for:
+- Parallel investigation of different code areas
+- Isolated file modifications that should be reviewed separately
+- Running long tasks while you continue working
+
+Sub-agents run independently with their own context and tools.
+`)
+	}
 
 	// Append extra context from files and skills
 	if extraContext != "" {

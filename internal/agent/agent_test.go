@@ -479,7 +479,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 	}
 	toolGuidelines := []string{"Use read to examine files instead of cat or sed."}
 
-	prompt := BuildSystemPrompt("agent", toolNames, cwd, extraContext, toolSnippets, toolGuidelines)
+	prompt := BuildSystemPrompt("agent", toolNames, cwd, extraContext, toolSnippets, toolGuidelines, false)
 
 	if prompt == "" {
 		t.Fatal("expected non-empty prompt")
@@ -505,7 +505,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 
 func TestBuildSystemPromptModes(t *testing.T) {
 	// Test plan mode
-	planPrompt := BuildSystemPrompt("plan", nil, "/tmp", "", nil, nil)
+	planPrompt := BuildSystemPrompt("plan", nil, "/tmp", "", nil, nil, false)
 	if !contains(planPrompt, "PLAN") {
 		t.Error("expected plan prompt to contain 'PLAN'")
 	}
@@ -515,19 +515,19 @@ func TestBuildSystemPromptModes(t *testing.T) {
 	}
 
 	// Test agent mode
-	agentPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil)
+	agentPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil, false)
 	if !contains(agentPrompt, "AGENT") {
 		t.Error("expected agent prompt to contain 'AGENT'")
 	}
 
 	// Test yolo mode
-	yoloPrompt := BuildSystemPrompt("yolo", nil, "/tmp", "", nil, nil)
+	yoloPrompt := BuildSystemPrompt("yolo", nil, "/tmp", "", nil, nil, false)
 	if !contains(yoloPrompt, "YOLO") {
 		t.Error("expected yolo prompt to contain 'YOLO'")
 	}
 
 	// Test unknown mode
-	unknownPrompt := BuildSystemPrompt("custom", nil, "/tmp", "", nil, nil)
+	unknownPrompt := BuildSystemPrompt("custom", nil, "/tmp", "", nil, nil, false)
 	if !contains(unknownPrompt, "CUSTOM") {
 		t.Error("expected unknown prompt to contain mode name")
 	}

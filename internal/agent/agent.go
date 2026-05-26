@@ -32,6 +32,7 @@ type Config struct {
 	ExtraContext       string // extra context from files and skills
 	CompactionSettings ctxpkg.CompactionSettings
 	ApprovalHandler    func(toolCallID, toolName string, args map[string]any) bool
+	MultiAgent        bool           // Decision 8: multi-agent mode
 }
 
 // AgentLoopConfig extends Config with loop-specific settings.
@@ -166,6 +167,7 @@ func (a *Agent) buildFrozenPrompt() {
 		a.config.ExtraContext,
 		toolSnippets,
 		toolGuidelines,
+		a.config.MultiAgent,
 	)
 	a.frozenToolDefs = a.registry.ModeTools(a.config.Mode)
 	a.frozenToolNames = toolNames
