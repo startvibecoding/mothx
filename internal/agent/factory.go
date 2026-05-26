@@ -96,6 +96,15 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		ToolFilter: opts.Tools,
 	})
 
+	// Decision 5: Sub-agents cannot spawn sub-agents
+	// Remove subagent_* tools from sub-agent registries
+	if opts.ParentID != "" {
+		registry.Remove("subagent_spawn")
+		registry.Remove("subagent_status")
+		registry.Remove("subagent_send")
+		registry.Remove("subagent_destroy")
+	}
+
 	// Build extra context: factory-level + per-agent
 	extraContext := f.extraContext
 	if opts.SystemPromptExtra != "" {

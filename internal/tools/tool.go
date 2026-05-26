@@ -209,6 +209,22 @@ func (r *Registry) Get(name string) (Tool, bool) {
 	return t, ok
 }
 
+// Remove removes a tool by name. No-op if not found.
+func (r *Registry) Remove(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.tools[name]; ok {
+		delete(r.tools, name)
+		// Also remove from order
+		for i, n := range r.order {
+			if n == name {
+				r.order = append(r.order[:i], r.order[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
 // All returns all registered tools in order.
 func (r *Registry) All() []Tool {
 	r.mu.RLock()
