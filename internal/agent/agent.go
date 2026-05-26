@@ -560,39 +560,9 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			usage.CalculateCost(a.config.Model)
 		}
 
-		// Track progress for loop detection
-		if textContent == "" {
-			consecutiveNoText++
-			threshold := maxConsecutiveNoText
-			if warningIssued {
-				threshold = maxConsecutiveNoTextAfterWarning
-			}
-			if consecutiveNoText >= threshold {
-				if !warningIssued {
-					// Inject a warning message to let the AI explain itself
-					warningMsg := provider.NewUserMessage("[System] You have been making tool calls for " + fmt.Sprintf("%d", consecutiveNoText) + " consecutive turns without any text response. Please explain what you are doing and whether you are stuck. If you are making progress, briefly describe your current task and continue. If you are truly stuck, please stop and explain the issue.")
-					ch <- Event{Type: EventMessageStart, Message: warningMsg}
-					ch <- Event{Type: EventMessageEnd, Message: warningMsg}
-					a.mu.Lock()
-					a.messages = append(a.messages, warningMsg)
-					a.context.Messages = append(a.context.Messages, warningMsg)
-					a.mu.Unlock()
-					warningIssued = true
-					consecutiveNoText = 0 // Reset counter for post-warning phase
-				} else {
-					// Already warned, now truly stuck
-					ch <- Event{Type: EventError, Error: fmt.Errorf("agent appears stuck: %d consecutive turns without text output after warning", consecutiveNoText+maxConsecutiveNoText), StopReason: "stuck"}
-					ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
-						a.mu.RLock()
-						defer a.mu.RUnlock()
-						m := make([]provider.Message, len(a.messages))
-						copy(m, a.messages)
-						return m
-					}()}
-					return
-				}
-			}
-		} else {
+		// Track progress for loop detection. Tool-only warnings are injected
+		// after tool results are recorded so provider message ordering stays valid.
+		if textContent != "" {
 			consecutiveNoText = 0
 			warningIssued = false // AI responded with text, reset warning state
 		}
@@ -631,6 +601,46 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			if a.config.Session != nil {
 				if _, err := a.config.Session.AppendMessage(result); err != nil {
 					ch <- Event{Type: EventError, Error: fmt.Errorf("save tool result to session: %w", err)}
+					return
+				}
+			}
+		}
+
+		if textContent == "" {
+			consecutiveNoText++
+			threshold := maxConsecutiveNoText
+			if warningIssued {
+				threshold = maxConsecutiveNoTextAfterWarning
+			}
+			if consecutiveNoText >= threshold {
+				if !warningIssued {
+					// Inject a warning message to let the AI explain itself.
+					warningMsg := provider.NewUserMessage("[System] You have been making tool calls for " + fmt.Sprintf("%d", consecutiveNoText) + " consecutive turns without any text response. Please explain what you are doing and whether you are stuck. If you are making progress, briefly describe your current task and continue. If you are truly stuck, please stop and explain the issue.")
+					ch <- Event{Type: EventMessageStart, Message: warningMsg}
+					ch <- Event{Type: EventMessageEnd, Message: warningMsg}
+					a.mu.Lock()
+					a.messages = append(a.messages, warningMsg)
+					a.context.Messages = append(a.context.Messages, warningMsg)
+					a.mu.Unlock()
+					if a.config.Session != nil {
+						if _, err := a.config.Session.AppendMessage(warningMsg); err != nil {
+							ch <- Event{Type: EventError, Error: fmt.Errorf("save warning message to session: %w", err)}
+							return
+						}
+					}
+					warningIssued = true
+					consecutiveNoText = 0 // Reset counter for post-warning phase
+				} else {
+					// Already warned, now truly stuck. Tool results have already been
+					// appended, so the saved transcript remains provider-valid.
+					ch <- Event{Type: EventError, Error: fmt.Errorf("agent appears stuck: %d consecutive turns without text output after warning", consecutiveNoText+maxConsecutiveNoText), StopReason: "stuck"}
+					ch <- Event{Type: EventAgentEnd, Messages: func() []provider.Message {
+						a.mu.RLock()
+						defer a.mu.RUnlock()
+						m := make([]provider.Message, len(a.messages))
+						copy(m, a.messages)
+						return m
+					}()}
 					return
 				}
 			}

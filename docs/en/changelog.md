@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.1.25
+
+### 🐛 Bug Fixes
+
+- **Agent Tool-Only Loop Warning Ordering**
+  - Moved the no-text tool-loop warning to be injected after tool results are appended
+  - Keeps assistant -> toolResult -> warning message ordering valid for provider and session transcripts
+  - Warning messages are now also persisted to session storage
+
+### 🧪 Testing
+
+- Added a regression test covering tool-only warning placement after tool results
+
+---
+
 ## v0.1.24
 
 ### ✨ Features

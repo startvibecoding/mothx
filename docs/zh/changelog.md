@@ -1,5 +1,20 @@
 # 更新日志
 
+## v0.1.25
+
+### 🐛 问题修复
+
+- **Agent 纯工具循环告警顺序**
+  - 将无文本输出的工具循环告警改为在 tool result 追加之后再注入
+  - 保持 assistant -> toolResult -> warning 的消息顺序，确保 provider 与 session transcript 都合法
+  - 告警消息现在也会持久化写入 session 存储
+
+### 🧪 测试
+
+- 新增回归测试，覆盖 tool result 之后的纯工具循环告警插入位置
+
+---
+
 ## v0.1.24
 
 ### ✨ 新功能

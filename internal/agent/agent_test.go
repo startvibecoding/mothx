@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,6 +10,51 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
+
+type loopingToolProvider struct {
+	models    []*provider.Model
+	callCount int
+}
+
+func newLoopingToolProvider() *loopingToolProvider {
+	return &loopingToolProvider{
+		models: []*provider.Model{{ID: "model1", Name: "Model 1"}},
+	}
+}
+
+func (p *loopingToolProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	ch := make(chan provider.StreamEvent, 3)
+	p.callCount++
+	toolCall := &provider.ToolCallBlock{
+		ID:        fmt.Sprintf("call_%d", p.callCount),
+		Name:      "unknown_tool",
+		Arguments: []byte(`{}`),
+	}
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamStart}
+		ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: toolCall}
+		ch <- provider.StreamEvent{Type: provider.StreamDone}
+	}()
+	return ch
+}
+
+func (p *loopingToolProvider) Name() string {
+	return "looping"
+}
+
+func (p *loopingToolProvider) Models() []*provider.Model {
+	return p.models
+}
+
+func (p *loopingToolProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.models {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
 
 func TestNewAgent(t *testing.T) {
 	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
@@ -300,6 +346,61 @@ func TestAgentRunWithToolCall(t *testing.T) {
 
 	if !hasToolExecution {
 		t.Error("expected tool execution event")
+	}
+}
+
+func TestToolOnlyWarningAppendedAfterToolResults(t *testing.T) {
+	mockProvider := newLoopingToolProvider()
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+
+	var stopped bool
+	cfg := AgentLoopConfig{
+		Config: Config{
+			Provider: mockProvider,
+			Model:    mockProvider.Models()[0],
+			Mode:     "agent",
+		},
+		ToolExecutionMode: "sequential",
+		MaxIterations:     95,
+		ShouldStopAfterTurn: func(ctx ShouldStopAfterTurnContext) bool {
+			for _, msg := range ctx.NewMessages {
+				if msg.Role == "user" && contains(msg.Content, "You have been making tool calls") {
+					stopped = true
+					return true
+				}
+			}
+			return false
+		},
+	}
+
+	a := NewWithLoopConfig(cfg, registry)
+	ch := a.Run(context.Background(), "keep using tools")
+
+	for range ch {
+	}
+
+	if !stopped {
+		t.Fatal("expected warning-triggered stop")
+	}
+
+	messages := a.GetMessages()
+	warningIndex := -1
+	for i, msg := range messages {
+		if msg.Role == "user" && contains(msg.Content, "You have been making tool calls") {
+			warningIndex = i
+			break
+		}
+	}
+	if warningIndex < 2 {
+		t.Fatalf("warning index = %d, want at least 2", warningIndex)
+	}
+	if messages[warningIndex-1].Role != "toolResult" {
+		t.Fatalf("message before warning role = %q, want toolResult", messages[warningIndex-1].Role)
+	}
+	if messages[warningIndex-2].Role != "assistant" {
+		t.Fatalf("message before tool result role = %q, want assistant", messages[warningIndex-2].Role)
 	}
 }
 
