@@ -67,6 +67,7 @@ func boolPtr(v bool) *bool {
 
 func TestConvertMessagesPreservesCacheControlOnSingleTextBlock(t *testing.T) {
 	p := NewProvider("fake-key", "https://api.anthropic.com")
+	p.SetCacheControlEnabled(boolPtr(true))
 	msgs := p.convertMessages(provider.ChatParams{
 		Messages: []provider.Message{
 			{

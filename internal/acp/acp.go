@@ -616,12 +616,18 @@ func (s *server) handlePrompt(req rpcRequest) {
 	rt.cancelMu.Unlock()
 
 	var a agentpkg.Agent
-	if s.factory != nil {
-		a = s.factory.Create(agent.AgentOptions{
+	if s.agentMgr != nil {
+		var err error
+		a, err = s.agentMgr.Create(agent.AgentOptions{
 			Mode:    s.mode,
 			Model:   s.m,
 			Session: rt.mgr,
 		})
+		if err != nil {
+			cancel()
+			s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
+			return
+		}
 	} else {
 		inner := agent.New(agent.Config{
 			Provider:      s.p,

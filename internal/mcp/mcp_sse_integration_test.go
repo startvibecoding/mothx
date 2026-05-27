@@ -156,17 +156,20 @@ func TestMCPServerSSENotificationCallback(t *testing.T) {
 	var (
 		mu         sync.Mutex
 		gotMethods []string
-		streamW    http.ResponseWriter
-		flusher    http.Flusher
+		readyOnce  sync.Once
 	)
+	streamReady := make(chan struct{})
+	notifyCh := make(chan map[string]any, 1)
 	stream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		f, _ := w.(http.Flusher)
-		mu.Lock()
-		streamW = w
-		flusher = f
-		mu.Unlock()
-		<-r.Context().Done()
+		readyOnce.Do(func() { close(streamReady) })
+		select {
+		case msg := <-notifyCh:
+			writeSSEJSON(w, f, msg)
+			<-r.Context().Done()
+		case <-r.Context().Done():
+		}
 	}))
 	defer stream.Close()
 
@@ -222,27 +225,18 @@ func TestMCPServerSSENotificationCallback(t *testing.T) {
 	}
 	defer CloseClients(clients)
 
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		mu.Lock()
-		wr := streamW
-		fl := flusher
-		mu.Unlock()
-		if wr != nil && fl != nil {
-			writeSSEJSON(wr, fl, map[string]any{
-				"jsonrpc": "2.0",
-				"method":  "notifications/progress",
-				"params":  map[string]any{"progress": 0.5},
-			})
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("timeout waiting sse stream ready")
-		}
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-streamReady:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting sse stream ready")
+	}
+	notifyCh <- map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "notifications/progress",
+		"params":  map[string]any{"progress": 0.5},
 	}
 
-	deadline = time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(2 * time.Second)
 	for {
 		mu.Lock()
 		ok := len(gotMethods) > 0

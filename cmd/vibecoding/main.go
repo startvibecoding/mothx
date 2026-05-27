@@ -367,7 +367,7 @@ func run(args []string, opts runOptions) error {
 
 	// Print mode: non-interactive
 	if opts.print {
-		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext)
+		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, agentMgr)
 	}
 
 	// Interactive mode
@@ -546,7 +546,7 @@ func clearStdin() {
 	}
 }
 
-func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager, extraContext string) error {
+func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager, extraContext string, multiAgent bool, agentMgr *agent.AgentManager) error {
 	input := strings.Join(args, " ")
 	if input == "" {
 		data, err := io.ReadAll(os.Stdin)
@@ -594,9 +594,13 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		Session:            sess,
 		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,
+		MultiAgent:         multiAgent,
 	}
 
 	a := agent.New(agentCfg, registry)
+	if multiAgent && agentMgr != nil {
+		agentMgr.Register(agent.NewAgentAdapter(a))
+	}
 
 	ctx := context.Background()
 	eventCh := a.Run(ctx, input)

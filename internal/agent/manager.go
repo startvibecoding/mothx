@@ -4,9 +4,21 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 )
+
+// ManagedAgentStatus captures scheduling state for an agent managed by AgentManager.
+type ManagedAgentStatus struct {
+	ID        agentpkg.AgentID
+	ParentID  agentpkg.AgentID
+	State     string
+	Result    string
+	Error     string
+	StartedAt time.Time
+	UpdatedAt time.Time
+}
 
 // AgentManager manages the lifecycle of all agent instances.
 type AgentManager struct {
@@ -14,6 +26,7 @@ type AgentManager struct {
 	agents   map[agentpkg.AgentID]agentpkg.Agent
 	parentOf map[agentpkg.AgentID]agentpkg.AgentID
 	children map[agentpkg.AgentID][]agentpkg.AgentID
+	statuses map[agentpkg.AgentID]ManagedAgentStatus
 	factory  *AgentFactory
 	counter  int64
 }
@@ -24,7 +37,32 @@ func NewAgentManager(factory *AgentFactory) *AgentManager {
 		agents:   make(map[agentpkg.AgentID]agentpkg.Agent),
 		parentOf: make(map[agentpkg.AgentID]agentpkg.AgentID),
 		children: make(map[agentpkg.AgentID][]agentpkg.AgentID),
+		statuses: make(map[agentpkg.AgentID]ManagedAgentStatus),
 		factory:  factory,
+	}
+}
+
+// Register adds an already-created top-level agent to the manager.
+func (m *AgentManager) Register(a agentpkg.Agent) {
+	if a == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	id := a.ID()
+	m.agents[id] = a
+	if a.ParentID() != "" {
+		m.parentOf[id] = a.ParentID()
+		m.children[a.ParentID()] = appendUniqueAgentID(m.children[a.ParentID()], id)
+	}
+	now := time.Now()
+	m.statuses[id] = ManagedAgentStatus{
+		ID:        id,
+		ParentID:  a.ParentID(),
+		State:     "ready",
+		StartedAt: now,
+		UpdatedAt: now,
 	}
 }
 
@@ -38,6 +76,9 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 	if opts.ID == "" {
 		opts.ID = agentpkg.AgentID(fmt.Sprintf("agent-%d", atomic.AddInt64(&m.counter, 1)))
 	}
+	if opts.Mode == "" {
+		opts.Mode = "agent"
+	}
 
 	// Validate parent
 	if opts.ParentID != "" {
@@ -49,6 +90,10 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 		if parent.ParentID() != "" {
 			return nil, fmt.Errorf("parent agent %s is itself a sub-agent; nesting is not allowed", opts.ParentID)
 		}
+		policy := DefaultSubAgentPolicy()
+		if err := policy.Validate(string(opts.ParentID), opts.Mode, len(m.children[opts.ParentID])); err != nil {
+			return nil, err
+		}
 	}
 
 	a := m.factory.Create(opts)
@@ -56,6 +101,14 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 	if opts.ParentID != "" {
 		m.parentOf[opts.ID] = opts.ParentID
 		m.children[opts.ParentID] = append(m.children[opts.ParentID], opts.ID)
+	}
+	now := time.Now()
+	m.statuses[opts.ID] = ManagedAgentStatus{
+		ID:        opts.ID,
+		ParentID:  opts.ParentID,
+		State:     "ready",
+		StartedAt: now,
+		UpdatedAt: now,
 	}
 
 	return a, nil
@@ -104,6 +157,7 @@ func (m *AgentManager) Destroy(id agentpkg.AgentID) error {
 	delete(m.agents, id)
 	delete(m.parentOf, id)
 	delete(m.children, id)
+	delete(m.statuses, id)
 
 	return nil
 }
@@ -120,6 +174,56 @@ func (m *AgentManager) destroyLocked(id agentpkg.AgentID) {
 	delete(m.agents, id)
 	delete(m.parentOf, id)
 	delete(m.children, id)
+	delete(m.statuses, id)
+}
+
+// MarkRunning records that an agent has started processing a task.
+func (m *AgentManager) MarkRunning(id agentpkg.AgentID) {
+	m.updateStatus(id, "running", "", "")
+}
+
+// MarkDone records successful completion and the last reported result.
+func (m *AgentManager) MarkDone(id agentpkg.AgentID, result string) {
+	m.updateStatus(id, "done", result, "")
+}
+
+// MarkError records an agent failure.
+func (m *AgentManager) MarkError(id agentpkg.AgentID, err error) {
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	}
+	m.updateStatus(id, "error", "", msg)
+}
+
+func (m *AgentManager) updateStatus(id agentpkg.AgentID, state, result, errMsg string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	st := m.statuses[id]
+	st.ID = id
+	if st.StartedAt.IsZero() {
+		st.StartedAt = time.Now()
+	}
+	if parentID, ok := m.parentOf[id]; ok {
+		st.ParentID = parentID
+	}
+	st.State = state
+	if result != "" {
+		st.Result = result
+	}
+	if errMsg != "" {
+		st.Error = errMsg
+	}
+	st.UpdatedAt = time.Now()
+	m.statuses[id] = st
+}
+
+// Status returns a copy of the tracked status for an agent.
+func (m *AgentManager) Status(id agentpkg.AgentID) (ManagedAgentStatus, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	st, ok := m.statuses[id]
+	return st, ok
 }
 
 // List returns all agent IDs.
@@ -131,6 +235,15 @@ func (m *AgentManager) List() []agentpkg.AgentID {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+func appendUniqueAgentID(ids []agentpkg.AgentID, id agentpkg.AgentID) []agentpkg.AgentID {
+	for _, existing := range ids {
+		if existing == id {
+			return ids
+		}
+	}
+	return append(ids, id)
 }
 
 // Children returns the children of an agent.

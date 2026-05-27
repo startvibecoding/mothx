@@ -40,6 +40,7 @@ type Client struct {
 	pending map[string]chan mcpResponse
 	mu      sync.Mutex
 	wmu     sync.Mutex
+	smu     sync.RWMutex
 	closed  atomic.Bool
 	nextID  int64
 
@@ -51,6 +52,22 @@ type Client struct {
 	sseCancel  context.CancelFunc
 	sessionID  string
 	callbacks  Callbacks
+}
+
+func (c *Client) currentSessionID() string {
+	c.smu.RLock()
+	defer c.smu.RUnlock()
+	return c.sessionID
+}
+
+func (c *Client) setSessionID(sid string) {
+	sid = strings.TrimSpace(sid)
+	if sid == "" {
+		return
+	}
+	c.smu.Lock()
+	defer c.smu.Unlock()
+	c.sessionID = sid
 }
 
 type Callbacks struct {
@@ -599,8 +616,8 @@ func (c *Client) callHTTPInternal(ctx context.Context, method string, params any
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
 	}
-	if c.sessionID != "" {
-		req.Header.Set("Mcp-Session-Id", c.sessionID)
+	if sid := c.currentSessionID(); sid != "" {
+		req.Header.Set("Mcp-Session-Id", sid)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -608,7 +625,7 @@ func (c *Client) callHTTPInternal(ctx context.Context, method string, params any
 	}
 	defer resp.Body.Close()
 	if sid := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); sid != "" {
-		c.sessionID = sid
+		c.setSessionID(sid)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
@@ -709,8 +726,8 @@ func (c *Client) postRPCMessage(ctx context.Context, msg any) error {
 	for k, v := range c.headers {
 		req.Header.Set(k, v)
 	}
-	if c.sessionID != "" {
-		req.Header.Set("Mcp-Session-Id", c.sessionID)
+	if sid := c.currentSessionID(); sid != "" {
+		req.Header.Set("Mcp-Session-Id", sid)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -718,7 +735,7 @@ func (c *Client) postRPCMessage(ctx context.Context, msg any) error {
 	}
 	defer resp.Body.Close()
 	if sid := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); sid != "" {
-		c.sessionID = sid
+		c.setSessionID(sid)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
@@ -791,7 +808,7 @@ func (c *Client) readSSELoop(ctx context.Context, streamURL string) {
 		return
 	}
 	if sid := strings.TrimSpace(resp.Header.Get("Mcp-Session-Id")); sid != "" {
-		c.sessionID = sid
+		c.setSessionID(sid)
 	}
 
 	sc := bufio.NewScanner(resp.Body)

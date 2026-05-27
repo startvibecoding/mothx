@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,12 +23,13 @@ func NewSubAgentSpawnTool(m *AgentManager) *SubAgentSpawnTool {
 }
 
 func (t *SubAgentSpawnTool) Name() string         { return "subagent_spawn" }
-func (t *SubAgentSpawnTool) Description() string   { return "Create and start a sub-agent to handle a subtask. Returns a handle for tracking." }
-func (t *SubAgentSpawnTool) PromptSnippet() string { return "Create a sub-agent for parallel subtask execution" }
+func (t *SubAgentSpawnTool) Description() string   { return "Create and start a bounded sub-agent task. Returns a handle for status/result polling." }
+func (t *SubAgentSpawnTool) PromptSnippet() string { return "Create a bounded sub-agent task for independent work" }
 func (t *SubAgentSpawnTool) PromptGuidelines() []string {
 	return []string{
-		"Use subagent_spawn to delegate subtasks that can run independently",
-		"Use subagent_status to check progress and get results",
+		"Use subagent_spawn only for independent subtasks with clear scope, expected output, and stop conditions",
+		"Spawn multiple sub-agents in parallel for independent investigation or review work, then reconcile their results in the main agent",
+		"Use subagent_status to poll results and verify important claims before acting on them",
 		"Use subagent_destroy to clean up finished sub-agents",
 	}
 }
@@ -36,7 +38,7 @@ func (t *SubAgentSpawnTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
-			"task": {"type": "string", "description": "The task for the sub-agent to perform"},
+			"task": {"type": "string", "description": "Focused task for the sub-agent, including scope, relevant paths/context, expected artifact, and stop conditions"},
 			"mode": {"type": "string", "enum": ["plan", "agent", "yolo"], "default": "agent", "description": "Agent mode"},
 			"work_dir": {"type": "string", "description": "Working directory for the sub-agent (defaults to current)"},
 			"tools": {"type": "array", "items": {"type": "string"}, "description": "Allowed tools (empty = all)"},
@@ -100,6 +102,7 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 	if err != nil {
 		return tools.ToolResult{}, fmt.Errorf("create sub-agent: %w", err)
 	}
+	t.manager.MarkRunning(a.ID())
 
 	// Apply per-agent timeout from default policy
 	policy := DefaultSubAgentPolicy()
@@ -108,7 +111,7 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 	// Start the sub-agent asynchronously, forward events to parent
 	go func() {
 		defer cancel()
-		ch := a.Run(runCtx, task)
+		ch := a.Run(runCtx, buildSubAgentTask(task))
 		for e := range ch {
 			// Forward approval events to parent so the UI can handle them
 			if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
@@ -120,6 +123,15 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 					ApprovalArgs: e.ApprovalArgs,
 				}
 			}
+			switch e.Type {
+			case agentpkg.EventDone:
+				t.manager.MarkDone(a.ID(), lastAssistantResponse(a))
+			case agentpkg.EventError:
+				t.manager.MarkError(a.ID(), e.Error)
+			}
+		}
+		if runCtx.Err() != nil {
+			t.manager.MarkError(a.ID(), runCtx.Err())
 		}
 	}()
 
@@ -203,14 +215,14 @@ func (t *SubAgentStatusTool) Execute(ctx context.Context, params map[string]any)
 	}
 
 	messages := a.GetMessages()
-	status := "running"
-	var lastResponse string
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role == agentpkg.RoleAssistant {
-			status = "done"
-			lastResponse = messages[i].Content
-			break
-		}
+	st, _ := t.manager.Status(agentpkg.AgentID(handle))
+	status := st.State
+	if status == "" {
+		status = "unknown"
+	}
+	lastResponse := st.Result
+	if lastResponse == "" {
+		lastResponse = lastAssistantResponse(a)
 	}
 
 	result := map[string]any{
@@ -220,6 +232,12 @@ func (t *SubAgentStatusTool) Execute(ctx context.Context, params map[string]any)
 	}
 	if lastResponse != "" {
 		result["last_response"] = lastResponse
+	}
+	if st.Error != "" {
+		result["error"] = st.Error
+	}
+	if !st.UpdatedAt.IsZero() {
+		result["updated_at"] = st.UpdatedAt.Format(time.RFC3339)
 	}
 
 	data, _ := json.Marshal(result)
@@ -266,6 +284,7 @@ func (t *SubAgentSendTool) Execute(ctx context.Context, params map[string]any) (
 	// Apply per-agent timeout for follow-up messages too
 	policy := DefaultSubAgentPolicy()
 	runCtx, cancel := context.WithTimeout(context.Background(), policy.TimeoutPerAgent)
+	t.manager.MarkRunning(a.ID())
 
 	// Extract parent's event channel for approval forwarding
 	parentEventCh, _ := EventChanFromContext(ctx)
@@ -284,10 +303,51 @@ func (t *SubAgentSendTool) Execute(ctx context.Context, params map[string]any) (
 					ApprovalArgs: e.ApprovalArgs,
 				}
 			}
+			switch e.Type {
+			case agentpkg.EventDone:
+				t.manager.MarkDone(a.ID(), lastAssistantResponse(a))
+			case agentpkg.EventError:
+				t.manager.MarkError(a.ID(), e.Error)
+			}
+		}
+		if runCtx.Err() != nil {
+			t.manager.MarkError(a.ID(), runCtx.Err())
 		}
 	}()
 
 	return tools.NewTextToolResult(fmt.Sprintf(`{"handle":%q,"status":"message_sent"}`, handle)), nil
+}
+
+func buildSubAgentTask(task string) string {
+	task = strings.TrimSpace(task)
+	return fmt.Sprintf(`Delegated task:
+%s
+
+Return the artifact using this format:
+Result:
+Evidence:
+Changes:
+Risks:
+`, task)
+}
+
+func lastAssistantResponse(a agentpkg.Agent) string {
+	messages := a.GetMessages()
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == agentpkg.RoleAssistant {
+			if messages[i].Content != "" {
+				return messages[i].Content
+			}
+			var sb strings.Builder
+			for _, block := range messages[i].Contents {
+				if block.Type == "text" && block.Text != "" {
+					sb.WriteString(block.Text)
+				}
+			}
+			return sb.String()
+		}
+	}
+	return ""
 }
 
 // SubAgentDestroyTool destroys a sub-agent and releases resources.

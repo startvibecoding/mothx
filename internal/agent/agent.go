@@ -64,7 +64,7 @@ type Config struct {
 	ExtraContext       string // extra context from files and skills
 	CompactionSettings ctxpkg.CompactionSettings
 	ApprovalHandler    func(toolCallID, toolName string, args map[string]any) bool
-	MultiAgent        bool           // Decision 8: multi-agent mode
+	MultiAgent         bool // Decision 8: multi-agent mode
 }
 
 // AgentLoopConfig extends Config with loop-specific settings.
@@ -159,16 +159,16 @@ type AgentContext struct {
 // Agent is the core agent loop.
 // Agent is the core agent loop.
 type Agent struct {
-	id           agentpkg.AgentID
-	parentID     agentpkg.AgentID
-	config       AgentLoopConfig
-	registry     *tools.Registry
-	mu           sync.RWMutex
-	context      *AgentContext
-	abort        chan struct{}
-	abortOnce    sync.Once
-	messages     []provider.Message
-	isStreaming  bool
+	id          agentpkg.AgentID
+	parentID    agentpkg.AgentID
+	config      AgentLoopConfig
+	registry    *tools.Registry
+	mu          sync.RWMutex
+	context     *AgentContext
+	abort       chan struct{}
+	abortOnce   sync.Once
+	messages    []provider.Message
+	isStreaming bool
 
 	// Frozen system prompt and tools (built once, never change during session)
 	// This is critical for prompt cache optimization - see LLM_Agent_Cache.md
@@ -340,6 +340,8 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 	}
 	// Build frozen system prompt once at construction time (R2.1)
 	agent.buildFrozenPrompt()
+	agent.context.SystemPrompt = agent.frozenSystemPrompt
+	agent.context.Tools = agent.frozenToolDefs
 	return agent
 }
 
@@ -370,6 +372,8 @@ func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 	}
 	// Build frozen system prompt once at construction time (R2.1)
 	agent.buildFrozenPrompt()
+	agent.context.SystemPrompt = agent.frozenSystemPrompt
+	agent.context.Tools = agent.frozenToolDefs
 	return agent
 }
 

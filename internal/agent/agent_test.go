@@ -533,6 +533,21 @@ func TestBuildSystemPromptModes(t *testing.T) {
 	}
 }
 
+func TestBuildSystemPromptMultiAgentGated(t *testing.T) {
+	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil, false)
+	if contains(defaultPrompt, "Sub-Agent Tools") {
+		t.Error("expected default prompt to omit sub-agent instructions")
+	}
+
+	multiPrompt := BuildSystemPrompt("agent", []string{"subagent_spawn"}, "/tmp", "", nil, nil, true)
+	if !contains(multiPrompt, "Sub-Agent Tools") {
+		t.Error("expected multi-agent prompt to include sub-agent instructions")
+	}
+	if !contains(multiPrompt, "Act as the orchestrator") {
+		t.Error("expected multi-agent prompt to include orchestration guidance")
+	}
+}
+
 func TestFormatToolListWithSnippets(t *testing.T) {
 	// Test with tools and snippets
 	tools := []string{"read", "write", "bash"}

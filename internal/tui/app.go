@@ -1140,8 +1140,13 @@ func (a *App) processInput(input string) tea.Cmd {
 			Session:            a.session,
 			ExtraContext:       a.extraContext,
 			CompactionSettings: compactionSettings,
+			MultiAgent:         a.multiAgent,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
+		if a.multiAgent && a.agentMgr != nil {
+			a.agentMgr.Register(agent.NewAgentAdapter(a.agent))
+			a.activeAgent = agentpkg.AgentID(a.agent.ID())
+		}
 
 		// Load history messages from session if available and not yet loaded
 		a.sessionMu.Lock()

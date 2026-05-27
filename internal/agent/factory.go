@@ -108,6 +108,9 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 
 	// Build extra context: factory-level + per-agent
 	extraContext := f.extraContext
+	if opts.ParentID != "" {
+		extraContext += "\n" + BuildSubAgentContext()
+	}
 	if opts.SystemPromptExtra != "" {
 		extraContext += "\n" + opts.SystemPromptExtra
 	}
@@ -147,6 +150,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 			}
 			return f.approvalHandler
 		}(),
+		MultiAgent: opts.ParentID == "",
 	}
 
 	loopCfg := AgentLoopConfig{

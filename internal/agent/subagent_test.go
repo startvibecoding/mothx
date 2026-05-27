@@ -3,8 +3,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
+	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -260,6 +262,65 @@ func TestSubAgentPolicyValidateCustom(t *testing.T) {
 	}
 	if err := p.Validate("parent", "agent", 3); err == nil {
 		t.Error("expected error for max children")
+	}
+}
+
+func TestSubAgentPromptContractOnlyForChild(t *testing.T) {
+	_, mgr := newTestFactoryAndManager()
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := mgr.Create(AgentOptions{ID: "sub-1", ParentID: parent.ID()})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	parentCtx := parent.GetContext()
+	if parentCtx == nil || !contains(parentCtx.SystemPrompt, "Sub-Agent Tools") {
+		t.Fatal("expected top-level multi-agent prompt to include orchestration guidance")
+	}
+	if contains(parentCtx.SystemPrompt, "Sub-Agent Operating Contract") {
+		t.Error("expected top-level prompt to omit worker contract")
+	}
+
+	childCtx := child.GetContext()
+	if childCtx == nil || !contains(childCtx.SystemPrompt, "Sub-Agent Operating Contract") {
+		t.Fatal("expected child prompt to include worker contract")
+	}
+	if contains(childCtx.SystemPrompt, "Sub-Agent Tools") {
+		t.Error("expected child prompt to omit sub-agent tools guidance")
+	}
+}
+
+func TestAgentManagerEnforcesSubAgentPolicy(t *testing.T) {
+	_, mgr := newTestFactoryAndManager()
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+
+	for i := 0; i < DefaultSubAgentPolicy().MaxChildren; i++ {
+		_, err := mgr.Create(AgentOptions{
+			ID:       agentpkg.AgentID(fmt.Sprintf("sub-%d", i)),
+			ParentID: parent.ID(),
+			Mode:     "agent",
+		})
+		if err != nil {
+			t.Fatalf("create child %d: %v", i, err)
+		}
+	}
+
+	_, err = mgr.Create(AgentOptions{ID: "sub-overflow", ParentID: parent.ID(), Mode: "agent"})
+	if err == nil {
+		t.Fatal("expected max-children error")
+	}
+
+	_, mgr = newTestFactoryAndManager()
+	parent, _ = mgr.Create(AgentOptions{ID: "main"})
+	_, err = mgr.Create(AgentOptions{ID: "sub-yolo", ParentID: parent.ID(), Mode: "yolo"})
+	if err == nil {
+		t.Fatal("expected disallowed mode error")
 	}
 }
 
