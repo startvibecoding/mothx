@@ -172,6 +172,7 @@ type App struct {
 	// Multi-agent state (Decision 8: default off)
 	multiAgent  bool
 	activeAgent agentpkg.AgentID
+	agentMgr    *agent.AgentManager
 
 	// Current streaming message indices (-1 = none)
 	currentAssistantIdx int
@@ -196,7 +197,7 @@ type pendingApproval struct {
 }
 
 // NewApp creates a new TUI application.
-func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string) *App {
+func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, agentMgr *agent.AgentManager) *App {
 	input := textinput.New()
 	input.Placeholder = "Type a message..."
 	input.Focus()
@@ -236,6 +237,8 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		assistantRaw:        make(map[int]string),
 		assistantRendered:   make(map[int]string),
 		assistantDirty:      make(map[int]bool),
+		multiAgent:          multiAgent,
+		agentMgr:            agentMgr,
 	}
 
 	app.configureMarkdownRenderer()
@@ -1199,10 +1202,48 @@ func (a *App) handleAgentCommand(parts []string) {
 
 func (a *App) listAgents() {
 	a.addMessage(statusStyle.Render(fmt.Sprintf("Multi-agent mode: ON (active: %s)", a.activeAgent)))
-	a.addMessage(statusStyle.Render("  (Agent listing will be available with AgentManager integration)"))
+	if a.agentMgr == nil {
+		a.addMessage(statusStyle.Render("  (AgentManager not initialized)") )
+		return
+	}
+
+	ids := a.agentMgr.List()
+	if len(ids) == 0 {
+		a.addMessage(statusStyle.Render("  No agents running"))
+		return
+	}
+
+	for _, id := range ids {
+		parentID, hasParent := a.agentMgr.Parent(id)
+		children := a.agentMgr.Children(id)
+		status := "running"
+		if id == a.activeAgent {
+			status = "active"
+		}
+
+		info := fmt.Sprintf("  %s [%s]", id, status)
+		if hasParent {
+			info += fmt.Sprintf(" parent=%s", parentID)
+		}
+		if len(children) > 0 {
+			info += fmt.Sprintf(" children=%d", len(children))
+		}
+		a.addMessage(statusStyle.Render(info))
+	}
 }
 
 func (a *App) switchAgent(id agentpkg.AgentID) {
+	if a.agentMgr == nil {
+		a.addMessage(errorStyle.Render("AgentManager not initialized"))
+		return
+	}
+
+	_, ok := a.agentMgr.Get(id)
+	if !ok {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Agent %s not found", id)))
+		return
+	}
+
 	a.activeAgent = id
 	a.addMessage(statusStyle.Render(fmt.Sprintf("Switched to agent: %s", id)))
 }
@@ -1212,6 +1253,22 @@ func (a *App) destroyAgent(id agentpkg.AgentID) {
 		a.addMessage(errorStyle.Render("Cannot destroy the main agent"))
 		return
 	}
+
+	if a.agentMgr == nil {
+		a.addMessage(errorStyle.Render("AgentManager not initialized"))
+		return
+	}
+
+	if err := a.agentMgr.Destroy(id); err != nil {
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Failed to destroy agent %s: %v", id, err)))
+		return
+	}
+
+	// If we destroyed the active agent, switch to main
+	if a.activeAgent == id {
+		a.activeAgent = "main"
+	}
+
 	a.addMessage(statusStyle.Render(fmt.Sprintf("Agent %s destroyed", id)))
 }
 

@@ -50,17 +50,18 @@ func main() {
 
 func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.RunOptions) error) *cobra.Command {
 	var (
-		flagProvider string
-		flagModel    string
-		flagMode     string
-		flagThinking string
-		flagContinue bool
-		flagResume   string
-		flagSession  string
-		flagSandbox  bool
-		flagPrint    bool
-		flagVerbose  bool
-		flagDebug    bool
+		flagProvider    string
+		flagModel       string
+		flagMode        string
+		flagThinking    string
+		flagContinue    bool
+		flagResume      string
+		flagSession     string
+		flagSandbox     bool
+		flagPrint       bool
+		flagVerbose     bool
+		flagDebug       bool
+		flagMultiAgent  bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -72,17 +73,18 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFn(args, runOptions{
-				provider:  flagProvider,
-				model:     flagModel,
-				mode:      flagMode,
-				thinking:  flagThinking,
-				continue_: flagContinue,
-				resume:    flagResume,
-				session:   flagSession,
-				sandbox:   flagSandbox,
-				print:     flagPrint,
-				verbose:   flagVerbose,
-				debug:     flagDebug,
+				provider:    flagProvider,
+				model:       flagModel,
+				mode:        flagMode,
+				thinking:    flagThinking,
+				continue_:   flagContinue,
+				resume:      flagResume,
+				session:     flagSession,
+				sandbox:     flagSandbox,
+				print:       flagPrint,
+				verbose:     flagVerbose,
+				debug:       flagDebug,
+				multiAgent:  flagMultiAgent,
 			})
 		},
 	}
@@ -116,6 +118,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	flags.BoolVarP(&flagPrint, "print", "P", false, "Print response and exit (non-interactive)")
 	flags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	flags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
+	flags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
 
 	acpFlags := acpCmd.Flags()
 	acpFlags.StringVarP(&flagProvider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
@@ -131,17 +134,18 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 }
 
 type runOptions struct {
-	provider  string
-	model     string
-	mode      string
-	thinking  string
-	continue_ bool
-	resume    string
-	session   string
-	sandbox   bool
-	print     bool
-	verbose   bool
-	debug     bool
+	provider    string
+	model       string
+	mode        string
+	thinking    string
+	continue_   bool
+	resume      string
+	session     string
+	sandbox     bool
+	print       bool
+	verbose     bool
+	debug       bool
+	multiAgent  bool
 }
 
 func run(args []string, opts runOptions) error {
@@ -330,6 +334,35 @@ func run(args []string, opts runOptions) error {
 	// Build extra system context
 	extraContext := contextStr + skillsContext
 
+	// Multi-agent mode: create AgentFactory and AgentManager, register subagent tools
+	var agentMgr *agent.AgentManager
+	if opts.multiAgent {
+		compactionSettings := ctxpkg.CompactionSettings{
+			Enabled:          settings.Compaction.Enabled,
+			ReserveTokens:    settings.Compaction.ReserveTokens,
+			KeepRecentTokens: settings.Compaction.KeepRecentTokens,
+		}
+		if compactionSettings.ReserveTokens == 0 {
+			compactionSettings.ReserveTokens = 16384
+		}
+		if compactionSettings.KeepRecentTokens == 0 {
+			compactionSettings.KeepRecentTokens = 20000
+		}
+
+		factory := agent.NewAgentFactory(p, model, settings, sbMgr, extraContext, compactionSettings, nil)
+		agentMgr = agent.NewAgentManager(factory)
+
+		// Register subagent tools
+		registry.Register(agent.NewSubAgentSpawnTool(agentMgr))
+		registry.Register(agent.NewSubAgentStatusTool(agentMgr))
+		registry.Register(agent.NewSubAgentSendTool(agentMgr))
+		registry.Register(agent.NewSubAgentDestroyTool(agentMgr))
+
+		if opts.verbose {
+			fmt.Fprintf(os.Stderr, "Multi-agent mode enabled\n")
+		}
+	}
+
 	// Print mode: non-interactive
 	if opts.print {
 		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext)
@@ -339,7 +372,7 @@ func run(args []string, opts runOptions) error {
 	// Clear any pending stdin input (e.g., terminal color queries)
 	clearStdin()
 
-	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode)
+	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, agentMgr)
 	// Add context files info and session info as initial message
 	var initialMsg string
 	if contextFilesInfo != "" {

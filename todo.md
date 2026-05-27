@@ -751,6 +751,94 @@ type ModelCompat struct {
 
 ---
 
+## ⚠️ 集成问题: 多 Agent 功能未接入主程序
+
+> 发现时间: 2026-05-27
+> 严重度: 🔴 高
+> 影响范围: CLI 模式 + TUI 模式
+
+### 问题描述
+
+内部包 (`internal/agent/`) 已完整实现多 Agent 架构，但**未接入主程序入口**:
+
+| 组件 | 文件 | 实现状态 | 接入状态 |
+|------|------|----------|----------|
+| AgentManager | `internal/agent/manager.go` | ✅ 完成 | ❌ 未接入 |
+| SubAgent 工具 | `internal/agent/subagent.go` | ✅ 完成 | ❌ 未接入 |
+| EventRouter | `internal/agent/router.go` | ✅ 完成 | ❌ 未接入 |
+| SubAgentPolicy | `internal/agent/subagent.go` | ✅ 完成 | ❌ 未接入 |
+
+### CLI 模式问题 (`cmd/vibecoding/main.go`)
+
+1. **缺少 `--multi-agent` CLI flag** — todo.md 决策 8 要求支持，但未实现
+2. **直接创建单个 Agent** — `agent.New(agentCfg, registry)` (line 564)，未使用 AgentFactory/AgentManager
+3. **subagent_* 工具未注册** — 即使启用多 Agent 模式，CLI 也无法使用子 Agent
+4. **`runPrint()` 函数无多 Agent 支持** — 非交互模式完全不支持子 Agent
+
+### TUI 模式问题 (`internal/tui/app.go`)
+
+1. **仍使用单 Agent 引用** — `agent *agent.Agent` (line 111)，未改为 `agentMgr *agent.AgentManager`
+2. **`multiAgent` 标志是空壳** — Ctrl+P 可切换，但不注册 subagent_* 工具，不创建 AgentManager
+3. **`/agent list` 是占位符** — line 1202: `"Agent listing will be available with AgentManager integration"`
+4. **EventRouter 未集成** — 子 Agent 事件无法路由到 TUI
+
+### 根因分析
+
+todo.md 中 Phase 4-6 标记为 `[x]` 完成，但实际上:
+- 内部包实现完成 ✅
+- 集成到 `main.go` 和 `app.go` ❌ 未完成
+
+### 需要修复的内容
+
+#### Step A: CLI 模式集成
+- [x] `main.go` 新增 `--multi-agent` flag
+- [x] 使用 `AgentFactory` 创建 AgentManager
+- [x] 多 Agent 模式开启时注册 `subagent_spawn/status/send/destroy` 工具
+- [x] `runPrint()` 支持多 Agent 模式
+
+#### Step B: TUI 模式集成
+- [x] `App` struct 改为 `agentMgr *agent.AgentManager`
+- [x] 使用 `AgentFactory` 创建 AgentManager
+- [x] `multiAgent=true` 时注册 subagent_* 工具
+- [x] 集成 EventRouter 处理子 Agent 事件
+- [x] 实现 `/agent list|switch|destroy` 命令 (替换占位符)
+
+#### Step C: 公共入口统一
+- [x] 提取公共的 AgentManager 创建逻辑到 `internal/agent/bootstrap.go`
+- [x] CLI 和 TUI 共用同一套初始化流程
+
+---
+
+## ⚠️ 集成问题: ACP 模式未接入多 Agent 功能
+
+> 发现时间: 2026-05-27
+> 严重度: 🟡 中
+> 影响范围: ACP 模式 (`vibecoding acp`)
+
+### 问题描述
+
+ACP (Agent Client Protocol) 模式下多 Agent 功能完全未接入:
+
+| 问题 | 位置 | 说明 |
+|------|------|------|
+| ❌ 缺少 `MultiAgent` 参数 | `RunOptions` (acp.go:31-39) | 无法通过 CLI 传递多 Agent 模式 |
+| ❌ 直接创建单 Agent | `handlePrompt` (acp.go:584) | 使用 `agent.New()` 而非 AgentFactory/AgentManager |
+| ❌ `sessionRuntime` 无 AgentManager | acp.go:69-78 | 只有 `agent *agent.Agent`，无 `agentMgr` |
+| ❌ `newToolRegistry` 不注册 subagent 工具 | acp.go:449-456 | 多 Agent 模式下也无法使用子 Agent |
+
+### 需要修复的内容
+
+#### Step D: ACP 模式集成
+- [ ] `RunOptions` 新增 `MultiAgent bool` 字段
+- [ ] `cmd/vibecoding/main.go` 的 `acpCmd` 传递 `--multi-agent` flag
+- [ ] `server` struct 新增 `factory *agent.AgentFactory` 和 `agentMgr *agent.AgentManager` 字段
+- [ ] `Run()` 函数中当 `MultiAgent=true` 时创建 AgentFactory 和 AgentManager
+- [ ] `newToolRegistry()` 在多 Agent 模式下注册 `subagent_spawn/status/send/destroy` 工具
+- [ ] `handlePrompt()` 使用 AgentFactory 创建 Agent (而非直接 `agent.New()`)
+- [ ] `sessionRuntime` 新增 `agentMgr` 字段用于子 Agent 管理
+
+---
+
 ## 第三方开发者使用示例
 
 公共包 `agent/` 允许外部 Go 开发者通过两种方式使用 Agent:
