@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
@@ -75,30 +76,95 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 		}
 	}
 
+	// Extract parent agent ID from context (injected by executeTool)
+	parentID, _ := AgentIDFromContext(ctx)
+
+	// Extract parent's event channel from context (injected by executeTool)
+	parentEventCh, _ := EventChanFromContext(ctx)
+
+	// Create approval forwarder that bridges sub-agent approval to parent
+	var approvalHandler func(toolCallID, toolName string, args map[string]any) bool
+	if parentEventCh != nil {
+		approvalHandler = newApprovalForwarder(parentID, parentEventCh)
+	}
+
 	a, err := t.manager.Create(AgentOptions{
+		ParentID:          parentID,
 		Mode:              mode,
 		WorkDir:           workDir,
 		Tools:             toolFilter,
 		SystemPromptExtra: extra,
 		MaxIterations:     maxIter,
+		ApprovalHandler:   approvalHandler,
 	})
 	if err != nil {
 		return tools.ToolResult{}, fmt.Errorf("create sub-agent: %w", err)
 	}
 
-	// Start the sub-agent asynchronously
+	// Apply per-agent timeout from default policy
+	policy := DefaultSubAgentPolicy()
+	runCtx, cancel := context.WithTimeout(context.Background(), policy.TimeoutPerAgent)
+
+	// Start the sub-agent asynchronously, forward events to parent
 	go func() {
-		ch := a.Run(context.Background(), task)
-		for range ch {
+		defer cancel()
+		ch := a.Run(runCtx, task)
+		for e := range ch {
+			// Forward approval events to parent so the UI can handle them
+			if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
+				parentEventCh <- Event{
+					Type:         EventToolApprovalRequest,
+					AgentID:      a.ID(),
+					ApprovalID:   e.ApprovalID,
+					ApprovalTool: e.ApprovalTool,
+					ApprovalArgs: e.ApprovalArgs,
+				}
+			}
 		}
 	}()
 
 	result := map[string]any{
-		"handle": string(a.ID()),
-		"status": "running",
+		"handle":  string(a.ID()),
+		"status":  "running",
+		"timeout": policy.TimeoutPerAgent.String(),
 	}
 	data, _ := json.Marshal(result)
 	return tools.NewTextToolResult(string(data)), nil
+}
+
+// newApprovalForwarder creates an ApprovalHandler that forwards sub-agent approval
+// requests to the parent agent's event channel and waits for a response.
+func newApprovalForwarder(parentID agentpkg.AgentID, parentEventCh chan<- Event) func(toolCallID, toolName string, args map[string]any) bool {
+	var mu sync.Mutex
+	counter := int64(0)
+	pending := make(map[string]chan bool)
+
+	return func(toolCallID, toolName string, args map[string]any) bool {
+		mu.Lock()
+		counter++
+		approvalID := fmt.Sprintf("sub-approval-%d", counter)
+		responseCh := make(chan bool, 1)
+		pending[approvalID] = responseCh
+		mu.Unlock()
+
+		// Forward approval request to parent's event channel
+		parentEventCh <- Event{
+			Type:         EventToolApprovalRequest,
+			AgentID:      parentID,
+			ApprovalID:   approvalID,
+			ApprovalTool: toolName,
+			ApprovalArgs: args,
+		}
+
+		// Wait for response (the parent TUI should call HandleSubAgentApprovalResponse)
+		approved := <-responseCh
+
+		mu.Lock()
+		delete(pending, approvalID)
+		mu.Unlock()
+
+		return approved
+	}
 }
 
 // SubAgentStatusTool queries sub-agent status and results.
@@ -197,9 +263,27 @@ func (t *SubAgentSendTool) Execute(ctx context.Context, params map[string]any) (
 		return tools.ToolResult{}, fmt.Errorf("sub-agent %q not found", handle)
 	}
 
+	// Apply per-agent timeout for follow-up messages too
+	policy := DefaultSubAgentPolicy()
+	runCtx, cancel := context.WithTimeout(context.Background(), policy.TimeoutPerAgent)
+
+	// Extract parent's event channel for approval forwarding
+	parentEventCh, _ := EventChanFromContext(ctx)
+
 	go func() {
-		ch := a.Run(context.Background(), message)
-		for range ch {
+		defer cancel()
+		ch := a.Run(runCtx, message)
+		for e := range ch {
+			// Forward approval events to parent
+			if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
+				parentEventCh <- Event{
+					Type:         EventToolApprovalRequest,
+					AgentID:      a.ID(),
+					ApprovalID:   e.ApprovalID,
+					ApprovalTool: e.ApprovalTool,
+					ApprovalArgs: e.ApprovalArgs,
+				}
+			}
 		}
 	}()
 

@@ -58,6 +58,7 @@ type AgentOptions struct {
 	MaxIterations     int
 	ToolExecutionMode string
 	Session           *session.Manager
+	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool // per-agent approval override
 }
 
 // Create creates a new Agent with per-agent Registry.
@@ -140,7 +141,12 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		Session:            sess,
 		ExtraContext:        extraContext,
 		CompactionSettings: f.compactionSettings,
-		ApprovalHandler:    f.approvalHandler,
+		ApprovalHandler: func() func(toolCallID, toolName string, args map[string]any) bool {
+			if opts.ApprovalHandler != nil {
+				return opts.ApprovalHandler
+			}
+			return f.approvalHandler
+		}(),
 	}
 
 	loopCfg := AgentLoopConfig{

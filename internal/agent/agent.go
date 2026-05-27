@@ -17,6 +17,38 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
+// contextKey is an unexported type for context keys defined in this package.
+type contextKey int
+
+const (
+	// agentIDKey is the context key for the current agent's ID.
+	agentIDKey contextKey = iota
+	// agentEventChanKey is the context key for the current agent's event channel.
+	agentEventChanKey
+)
+
+// ContextWithAgentID returns a new context with the agent ID attached.
+func ContextWithAgentID(ctx context.Context, id agentpkg.AgentID) context.Context {
+	return context.WithValue(ctx, agentIDKey, id)
+}
+
+// AgentIDFromContext extracts the agent ID from the context.
+func AgentIDFromContext(ctx context.Context) (agentpkg.AgentID, bool) {
+	id, ok := ctx.Value(agentIDKey).(agentpkg.AgentID)
+	return id, ok
+}
+
+// ContextWithEventChan returns a new context with the event channel attached.
+func ContextWithEventChan(ctx context.Context, ch chan<- Event) context.Context {
+	return context.WithValue(ctx, agentEventChanKey, ch)
+}
+
+// EventChanFromContext extracts the event channel from the context.
+func EventChanFromContext(ctx context.Context) (chan<- Event, bool) {
+	ch, ok := ctx.Value(agentEventChanKey).(chan<- Event)
+	return ch, ok
+}
+
 // Config holds the agent configuration.
 type Config struct {
 	ID                 agentpkg.AgentID
@@ -901,6 +933,10 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	// Execute tool with timeout
 	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
+
+	// Inject agent ID and event channel into context for sub-agent tools
+	toolCtx = ContextWithAgentID(toolCtx, a.id)
+	toolCtx = ContextWithEventChan(toolCtx, ch)
 
 	result, err := tool.Execute(toolCtx, params)
 	isError := err != nil

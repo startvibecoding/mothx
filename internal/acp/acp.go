@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
@@ -29,13 +30,14 @@ import (
 const protocolVersion = 1
 
 type RunOptions struct {
-	Provider string
-	Model    string
-	Mode     string
-	Thinking string
-	Sandbox  bool
-	Verbose  bool
-	Debug    bool
+	Provider    string
+	Model       string
+	Mode        string
+	Thinking    string
+	Sandbox     bool
+	Verbose     bool
+	Debug       bool
+	MultiAgent  bool
 }
 
 type server struct {
@@ -55,6 +57,10 @@ type server struct {
 	extraContext  string
 	contextFiles  string
 
+	multiAgent bool
+	factory    *agent.AgentFactory
+	agentMgr   *agent.AgentManager
+
 	sessions map[string]*sessionRuntime
 	pending  map[string]chan json.RawMessage
 
@@ -69,12 +75,13 @@ type server struct {
 type sessionRuntime struct {
 	id       string
 	mgr      *session.Manager
-	agent    *agent.Agent
+	agent    agentpkg.Agent
 	registry *tools.Registry
 	cancel   context.CancelFunc
 	promptID string
 	cancelMu sync.Mutex
 	mcp      []*mcp.Client
+	agentMgr *agent.AgentManager
 }
 
 type rpcRequest struct {
@@ -227,14 +234,15 @@ func Run(opts RunOptions) error {
 	}
 
 	srv := &server{
-		settings:   settings,
-		cwd:        cwd,
-		sessions:   make(map[string]*sessionRuntime),
-		pending:    make(map[string]chan json.RawMessage),
-		toolTitles: make(map[string]string),
-		mcpNotify:  make(map[string]bool),
-		r:          bufio.NewReader(os.Stdin),
-		w:          os.Stdout,
+		settings:    settings,
+		cwd:         cwd,
+		multiAgent:  opts.MultiAgent,
+		sessions:    make(map[string]*sessionRuntime),
+		pending:     make(map[string]chan json.RawMessage),
+		toolTitles:  make(map[string]string),
+		mcpNotify:   make(map[string]bool),
+		r:           bufio.NewReader(os.Stdin),
+		w:           os.Stdout,
 	}
 
 	p, model, err := createProvider(settings, opts.Provider, opts.Model)
@@ -286,6 +294,24 @@ func Run(opts RunOptions) error {
 	cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
 	if ctx := contextfiles.BuildContextString(cfResult); ctx != "" {
 		srv.extraContext = ctx + skillsMgr.BuildAllSkillsContext()
+	}
+
+	// Multi-agent mode: create AgentFactory and AgentManager
+	if opts.MultiAgent {
+		compactionSettings := ctxpkg.CompactionSettings{
+			Enabled:          settings.Compaction.Enabled,
+			ReserveTokens:    settings.Compaction.ReserveTokens,
+			KeepRecentTokens: settings.Compaction.KeepRecentTokens,
+		}
+		if compactionSettings.ReserveTokens == 0 {
+			compactionSettings.ReserveTokens = 16384
+		}
+		if compactionSettings.KeepRecentTokens == 0 {
+			compactionSettings.KeepRecentTokens = 20000
+		}
+
+		srv.factory = agent.NewAgentFactory(p, model, settings, sbMgr, srv.extraContext, compactionSettings, nil)
+		srv.agentMgr = agent.NewAgentManager(srv.factory)
 	}
 
 	for {
@@ -452,6 +478,13 @@ func (s *server) newToolRegistry() *tools.Registry {
 	if s.skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(s.skillsMgr))
 	}
+	// Register subagent tools when multi-agent mode is enabled
+	if s.agentMgr != nil {
+		registry.Register(agent.NewSubAgentSpawnTool(s.agentMgr))
+		registry.Register(agent.NewSubAgentStatusTool(s.agentMgr))
+		registry.Register(agent.NewSubAgentSendTool(s.agentMgr))
+		registry.Register(agent.NewSubAgentDestroyTool(s.agentMgr))
+	}
 	return registry
 }
 
@@ -581,25 +614,37 @@ func (s *server) handlePrompt(req rpcRequest) {
 	rt.cancel = cancel
 	rt.promptID = promptKey
 	rt.cancelMu.Unlock()
-	rt.agent = agent.New(agent.Config{
-		Provider:      s.p,
-		Model:         s.m,
-		Mode:          s.mode,
-		ThinkingLevel: s.thinkingLevel,
-		MaxTokens:     s.settings.MaxOutputTokens,
-		SandboxMgr:    s.sbMgr,
-		Settings:      s.settings,
-		Session:       rt.mgr,
-		ExtraContext:  s.extraContext,
-		CompactionSettings: ctxpkg.CompactionSettings{
-			Enabled:          s.settings.Compaction.Enabled,
-			ReserveTokens:    s.settings.Compaction.ReserveTokens,
-			KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-		},
-		ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
-			return s.requestPermission(rt.id, toolCallID, toolName, args)
-		},
-	}, rt.registry)
+
+	var a agentpkg.Agent
+	if s.factory != nil {
+		a = s.factory.Create(agent.AgentOptions{
+			Mode:    s.mode,
+			Model:   s.m,
+			Session: rt.mgr,
+		})
+	} else {
+		inner := agent.New(agent.Config{
+			Provider:      s.p,
+			Model:         s.m,
+			Mode:          s.mode,
+			ThinkingLevel: s.thinkingLevel,
+			MaxTokens:     s.settings.MaxOutputTokens,
+			SandboxMgr:    s.sbMgr,
+			Settings:      s.settings,
+			Session:       rt.mgr,
+			ExtraContext:  s.extraContext,
+			CompactionSettings: ctxpkg.CompactionSettings{
+				Enabled:          s.settings.Compaction.Enabled,
+				ReserveTokens:    s.settings.Compaction.ReserveTokens,
+				KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+			},
+			ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
+				return s.requestPermission(rt.id, toolCallID, toolName, args)
+			},
+		}, rt.registry)
+		a = agent.NewAgentAdapter(inner)
+	}
+	rt.agent = a
 	go func() {
 		defer func() {
 			rt.cancelMu.Lock()
@@ -616,9 +661,9 @@ func (s *server) handlePrompt(req rpcRequest) {
 		for ev := range events {
 			s.handleAgentEvent(rt.id, ev)
 			switch ev.Type {
-			case agent.EventDone:
+			case agentpkg.EventDone:
 				stopReason = normalizeStopReason(ev.StopReason)
-			case agent.EventError:
+			case agentpkg.EventError:
 				if ev.Error != nil {
 					runErr = ev.Error
 				}
@@ -666,19 +711,19 @@ func (s *server) sessionForPrompt(sessionID string) *sessionRuntime {
 	return rt
 }
 
-func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
+func (s *server) handleAgentEvent(sessionID string, ev agentpkg.Event) {
 	switch ev.Type {
-	case agent.EventTextDelta:
+	case agentpkg.EventTextDelta:
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "agent_message_chunk",
 			Content:       &contentBlock{Type: "text", Text: ev.TextDelta},
 		})
-	case agent.EventThinkDelta:
+	case agentpkg.EventThinkDelta:
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "agent_thought_chunk",
 			Content:       &contentBlock{Type: "text", Text: ev.ThinkDelta},
 		})
-	case agent.EventToolCall:
+	case agentpkg.EventToolCall:
 		if ev.ToolCall != nil {
 			title := s.rememberToolTitle(ev.ToolCall.ID, ev.ToolCall.Name, ev.ToolArgs)
 			s.notify(sessionID, sessionUpdate{
@@ -690,7 +735,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 				RawInput:      toolRawInput(ev.ToolArgs),
 			})
 		}
-	case agent.EventToolExecutionStart:
+	case agentpkg.EventToolExecutionStart:
 		title := s.rememberToolTitle(ev.ToolCallID, ev.ToolName, ev.ToolArgs)
 		s.notify(sessionID, sessionUpdate{
 			SessionUpdate: "tool_call_update",
@@ -699,7 +744,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 			Status:        "in_progress",
 			RawInput:      toolRawInput(ev.ToolArgs),
 		})
-	case agent.EventToolExecutionEnd:
+	case agentpkg.EventToolExecutionEnd:
 		status := "completed"
 		if ev.ToolError != nil {
 			status = "failed"
@@ -715,20 +760,20 @@ func (s *server) handleAgentEvent(sessionID string, ev agent.Event) {
 			Status:        status,
 			RawOutput:     rawOutput,
 		})
-	case agent.EventToolResult:
-	case agent.EventPlanUpdate:
+	case agentpkg.EventToolResult:
+	case agentpkg.EventPlanUpdate:
 		if ev.Plan != nil {
 			s.notify(sessionID, sessionUpdate{
 				SessionUpdate: "agent_message_chunk",
 				Content:       &contentBlock{Type: "text", Text: formatACPPlan(ev.Plan)},
 			})
 		}
-	case agent.EventUsage:
-	case agent.EventDone:
+	case agentpkg.EventUsage:
+	case agentpkg.EventDone:
 	}
 }
 
-func formatACPPlan(plan *tools.TaskPlan) string {
+func formatACPPlan(plan *agentpkg.TaskPlan) string {
 	if plan == nil || len(plan.Steps) == 0 {
 		return "Plan updated."
 	}

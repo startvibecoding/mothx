@@ -95,13 +95,14 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 		Long:  "Run vibecoding as an ACP-compliant stdio agent.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return acpRunFn(acp.RunOptions{
-				Provider: flagProvider,
-				Model:    flagModel,
-				Mode:     flagMode,
-				Thinking: flagThinking,
-				Sandbox:  flagSandbox,
-				Verbose:  flagVerbose,
-				Debug:    flagDebug,
+				Provider:   flagProvider,
+				Model:      flagModel,
+				Mode:       flagMode,
+				Thinking:   flagThinking,
+				Sandbox:    flagSandbox,
+				Verbose:    flagVerbose,
+				Debug:      flagDebug,
+				MultiAgent: flagMultiAgent,
 			})
 		},
 	}
@@ -128,6 +129,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	acpFlags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
 	acpFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	acpFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
+	acpFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
 
 	rootCmd.AddCommand(acpCmd)
 	return rootCmd

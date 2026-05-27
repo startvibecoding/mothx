@@ -829,13 +829,13 @@ ACP (Agent Client Protocol) 模式下多 Agent 功能完全未接入:
 ### 需要修复的内容
 
 #### Step D: ACP 模式集成
-- [ ] `RunOptions` 新增 `MultiAgent bool` 字段
-- [ ] `cmd/vibecoding/main.go` 的 `acpCmd` 传递 `--multi-agent` flag
-- [ ] `server` struct 新增 `factory *agent.AgentFactory` 和 `agentMgr *agent.AgentManager` 字段
-- [ ] `Run()` 函数中当 `MultiAgent=true` 时创建 AgentFactory 和 AgentManager
-- [ ] `newToolRegistry()` 在多 Agent 模式下注册 `subagent_spawn/status/send/destroy` 工具
-- [ ] `handlePrompt()` 使用 AgentFactory 创建 Agent (而非直接 `agent.New()`)
-- [ ] `sessionRuntime` 新增 `agentMgr` 字段用于子 Agent 管理
+- [x] `RunOptions` 新增 `MultiAgent bool` 字段
+- [x] `cmd/vibecoding/main.go` 的 `acpCmd` 传递 `--multi-agent` flag
+- [x] `server` struct 新增 `factory *agent.AgentFactory` 和 `agentMgr *agent.AgentManager` 字段
+- [x] `Run()` 函数中当 `MultiAgent=true` 时创建 AgentFactory 和 AgentManager
+- [x] `newToolRegistry()` 在多 Agent 模式下注册 `subagent_spawn/status/send/destroy` 工具
+- [x] `handlePrompt()` 使用 AgentFactory 创建 Agent (而非直接 `agent.New()`)
+- [x] `sessionRuntime` 新增 `agentMgr` 字段用于子 Agent 管理
 
 ---
 
