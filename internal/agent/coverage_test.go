@@ -460,9 +460,9 @@ func TestAgentRequestApproval(t *testing.T) {
 	ch := make(chan Event, 10)
 
 	// Request approval in background
-	var approved bool
+	approvedCh := make(chan bool, 1)
 	go func() {
-		approved = a.RequestApproval(ch, "bash", map[string]any{"command": "ls"})
+		approvedCh <- a.RequestApproval(ch, "bash", map[string]any{"command": "ls"})
 	}()
 
 	// Wait for approval request event
@@ -484,9 +484,13 @@ func TestAgentRequestApproval(t *testing.T) {
 	// Approve it
 	a.HandleApprovalResponse(approvalID, true)
 
-	time.Sleep(50 * time.Millisecond)
-	if !approved {
-		t.Error("expected approved=true")
+	select {
+	case approved := <-approvedCh:
+		if !approved {
+			t.Error("expected approved=true")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for approval")
 	}
 }
 
