@@ -14,18 +14,21 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
-func newTestFactoryAndManager() (*AgentFactory, *AgentManager) {
+func newTestFactoryAndManager(t testing.TB) (*AgentFactory, *AgentManager) {
+	t.Helper()
+
 	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
 		{ID: "model1", Name: "Model 1"},
 	}, nil)
 
-	sandboxMgr := sandbox.NewManager("/tmp")
+	sandboxMgr := sandbox.NewManager(t.TempDir())
 	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
 
 	factory := NewAgentFactory(
 		mockProvider,
 		mockProvider.Models()[0],
-		&config.Settings{},
+		settings,
 		sandboxMgr,
 		"",
 		ctxpkg.CompactionSettings{},
@@ -35,7 +38,7 @@ func newTestFactoryAndManager() (*AgentFactory, *AgentManager) {
 }
 
 func TestSubAgentSpawnTool(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSpawnTool(mgr)
 
 	if tool.Name() != "subagent_spawn" {
@@ -62,7 +65,7 @@ func TestSubAgentSpawnTool(t *testing.T) {
 }
 
 func TestSubAgentSpawnToolMissingTask(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSpawnTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{})
@@ -72,7 +75,7 @@ func TestSubAgentSpawnToolMissingTask(t *testing.T) {
 }
 
 func TestSubAgentStatusTool(t *testing.T) {
-	factory, mgr := newTestFactoryAndManager()
+	factory, mgr := newTestFactoryAndManager(t)
 	_ = factory
 
 	// Create an agent manually
@@ -94,7 +97,7 @@ func TestSubAgentStatusTool(t *testing.T) {
 }
 
 func TestSubAgentStatusToolNotFound(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentStatusTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{
@@ -106,7 +109,7 @@ func TestSubAgentStatusToolNotFound(t *testing.T) {
 }
 
 func TestSubAgentStatusToolMissingHandle(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentStatusTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{})
@@ -116,7 +119,7 @@ func TestSubAgentStatusToolMissingHandle(t *testing.T) {
 }
 
 func TestSubAgentSendTool(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	a, _ := mgr.Create(AgentOptions{ID: "test-agent"})
 
 	tool := NewSubAgentSendTool(mgr)
@@ -136,7 +139,7 @@ func TestSubAgentSendTool(t *testing.T) {
 }
 
 func TestSubAgentSendToolNotFound(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSendTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{
@@ -149,7 +152,7 @@ func TestSubAgentSendToolNotFound(t *testing.T) {
 }
 
 func TestSubAgentSendToolMissingParams(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSendTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{
@@ -161,7 +164,7 @@ func TestSubAgentSendToolMissingParams(t *testing.T) {
 }
 
 func TestSubAgentDestroyTool(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	a, _ := mgr.Create(AgentOptions{ID: "to-destroy"})
 
 	tool := NewSubAgentDestroyTool(mgr)
@@ -185,7 +188,7 @@ func TestSubAgentDestroyTool(t *testing.T) {
 }
 
 func TestSubAgentDestroyToolNotFound(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentDestroyTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{
@@ -197,7 +200,7 @@ func TestSubAgentDestroyToolNotFound(t *testing.T) {
 }
 
 func TestSubAgentDestroyToolMissingHandle(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentDestroyTool(mgr)
 
 	_, err := tool.Execute(context.Background(), map[string]any{})
@@ -266,7 +269,7 @@ func TestSubAgentPolicyValidateCustom(t *testing.T) {
 }
 
 func TestSubAgentPromptContractOnlyForChild(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	parent, err := mgr.Create(AgentOptions{ID: "main"})
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
@@ -294,7 +297,7 @@ func TestSubAgentPromptContractOnlyForChild(t *testing.T) {
 }
 
 func TestAgentManagerEnforcesSubAgentPolicy(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	parent, err := mgr.Create(AgentOptions{ID: "main"})
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
@@ -316,7 +319,7 @@ func TestAgentManagerEnforcesSubAgentPolicy(t *testing.T) {
 		t.Fatal("expected max-children error")
 	}
 
-	_, mgr = newTestFactoryAndManager()
+	_, mgr = newTestFactoryAndManager(t)
 	parent, _ = mgr.Create(AgentOptions{ID: "main"})
 	_, err = mgr.Create(AgentOptions{ID: "sub-yolo", ParentID: parent.ID(), Mode: "yolo"})
 	if err == nil {
@@ -334,7 +337,7 @@ func TestSubAgentToolsImplementToolInterface(t *testing.T) {
 }
 
 func TestSubAgentToolsDescriptions(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 
 	tools := []tools.Tool{
 		NewSubAgentSpawnTool(mgr),

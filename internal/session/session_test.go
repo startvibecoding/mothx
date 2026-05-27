@@ -115,6 +115,29 @@ func TestAppendMessage(t *testing.T) {
 	}
 }
 
+func TestAppendMessageAutoInitializesSession(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	id, err := m.AppendMessage(provider.NewUserMessage("Hello"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id == "" {
+		t.Fatal("expected non-empty message ID")
+	}
+	if m.GetHeader() == nil {
+		t.Fatal("expected session header to be initialized")
+	}
+	if m.GetFile() == "" {
+		t.Fatal("expected session file to be initialized")
+	}
+	if _, err := os.Stat(m.GetFile()); err != nil {
+		t.Fatalf("expected session file to exist: %v", err)
+	}
+}
+
 func TestAppendModelChange(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")

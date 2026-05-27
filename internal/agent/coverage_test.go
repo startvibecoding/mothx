@@ -366,7 +366,7 @@ func TestAgentFactoryProviderAndSettings(t *testing.T) {
 // --- PromptSnippet/PromptGuidelines coverage ---
 
 func TestSubAgentPromptSnippets(t *testing.T) {
-	_, mgr := newTestFactoryAndManager()
+	_, mgr := newTestFactoryAndManager(t)
 	tools := []struct {
 		name string
 		fn   func() string
