@@ -4,11 +4,16 @@
 
 ```
 vibecoding/
+├── agent/                       # 公共 Agent/Provider 接口与 Builder
 ├── cmd/vibecoding/              # CLI 入口点
 │   └── main.go                  # 主程序
 ├── internal/
 │   ├── agent/                   # 核心 Agent 循环
 │   │   ├── agent.go             # Agent 主逻辑
+│   │   ├── factory.go           # AgentFactory，统一每个 Agent 的创建
+│   │   ├── manager.go           # AgentManager 生命周期管理
+│   │   ├── router.go            # EventRouter
+│   │   ├── subagent.go          # subagent_* 工具
 │   │   ├── events.go            # 事件类型定义
 │   │   ├── provider.go          # Provider 接口适配
 │   │   └── system_prompt.go     # 系统提示词生成
@@ -18,7 +23,10 @@ vibecoding/
 │   ├── platform/                # 跨平台兼容工具
 │   ├── provider/                # LLM Provider 抽象
 │   │   ├── anthropic/           # Anthropic Messages API
+│   │   ├── factory/             # 共享 provider/model 创建逻辑
+│   │   ├── vendor*.go           # 厂商适配注册和默认值
 │   │   └── openai/              # OpenAI Chat Completions API
+│   ├── cron/                    # 定时任务存储和调度器
 │   ├── sandbox/                 # 沙箱抽象 (bwrap, none)
 │   ├── session/                 # 会话管理 (JSONL)
 │   ├── skills/                  # 技能系统
@@ -32,14 +40,15 @@ vibecoding/
 │   │   └── ls.go                # 目录列表
 │   ├── tui/                     # 终端 UI (BubbleTea)
 │   └── ua/                      # User-Agent 字符串生成
-└── pkg/sdk/                     # 公共 SDK (未来)
 ```
 
 ## 核心组件
 
 ### 1. Provider 系统
 
-Provider 是与 LLM API 交互的抽象层。
+Provider 是与 LLM API 交互的抽象层。CLI 与 ACP 的 provider 创建都经过
+`internal/provider/factory`，先应用厂商适配默认值，再构造通用 OpenAI
+兼容或 Anthropic 兼容协议 provider。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -51,14 +60,20 @@ Provider 是与 LLM API 交互的抽象层。
 │  Name() string                                              │
 └─────────────────────────────────────────────────────────────┘
                               │
-            ┌─────────────────┼─────────────────┐
-            │                 │                 │
-            ▼                 ▼                 ▼
-    ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-    │  OpenAI       │ │  Anthropic    │ │  Custom       │
-    │  Provider     │ │  Provider     │ │  Provider     │
-    └───────────────┘ └───────────────┘ └───────────────┘
+                              │
+            ┌─────────────────┴─────────────────┐
+            ▼                                   ▼
+    ┌───────────────────┐             ┌───────────────────┐
+    │ 厂商适配器         │             │ 通用 fallback      │
+    │ vendor_*.go       │             │ openai/anthropic  │
+    └───────────────────┘             └───────────────────┘
 ```
+
+厂商选择顺序：
+
+1. provider 配置中的显式 `vendor`
+2. 根据 Base URL 自动识别
+3. 根据 `api` 回退到通用协议 provider
 
 #### StreamEvent 类型
 
@@ -122,7 +137,30 @@ User Input
                        └───────────────┘
 ```
 
-### 3. 工具系统
+### 3. 多 Agent 运行时
+
+多 Agent 模式通过 `--multi-agent` 显式启用。启用后，主 Agent 会获得
+`subagent_spawn`、`subagent_status`、`subagent_send`、`subagent_destroy`
+工具。子 Agent 拥有独立的 messages、context、session、registry 和 job
+manager 状态。
+
+```
+Main Agent
+    │
+    ├── AgentManager 创建子 Agent
+    ├── EventRouter 按 AgentID 路由事件
+    └── subagent_* 工具管理异步子任务
+```
+
+子 Agent 的 registry 会过滤 `subagent_*` 工具，因此不能继续创建嵌套子 Agent。
+
+### 4. Cron 调度器
+
+`internal/cron` 包提供文件持久化的 cron store 和 scheduler，可通过子 Agent
+执行任务。TUI 在多 Agent 模式下暴露 `/cron` 命令入口；自然语言解析和持久化
+TUI 管理仍属于后续接线工作。
+
+### 5. 工具系统
 
 工具是 Agent 与外部世界交互的方式。
 
@@ -147,7 +185,7 @@ User Input
 └───────────────┘   └───────────────┘   └───────────────┘
 ```
 
-### 4. 会话管理
+### 6. 会话管理
 
 会话使用 JSONL 格式存储，支持树状结构和分支。
 
@@ -190,7 +228,7 @@ User Input
 | `compaction` | 上下文压缩记录 |
 | `label` | 会话标签 |
 
-### 5. 沙箱系统
+### 7. 沙箱系统
 
 沙箱通过 bubblewrap (bwrap) 实现进程隔离。
 
@@ -212,7 +250,7 @@ User Input
 └───────────────┘   └───────────────┘   └───────────────┘
 ```
 
-### 6. TUI 系统
+### 8. TUI 系统
 
 基于 BubbleTea 的终端用户界面。
 

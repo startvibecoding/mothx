@@ -1,6 +1,46 @@
 # Changelog
 
 
+## v0.1.25
+
+### ✨ Features
+
+- **Multi-Agent Mode**
+  - Added opt-in `--multi-agent` support across CLI, TUI, and ACP mode
+  - Added `AgentManager`, `EventRouter`, and per-agent registries so agents have isolated tools, job managers, sessions, messages, and context
+  - Added `subagent_spawn`, `subagent_status`, `subagent_send`, and `subagent_destroy` tools for delegated background work
+  - Added multi-agent prompt guidance and safeguards that prevent nested sub-agent spawning
+
+- **Cron Task Support**
+  - Added `internal/cron` with persistent cron store and scheduler coverage
+  - Added `/cron` command entry points in multi-agent TUI workflows
+
+- **Provider Vendor Adapter Layer**
+  - Added vendor adapter registration in `internal/provider/vendor*.go`
+  - Centralized provider/model creation in `internal/provider/factory`
+  - Added vendor detection for DeepSeek, Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, OpenAI, and Anthropic
+  - Preserved existing provider config format while allowing vendor-specific defaults and generic OpenAI/Anthropic-compatible fallback
+  - Added model `compat` handling for thinking formats, reasoning effort support, max token field selection, adaptive Anthropic thinking, and DeepSeek/Xiaomi assistant `reasoning_content`
+
+### 🐛 Bug Fixes
+
+- Auto-initialized sessions on first append so sub-agents can write session entries without requiring explicit prior initialization
+- Fixed sub-agent tests to wait for background runs and clean up spawned agents before temporary directory removal
+- Preserved ACP Anthropic cache-control behavior while moving provider creation to the shared factory
+
+### 📝 Docs
+
+- Updated `AGENTS.md` with provider factory and vendor adapter guidance
+- Replaced the multi-agent implementation checklist with a completed architecture/status document
+- Removed the obsolete root `todo.md`
+
+### 🧪 Testing
+
+- Added coverage for provider vendor resolution, provider factory creation, OpenAI/Anthropic compat behavior, multi-agent manager/router/sub-agent flows, cron storage/scheduler behavior, and session auto-initialization
+- Verified with `make test` (`go test -v -race ./...`)
+
+---
+
 ## v0.1.24
 
 ### ✨ Features

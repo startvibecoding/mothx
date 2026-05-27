@@ -23,8 +23,9 @@ Welcome to the VibeCoding Documentation Center!
 
 ## Features
 
-- Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs
+- Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs through vendor adapters
 - Rich terminal UI with sessions, context management, skills, and sandboxed tool execution
+- Optional `--multi-agent` mode with delegated sub-agents and cron command entry points
 - ACP support: run VibeCoding as an Agent Client Protocol stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
 - Safer approval handling: `bashBlacklist` now overrides whitelist entries, including in YOLO mode, and `--print` exits early when approval would be required
 - Unified cache metrics across TUI and print mode for cache hit rate and token totals
@@ -64,7 +65,7 @@ Welcome to the VibeCoding Documentation Center!
 |-------|-------------|
 | [Quick Start](getting-started.md) | Get started with VibeCoding in 5 minutes |
 | [Configuration](configuration.md) | Customize providers, models, and behavior |
-| [Tool Reference](tools.md) | Learn about all 7 built-in tools |
+| [Tool Reference](tools.md) | Learn about built-in tools and optional multi-agent tools |
 | [Security Model](security.md) | Understand sandbox, modes, and permissions |
 | [ACP Protocol](acp.md) | IDE integration via Agent Client Protocol |
 | [Session Management](sessions.md) | Conversation history and branching |
@@ -78,7 +79,8 @@ Welcome to the VibeCoding Documentation Center!
 | **DeepSeek** (default) | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
 | **OpenAI** | GPT-4o, o1, etc. | OpenAI Chat |
 | **Anthropic** | Claude Sonnet, Opus, etc. | Anthropic Messages |
-| **Custom** | Any compatible model | OpenAI Chat or Anthropic Messages |
+| **Vendor adapters** | Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more | OpenAI Chat or Anthropic Messages |
+| **Custom** | Any compatible model | Generic OpenAI Chat or Anthropic Messages fallback |
 
 ## Quick Install
 

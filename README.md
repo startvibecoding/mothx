@@ -19,9 +19,10 @@
 
 ## Features
 
-- **Multi-Provider Support**: DeepSeek (default), OpenAI, Anthropic, and any custom provider via OpenAI/Anthropic-compatible APIs
+- **Multi-Provider Support**: DeepSeek (default), OpenAI, Anthropic, and vendor adapters for compatible OpenAI/Anthropic-format APIs
 - **SSE Streaming**: Real-time token streaming for fast response delivery
 - **Think Mode**: Extended thinking/reasoning support (DeepSeek reasoning)
+- **Multi-Agent Workflows**: Optional `--multi-agent` mode with delegated sub-agents and cron command entry points
 - **Three Modes**:
   - 🗒️ **Plan** — Read-only analysis and planning. Sandboxed, no file writes
   - 🔧 **Agent** (default) — Controlled read/write access to the project. Bash requires approval (configurable whitelist). Sandboxed, no network
@@ -104,7 +105,12 @@ Or configure directly in `settings.json`:
 ```json
 {
   "providers": {
-    "deepseek-openai": { "apiKey": "sk-..." }
+    "deepseek-openai": {
+      "vendor": "deepseek",
+      "api": "openai-chat",
+      "baseUrl": "https://api.deepseek.com",
+      "apiKey": "sk-..."
+    }
   }
 }
 ```
@@ -123,6 +129,9 @@ vibecoding -p "Write a hello world in Go"
 
 # Specify provider and model
 vibecoding --provider deepseek-openai --model deepseek-v4-flash
+
+# Enable sub-agent tools and multi-agent commands
+vibecoding --multi-agent
 
 # Change mode
 vibecoding --mode plan    # Read-only planning
@@ -236,6 +245,7 @@ Flags:
   -m, --model string       Model ID
   -M, --mode string        Mode (plan, agent, yolo)
   -t, --thinking string    Thinking level (off, minimal, low, medium, high, xhigh)
+      --multi-agent        Enable multi-agent tools and commands
   -c, --continue           Continue most recent session
   -r, --resume string      Resume session by ID or path
       --session string     Use specific session file or ID
@@ -292,8 +302,11 @@ vibecoding/
 │   ├── contextfiles/      # Context file discovery (AGENTS.md, CLAUDE.md, etc.)
 │   ├── platform/          # Cross-platform compatibility utilities
 │   ├── provider/          # LLM provider abstraction
+│   │   ├── factory/       # Shared provider/model construction
 │   │   ├── openai/        # OpenAI Chat Completions API
-│   │   └── anthropic/     # Anthropic Messages API
+│   │   ├── anthropic/     # Anthropic Messages API
+│   │   └── vendor*.go     # Vendor adapter registry and defaults
+│   ├── cron/              # Scheduled tasks for multi-agent workflows
 │   ├── sandbox/           # Sandbox (bwrap) implementation
 │   ├── session/           # Session management (JSONL)
 │   ├── skills/            # Skills system

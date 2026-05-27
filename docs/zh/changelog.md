@@ -1,6 +1,46 @@
 # 更新日志
 
 
+## v0.1.25
+
+### ✨ 新功能
+
+- **多 Agent 模式**
+  - 在 CLI、TUI、ACP 模式中新增可选的 `--multi-agent` 支持
+  - 新增 `AgentManager`、`EventRouter` 和每个 Agent 独立的 registry，隔离工具、job manager、session、messages 与 context
+  - 新增 `subagent_spawn`、`subagent_status`、`subagent_send`、`subagent_destroy` 工具，用于派生后台子任务
+  - 新增多 Agent system prompt 指引，并限制子 Agent 继续派生子 Agent
+
+- **Cron 定时任务**
+  - 新增 `internal/cron`，支持 cron store 持久化与调度器测试覆盖
+  - 在多 Agent TUI 工作流中新增 `/cron` 命令入口
+
+- **Provider 厂商适配层**
+  - 新增 `internal/provider/vendor*.go` 厂商适配注册机制
+  - 将 provider/model 创建逻辑统一到 `internal/provider/factory`
+  - 新增 DeepSeek、Xiaomi、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、OpenRouter、Together、Groq、Fireworks、OpenAI、Anthropic 等厂商识别
+  - 保持现有 provider 配置格式不变，同时支持厂商默认值和通用 OpenAI/Anthropic 兼容 fallback
+  - 新增模型 `compat` 处理，覆盖 thinking 格式、reasoning effort、max token 字段、自适应 Anthropic thinking，以及 DeepSeek/Xiaomi assistant `reasoning_content`
+
+### 🐛 问题修复
+
+- session 首次 append 时自动初始化，避免子 Agent 写入 session 前必须显式初始化
+- 修复子 Agent 测试中的后台运行清理顺序，确保临时目录删除前已等待并销毁派生 Agent
+- 在 provider 创建逻辑迁移到共享 factory 后，保留 ACP Anthropic cache-control 行为
+
+### 📝 文档
+
+- 更新 `AGENTS.md`，补充 provider factory 与 vendor adapter 工作约定
+- 将多 Agent 实施 checklist 更新为已落地架构/状态说明
+- 删除已过时的根目录 `todo.md`
+
+### 🧪 测试
+
+- 新增 provider vendor 解析、provider factory 创建、OpenAI/Anthropic compat、多 Agent manager/router/sub-agent 流程、cron 存储/调度、session 自动初始化等测试覆盖
+- 已通过 `make test`（`go test -v -race ./...`）
+
+---
+
 ## v0.1.24
 
 ### ✨ 新功能

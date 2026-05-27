@@ -88,12 +88,17 @@ Or add keys directly to your settings.json:
 ```json
 {
   "providers": {
-    "deepseek-openai": { "apiKey": "sk-..." }
+    "deepseek-openai": {
+      "vendor": "deepseek",
+      "api": "openai-chat",
+      "baseUrl": "https://api.deepseek.com",
+      "apiKey": "sk-..."
+    }
   }
 }
 ```
 
-See the [Configuration Guide](configuration.md) for details.
+The optional `vendor` field selects a vendor adapter. If it is omitted, VibeCoding detects the vendor from `baseUrl` when possible and otherwise falls back to the generic provider selected by `api`. See the [Configuration Guide](configuration.md) for details.
 
 ## First Run
 
@@ -126,6 +131,18 @@ vibecoding --provider deepseek-openai --model deepseek-v4-flash
 # Use DeepSeek-V4-Pro
 vibecoding --provider deepseek-openai --model deepseek-v4-pro
 ```
+
+### Multi-Agent Mode
+
+```bash
+# Enable sub-agent tools and multi-agent commands
+vibecoding --multi-agent
+
+# ACP sessions can opt in too
+vibecoding acp --multi-agent
+```
+
+Multi-agent mode registers `subagent_*` tools for delegated work. Cron command entry points are available in TUI multi-agent workflows.
 
 ## Choose Mode
 
@@ -231,7 +248,7 @@ Add to `settings.json`:
   "acp.agents": {
     "vibecoding": {
       "command": "vibecoding",
-      "args": ["acp", "--mode", "agent"]
+      "args": ["acp", "--mode", "agent", "--multi-agent"]
     }
   }
 }
@@ -250,6 +267,7 @@ See the [ACP Protocol](acp.md) documentation for details.
 
 - Read the [Configuration Guide](configuration.md) to customize settings
 - Check the [Tool Reference](tools.md) to learn about available tools
+- Try [multi-agent mode](cli-reference.md#multi-agent-mode) for delegated investigation and cron command entry points
 - Understand the [Security Model](security.md) to protect your system
 - Explore the [Skills System](skills.md) to create reusable prompt snippets
 - Set up [IDE Integration](acp.md) with VS Code or JetBrains

@@ -18,6 +18,7 @@ Alias: `vc`
 | `--model` | `-m` | Default from config file | Model ID |
 | `--mode` | `-M` | `agent` | Run mode (plan, agent, yolo) |
 | `--thinking` | `-t` | `off` | Thinking level (off, minimal, low, medium, high, xhigh) |
+| `--multi-agent` | - | `false` | Enable multi-agent tools and commands |
 
 ### Session Management
 
@@ -70,6 +71,7 @@ Supports VS Code, JetBrains IDEs, and any ACP-compatible editor.
 | `--sandbox` | - | false | Enable sandbox |
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging |
+| `--multi-agent` | - | false | Enable multi-agent tools for ACP sessions |
 
 See the [ACP Protocol](acp.md) documentation for IDE integration details.
 
@@ -113,6 +115,18 @@ vibecoding -M agent
 # YOLO mode - full access
 vibecoding -M yolo
 ```
+
+### Multi-Agent Mode
+
+```bash
+# Enable sub-agent tools and multi-agent commands
+vibecoding --multi-agent
+
+# ACP sessions can also opt in
+vibecoding acp --multi-agent
+```
+
+When enabled, VibeCoding registers the `subagent_*` tools and exposes multi-agent workflows such as delegated background investigation. Cron command entry points also depend on multi-agent mode.
 
 ### Thinking Levels
 

@@ -19,9 +19,10 @@
 
 ## 功能特性
 
-- **多提供商支持**：DeepSeek（默认）、OpenAI、Anthropic，以及任何通过 OpenAI/Anthropic 兼容 API 的自定义提供商
+- **多提供商支持**：DeepSeek（默认）、OpenAI、Anthropic，以及面向 OpenAI/Anthropic 格式兼容 API 的厂商适配器
 - **SSE 流式传输**：实时令牌流式传输，快速响应
 - **思考模式**：扩展思考/推理支持（DeepSeek 推理）
+- **多 Agent 工作流**：可选 `--multi-agent` 模式，支持委托子 Agent 和 cron 命令入口
 - **三种模式**：
   - 🗒️ **计划** — 只读分析和规划。沙箱化，无文件写入
   - 🔧 **代理**（默认）— 对项目的受控读写访问。Bash 需要批准（可配置白名单）。沙箱化，无网络
@@ -104,7 +105,12 @@ export DEEPSEEK_API_KEY=sk-...
 ```json
 {
   "providers": {
-    "deepseek-openai": { "apiKey": "sk-..." }
+    "deepseek-openai": {
+      "vendor": "deepseek",
+      "api": "openai-chat",
+      "baseUrl": "https://api.deepseek.com",
+      "apiKey": "sk-..."
+    }
   }
 }
 ```
@@ -123,6 +129,9 @@ vibecoding -p "用 Go 写一个 hello world"
 
 # 指定提供商和模型
 vibecoding --provider deepseek-openai --model deepseek-v4-flash
+
+# 启用子 Agent 工具和多 Agent 命令
+vibecoding --multi-agent
 
 # 更改模式
 vibecoding --mode plan    # 只读规划
@@ -195,6 +204,7 @@ vibecoding --no-sandbox
 | `VIBECODING_MODE` | 覆盖默认模式 |
 | `VIBECODING_THINKING` | 覆盖默认思考级别 |
 | `VIBECODING_USER_AGENT` | 自定义用户代理字符串 |
+| `VIBECODING_DEBUG` | 启用 provider 级请求/响应调试输出 |
 
 ## 沙箱安全
 
@@ -230,6 +240,7 @@ vibecoding [标志] [消息...]
   -m, --model string       模型 ID
   -M, --mode string        模式 (plan, agent, yolo)
   -t, --thinking string    思考级别 (off, minimal, low, medium, high, xhigh)
+      --multi-agent        启用多 Agent 工具和命令
   -c, --continue           继续最近会话
   -r, --resume string      通过 ID 或路径恢复会话
       --session string     使用特定会话文件或 ID
@@ -286,8 +297,11 @@ vibecoding/
 │   ├── contextfiles/      # 上下文文件发现 (AGENTS.md, CLAUDE.md 等)
 │   ├── platform/          # 跨平台兼容性工具
 │   ├── provider/          # LLM 提供商抽象
+│   │   ├── factory/       # 共享 provider/model 创建逻辑
 │   │   ├── openai/        # OpenAI Chat Completions API
-│   │   └── anthropic/     # Anthropic Messages API
+│   │   ├── anthropic/     # Anthropic Messages API
+│   │   └── vendor*.go     # 厂商适配注册和默认值
+│   ├── cron/              # 多 Agent 工作流的定时任务
 │   ├── sandbox/           # 沙箱 (bwrap) 实现
 │   ├── session/           # 会话管理 (JSONL)
 │   ├── skills/            # 技能系统

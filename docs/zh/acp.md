@@ -56,6 +56,9 @@ vibecoding acp --sandbox
 
 # 指定模式
 vibecoding acp --mode agent
+
+# 启用多 Agent 工具
+vibecoding acp --multi-agent
 ```
 
 ### ACP 命令行参数
@@ -69,6 +72,7 @@ vibecoding acp --mode agent
 | `--sandbox` | - | false | 启用沙箱 |
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志 |
+| `--multi-agent` | - | false | 启用子 Agent 工具和多 Agent 工作流 |
 
 ## 协议细节
 
@@ -90,9 +94,10 @@ ACP 使用 JSON-RPC 2.0 通过 stdio 进行通信。协议支持以下方法：
 VibeCoding 在初始化时声明以下 ACP 能力：
 
 - **加载会话**: 加载和继续之前的会话
-- **提示能力**: 文本提示（图像/音频即将支持）
+- **提示能力**: 文本提示；ACP prompt 不声明图像/音频输入能力
 - **会话能力**: 取消活动中的提示
 - **MCP 能力**: 支持 stdio / http / sse 传输
+- **多 Agent 工作流**: 使用 `--multi-agent` 启动 ACP 服务器后可用
 
 ### 通知
 

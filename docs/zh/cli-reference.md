@@ -18,6 +18,7 @@ vibecoding [flags] [message...]
 | `--model` | `-m` | 配置文件中的默认值 | 模型 ID |
 | `--mode` | `-M` | `agent` | 运行模式 (plan, agent, yolo) |
 | `--thinking` | `-t` | `off` | 思考级别 (off, minimal, low, medium, high, xhigh) |
+| `--multi-agent` | - | `false` | 启用多 Agent 工具和命令 |
 
 ### 会话管理
 
@@ -70,6 +71,7 @@ vibecoding acp [flags]
 | `--sandbox` | - | false | 启用沙箱 |
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志 |
+| `--multi-agent` | - | false | 为 ACP 会话启用多 Agent 工具 |
 
 详见 [ACP 协议](acp.md) 文档了解 IDE 集成细节。
 
@@ -113,6 +115,18 @@ vibecoding -M agent
 # YOLO 模式 - 完全访问
 vibecoding -M yolo
 ```
+
+### 多 Agent 模式
+
+```bash
+# 启用子 Agent 工具和多 Agent 命令
+vibecoding --multi-agent
+
+# ACP 会话也可以启用
+vibecoding acp --multi-agent
+```
+
+启用后，VibeCoding 会注册 `subagent_*` 工具，并支持后台委托调查等多 Agent 工作流。Cron 命令入口也依赖多 Agent 模式。
 
 ### 思考级别
 

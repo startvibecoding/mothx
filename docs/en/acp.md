@@ -56,6 +56,9 @@ vibecoding acp --sandbox
 
 # Specify mode
 vibecoding acp --mode agent
+
+# Enable multi-agent tools
+vibecoding acp --multi-agent
 ```
 
 ### ACP Command Flags
@@ -69,6 +72,7 @@ vibecoding acp --mode agent
 | `--sandbox` | - | false | Enable sandbox |
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging |
+| `--multi-agent` | - | false | Enable sub-agent tools and multi-agent workflows |
 
 ## Protocol Details
 
@@ -90,9 +94,10 @@ ACP uses JSON-RPC 2.0 over stdio for communication. The protocol supports:
 VibeCoding advertises the following ACP capabilities during initialization:
 
 - **Load Session**: Load and continue previous sessions
-- **Prompt Capabilities**: Text prompts (image/audio coming soon)
+- **Prompt Capabilities**: Text prompts; ACP prompt image/audio inputs are not advertised
 - **Session Capabilities**: Cancel active prompts
 - **MCP Capabilities**: stdio / http / sse transport supported
+- **Multi-Agent Workflows**: Available when the ACP server is started with `--multi-agent`
 
 ### Notifications
 

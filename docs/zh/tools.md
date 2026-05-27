@@ -14,6 +14,10 @@ VibeCoding 提供了一组内置工具，用于文件操作、代码搜索和命
 | `find` | 文件名搜索 | 只读 |
 | `ls` | 列出目录内容 | 只读 |
 | `plan` | 发布任务计划/状态 | 只读 |
+| `subagent_spawn` | 启动委托子 Agent 任务 | 仅多 Agent 模式 |
+| `subagent_status` | 查询子 Agent 状态/结果 | 仅多 Agent 模式 |
+| `subagent_send` | 向子 Agent 发送后续指令 | 仅多 Agent 模式 |
+| `subagent_destroy` | 停止并移除子 Agent | 仅多 Agent 模式 |
 
 ## 工具详解
 
@@ -79,6 +83,51 @@ VibeCoding 提供了一组内置工具，用于文件操作、代码搜索和命
 ```
 
 **返回:** 提供给 TUI、print 模式和 ACP 客户端的结构化计划元数据。
+
+---
+
+### subagent_* - 委托工作
+
+`subagent_*` 工具仅在使用 `--multi-agent` 启动时注册。主 Agent 可通过它们将边界清晰的任务委托给子 Agent；子 Agent 拥有独立的 messages、context、session、registry 和 job manager 状态。
+
+子 Agent 不能继续派生子 Agent。
+
+#### subagent_spawn
+
+异步启动子 Agent，并返回 handle。
+
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| `task` | string | ✓ | 聚焦的委托任务 |
+| `mode` | string | - | `plan`、`agent` 或 `yolo`；默认 `agent` |
+| `work_dir` | string | - | 子 Agent 工作目录 |
+| `tools` | array | - | 可选工具白名单 |
+| `max_iterations` | integer | - | 迭代上限 |
+| `system_prompt_extra` | string | - | 附加子 Agent 上下文 |
+
+#### subagent_status
+
+查询某个 handle 的状态和最后结果：
+
+```json
+{ "handle": "agent-1" }
+```
+
+#### subagent_send
+
+向已有子 Agent 发送后续消息：
+
+```json
+{ "handle": "agent-1", "message": "接下来关注 provider 测试。" }
+```
+
+#### subagent_destroy
+
+销毁子 Agent 并释放资源：
+
+```json
+{ "handle": "agent-1" }
+```
 
 ---
 

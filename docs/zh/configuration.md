@@ -155,11 +155,40 @@ VibeCoding 使用两个配置文件:
 | 字段 | 类型 | 必填 | 默认值 | 描述 |
 |------|------|------|--------|------|
 | `baseUrl` | string | ✓ | — | API 基础 URL |
+| `vendor` | string | — | 自动检测 | 可选厂商适配器名称 (见下文) |
 | `apiKey` | string | — | `""` | API 密钥 (见[认证配置](#认证配置)) |
 | `api` | string | — | 自动检测 | API 协议: `"openai-chat"` 或 `"anthropic-messages"` |
 | `thinkingFormat` | string | — | 自动检测 | 思考参数格式 (见下文) |
 | `cacheControl` | bool | — | `false` | 启用 Anthropic 提示缓存；使用 Claude 模型时设为 `true` |
 | `models` | array | — | `[]` | 可用模型列表 |
+
+#### vendor 字段
+
+`vendor` 字段用于选择厂商适配器，不改变现有 provider 配置 schema。该字段可选；未设置时，VibeCoding 会先根据 `baseUrl` 自动识别厂商，再根据 `api` 回退到通用协议 provider。
+
+选择顺序：
+
+1. 显式 `vendor`
+2. `baseUrl` 自动识别
+3. 通用 fallback：`openai-chat` 或 `anthropic-messages`
+
+内置厂商适配器包括 `openai`、`anthropic`、`claude`、`deepseek`、`xiaomi`、`xiaomi-token-plan-ams`、`xiaomi-token-plan-cn`、`xiaomi-token-plan-sgp`、`kimi`、`minimax`、`seed`、`qianfan`、`bailian`、`gitee`、`openrouter`、`together`、`groq` 和 `fireworks`。
+
+```json
+{
+  "providers": {
+    "custom-deepseek": {
+      "vendor": "deepseek",
+      "baseUrl": "https://api.deepseek.com",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "api": "openai-chat",
+      "models": [
+        { "id": "deepseek-v4-flash", "name": "DeepSeek-V4-Flash", "contextWindow": 1000000 }
+      ]
+    }
+  }
+}
+```
 
 #### api 字段
 
@@ -247,6 +276,7 @@ VibeCoding 使用两个配置文件:
 | `maxTokens` | int | `0` | 每次响应的最大输出 token |
 | `input` | []string | `[]` | 支持的输入模态: `"text"`, `"image"` |
 | `cost` | object | `null` | 每百万 token 定价 |
+| `compat` | object | `null` | 模型级兼容标志，用于处理 provider 差异 |
 
 `cost` 对象:
 
@@ -256,6 +286,24 @@ VibeCoding 使用两个配置文件:
 | `output` | float | 每百万输出 token 费用 |
 | `cacheRead` | float | 每百万缓存读取 token 费用 (Anthropic) |
 | `cacheWrite` | float | 每百万缓存写入 token 费用 (Anthropic) |
+
+`compat` 对象可选，仅在某个模型需要协议兼容调整时设置：
+
+| 字段 | 类型 | 描述 |
+|------|------|------|
+| `thinkingFormat` | string | 覆盖模型 thinking 格式（`openai`、`deepseek`、`xiaomi`、`anthropic` 等） |
+| `requiresReasoningContentOnAssistant` | bool | 回放 assistant 消息时发送空 `reasoning_content` |
+| `requiresReasoningContentOnAssistantMessages` | bool | 参考实现中的别名，与上一项等价 |
+| `forceAdaptiveThinking` | bool | 强制使用 Anthropic adaptive thinking 格式 |
+| `supportsReasoningEffort` | bool | 模型是否接受 `reasoning_effort` |
+| `maxTokensField` | string | 使用 `max_tokens` 或 `max_completion_tokens` |
+| `supportsDeveloperRole` | bool | 是否支持 developer role 消息 |
+| `supportsStore` | bool | 是否支持 OpenAI `store` |
+| `supportsStrictMode` | bool | 是否支持严格工具 schema |
+| `supportsCacheControlOnTools` | bool | 是否支持在工具定义上使用 cache control |
+| `supportsLongCacheRetention` | bool | 是否支持长 prompt cache retention |
+| `sendSessionAffinityHeaders` | bool | 是否发送 session affinity headers |
+| `supportsEagerToolInputStreaming` | bool | 是否支持 Anthropic eager tool input streaming |
 
 ```json
 {
@@ -919,16 +967,19 @@ export DEEPSEEK_API_KEY=sk-...
 {
   "providers": {
     "deepseek-anthropic": {
+      "vendor": "deepseek",
       "baseUrl": "https://api.deepseek.com/anthropic",
       "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "anthropic-messages"
     },
     "deepseek-openai": {
+      "vendor": "deepseek",
       "baseUrl": "https://api.deepseek.com",
       "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "openai-chat"
     },
     "anthropic": {
+      "vendor": "anthropic",
       "baseUrl": "https://api.anthropic.com",
       "apiKey": "${ANTHROPIC_API_KEY}",
       "api": "anthropic-messages",

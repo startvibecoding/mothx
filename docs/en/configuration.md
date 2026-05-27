@@ -155,11 +155,40 @@ Multi-provider configuration. Each provider is an object keyed by a user-chosen 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `baseUrl` | string | ✓ | — | API base URL |
+| `vendor` | string | — | auto-detect | Optional vendor adapter name (see below) |
 | `apiKey` | string | — | `""` | API key (see [Authentication](#authentication-configuration) below) |
 | `api` | string | — | auto-detect | API protocol: `"openai-chat"` or `"anthropic-messages"` |
 | `thinkingFormat` | string | — | auto-detect | Thinking parameter format (see below) |
 | `cacheControl` | bool | — | `false` | Enable Anthropic prompt caching; set `true` when using Claude models |
 | `models` | array | — | `[]` | List of available models |
+
+#### vendor field
+
+The `vendor` field selects a vendor adapter without changing the provider config schema. It is optional; when omitted, VibeCoding tries to detect the vendor from `baseUrl`, then falls back to the generic protocol provider selected by `api`.
+
+Selection order:
+
+1. Explicit `vendor`
+2. Base URL detection
+3. Generic fallback: `openai-chat` or `anthropic-messages`
+
+Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `xiaomi`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-sgp`, `kimi`, `minimax`, `seed`, `qianfan`, `bailian`, `gitee`, `openrouter`, `together`, `groq`, and `fireworks`.
+
+```json
+{
+  "providers": {
+    "custom-deepseek": {
+      "vendor": "deepseek",
+      "baseUrl": "https://api.deepseek.com",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "api": "openai-chat",
+      "models": [
+        { "id": "deepseek-v4-flash", "name": "DeepSeek-V4-Flash", "contextWindow": 1000000 }
+      ]
+    }
+  }
+}
+```
 
 #### api field
 
@@ -247,6 +276,7 @@ Each model in the `models` array:
 | `maxTokens` | int | `0` | Maximum output tokens per response |
 | `input` | []string | `[]` | Supported input modalities: `"text"`, `"image"` |
 | `cost` | object | `null` | Pricing per million tokens |
+| `compat` | object | `null` | Model-specific compatibility flags for provider quirks |
 
 The `cost` object:
 
@@ -256,6 +286,24 @@ The `cost` object:
 | `output` | float | Cost per million output tokens |
 | `cacheRead` | float | Cost per million cached read tokens (Anthropic) |
 | `cacheWrite` | float | Cost per million cached write tokens (Anthropic) |
+
+The `compat` object is optional and should only be set when a model needs protocol-specific adjustments:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `thinkingFormat` | string | Override model thinking format (`openai`, `deepseek`, `xiaomi`, `anthropic`, etc.) |
+| `requiresReasoningContentOnAssistant` | bool | Send empty `reasoning_content` on replayed assistant messages |
+| `requiresReasoningContentOnAssistantMessages` | bool | Alias used by the reference implementation; treated the same as above |
+| `forceAdaptiveThinking` | bool | Force Anthropic adaptive thinking format |
+| `supportsReasoningEffort` | bool | Whether the model accepts `reasoning_effort` |
+| `maxTokensField` | string | Use `max_tokens` or `max_completion_tokens` |
+| `supportsDeveloperRole` | bool | Whether developer-role messages are supported |
+| `supportsStore` | bool | Whether OpenAI `store` is supported |
+| `supportsStrictMode` | bool | Whether strict tool schemas are supported |
+| `supportsCacheControlOnTools` | bool | Whether cache control can be applied to tool definitions |
+| `supportsLongCacheRetention` | bool | Whether long prompt-cache retention is supported |
+| `sendSessionAffinityHeaders` | bool | Whether session affinity headers should be sent |
+| `supportsEagerToolInputStreaming` | bool | Whether Anthropic eager tool input streaming is supported |
 
 ```json
 {
@@ -919,16 +967,19 @@ Switch between providers at runtime using `/provider` or `--provider`:
 {
   "providers": {
     "deepseek-anthropic": {
+      "vendor": "deepseek",
       "baseUrl": "https://api.deepseek.com/anthropic",
       "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "anthropic-messages"
     },
     "deepseek-openai": {
+      "vendor": "deepseek",
       "baseUrl": "https://api.deepseek.com",
       "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "openai-chat"
     },
     "anthropic": {
+      "vendor": "anthropic",
       "baseUrl": "https://api.anthropic.com",
       "apiKey": "${ANTHROPIC_API_KEY}",
       "api": "anthropic-messages",
