@@ -73,6 +73,7 @@ type ModelInfo struct {
 	Input         []string
 	ContextWindow int
 	MaxTokens     int
+	Compat        *ModelCompat
 }
 
 // ModelCompat defines per-model compatibility flags.
@@ -81,7 +82,7 @@ type ModelInfo struct {
 // Reference: pi/packages/ai/src/models.generated.ts compat field
 type ModelCompat struct {
 	// Thinking/reasoning
-	ThinkingFormat                      string `json:"thinkingFormat,omitempty"`          // "deepseek"|"openai"|"anthropic"|"together"|"zai"|"qwen"
+	ThinkingFormat                      string `json:"thinkingFormat,omitempty"` // "deepseek"|"openai"|"anthropic"|"together"|"zai"|"qwen"
 	RequiresReasoningContentOnAssistant bool   `json:"requiresReasoningContentOnAssistant,omitempty"`
 	ForceAdaptiveThinking               bool   `json:"forceAdaptiveThinking,omitempty"`
 

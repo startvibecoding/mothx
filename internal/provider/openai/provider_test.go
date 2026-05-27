@@ -104,6 +104,168 @@ func TestOpenAIThinkingFormatDeepSeekAutoDetect(t *testing.T) {
 	}
 }
 
+func TestOpenAIThinkingFormatFromModelCompat(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{ID: "compat-test", Reasoning: true, Compat: &provider.ModelCompat{ThinkingFormat: "deepseek"}},
+	})
+	params := provider.ChatParams{
+		ModelID:       "compat-test",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingHigh,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req openAIRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if req.Thinking == nil || req.Thinking.Type != "enabled" {
+		t.Fatalf("thinking = %#v, want enabled", req.Thinking)
+	}
+	if req.ReasoningEffort != "high" {
+		t.Fatalf("reasoning_effort = %q, want high", req.ReasoningEffort)
+	}
+}
+
+func TestOpenAIModelCompatRequestFields(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	supportsReasoningEffort := false
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{
+			ID:        "compat-fields",
+			Reasoning: true,
+			Compat: &provider.ModelCompat{
+				MaxTokensField:          "max_completion_tokens",
+				SupportsReasoningEffort: &supportsReasoningEffort,
+			},
+		},
+	})
+	params := provider.ChatParams{
+		ModelID:       "compat-fields",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingHigh,
+		MaxTokens:     1234,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var raw map[string]any
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &raw); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if _, ok := raw["max_tokens"]; ok {
+		t.Fatalf("max_tokens present, want max_completion_tokens only: %#v", raw)
+	}
+	if got := raw["max_completion_tokens"]; got != float64(1234) {
+		t.Fatalf("max_completion_tokens = %#v, want 1234", got)
+	}
+	if _, ok := raw["reasoning_effort"]; ok {
+		t.Fatalf("reasoning_effort present despite compat flag: %#v", raw)
+	}
+}
+
+func TestOpenAIRequiresReasoningContentOnAssistant(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{
+			ID: "compat-reasoning",
+			Compat: &provider.ModelCompat{
+				RequiresReasoningContentOnAssistant: true,
+			},
+		},
+	})
+	params := provider.ChatParams{
+		ModelID: "compat-reasoning",
+		Messages: []provider.Message{
+			provider.NewAssistantMessage([]provider.ContentBlock{
+				{Type: "text", Text: "previous answer"},
+			}),
+			provider.NewUserMessage("continue"),
+		},
+		Abort: make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var raw map[string]any
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &raw); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	messages, ok := raw["messages"].([]any)
+	if !ok || len(messages) == 0 {
+		t.Fatalf("messages = %#v, want non-empty array", raw["messages"])
+	}
+	assistant, ok := messages[0].(map[string]any)
+	if !ok {
+		t.Fatalf("first message = %#v, want object", messages[0])
+	}
+	value, ok := assistant["reasoning_content"]
+	if !ok {
+		t.Fatalf("reasoning_content missing from assistant message: %#v", assistant)
+	}
+	if value != "" {
+		t.Fatalf("reasoning_content = %#v, want empty string", value)
+	}
+}
+
 // ─── standard OpenAI SSE scenarios ───────────────────────────────────────────
 
 // TestOpenAICache_CacheHit: final SSE chunk carries full usage with cached tokens.

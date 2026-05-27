@@ -37,7 +37,7 @@ type Settings struct {
 }
 
 type ProviderConfig struct {
-	Vendor         string        `json:"vendor,omitempty"`        // Explicit vendor adapter (Decision 12/13)
+	Vendor         string        `json:"vendor,omitempty"` // Explicit vendor adapter (Decision 12/13)
 	APIKey         string        `json:"apiKey,omitempty"`
 	BaseURL        string        `json:"baseUrl,omitempty"`
 	API            string        `json:"api,omitempty"`
@@ -47,14 +47,14 @@ type ProviderConfig struct {
 }
 
 type ModelConfig struct {
-	ID            string      `json:"id"`
-	Name          string      `json:"name"`
-	Reasoning     bool        `json:"reasoning,omitempty"`
-	ContextWindow int         `json:"contextWindow,omitempty"`
-	MaxTokens     int         `json:"maxTokens,omitempty"`
-	Cost          *CostConfig `json:"cost,omitempty"`
-	Input         []string    `json:"input,omitempty"`
-	Compat         *ModelCompat  `json:"compat,omitempty"`       // Vendor compatibility flags (Decision 14)
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Reasoning     bool         `json:"reasoning,omitempty"`
+	ContextWindow int          `json:"contextWindow,omitempty"`
+	MaxTokens     int          `json:"maxTokens,omitempty"`
+	Cost          *CostConfig  `json:"cost,omitempty"`
+	Input         []string     `json:"input,omitempty"`
+	Compat        *ModelCompat `json:"compat,omitempty"` // Vendor compatibility flags (Decision 14)
 }
 
 type CostConfig struct {
@@ -68,9 +68,10 @@ type CostConfig struct {
 // Reference: pi/packages/ai/src/models.generated.ts compat field
 type ModelCompat struct {
 	// Thinking/reasoning
-	ThinkingFormat                      string `json:"thinkingFormat,omitempty"`
-	RequiresReasoningContentOnAssistant bool   `json:"requiresReasoningContentOnAssistant,omitempty"`
-	ForceAdaptiveThinking               bool   `json:"forceAdaptiveThinking,omitempty"`
+	ThinkingFormat                              string `json:"thinkingFormat,omitempty"`
+	RequiresReasoningContentOnAssistant         bool   `json:"requiresReasoningContentOnAssistant,omitempty"`
+	RequiresReasoningContentOnAssistantMessages bool   `json:"requiresReasoningContentOnAssistantMessages,omitempty"`
+	ForceAdaptiveThinking                       bool   `json:"forceAdaptiveThinking,omitempty"`
 
 	// API parameter compatibility
 	SupportsDeveloperRole   *bool  `json:"supportsDeveloperRole,omitempty"`

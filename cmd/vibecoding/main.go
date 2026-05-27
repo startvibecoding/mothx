@@ -22,8 +22,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
 	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/provider/anthropic"
-	"github.com/startvibecoding/vibecoding/internal/provider/openai"
+	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
@@ -50,18 +49,18 @@ func main() {
 
 func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.RunOptions) error) *cobra.Command {
 	var (
-		flagProvider    string
-		flagModel       string
-		flagMode        string
-		flagThinking    string
-		flagContinue    bool
-		flagResume      string
-		flagSession     string
-		flagSandbox     bool
-		flagPrint       bool
-		flagVerbose     bool
-		flagDebug       bool
-		flagMultiAgent  bool
+		flagProvider   string
+		flagModel      string
+		flagMode       string
+		flagThinking   string
+		flagContinue   bool
+		flagResume     string
+		flagSession    string
+		flagSandbox    bool
+		flagPrint      bool
+		flagVerbose    bool
+		flagDebug      bool
+		flagMultiAgent bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -73,18 +72,18 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFn(args, runOptions{
-				provider:    flagProvider,
-				model:       flagModel,
-				mode:        flagMode,
-				thinking:    flagThinking,
-				continue_:   flagContinue,
-				resume:      flagResume,
-				session:     flagSession,
-				sandbox:     flagSandbox,
-				print:       flagPrint,
-				verbose:     flagVerbose,
-				debug:       flagDebug,
-				multiAgent:  flagMultiAgent,
+				provider:   flagProvider,
+				model:      flagModel,
+				mode:       flagMode,
+				thinking:   flagThinking,
+				continue_:  flagContinue,
+				resume:     flagResume,
+				session:    flagSession,
+				sandbox:    flagSandbox,
+				print:      flagPrint,
+				verbose:    flagVerbose,
+				debug:      flagDebug,
+				multiAgent: flagMultiAgent,
 			})
 		},
 	}
@@ -136,18 +135,18 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 }
 
 type runOptions struct {
-	provider    string
-	model       string
-	mode        string
-	thinking    string
-	continue_   bool
-	resume      string
-	session     string
-	sandbox     bool
-	print       bool
-	verbose     bool
-	debug       bool
-	multiAgent  bool
+	provider   string
+	model      string
+	mode       string
+	thinking   string
+	continue_  bool
+	resume     string
+	session    string
+	sandbox    bool
+	print      bool
+	verbose    bool
+	debug      bool
+	multiAgent bool
 }
 
 func run(args []string, opts runOptions) error {
@@ -400,131 +399,7 @@ func run(args []string, opts runOptions) error {
 
 // createProvider creates a provider from config based on provider name.
 func createProvider(settings *config.Settings, providerName, modelID string) (provider.Provider, *provider.Model, error) {
-	// Check if provider is in config
-	pc := settings.GetProviderConfig(providerName)
-
-	if pc != nil {
-		// Custom provider from config
-		apiKey := settings.ResolveKey(providerName)
-		models := convertModelConfigs(providerName, pc.Models)
-
-		api := pc.API
-		if api == "" {
-			// Auto-detect: if baseUrl contains "anthropic", use anthropic-messages
-			if strings.Contains(strings.ToLower(pc.BaseURL), "anthropic") {
-				api = "anthropic-messages"
-			} else {
-				api = "openai-chat"
-			}
-		}
-
-		var p provider.Provider
-		switch api {
-		case "anthropic-messages":
-			ap := anthropic.NewProviderWithModels(apiKey, pc.BaseURL, models)
-			if pc.ThinkingFormat != "" {
-				ap.SetThinkingFormat(pc.ThinkingFormat)
-			}
-			if pc.CacheControl != nil {
-				ap.SetCacheControlEnabled(pc.CacheControl)
-			}
-			configureRetry(ap, settings)
-			p = ap
-		case "openai-chat", "openai":
-			op := openai.NewProviderWithModels(apiKey, pc.BaseURL, models)
-			if pc.ThinkingFormat != "" {
-				op.SetThinkingFormat(pc.ThinkingFormat)
-			}
-			configureRetry(op, settings)
-			p = op
-		default:
-			return nil, nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat' or 'anthropic-messages')", api)
-		}
-
-		// Find model
-		model := p.GetModel(modelID)
-		if model == nil {
-			if len(models) > 0 {
-				model = models[0]
-			} else {
-				return nil, nil, fmt.Errorf("no models configured for provider %s", providerName)
-			}
-		}
-
-		return p, model, nil
-	}
-
-	// Built-in providers (fallback)
-	var p provider.Provider
-	switch strings.ToLower(providerName) {
-	case "openai":
-		apiKey := settings.ResolveKey(providerName)
-		p = openai.NewProvider(apiKey, "")
-	case "anthropic":
-		apiKey := settings.ResolveKey(providerName)
-		p = anthropic.NewProvider(apiKey, "")
-	default:
-		return nil, nil, fmt.Errorf("unknown provider: %s (add it to settings.json providers section)", providerName)
-	}
-
-	model := p.GetModel(modelID)
-	if model == nil {
-		models := p.Models()
-		if len(models) > 0 {
-			model = models[0]
-		} else {
-			return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
-		}
-	}
-
-	return p, model, nil
-}
-
-// retryConfigurable is implemented by providers that support retry configuration.
-type retryConfigurable interface {
-	SetRetryConfig(cfg *provider.RetryConfig)
-}
-
-// configureRetry sets retry config on a provider if it supports it.
-func configureRetry(p provider.Provider, settings *config.Settings) {
-	if rc, ok := p.(retryConfigurable); ok {
-		rc.SetRetryConfig(&provider.RetryConfig{
-			Enabled:     settings.Retry.Enabled,
-			MaxRetries:  settings.Retry.MaxRetries,
-			BaseDelayMs: settings.Retry.BaseDelayMs,
-		})
-	}
-}
-
-// convertModelConfigs converts config.ModelConfig to provider.Model.
-func convertModelConfigs(providerName string, models []config.ModelConfig) []*provider.Model {
-	var result []*provider.Model
-	for _, m := range models {
-		input := m.Input
-		if len(input) == 0 {
-			input = []string{"text"}
-		}
-		var cost provider.ModelPricing
-		if m.Cost != nil {
-			cost = provider.ModelPricing{
-				Input:      m.Cost.Input,
-				Output:     m.Cost.Output,
-				CacheRead:  m.Cost.CacheRead,
-				CacheWrite: m.Cost.CacheWrite,
-			}
-		}
-		result = append(result, &provider.Model{
-			ID:            m.ID,
-			Name:          m.Name,
-			Provider:      providerName,
-			Reasoning:     m.Reasoning,
-			Input:         input,
-			Cost:          cost,
-			ContextWindow: m.ContextWindow,
-			MaxTokens:     m.MaxTokens,
-		})
-	}
-	return result
+	return providerfactory.Create(settings, providerName, modelID)
 }
 
 // clearStdin reads and discards any pending input from stdin.

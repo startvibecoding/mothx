@@ -110,14 +110,15 @@ func (p *Provider) SetThinkingFormat(format string) {
 
 // openAIRequest represents the request body for OpenAI Chat Completions.
 type openAIRequest struct {
-	Model           string          `json:"model"`
-	Messages        []openAIMessage `json:"messages"`
-	Tools           []openAITool    `json:"tools,omitempty"`
-	MaxTokens       int             `json:"max_tokens,omitempty"`
-	Stream          bool            `json:"stream"`
-	StreamOptions   *streamOptions  `json:"stream_options,omitempty"`
-	ReasoningEffort string          `json:"reasoning_effort,omitempty"`
-	Thinking        *thinkingConfig `json:"thinking,omitempty"`
+	Model               string          `json:"model"`
+	Messages            []openAIMessage `json:"messages"`
+	Tools               []openAITool    `json:"tools,omitempty"`
+	MaxTokens           int             `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
+	Stream              bool            `json:"stream"`
+	StreamOptions       *streamOptions  `json:"stream_options,omitempty"`
+	ReasoningEffort     string          `json:"reasoning_effort,omitempty"`
+	Thinking            *thinkingConfig `json:"thinking,omitempty"`
 }
 
 type thinkingConfig struct {
@@ -131,7 +132,7 @@ type streamOptions struct {
 type openAIMessage struct {
 	Role       string           `json:"role"`
 	Content    interface{}      `json:"content"`
-	Reasoning  string           `json:"reasoning_content,omitempty"`
+	Reasoning  *string          `json:"reasoning_content,omitempty"`
 	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string           `json:"tool_call_id,omitempty"`
 	Name       string           `json:"name,omitempty"`
@@ -211,9 +212,6 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			return
 		}
 
-		messages := p.convertMessages(params)
-		tools := p.convertTools(params.Tools)
-
 		modelID := params.ModelID
 		if modelID == "" {
 			if len(p.Models()) > 0 {
@@ -227,36 +225,38 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		if maxTokens == 0 {
 			maxTokens = 16384
 		}
+		model := p.GetModel(modelID)
+		messages := p.convertMessages(params, p.requiresReasoningContentOnAssistant(model))
+		tools := p.convertTools(params.Tools)
 
 		reqBody := openAIRequest{
 			Model:         modelID,
 			Messages:      messages,
 			Tools:         tools,
-			MaxTokens:     maxTokens,
 			Stream:        true,
 			StreamOptions: &streamOptions{IncludeUsage: true},
 		}
+		if maxTokensField(model) == "max_completion_tokens" {
+			reqBody.MaxCompletionTokens = maxTokens
+		} else {
+			reqBody.MaxTokens = maxTokens
+		}
 
-		model := p.GetModel(modelID)
 		if !p.disableReasoning && params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 			// Determine thinking format: explicit config > URL auto-detect > default
-			format := p.thinkingFormat
-			if format == "" {
-				lowerBaseURL := strings.ToLower(p.baseURL)
-				if strings.Contains(lowerBaseURL, "deepseek") {
-					format = "deepseek"
-				} else if strings.Contains(lowerBaseURL, "xiaomimimo") {
-					format = "xiaomi"
-				}
-			}
+			format := p.thinkingFormatForModel(model)
 			switch format {
 			case "deepseek":
 				reqBody.Thinking = &thinkingConfig{Type: "enabled"}
-				reqBody.ReasoningEffort = deepseekReasoningEffort(params.ThinkingLevel)
+				if supportsReasoningEffort(model) {
+					reqBody.ReasoningEffort = deepseekReasoningEffort(params.ThinkingLevel)
+				}
 			case "xiaomi":
 				reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 			default: // "openai" or ""
-				reqBody.ReasoningEffort = openAIReasoningEffort(params.ThinkingLevel)
+				if supportsReasoningEffort(model) {
+					reqBody.ReasoningEffort = openAIReasoningEffort(params.ThinkingLevel)
+				}
 			}
 		}
 
@@ -508,7 +508,46 @@ func deepseekReasoningEffort(level provider.ThinkingLevel) string {
 	}
 }
 
-func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
+func (p *Provider) thinkingFormatForModel(model *provider.Model) string {
+	if p.thinkingFormat != "" {
+		return p.thinkingFormat
+	}
+	if model != nil && model.Compat != nil && model.Compat.ThinkingFormat != "" {
+		return model.Compat.ThinkingFormat
+	}
+	lowerBaseURL := strings.ToLower(p.baseURL)
+	if strings.Contains(lowerBaseURL, "deepseek") {
+		return "deepseek"
+	}
+	if strings.Contains(lowerBaseURL, "xiaomimimo") {
+		return "xiaomi"
+	}
+	return ""
+}
+
+func supportsReasoningEffort(model *provider.Model) bool {
+	if model != nil && model.Compat != nil && model.Compat.SupportsReasoningEffort != nil {
+		return *model.Compat.SupportsReasoningEffort
+	}
+	return true
+}
+
+func maxTokensField(model *provider.Model) string {
+	if model != nil && model.Compat != nil {
+		return model.Compat.MaxTokensField
+	}
+	return ""
+}
+
+func (p *Provider) requiresReasoningContentOnAssistant(model *provider.Model) bool {
+	if model != nil && model.Compat != nil && model.Compat.RequiresReasoningContentOnAssistant {
+		return true
+	}
+	lowerBaseURL := strings.ToLower(p.baseURL)
+	return strings.Contains(lowerBaseURL, "deepseek") || strings.Contains(lowerBaseURL, "xiaomimimo")
+}
+
+func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantReasoning bool) []openAIMessage {
 	var messages []openAIMessage
 
 	// Add system prompt as the first message if provided
@@ -568,7 +607,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 			// For assistant messages with tool calls, ensure content is not an empty array
 			// Set reasoning content if available
 			if reasoningContent != "" {
-				om.Reasoning = reasoningContent
+				om.Reasoning = &reasoningContent
 			}
 		} else {
 			om.Content = msg.Content
@@ -582,6 +621,10 @@ func (p *Provider) convertMessages(params provider.ChatParams) []openAIMessage {
 					}{Name: c.ToolCall.Name, Arguments: string(c.ToolCall.Arguments)}})
 				}
 			}
+		}
+		if msg.Role == "assistant" && forceAssistantReasoning && om.Reasoning == nil {
+			reasoningContent := ""
+			om.Reasoning = &reasoningContent
 		}
 		messages = append(messages, om)
 	}

@@ -136,18 +136,18 @@ type anthropicCacheControl struct {
 }
 
 type anthropicContentBlock struct {
-	Type         string                 `json:"type"`
-	Text         string                 `json:"text,omitempty"`
-	Thinking     string                 `json:"thinking,omitempty"`
-	Signature    string                 `json:"signature,omitempty"`
-	Source       *anthropicImage        `json:"source,omitempty"`
-	ID           string                 `json:"id,omitempty"`
-	Name         string                 `json:"name,omitempty"`
+	Type         string                  `json:"type"`
+	Text         string                  `json:"text,omitempty"`
+	Thinking     string                  `json:"thinking,omitempty"`
+	Signature    string                  `json:"signature,omitempty"`
+	Source       *anthropicImage         `json:"source,omitempty"`
+	ID           string                  `json:"id,omitempty"`
+	Name         string                  `json:"name,omitempty"`
 	Input        *map[string]interface{} `json:"input,omitempty"`
-	ToolUseID    string                 `json:"tool_use_id,omitempty"`
-	Content      interface{}            `json:"content,omitempty"`
-	IsError      bool                   `json:"is_error,omitempty"`
-	CacheControl *anthropicCacheControl `json:"cache_control,omitempty"`
+	ToolUseID    string                  `json:"tool_use_id,omitempty"`
+	Content      interface{}             `json:"content,omitempty"`
+	IsError      bool                    `json:"is_error,omitempty"`
+	CacheControl *anthropicCacheControl  `json:"cache_control,omitempty"`
 }
 
 type anthropicImage struct {
@@ -163,13 +163,13 @@ type anthropicTool struct {
 }
 
 type anthropicResponse struct {
-	Type         string                 `json:"type"`
-	Index        int                    `json:"index,omitempty"`
-	Delta        *anthropicDelta        `json:"delta,omitempty"`
-	ContentBlock *contentBlock          `json:"content_block,omitempty"`
-	Message      *anthropicMsg          `json:"message,omitempty"`
-	Usage        *anthropicUsage        `json:"usage,omitempty"`
-	Error        *anthropicStreamError  `json:"error,omitempty"`
+	Type         string                `json:"type"`
+	Index        int                   `json:"index,omitempty"`
+	Delta        *anthropicDelta       `json:"delta,omitempty"`
+	ContentBlock *contentBlock         `json:"content_block,omitempty"`
+	Message      *anthropicMsg         `json:"message,omitempty"`
+	Usage        *anthropicUsage       `json:"usage,omitempty"`
+	Error        *anthropicStreamError `json:"error,omitempty"`
 }
 
 type anthropicStreamError struct {
@@ -255,15 +255,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 
 		if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 			// Determine thinking format: explicit config > URL auto-detect > default
-			format := p.thinkingFormat
-			if format == "" {
-				lowerBaseURL := strings.ToLower(p.baseURL)
-				if strings.Contains(lowerBaseURL, "deepseek") {
-					format = "deepseek"
-				} else if strings.Contains(lowerBaseURL, "xiaomimimo") {
-					format = "xiaomi"
-				}
-			}
+			format := p.thinkingFormatForModel(model)
 			switch format {
 			case "deepseek":
 				reqBody.Thinking = &anthropicThinking{Type: "enabled"}
@@ -274,7 +266,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 				reqBody.Thinking = &anthropicThinking{Type: "adaptive", Display: "summarized"}
 				reqBody.OutputConfig = &anthropicOutputConfig{Effort: anthropicAdaptiveEffort(params.ThinkingLevel)}
 			default: // "anthropic" or ""
-				if isAnthropicAdaptiveModel(modelID) {
+				if useAdaptiveThinking(model, modelID) {
 					reqBody.Thinking = &anthropicThinking{Type: "adaptive", Display: "summarized"}
 					reqBody.OutputConfig = &anthropicOutputConfig{Effort: anthropicAdaptiveEffort(params.ThinkingLevel)}
 				} else {
@@ -644,10 +636,34 @@ func deepseekReasoningEffort(level provider.ThinkingLevel) string {
 	}
 }
 
+func (p *Provider) thinkingFormatForModel(model *provider.Model) string {
+	if p.thinkingFormat != "" {
+		return p.thinkingFormat
+	}
+	if model != nil && model.Compat != nil && model.Compat.ThinkingFormat != "" {
+		return model.Compat.ThinkingFormat
+	}
+	lowerBaseURL := strings.ToLower(p.baseURL)
+	if strings.Contains(lowerBaseURL, "deepseek") {
+		return "deepseek"
+	}
+	if strings.Contains(lowerBaseURL, "xiaomimimo") {
+		return "xiaomi"
+	}
+	return ""
+}
+
 func isAnthropicAdaptiveModel(modelID string) bool {
 	return strings.HasPrefix(modelID, "claude-opus-4-7") ||
 		strings.HasPrefix(modelID, "claude-opus-4-6") ||
 		strings.HasPrefix(modelID, "claude-sonnet-4-6")
+}
+
+func useAdaptiveThinking(model *provider.Model, modelID string) bool {
+	if model != nil && model.Compat != nil && model.Compat.ForceAdaptiveThinking {
+		return true
+	}
+	return isAnthropicAdaptiveModel(modelID)
 }
 
 func anthropicAdaptiveEffort(level provider.ThinkingLevel) string {

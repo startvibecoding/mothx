@@ -391,6 +391,50 @@ func TestAnthropicThinkingAdaptiveForOpus47(t *testing.T) {
 	}
 }
 
+func TestAnthropicThinkingAdaptiveFromModelCompat(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		bodyCh <- string(body)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
+	}))
+	t.Cleanup(srv.Close)
+
+	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+		{ID: "custom-adaptive", Reasoning: true, Compat: &provider.ModelCompat{ForceAdaptiveThinking: true}},
+	})
+	params := provider.ChatParams{
+		ModelID:       "custom-adaptive",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		ThinkingLevel: provider.ThinkingMedium,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if req.Thinking == nil || req.Thinking.Type != "adaptive" {
+		t.Fatalf("thinking = %#v, want adaptive", req.Thinking)
+	}
+	if req.OutputConfig == nil || req.OutputConfig.Effort != "medium" {
+		t.Fatalf("output_config = %#v, want effort medium", req.OutputConfig)
+	}
+}
+
 // TestAnthropicCache_FirstTurn: cache is created for the first time.
 // message_start carries cache_creation_input_tokens; no cache_read yet.
 func TestAnthropicCache_FirstTurn(t *testing.T) {

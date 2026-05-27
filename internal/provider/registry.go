@@ -2,7 +2,6 @@ package provider
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
@@ -84,24 +83,24 @@ func ListProviders() []string {
 // 2. baseUrl auto-detect
 // 3. generic fallback (openai-chat / anthropic-messages)
 func ResolveProvider(cfg *config.ProviderConfig) (Provider, error) {
+	resolved := ResolveAdapterConfig(cfg)
 	// Level 1: explicit vendor
-	if cfg.Vendor != "" {
-		if globalRegistry.Has(cfg.Vendor) {
-			return globalRegistry.Create(cfg.Vendor, cfg)
+	if resolved.Vendor != "" && cfg != nil && cfg.Vendor != "" {
+		if globalRegistry.Has(resolved.Vendor) {
+			return globalRegistry.Create(resolved.Vendor, cfg)
 		}
 		// Vendor specified but not registered, fall through to generic
 	}
 
 	// Level 2: auto-detect from baseUrl
-	if cfg.BaseURL != "" {
-		vendor := VendorFromBaseURL(cfg.BaseURL)
-		if vendor != "" && globalRegistry.Has(vendor) {
-			return globalRegistry.Create(vendor, cfg)
+	if resolved.Vendor != "" {
+		if globalRegistry.Has(resolved.Vendor) {
+			return globalRegistry.Create(resolved.Vendor, cfg)
 		}
 	}
 
 	// Level 3: generic fallback based on api field
-	switch cfg.API {
+	switch resolved.API {
 	case "anthropic-messages":
 		return globalRegistry.Create("anthropic_compatible", cfg)
 	default: // "openai-chat" or empty
@@ -112,24 +111,12 @@ func ResolveProvider(cfg *config.ProviderConfig) (Provider, error) {
 // VendorFromBaseURL attempts to identify the vendor from a base URL.
 // Returns empty string if no match.
 func VendorFromBaseURL(baseURL string) string {
-	vendorMap := map[string]string{
-		"api.deepseek.com":          "deepseek",
-		"api.xiaomimimo.com":        "xiaomi",
-		"api.xiaomi.com":            "xiaomi",
-		"api.moonshot.cn":           "kimi",
-		"api.minimax.chat":          "minimax",
-		"ark.cn-beijing.volces.com": "seed",
-		"aip.baidubce.com":          "qianfan",
-		"dashscope.aliyuncs.com":    "bailian",
-		"ai.gitee.com":              "gitee",
-		"openrouter.ai":             "openrouter",
-		"api.together.xyz":          "together",
-		"api.groq.com":              "groq",
-		"api.fireworks.ai":          "fireworks",
-	}
-	for domain, vendor := range vendorMap {
-		if strings.Contains(baseURL, domain) {
-			return vendor
+	vendorRegistry.RLock()
+	defer vendorRegistry.RUnlock()
+	for _, name := range vendorRegistry.order {
+		adapter := vendorRegistry.adapters[name]
+		if adapter.MatchBaseURL(baseURL) {
+			return name
 		}
 	}
 	return ""

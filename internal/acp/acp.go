@@ -19,8 +19,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
 	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/provider/anthropic"
-	"github.com/startvibecoding/vibecoding/internal/provider/openai"
+	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
@@ -30,14 +29,14 @@ import (
 const protocolVersion = 1
 
 type RunOptions struct {
-	Provider    string
-	Model       string
-	Mode        string
-	Thinking    string
-	Sandbox     bool
-	Verbose     bool
-	Debug       bool
-	MultiAgent  bool
+	Provider   string
+	Model      string
+	Mode       string
+	Thinking   string
+	Sandbox    bool
+	Verbose    bool
+	Debug      bool
+	MultiAgent bool
 }
 
 type server struct {
@@ -97,7 +96,7 @@ type rpcResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
 	Result  any             `json:"result,omitempty"`
-	Error   *mcp.RPCError `json:"error,omitempty"`
+	Error   *mcp.RPCError   `json:"error,omitempty"`
 }
 
 type clientInfo struct {
@@ -139,7 +138,7 @@ type sessionCaps struct {
 }
 
 type newSessionRequest struct {
-	Cwd        string            `json:"cwd"`
+	Cwd        string             `json:"cwd"`
 	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
 }
 
@@ -148,8 +147,8 @@ type newSessionResult struct {
 }
 
 type loadSessionRequest struct {
-	SessionID  string            `json:"sessionId"`
-	Cwd        string            `json:"cwd"`
+	SessionID  string             `json:"sessionId"`
+	Cwd        string             `json:"cwd"`
 	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
 }
 
@@ -234,15 +233,15 @@ func Run(opts RunOptions) error {
 	}
 
 	srv := &server{
-		settings:    settings,
-		cwd:         cwd,
-		multiAgent:  opts.MultiAgent,
-		sessions:    make(map[string]*sessionRuntime),
-		pending:     make(map[string]chan json.RawMessage),
-		toolTitles:  make(map[string]string),
-		mcpNotify:   make(map[string]bool),
-		r:           bufio.NewReader(os.Stdin),
-		w:           os.Stdout,
+		settings:   settings,
+		cwd:        cwd,
+		multiAgent: opts.MultiAgent,
+		sessions:   make(map[string]*sessionRuntime),
+		pending:    make(map[string]chan json.RawMessage),
+		toolTitles: make(map[string]string),
+		mcpNotify:  make(map[string]bool),
+		r:          bufio.NewReader(os.Stdin),
+		w:          os.Stdout,
 	}
 
 	p, model, err := createProvider(settings, opts.Provider, opts.Model)
@@ -352,124 +351,10 @@ func Run(opts RunOptions) error {
 }
 
 func createProvider(settings *config.Settings, providerName, modelID string) (provider.Provider, *provider.Model, error) {
-	if providerName == "" {
-		providerName = settings.DefaultProvider
-	}
-	if modelID == "" {
-		modelID = settings.DefaultModel
-	}
-	pc := settings.GetProviderConfig(providerName)
-	if pc != nil {
-		apiKey := settings.ResolveKey(providerName)
-		models := convertModelConfigs(providerName, pc.Models)
-		api := pc.API
-		if api == "" {
-			if strings.Contains(strings.ToLower(pc.BaseURL), "anthropic") {
-				api = "anthropic-messages"
-			} else {
-				api = "openai-chat"
-			}
-		}
-		var p provider.Provider
-		switch api {
-		case "anthropic-messages":
-			ap := anthropic.NewProviderWithModels(apiKey, pc.BaseURL, models)
-			if pc.ThinkingFormat != "" {
-				ap.SetThinkingFormat(pc.ThinkingFormat)
-			}
-			if pc.CacheControl != nil {
-				ap.SetCacheControlEnabled(pc.CacheControl)
-			}
-			configureRetry(ap, settings)
-			p = ap
-		case "openai-chat", "openai":
-			op := openai.NewProviderWithModels(apiKey, pc.BaseURL, models)
-			if pc.ThinkingFormat != "" {
-				op.SetThinkingFormat(pc.ThinkingFormat)
-			}
-			configureRetry(op, settings)
-			p = op
-		default:
-			return nil, nil, fmt.Errorf("unsupported API type: %s", api)
-		}
-		model := p.GetModel(modelID)
-		if model == nil {
-			if len(models) > 0 {
-				model = models[0]
-			} else {
-				return nil, nil, fmt.Errorf("no models configured for provider %s", providerName)
-			}
-		}
-		return p, model, nil
-	}
-	var p provider.Provider
-	switch strings.ToLower(providerName) {
-	case "openai":
-		p = openai.NewProvider(settings.ResolveKey(providerName), "")
-	case "anthropic":
-		ap := anthropic.NewProvider(settings.ResolveKey(providerName), "")
-		enabled := true
-		ap.SetCacheControlEnabled(&enabled)
-		p = ap
-	default:
-		return nil, nil, fmt.Errorf("unknown provider: %s", providerName)
-	}
-	model := p.GetModel(modelID)
-	if model == nil {
-		models := p.Models()
-		if len(models) > 0 {
-			model = models[0]
-		} else {
-			return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
-		}
-	}
-	return p, model, nil
-}
-
-// retryConfigurable is implemented by providers that support retry configuration.
-type retryConfigurable interface {
-	SetRetryConfig(cfg *provider.RetryConfig)
-}
-
-// configureRetry sets retry config on a provider if it supports it.
-func configureRetry(p provider.Provider, settings *config.Settings) {
-	if rc, ok := p.(retryConfigurable); ok {
-		rc.SetRetryConfig(&provider.RetryConfig{
-			Enabled:     settings.Retry.Enabled,
-			MaxRetries:  settings.Retry.MaxRetries,
-			BaseDelayMs: settings.Retry.BaseDelayMs,
-		})
-	}
-}
-
-func convertModelConfigs(providerName string, models []config.ModelConfig) []*provider.Model {
-	var result []*provider.Model
-	for _, m := range models {
-		input := m.Input
-		if len(input) == 0 {
-			input = []string{"text"}
-		}
-		var cost provider.ModelPricing
-		if m.Cost != nil {
-			cost = provider.ModelPricing{
-				Input:      m.Cost.Input,
-				Output:     m.Cost.Output,
-				CacheRead:  m.Cost.CacheRead,
-				CacheWrite: m.Cost.CacheWrite,
-			}
-		}
-		result = append(result, &provider.Model{
-			ID:            m.ID,
-			Name:          m.Name,
-			Provider:      providerName,
-			Reasoning:     m.Reasoning,
-			Input:         input,
-			Cost:          cost,
-			ContextWindow: m.ContextWindow,
-			MaxTokens:     m.MaxTokens,
-		})
-	}
-	return result
+	enabled := true
+	return providerfactory.CreateWithOptions(settings, providerName, modelID, providerfactory.Options{
+		BuiltinAnthropicCacheControl: &enabled,
+	})
 }
 
 func (s *server) newToolRegistry() *tools.Registry {

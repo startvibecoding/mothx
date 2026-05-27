@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
@@ -62,6 +63,24 @@ func TestSubAgentSpawnTool(t *testing.T) {
 	if parsed["status"] != "running" {
 		t.Errorf("expected 'running', got %q", parsed["status"])
 	}
+	handle, _ := parsed["handle"].(string)
+	waitForManagedAgentToStop(t, mgr, agentpkg.AgentID(handle))
+	if err := mgr.Destroy(agentpkg.AgentID(handle)); err != nil {
+		t.Fatalf("destroy spawned agent: %v", err)
+	}
+}
+
+func waitForManagedAgentToStop(t testing.TB, mgr *AgentManager, id agentpkg.AgentID) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		st, ok := mgr.Status(id)
+		if ok && (st.State == "done" || st.State == "error") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for agent %s to stop", id)
 }
 
 func TestSubAgentSpawnToolMissingTask(t *testing.T) {
