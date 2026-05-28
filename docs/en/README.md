@@ -45,6 +45,7 @@ Welcome to the VibeCoding Documentation Center!
 - [Tool System](tools.md) — Built-in tools usage guide
 - [Skills System](skills.md) — Reusable prompt snippets
 - [Session Management](sessions.md) — Session storage and management
+- [SDK Integration](sdk.md) — Embed VibeCoding agent in your Go applications
 
 ### Security
 - [Security & Sandbox](security.md) — Sandbox modes, permission control, approval mechanism
@@ -70,6 +71,7 @@ Welcome to the VibeCoding Documentation Center!
 | [ACP Protocol](acp.md) | IDE integration via Agent Client Protocol |
 | [Session Management](sessions.md) | Conversation history and branching |
 | [Skills System](skills.md) | Create reusable prompt snippets |
+| [SDK Integration](sdk.md) | Embed VibeCoding agent in your Go applications |
 | [Changelog](changelog.md) | See what's new in each release |
 
 ## Supported LLMs

@@ -347,3 +347,9 @@ TUI 管理仍属于后续接线工作。
 ### 5. 沙箱隔离
 
 通过 bubblewrap 实现进程级隔离，保护系统安全。
+
+### 6. 公共 SDK 包
+
+`agent/` 包暴露公共 Go 类型（`Agent`、`Provider`、`Builder`），外部应用可以
+在不依赖 internal 包的情况下嵌入 Agent。
+详见 [SDK 集成指南](sdk.md)。

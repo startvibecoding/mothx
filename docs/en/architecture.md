@@ -350,3 +350,9 @@ Support global and project configuration, with project configuration overriding 
 ### 5. Sandbox Isolation
 
 Implement process-level isolation through bubblewrap, protecting system security.
+
+### 6. Public SDK Package
+
+The `agent/` package exposes public Go types (`Agent`, `Provider`, `Builder`) so
+external applications can embed the agent without depending on internal packages.
+See [SDK Integration Guide](sdk.md) for usage details.
