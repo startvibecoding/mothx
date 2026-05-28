@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer-darwin-arm64",
-  "version": "v0.1.25-1-g263c076-dirty",
+  "version": "v0.1.25-11-g0da8752-dirty",
   "description": "VibeCoding native binary for darwin-arm64",
   "os": ["darwin"],
   "cpu": ["arm64"],
