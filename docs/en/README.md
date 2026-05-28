@@ -44,6 +44,7 @@ Welcome to the VibeCoding Documentation Center!
 - [System Architecture](architecture.md) — Project structure, core components, data flow
 - [Tool System](tools.md) — Built-in tools usage guide
 - [Skills System](skills.md) — Reusable prompt snippets
+- [Online Skill Marketplace](skillhub.md) — SkillHub / ClawHub integration and cron foundation
 - [Session Management](sessions.md) — Session storage and management
 - [SDK Integration](sdk.md) — Embed VibeCoding agent in your Go applications
 
@@ -71,6 +72,7 @@ Welcome to the VibeCoding Documentation Center!
 | [ACP Protocol](acp.md) | IDE integration via Agent Client Protocol |
 | [Session Management](sessions.md) | Conversation history and branching |
 | [Skills System](skills.md) | Create reusable prompt snippets |
+| [Online Skill Marketplace](skillhub.md) | SkillHub / ClawHub integration and cron foundation |
 | [SDK Integration](sdk.md) | Embed VibeCoding agent in your Go applications |
 | [Changelog](changelog.md) | See what's new in each release |
 
