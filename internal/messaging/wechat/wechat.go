@@ -152,11 +152,6 @@ func (b *Bot) Start(ctx context.Context, handler messaging.MessageHandler) error
 				UserID:    wire.FromUserID,
 				Text:      text,
 				Timestamp: time.UnixMilli(wire.CreateTimeMs),
-				ProgressFunc: func(text string) {
-					if err := b.SendMessage(pollCtx, wire.FromUserID, text); err != nil {
-						log.Printf("[wechat] Progress send error: %v", err)
-					}
-				},
 			}
 
 			// Show typing indicator
@@ -166,7 +161,21 @@ func (b *Bot) Start(ctx context.Context, handler messaging.MessageHandler) error
 
 			// Handle message
 			go func(m messaging.InboundMessage, ct string) {
+				// Create progress buffer: max 7 progress lines per batch, reserve 3 for summary
+				progressBuf := messaging.NewProgressBuffer(7, func(text string) {
+					if err := b.SendMessage(pollCtx, wire.FromUserID, text); err != nil {
+						log.Printf("[wechat] Progress send error: %v", err)
+					}
+				})
+				m.ProgressFunc = func(text string) {
+					progressBuf.Add(text)
+				}
+
 				response, err := handler(pollCtx, m)
+
+				// Flush remaining progress lines before final summary
+				progressBuf.Flush()
+
 				if err != nil {
 					log.Printf("[wechat] Handler error for %s: %v", m.UserID, err)
 					response = "⚠️ Error: " + err.Error()

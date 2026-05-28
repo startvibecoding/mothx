@@ -181,16 +181,25 @@ func (b *Bot) onMessage(ctx context.Context, event *larkim.P2MessageReceiveV1) e
 		ChatID:   chatID,
 		UserID:   userID,
 		Text:     textContent.Text,
-		ProgressFunc: func(text string) {
-			if err := b.SendMessage(context.Background(), chatID, text); err != nil {
-				log.Printf("[feishu] Progress send error: %v", err)
-			}
-		},
 	}
 
 	// Handle message asynchronously
 	go func() {
+		// Create progress buffer: max 7 progress lines per batch, reserve 3 for summary
+		progressBuf := messaging.NewProgressBuffer(7, func(text string) {
+			if err := b.SendMessage(context.Background(), chatID, text); err != nil {
+				log.Printf("[feishu] Progress send error: %v", err)
+			}
+		})
+		inbound.ProgressFunc = func(text string) {
+			progressBuf.Add(text)
+		}
+
 		response, err := handler(context.Background(), inbound)
+
+		// Flush remaining progress lines before final summary
+		progressBuf.Flush()
+
 		if err != nil {
 			log.Printf("[feishu] Handler error for %s: %v", userID, err)
 			response = "⚠️ Error: " + err.Error()
