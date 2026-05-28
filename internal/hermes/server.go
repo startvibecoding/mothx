@@ -140,7 +140,8 @@ func Run(opts RunOptions, version string) error {
 				Delivery: r.Delivery,
 			})
 		}
-		router := webhook.NewRouter(routes, cfg.Webhooks.Secret, nil) // TODO: handler
+		webhookHandler := NewWebhookHandler(dispatcher, nil) // platforms wired after startPlatforms
+		router := webhook.NewRouter(routes, cfg.Webhooks.Secret, webhookHandler)
 		gw.RegisterHandler("/webhook/", router)
 	}
 

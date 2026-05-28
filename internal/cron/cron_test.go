@@ -268,6 +268,32 @@ func TestIsDueOldRun(t *testing.T) {
 	}
 }
 
+func TestIsDueOneShotFirstRun(t *testing.T) {
+	s := &Scheduler{}
+	job := CronJob{
+		Enabled:  true,
+		OneShot:  true,
+		LastRun:  time.Time{}, // never run
+	}
+	if !s.isDue(job, time.Now()) {
+		t.Error("expected due — one-shot never run")
+	}
+}
+
+func TestIsDuePeriodicJob(t *testing.T) {
+	s := &Scheduler{}
+	next := time.Now().Add(-5 * time.Minute) // 5 min ago
+	job := CronJob{
+		Enabled:  true,
+		Schedule: "@hourly",
+		LastRun:  time.Now().Add(-2 * time.Hour),
+		NextRun:  next,
+	}
+	if !s.isDue(job, time.Now()) {
+		t.Error("expected due — periodic job past NextRun")
+	}
+}
+
 func TestIsDueDisabled(t *testing.T) {
 	s := &Scheduler{}
 	// isDue only checks timing; the checkAndRun loop skips disabled jobs.

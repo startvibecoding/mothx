@@ -404,7 +404,22 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 		},
 	}
 
-	a := agent.New(agentCfg, sess.Registry)
+	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
+		Config:          agentCfg,
+		MaxIterations:   d.cfg.Agent.MaxTurns,
+		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
+			// Post-tool hook (fire-and-forget)
+			if d.hooksMgr.HasPostHook() {
+				argsMap, _ := ctx2.Args.(map[string]any)
+				errMsg := ""
+				if ctx2.IsError {
+					errMsg = ctx2.Result.Content
+				}
+				d.hooksMgr.PostToolCall(ctx, ctx2.ToolCall.Name, argsMap, ctx2.Result.Content, errMsg, sess.Platform, sess.UserID)
+			}
+			return nil
+		},
+	}, sess.Registry)
 	eventCh := a.Run(ctx, userInput)
 
 	var response strings.Builder
@@ -534,7 +549,21 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 		},
 	}
 
-	a := agent.New(agentCfg, sess.Registry)
+	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
+		Config:        agentCfg,
+		MaxIterations: d.cfg.Agent.MaxTurns,
+		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
+			if d.hooksMgr.HasPostHook() {
+				argsMap, _ := ctx2.Args.(map[string]any)
+				errMsg := ""
+				if ctx2.IsError {
+					errMsg = ctx2.Result.Content
+				}
+				d.hooksMgr.PostToolCall(ctx, ctx2.ToolCall.Name, argsMap, ctx2.Result.Content, errMsg, sess.Platform, sess.UserID)
+			}
+			return nil
+		},
+	}, sess.Registry)
 	agentCh := a.Run(ctx, userInput)
 
 	for ev := range agentCh {

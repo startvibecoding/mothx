@@ -734,19 +734,21 @@ func formatTokenCount(count int) string {
 
 func newHermesCommand() *cobra.Command {
 	var (
-		flagPort      int
-		flagWorkDir   string
-		flagConfig    string
-		flagProvider  string
-		flagModel     string
+		flagPort       int
+		flagWorkDir    string
+		flagConfig     string
+		flagProvider   string
+		flagModel      string
 		flagMultiAgent bool
 		flagSandbox    bool
 		flagDaemon     bool
-		flagVerbose   bool
-		flagDebug     bool
-		flagForce     bool
-		flagProject   bool
-		flagGlobal    bool
+		flagVerbose    bool
+		flagDebug      bool
+		flagForce      bool
+		flagProject    bool
+		flagGlobal     bool
+		flagSchedule   string
+		flagOneShot    bool
 	)
 
 	hermesCmd := &cobra.Command{
@@ -970,6 +972,123 @@ func newHermesCommand() *cobra.Command {
 
 	feishuCmd.AddCommand(feishuSetupCmd, feishuStatusCmd)
 
-	hermesCmd.AddCommand(startCmd, stopCmd, statusCmd, configCmd, clientCmd, wechatCmd, feishuCmd)
+	// cron subcommand
+	cronCmd := &cobra.Command{
+		Use:   "cron",
+		Short: "Manage cron scheduled tasks",
+	}
+
+	cronListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all cron jobs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store := openCronStore()
+			jobs, err := store.List()
+			if err != nil {
+				return err
+			}
+			if len(jobs) == 0 {
+				fmt.Println("No cron jobs.")
+				return nil
+			}
+			for _, j := range jobs {
+				enabled := "✅"
+				if !j.Enabled {
+					enabled = "⏸"
+				}
+				kind := "periodic"
+				if j.OneShot {
+					kind = "one-shot"
+				}
+				fmt.Printf("%s [%s] %s (%s, %s, runs: %d)\n", enabled, j.ID, j.Name, kind, j.Schedule, j.RunCount)
+			}
+			return nil
+		},
+	}
+
+	cronAddCmd := &cobra.Command{
+		Use:   "add <name> <prompt>",
+		Short: "Add a cron job",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store := openCronStore()
+			name := args[0]
+			prompt := args[1]
+			job, err := store.Create(cron.CronJob{
+				Name:     name,
+				Prompt:   prompt,
+				Schedule: flagSchedule,
+				OneShot:  flagOneShot,
+				Enabled:  true,
+				Mode:     "yolo",
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✅ Created: [%s] %s\n", job.ID, job.Name)
+			return nil
+		},
+	}
+	cronAddCmd.Flags().StringVar(&flagSchedule, "schedule", "", "Schedule: @daily, @weekly, @every 30m, etc.")
+	cronAddCmd.Flags().BoolVar(&flagOneShot, "oneshot", false, "One-shot task (auto-disable after first run)")
+
+	cronRemoveCmd := &cobra.Command{
+		Use:   "remove <id>",
+		Short: "Remove a cron job",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			store := openCronStore()
+			if err := store.Delete(args[0]); err != nil {
+				return err
+			}
+			fmt.Printf("🗑 Removed: %s\n", args[0])
+			return nil
+		},
+	}
+
+	cronEnableCmd := &cobra.Command{
+		Use:   "enable <id>",
+		Short: "Enable a cron job",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return setCronEnabled(args[0], true)
+		},
+	}
+
+	cronDisableCmd := &cobra.Command{
+		Use:   "disable <id>",
+		Short: "Disable a cron job",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return setCronEnabled(args[0], false)
+		},
+	}
+
+	cronCmd.AddCommand(cronListCmd, cronAddCmd, cronRemoveCmd, cronEnableCmd, cronDisableCmd)
+
+	hermesCmd.AddCommand(startCmd, stopCmd, statusCmd, configCmd, clientCmd, wechatCmd, feishuCmd, cronCmd)
 	return hermesCmd
+}
+
+func openCronStore() *cron.FileCronStore {
+	path := filepath.Join(config.ConfigDir(), "hermes-cron.json")
+	return cron.NewFileCronStore(path)
+}
+
+func setCronEnabled(id string, enabled bool) error {
+	store := openCronStore()
+	job, err := store.Get(id)
+	if err != nil {
+		return err
+	}
+	job.Enabled = enabled
+	if err := store.Update(*job); err != nil {
+		return err
+	}
+	state := "enabled"
+	if !enabled {
+		state = "disabled"
+	}
+	fmt.Printf("✅ %s: [%s] %s\n", state, job.ID, job.Name)
+	return nil
 }

@@ -1375,13 +1375,13 @@ hermes server (internal/hermes/)
 - [x] `internal/memory/tool.go` — memory 工具（read/add/update/delete）
 - [x] System prompt guidelines 添加静态 memory 提示
 - [x] memory.md 默认写入项目目录（只有显式配置 `memory.path` 才写全局）
-- [ ] Budget Pressure — tool result 注入预算警告
+- [x] Budget Pressure — MaxIterations 从 hermes config `agent.max_turns` 注入
 - [ ] Context Pressure — compaction 阈值警告
 
 ### Phase 3: 安全层
 
 - [x] Smart Approvals — 命令危险性分类（默认 yolo 模式）
-- [ ] Shell Hooks — 外部脚本调用框架
+- [x] Shell Hooks — pre/post tool call 外部脚本（已接入 AfterToolCall）
 - [x] 用户白名单验证
 
 ### Phase 4: 微信网关
@@ -1410,8 +1410,8 @@ hermes server (internal/hermes/)
 - [ ] `internal/hermes/a2a/executor.go` — AgentExecutor 实现（A2A Task → agent loop）
 - [ ] SSE 流式响应支持
 - [x] `internal/hermes/webhook/` — HTTP 入站 webhook 路由
-- [ ] Webhook 路由 → Agent 任务
-- [ ] Cron 管理 CLI 命令完善
+- [x] Webhook 路由 → Agent 任务（webhook_handler.go）
+- [x] Cron 管理 CLI 命令完善（vibecoding hermes cron list/add/remove/enable/disable）
 
 ### Phase 7: 文档 & 测试
 
@@ -1419,7 +1419,7 @@ hermes server (internal/hermes/)
 - [ ] hermes.json 配置文档（含全局/项目级层级说明）
 - [ ] 微信 iLink / 飞书 Bot 设置指南
 - [ ] A2A Server 接入文档
-- [ ] 单元测试
+- [x] 单元测试（schedule, progress buffer, security, config, cron tool, webhook handler）
 - [ ] 集成测试
 
 ---
