@@ -8,7 +8,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - UI: Bubble Tea + Lipgloss
 - CLI: Cobra
 - Default working style: terminal-first, tool-driven
-- Main purpose: a terminal AI coding assistant with provider abstraction, sessions, tools, sandboxing, context files, and skills
+- Main purpose: a terminal AI coding assistant with provider abstraction, sessions, tools, sandboxing, context files, skills, and an OpenAI-compatible HTTP gateway
 
 ## Important Directories
 
@@ -26,6 +26,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/tools/` — built-in tools
 - `internal/tui/` — terminal UI
 - `internal/acp/` — ACP / MCP related integration
+- `internal/gateway/` — OpenAI-compatible HTTP gateway mode
 - `internal/vendored/` — embedded `rg` / `fd`
 - `docs/` — documentation
 
@@ -41,6 +42,19 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - Tools should stay stateless when possible; shared execution state belongs in registries/managers.
 - Context files and skills are first-class prompt inputs.
 - Sessions are stored as JSONL with parent/child relationships.
+
+### Gateway Mode
+
+- `internal/gateway/` implements an HTTP server exposing a standard OpenAI Chat Completions API.
+- Gateway reuses the same agent loop, provider factory, session, tools, sandbox, and skills as CLI/ACP — no separate agent logic.
+- Configuration lives in `gateway.json` (global `~/.config/vibecoding/gateway.json`, project `.vibe/gateway.json`), separate from `settings.json`.
+- Project-level `.vibe/gateway.json` overrides global, same pattern as `.vibe/settings.json`.
+- Gateway supports slash commands (`/clear`, `/mode`, `/compact`, etc.) processed at the HTTP layer without invoking the LLM.
+- Tool output visibility (`toolVisibility.mode` + `toolVisibility.detail`) is configurable: collapsed (default, one-line summary) or expanded (full code fences).
+- `edit`/`write` diffs and errors always show in full regardless of detail level.
+- When `x_session_id` is empty, the gateway reuses a default session so consecutive requests share context.
+- Security: three independent layers — Bearer token auth, `allowedWorkDirs` whitelist, sandbox (bwrap).
+- No external HTTP framework; uses `net/http` standard library.
 
 ## Working Rules
 
@@ -76,6 +90,14 @@ Built-in tools include:
 - `yolo`: all tools auto-execute
 
 When changing code, prefer the least risky approach that satisfies the request.
+
+## Gateway-Specific Notes
+
+- Gateway-only config belongs in `internal/gateway/config.go`, not in `internal/config/settings.go`.
+- Tool output formatting (collapsed/expanded, markdown code fences) belongs in `internal/gateway/tool_format.go`.
+- Slash command handlers belong in `internal/gateway/commands.go`, kept separate from TUI commands (different dependencies).
+- The `resolveToolEvent()` helper in `handler_chat.go` handles the fact that `EventToolCall` carries tool name in `ev.ToolCall.Name` (not `ev.ToolName`).
+- When adding new slash commands, add to both gateway `commands.go` and TUI `commands.go` to keep feature parity.
 
 ## Docs and Release Notes
 
