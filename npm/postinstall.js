@@ -15,8 +15,7 @@ function isMusl() {
   } catch {
     // ldd not found or error, check for musl library
     try {
-      fs.readdirSync('/lib').some(f => f.startsWith('ld-musl'));
-      return true;
+      return fs.readdirSync('/lib').some(f => f.startsWith('ld-musl'));
     } catch {
       return false;
     }
@@ -86,6 +85,43 @@ function main() {
   }
 
   console.log(`VibeCoding installed successfully (${key})`);
+  console.log('');
+  console.log('  Install directory: ' + destPath);
+
+  // Config directory
+  const homeDir = require('os').homedir();
+  const configDir = isWindows
+    ? path.join(process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'), 'vibecoding')
+    : path.join(homeDir, '.vibecoding');
+  console.log('  Config directory : ' + configDir);
+  console.log('    - Settings file: ' + path.join(configDir, 'settings.json'));
+  console.log('');
+
+  if (!isWindows) {
+    console.log('  If "vibecoding" command is not found, add to your PATH:');
+    console.log('');
+    console.log('    # Bash:');
+    console.log(`    export PATH="${path.dirname(destPath)}:$PATH"`);
+    console.log('');
+    console.log('    # Zsh:');
+    console.log(`    export PATH="${path.dirname(destPath)}:$PATH"`);
+    console.log('');
+    console.log('    # Fish:');
+    console.log(`    set -gx PATH ${path.dirname(destPath)} $PATH`);
+  } else {
+    console.log('  If "vibecoding" command is not found, add to your PATH:');
+    console.log('');
+    console.log('    # PowerShell (current session):');
+    console.log(`    $env:Path += ";${path.dirname(destPath)}"`);
+    console.log('');
+    console.log('    # PowerShell (permanent):');
+    console.log(`    [Environment]::SetEnvironmentVariable('Path', $env:Path + ';${path.dirname(destPath)}', 'User')`);
+    console.log('');
+    console.log('    # CMD (permanent):');
+    console.log(`    setx Path "%Path%;${path.dirname(destPath)}"`);
+  }
+  console.log('');
+  console.log('  Or run directly: npx vibecoding');
 }
 
 main();

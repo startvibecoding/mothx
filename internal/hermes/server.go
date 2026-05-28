@@ -1,0 +1,342 @@
+package hermes
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/vibecoding/internal/hermes/webhook"
+	"github.com/startvibecoding/vibecoding/internal/hermes/ws"
+	"github.com/startvibecoding/vibecoding/internal/messaging"
+	"github.com/startvibecoding/vibecoding/internal/messaging/feishu"
+	"github.com/startvibecoding/vibecoding/internal/messaging/wechat"
+)
+
+// RunOptions holds CLI flags for the hermes start command.
+type RunOptions struct {
+	ConfigPath string
+	Port       int
+	WorkDir    string
+	Provider   string
+	Model      string
+	MultiAgent bool
+	Sandbox    bool
+	Daemon     bool
+	Verbose    bool
+	Debug      bool
+}
+
+// Server is the Hermes daemon.
+type Server struct {
+	cfg        *HermesConfig
+	settings   *config.Settings
+	version    string
+	gateway    *ws.Gateway
+	dispatcher *Dispatcher
+	platforms  []messaging.Platform
+}
+
+// Run starts the Hermes server.
+func Run(opts RunOptions, version string) error {
+	config.Verbose = opts.Verbose || opts.Debug
+	if opts.Debug {
+		_ = os.Setenv("VIBECODING_DEBUG", "1")
+	}
+
+	// Load settings.json
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return fmt.Errorf("load settings: %w", err)
+	}
+
+	// Load hermes.json
+	var cfg *HermesConfig
+	if opts.ConfigPath != "" {
+		cfg, err = LoadHermesConfigFrom(opts.ConfigPath)
+	} else {
+		cfg, err = LoadHermesConfig()
+	}
+	if err != nil {
+		return fmt.Errorf("load hermes config: %w", err)
+	}
+
+	// CLI flag overrides
+	if opts.Port != 0 {
+		cfg.Server.Port = opts.Port
+	}
+	if opts.WorkDir != "" {
+		cfg.WorkDir = opts.WorkDir
+	}
+	if opts.Provider != "" {
+		cfg.DefaultProvider = opts.Provider
+	}
+	if opts.Model != "" {
+		cfg.DefaultModel = opts.Model
+	}
+	if opts.MultiAgent {
+		cfg.MultiAgent = true
+	}
+	if opts.Sandbox {
+		cfg.Sandbox = true
+	}
+
+	// Resolve working directory
+	if cfg.WorkDir == "" || cfg.WorkDir == "." {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("get working directory: %w", err)
+		}
+		cfg.WorkDir = cwd
+	}
+
+	// Create dispatcher
+	dispatcher, err := NewDispatcher(cfg, settings, version)
+	if err != nil {
+		return fmt.Errorf("create dispatcher: %w", err)
+	}
+
+	// Create gateway
+	gw := ws.NewGateway(cfg.GetListenAddr(), cfg.Server.AuthToken, version)
+	gw.SetDispatcher(newWSDispatcherAdapter(dispatcher))
+
+	// Register webhook routes if configured
+	if cfg.Webhooks.Enabled && len(cfg.Webhooks.Routes) > 0 {
+		var routes []webhook.RouteConfig
+		for _, r := range cfg.Webhooks.Routes {
+			routes = append(routes, webhook.RouteConfig{
+				Path:     r.Path,
+				Events:   r.Events,
+				Skill:    r.Skill,
+				Delivery: r.Delivery,
+			})
+		}
+		router := webhook.NewRouter(routes, cfg.Webhooks.Secret, nil) // TODO: handler
+		gw.RegisterHandler("/webhook/", router)
+	}
+
+	srv := &Server{
+		cfg:        cfg,
+		settings:   settings,
+		version:    version,
+		gateway:    gw,
+		dispatcher: dispatcher,
+	}
+
+	// Print startup info
+	fmt.Fprintf(os.Stderr, "VibeCoding Hermes v%s starting\n", version)
+	fmt.Fprintf(os.Stderr, "  Gateway: http://%s\n", cfg.GetListenAddr())
+	fmt.Fprintf(os.Stderr, "  WebSocket: ws://%s/ws\n", cfg.GetListenAddr())
+	fmt.Fprintf(os.Stderr, "  WorkDir: %s\n", cfg.GetWorkDir())
+	fmt.Fprintf(os.Stderr, "  Provider: %s\n", cfg.GetDefaultProvider(settings.DefaultProvider))
+	fmt.Fprintf(os.Stderr, "  Model: %s\n", cfg.GetDefaultModel(settings.DefaultModel))
+	if cfg.Server.AuthToken != "" {
+		fmt.Fprintf(os.Stderr, "  Auth: enabled\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "  Auth: disabled\n")
+	}
+	if cfg.MultiAgent {
+		fmt.Fprintf(os.Stderr, "  Multi-agent: enabled\n")
+	}
+	if cfg.Sandbox {
+		fmt.Fprintf(os.Stderr, "  Sandbox: enabled\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "  Sandbox: disabled\n")
+	}
+
+	// Start messaging platforms
+	srv.startPlatforms()
+
+	// Start gateway (blocking)
+	errCh := make(chan error, 1)
+	go func() {
+		if err := gw.Start(); err != nil && err != http.ErrServerClosed {
+			errCh <- err
+		}
+	}()
+
+	fmt.Fprintf(os.Stderr, "\nReady to serve.\n")
+
+	// Wait for interrupt
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-errCh:
+		return fmt.Errorf("gateway error: %w", err)
+	case sig := <-sigCh:
+		fmt.Fprintf(os.Stderr, "\nReceived %s, shutting down...\n", sig)
+		srv.stop()
+	}
+
+	return nil
+}
+
+// startPlatforms connects to enabled messaging platforms.
+func (srv *Server) startPlatforms() {
+	if srv.cfg.Wechat.Enabled {
+		credPath := srv.cfg.GetWechatCredPath()
+		creds, err := wechat.LoadCredentials(credPath)
+		if err != nil || creds == nil {
+			fmt.Fprintf(os.Stderr, "  WeChat: enabled but not logged in — run 'vibecoding hermes wechat login'\n")
+		} else {
+			bot := wechat.NewBot(wechat.BotOptions{
+				CredPath:   credPath,
+				AutoTyping: srv.cfg.Wechat.AutoTyping,
+			})
+			srv.platforms = append(srv.platforms, bot)
+			fmt.Fprintf(os.Stderr, "  WeChat: connected (user: %s, work_dir: %s)\n", creds.UserID, srv.cfg.GetPlatformWorkDir("wechat"))
+
+			// Start in background
+			go func() {
+				if err := bot.Start(context.Background(), func(ctx context.Context, msg messaging.InboundMessage) (string, error) {
+					return srv.dispatcher.HandleMessage(ctx, msg)
+				}); err != nil {
+					log.Printf("[wechat] Platform stopped: %v", err)
+				}
+			}()
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "  WeChat: disabled\n")
+	}
+
+	if srv.cfg.Feishu.Enabled {
+		if srv.cfg.Feishu.AppID == "" || srv.cfg.Feishu.AppSecret == "" {
+			fmt.Fprintf(os.Stderr, "  Feishu: enabled but app_id/app_secret not configured\n")
+		} else {
+			bot := feishu.NewBot(feishu.BotOptions{
+				AppID:     srv.cfg.Feishu.AppID,
+				AppSecret: srv.cfg.Feishu.AppSecret,
+			})
+			srv.platforms = append(srv.platforms, bot)
+			fmt.Fprintf(os.Stderr, "  Feishu: connecting (work_dir: %s)\n", srv.cfg.GetPlatformWorkDir("feishu"))
+
+			go func() {
+				if err := bot.Start(context.Background(), func(ctx context.Context, msg messaging.InboundMessage) (string, error) {
+					return srv.dispatcher.HandleMessage(ctx, msg)
+				}); err != nil {
+					log.Printf("[feishu] Platform stopped: %v", err)
+				}
+			}()
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "  Feishu: disabled\n")
+	}
+
+	if srv.cfg.Cron.Enabled {
+		fmt.Fprintf(os.Stderr, "  Cron: enabled\n")
+	}
+
+	if srv.cfg.A2A.Enabled {
+		fmt.Fprintf(os.Stderr, "  A2A: enabled\n")
+	}
+}
+
+// stop gracefully shuts down all components.
+func (srv *Server) stop() {
+	// Stop messaging platforms
+	for _, p := range srv.platforms {
+		log.Printf("Stopping platform: %s", p.Name())
+		p.Stop()
+	}
+
+	// Stop gateway
+	if err := srv.gateway.Stop(10 * time.Second); err != nil {
+		log.Printf("Gateway shutdown error: %v", err)
+	}
+}
+
+// --- WS Dispatcher adapter ---
+// Bridges hermes.Dispatcher to ws.Dispatcher interface.
+
+type wsDispatcherAdapter struct {
+	d *Dispatcher
+}
+
+func newWSDispatcherAdapter(d *Dispatcher) *wsDispatcherAdapter {
+	return &wsDispatcherAdapter{d: d}
+}
+
+func (a *wsDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, text string, eventCh chan<- ws.WSEvent) error {
+	// Bridge: run dispatcher and convert agent events to ws events
+	agentEventCh := make(chan interface{}, 100)
+
+	// For now, use the simple command handler path
+	if len(text) > 0 && text[0] == '/' {
+		result := a.d.handleCommandForWS(connID, text)
+		eventCh <- ws.WSEvent{
+			Type:    "command_result",
+			Command: text,
+			Message: result,
+		}
+		eventCh <- ws.WSEvent{Type: "done", StopReason: "end_turn"}
+		return nil
+	}
+
+	// Regular message — run agent
+	sess, err := a.d.resolveSession("ws", connID)
+	if err != nil {
+		return err
+	}
+
+	sess.Lock()
+	defer sess.Unlock()
+	sess.Touch()
+
+	// Run agent synchronously for now, collect text
+	result, err := a.d.runAgent(ctx, sess, text, nil)
+	if err != nil {
+		eventCh <- ws.WSEvent{Type: "error", Message: err.Error()}
+		return nil
+	}
+
+	// Send as text delta + done
+	eventCh <- ws.WSEvent{Type: "text_delta", Content: result}
+	eventCh <- ws.WSEvent{Type: "done", StopReason: "end_turn"}
+
+	// Drain unused channel
+	go func() {
+		for range agentEventCh {
+		}
+	}()
+
+	return nil
+}
+
+func (a *wsDispatcherAdapter) ListSessions() []ws.SessionInfo {
+	sessions := a.d.ListSessions()
+	result := make([]ws.SessionInfo, 0, len(sessions))
+	for _, s := range sessions {
+		msgs := s.Manager.GetMessages()
+		preview := ""
+		for _, m := range msgs {
+			if m.Role == "user" {
+				preview = m.Content
+				if len(preview) > 60 {
+					preview = preview[:60] + "..."
+				}
+				break
+			}
+		}
+		result = append(result, ws.SessionInfo{
+			ID:           s.ID,
+			Platform:     s.Platform,
+			UserID:       s.UserID,
+			WorkDir:      s.WorkDir,
+			Mode:         s.Mode,
+			MessageCount: len(msgs),
+			LastActive:   s.LastUsed,
+			Preview:      preview,
+		})
+	}
+	return result
+}
+
+func (a *wsDispatcherAdapter) RemoveSession(key string) {
+	a.d.RemoveSession(key)
+}

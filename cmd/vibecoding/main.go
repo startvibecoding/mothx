@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"context"
 	"fmt"
 	"io"
@@ -21,6 +22,8 @@ import (
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
 	"github.com/startvibecoding/vibecoding/internal/gateway"
+	"github.com/startvibecoding/vibecoding/internal/hermes"
+	"github.com/startvibecoding/vibecoding/internal/messaging/wechat"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
@@ -181,6 +184,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 
 	rootCmd.AddCommand(acpCmd)
 	rootCmd.AddCommand(gatewayCmd)
+	rootCmd.AddCommand(newHermesCommand())
 	return rootCmd
 }
 
@@ -713,4 +717,248 @@ func formatTokenCount(count int) string {
 		return fmt.Sprintf("%.1fM", float64(count)/1000000)
 	}
 	return fmt.Sprintf("%dM", count/1000000)
+}
+
+// --- Hermes subcommand ---
+
+func newHermesCommand() *cobra.Command {
+	var (
+		flagPort      int
+		flagWorkDir   string
+		flagConfig    string
+		flagProvider  string
+		flagModel     string
+		flagMultiAgent bool
+		flagSandbox    bool
+		flagDaemon     bool
+		flagVerbose   bool
+		flagDebug     bool
+		flagForce     bool
+		flagProject   bool
+		flagGlobal    bool
+	)
+
+	hermesCmd := &cobra.Command{
+		Use:   "hermes",
+		Short: "Run the Hermes messaging gateway",
+		Long:  "Start VibeCoding Hermes — a messaging gateway with WebSocket/HTTP API, WeChat, Feishu, and more.",
+	}
+
+	startCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the Hermes daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return hermes.Run(hermes.RunOptions{
+				ConfigPath: flagConfig,
+				Port:       flagPort,
+				WorkDir:    flagWorkDir,
+				Provider:   flagProvider,
+				Model:      flagModel,
+				MultiAgent: flagMultiAgent,
+				Sandbox:    flagSandbox,
+				Daemon:     flagDaemon,
+				Verbose:    flagVerbose,
+				Debug:      flagDebug,
+			}, version)
+		},
+	}
+
+	startFlags := startCmd.Flags()
+	startFlags.IntVar(&flagPort, "port", 0, "Listen port (default: from hermes.json or 8090)")
+	startFlags.StringVar(&flagWorkDir, "work-dir", "", "Default working directory")
+	startFlags.StringVar(&flagConfig, "config", "", "Path to hermes.json")
+	startFlags.StringVarP(&flagProvider, "provider", "p", "", "Default provider name (overrides hermes.json)")
+	startFlags.StringVarP(&flagModel, "model", "m", "", "Default model ID (overrides hermes.json)")
+	startFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	startFlags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox mode (bwrap)")
+	startFlags.BoolVarP(&flagDaemon, "daemon", "d", false, "Run in background")
+	startFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
+	startFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
+
+	stopCmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the Hermes daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(os.Stderr, "hermes stop: not yet implemented")
+			return nil
+		},
+	}
+
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show Hermes daemon status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(os.Stderr, "hermes status: not yet implemented")
+			return nil
+		},
+	}
+
+	// config subcommand
+	configCmd := &cobra.Command{
+		Use:   "config",
+		Short: "Manage Hermes configuration",
+	}
+
+	configInitCmd := &cobra.Command{
+		Use:   "init",
+		Short: "Create hermes.json config template",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if flagProject && flagGlobal {
+				return fmt.Errorf("--project and --global are mutually exclusive")
+			}
+			path, err := hermes.InitHermesConfig(flagProject, flagForce)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Created hermes config: %s\n", path)
+			return nil
+		},
+	}
+	configInitCmd.Flags().BoolVar(&flagProject, "project", false, "Write to .vibe/hermes.json")
+	configInitCmd.Flags().BoolVar(&flagGlobal, "global", false, "Write to global hermes.json (default)")
+	configInitCmd.Flags().BoolVar(&flagForce, "force", false, "Overwrite existing file")
+
+	configShowCmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show current effective configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := hermes.LoadHermesConfig()
+			if err != nil {
+				return err
+			}
+			data, _ := json.MarshalIndent(cfg, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		},
+	}
+
+	configCmd.AddCommand(configInitCmd, configShowCmd)
+
+	// client subcommand
+	var flagURL string
+	var flagSession string
+
+	clientCmd := &cobra.Command{
+		Use:   "client",
+		Short: "Connect to a running Hermes instance via WebSocket",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(os.Stderr, "hermes client: not yet implemented")
+			return nil
+		},
+	}
+	clientCmd.Flags().StringVar(&flagURL, "url", "ws://localhost:8090/ws", "WebSocket URL to connect to")
+	clientCmd.Flags().StringVar(&flagSession, "session", "", "Session ID to resume")
+
+	// wechat subcommand
+	wechatCmd := &cobra.Command{
+		Use:   "wechat",
+		Short: "Manage WeChat iLink connection",
+	}
+
+	wechatLoginCmd := &cobra.Command{
+		Use:   "login",
+		Short: "Login to WeChat via QR code",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := hermes.LoadHermesConfig()
+			if err != nil {
+				return err
+			}
+			credPath := cfg.GetWechatCredPath()
+			client := wechat.NewClient()
+			_, err = wechat.Login(cmd.Context(), client, wechat.LoginOptions{
+				CredPath: credPath,
+				Force:    flagForce,
+			})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "WeChat credentials saved to %s\n", credPath)
+			return nil
+		},
+	}
+	wechatLoginCmd.Flags().BoolVar(&flagForce, "force", false, "Force re-login even if credentials exist")
+
+	wechatStatusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show WeChat connection status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := hermes.LoadHermesConfig()
+			if err != nil {
+				return err
+			}
+			credPath := cfg.GetWechatCredPath()
+			creds, err := wechat.LoadCredentials(credPath)
+			if err != nil || creds == nil {
+				fmt.Fprintln(os.Stderr, "WeChat: not logged in")
+				fmt.Fprintf(os.Stderr, "  Run: vibecoding hermes wechat login\n")
+				return nil
+			}
+			fmt.Fprintf(os.Stderr, "WeChat: logged in\n")
+			fmt.Fprintf(os.Stderr, "  UserID: %s\n", creds.UserID)
+			fmt.Fprintf(os.Stderr, "  AccountID: %s\n", creds.AccountID)
+			fmt.Fprintf(os.Stderr, "  SavedAt: %s\n", creds.SavedAt)
+			fmt.Fprintf(os.Stderr, "  CredPath: %s\n", credPath)
+			return nil
+		},
+	}
+
+	wechatCmd.AddCommand(wechatLoginCmd, wechatStatusCmd)
+
+	// feishu subcommand
+	feishuCmd := &cobra.Command{
+		Use:   "feishu",
+		Short: "Manage Feishu (Lark) connection",
+	}
+
+	feishuSetupCmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Configure Feishu app credentials",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(os.Stderr, "Configure Feishu app credentials in hermes.json:")
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintln(os.Stderr, `  "feishu": {`)
+			fmt.Fprintln(os.Stderr, `    "enabled": true,`)
+			fmt.Fprintln(os.Stderr, `    "app_id": "cli_xxxx",`)
+			fmt.Fprintln(os.Stderr, `    "app_secret": "xxxx"`)
+			fmt.Fprintln(os.Stderr, `  }`)
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintln(os.Stderr, "Or set environment variables: FEISHU_APP_ID, FEISHU_APP_SECRET")
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintln(os.Stderr, "Steps:")
+			fmt.Fprintln(os.Stderr, "  1. Go to https://open.feishu.cn → Create App")
+			fmt.Fprintln(os.Stderr, "  2. Enable Bot capability")
+			fmt.Fprintln(os.Stderr, "  3. Subscribe to im.message.receive_v1 event")
+			fmt.Fprintln(os.Stderr, "  4. Copy App ID and App Secret to hermes.json")
+			return nil
+		},
+	}
+
+	feishuStatusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show Feishu connection status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := hermes.LoadHermesConfig()
+			if err != nil {
+				return err
+			}
+			if !cfg.Feishu.Enabled {
+				fmt.Fprintln(os.Stderr, "Feishu: disabled")
+				return nil
+			}
+			if cfg.Feishu.AppID == "" || cfg.Feishu.AppSecret == "" {
+				fmt.Fprintln(os.Stderr, "Feishu: enabled but not configured")
+				fmt.Fprintln(os.Stderr, "  Run: vibecoding hermes feishu setup")
+				return nil
+			}
+			fmt.Fprintln(os.Stderr, "Feishu: configured")
+			fmt.Fprintf(os.Stderr, "  AppID: %s\n", cfg.Feishu.AppID)
+			fmt.Fprintf(os.Stderr, "  WorkDir: %s\n", cfg.GetPlatformWorkDir("feishu"))
+			return nil
+		},
+	}
+
+	feishuCmd.AddCommand(feishuSetupCmd, feishuStatusCmd)
+
+	hermesCmd.AddCommand(startCmd, stopCmd, statusCmd, configCmd, clientCmd, wechatCmd, feishuCmd)
+	return hermesCmd
 }

@@ -1,6 +1,50 @@
 # Changelog
 
 
+## v0.1.27 (in progress)
+
+### ✨ Features
+
+- **Hermes Mode** (`vibecoding hermes`)
+  - New messaging gateway mode for WeChat, Feishu, and WebSocket
+  - Persistent per-user sessions with auto-archiving on `/new`
+  - Default `yolo` mode for unattended operation
+  - Smart approvals with command risk classification
+  - User whitelist for platform access control
+
+- **Provider/Model Configuration**
+  - `default_provider` / `default_model` in `hermes.json` (overrides `settings.json`)
+  - CLI flags `-p`/`--provider` and `-m`/`--model` for `hermes start`
+  - Priority: CLI flags > `hermes.json` > `settings.json`
+
+- **Multi-Agent Mode** (`--multi-agent`)
+  - Enables sub-agent tools (spawn/status/send/destroy) in hermes sessions
+  - Configurable via `hermes.json` `multi_agent` field or `--multi-agent` CLI flag
+
+- **Sandbox Mode** (`--sandbox`)
+  - Optional bwrap sandbox isolation (disabled by default)
+  - Configurable via `hermes.json` `sandbox` field or `--sandbox` CLI flag
+
+- **MCP Integration**
+  - Hermes automatically loads MCP servers from global/project `mcp.json`
+  - MCP tools registered per-session, connections auto-closed on session removal
+
+- **Progress Events for Messaging Platforms**
+  - Real-time tool execution progress sent to WeChat/Feishu during agent runs
+  - Format: `[tool]: args ✅/❌` for tools, `💭 ...` for thinking process
+  - Final summary sent after agent completes
+
+- **Memory Defaults to Project Directory**
+  - `memory.md` now defaults to `.vibe/memory.md` (project directory)
+  - Only writes to global directory when `memory.path` is explicitly configured
+
+### 📝 Changes
+
+- WeChat iLink implementation with zero external dependencies
+- Feishu bot with official SDK and WebSocket long-connection
+- Shell hooks for pre/post tool call external scripts
+- Webhook inbound routing
+
 ## v0.1.26
 
 ### ✨ Features

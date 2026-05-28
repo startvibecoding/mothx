@@ -1,6 +1,50 @@
 # 更新日志
 
 
+## v0.1.27 (开发中)
+
+### ✨ 新功能
+
+- **Hermes 模式** (`vibecoding hermes`)
+  - 新增消息平台网关模式，支持微信、飞书和 WebSocket
+  - 持久化 per-user session，`/new` 时自动归档
+  - 默认 `yolo` 模式，适合无人值守场景
+  - 智能审批 + 命令风险分类
+  - 用户白名单访问控制
+
+- **Provider/Model 配置**
+  - `hermes.json` 新增 `default_provider` / `default_model`（覆盖 `settings.json`）
+  - `hermes start` 新增 `-p`/`--provider` 和 `-m`/`--model` CLI 标志
+  - 优先级：CLI 标志 > `hermes.json` > `settings.json`
+
+- **多 Agent 模式** (`--multi-agent`)
+  - 启用子 Agent 工具（spawn/status/send/destroy）
+  - 通过 `hermes.json` 的 `multi_agent` 字段或 `--multi-agent` CLI 标志配置
+
+- **Sandbox 模式** (`--sandbox`)
+  - 可选 bwrap 沙箱隔离（默认关闭）
+  - 通过 `hermes.json` 的 `sandbox` 字段或 `--sandbox` CLI 标志配置
+
+- **MCP 工具继承**
+  - Hermes 自动加载全局/项目 `mcp.json` 中的 MCP 服务器
+  - MCP 工具按 session 注册，session 移除时自动关闭连接
+
+- **消息平台进度事件推送**
+  - agent 执行过程中实时向微信/飞书推送工具执行进度
+  - 格式：`[tool]: args ✅/❌`（工具）、`💭 ...`（思考过程）
+  - agent 完成后发送完整总结
+
+- **memory.md 默认写入项目目录**
+  - 默认创建在 `.vibe/memory.md`（项目目录）
+  - 只有显式配置 `memory.path` 时才写入全局目录
+
+### 📝 变更
+
+- 微信 iLink 协议实现，零外部依赖
+- 飞书 Bot 使用官方 SDK + WebSocket 长连接
+- Shell Hooks 支持 pre/post tool call 外部脚本
+- Webhook 入站路由
+
 ## v0.1.26
 
 ### ✨ 新功能

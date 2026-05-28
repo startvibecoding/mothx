@@ -17,6 +17,9 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/config/` — settings and defaults
 - `internal/context/` — context window and compaction
 - `internal/contextfiles/` — `AGENTS.md` / `CLAUDE.md` discovery
+- `internal/hermes/` — Hermes messaging gateway mode
+- `internal/memory/` — persistent memory (memory.md)
+- `internal/messaging/` — messaging platform abstraction (wechat, feishu)
 - `internal/provider/` — provider abstraction and implementations
 - `internal/provider/factory/` — shared provider/model construction from config
 - `internal/provider/vendor*.go` — vendor adapter registry and per-vendor defaults
@@ -55,6 +58,23 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - When `x_session_id` is empty, the gateway reuses a default session so consecutive requests share context.
 - Security: three independent layers — Bearer token auth, `allowedWorkDirs` whitelist, sandbox (bwrap).
 - No external HTTP framework; uses `net/http` standard library.
+
+### Hermes Mode
+
+- `internal/hermes/` implements a messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
+- Hermes reuses the same agent loop, provider factory, session, tools, sandbox, skills, and MCP as CLI/ACP.
+- Configuration lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.vibe/hermes.json`).
+- Per-user sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.jsonl`.
+- Default mode is `yolo` (not `agent`) — messaging platforms are unattended by nature.
+- `default_provider` / `default_model` in hermes.json override settings.json; CLI `-p`/`-m` override hermes.json.
+- `multi_agent` enables sub-agent tools (spawn/status/send/destroy).
+- `sandbox` enables bwrap sandbox (default off).
+- MCP servers from global/project `mcp.json` are loaded per-session and auto-closed on removal.
+- memory.md defaults to project directory (`.vibe/memory.md`); only uses global when `memory.path` is explicitly set.
+- Progress events (tool execution + thinking) are sent to messaging platforms via `InboundMessage.ProgressFunc`.
+- The `messaging.InboundMessage.ProgressFunc` callback is set by each platform bot; nil means no progress updates.
+- `formatToolProgress` in `dispatcher.go` formats tool events as `[tool]: args ✅/❌`.
+- Think deltas are accumulated and flushed as `💭 ...` (truncated to 500 chars) before tool/text events.
 
 ## Working Rules
 
