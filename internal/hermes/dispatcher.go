@@ -420,6 +420,12 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 			return nil
 		},
 	}, sess.Registry)
+
+	// Load session history so the agent has conversation context
+	if history := sess.Manager.GetMessages(); len(history) > 0 {
+		a.LoadHistoryMessages(history)
+	}
+
 	eventCh := a.Run(ctx, userInput)
 
 	var response strings.Builder
@@ -572,6 +578,12 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 			return nil
 		},
 	}, sess.Registry)
+
+	// Load session history so the agent has conversation context
+	if history := sess.Manager.GetMessages(); len(history) > 0 {
+		a.LoadHistoryMessages(history)
+	}
+
 	agentCh := a.Run(ctx, userInput)
 
 	for ev := range agentCh {
