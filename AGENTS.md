@@ -101,5 +101,5 @@ Common commands:
 
 ## Versioning Note
 
-Current version: `v0.1.25`
-Next version: `v0.1.26` — Gateway Mode (see `docs/gateway-proposal.md`)
+Current version: `v0.1.26`
+Next version: `v0.1.27`
