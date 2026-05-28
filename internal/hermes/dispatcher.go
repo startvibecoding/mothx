@@ -14,6 +14,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
+	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/hermes/hooks"
 	"github.com/startvibecoding/vibecoding/internal/memory"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
@@ -43,6 +44,10 @@ type Dispatcher struct {
 	// Multi-agent mode
 	multiAgent bool
 	agentMgr   *agent.AgentManager
+
+	// Cron
+	cronStore  cron.CronStore
+	scheduler  *cron.Scheduler
 
 	// Sandbox mode
 	sandbox bool
@@ -75,7 +80,7 @@ func (s *HermesSession) Unlock() { s.mu.Unlock() }
 func (s *HermesSession) Touch() { s.LastUsed = time.Now() }
 
 // NewDispatcher creates a dispatcher with the given configuration.
-func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string) (*Dispatcher, error) {
+func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string, cronStore cron.CronStore, scheduler *cron.Scheduler) (*Dispatcher, error) {
 	providerName := cfg.GetDefaultProvider(settings.DefaultProvider)
 	modelID := cfg.GetDefaultModel(settings.DefaultModel)
 
@@ -95,6 +100,8 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string)
 		model:      model,
 		multiAgent: cfg.MultiAgent,
 		sandbox:    cfg.Sandbox,
+		cronStore:  cronStore,
+		scheduler:  scheduler,
 		sessions:   make(map[string]*HermesSession),
 	}
 
@@ -249,6 +256,11 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 		reg.Register(agent.NewSubAgentStatusTool(d.agentMgr))
 		reg.Register(agent.NewSubAgentSendTool(d.agentMgr))
 		reg.Register(agent.NewSubAgentDestroyTool(d.agentMgr))
+	}
+
+	// Register cron tool when cron store is available
+	if d.cronStore != nil {
+		reg.Register(cron.NewCronTool(d.cronStore, d.scheduler))
 	}
 
 	// Load and connect MCP servers

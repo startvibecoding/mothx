@@ -76,7 +76,9 @@ type A2AConfig struct {
 
 // CronConfig defines cron scheduler settings.
 type CronConfig struct {
-	Enabled bool `json:"enabled"`
+	Enabled  bool   `json:"enabled"`
+	StorePath string `json:"store_path,omitempty"` // empty = <sessionDir>/hermes/cron.json
+	Interval int    `json:"interval,omitempty"`    // seconds between checks (default 30)
 }
 
 // MemoryConfig defines persistent memory settings.

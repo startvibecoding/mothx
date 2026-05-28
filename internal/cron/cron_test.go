@@ -248,12 +248,23 @@ func TestIsDueRecentRun(t *testing.T) {
 
 func TestIsDueOldRun(t *testing.T) {
 	s := &Scheduler{}
+	// A job with no NextRun and already run — should NOT be due (one-shot already done)
 	job := CronJob{
 		Enabled: true,
 		LastRun: time.Now().Add(-2 * time.Hour),
 	}
-	if !s.isDue(job, time.Now()) {
-		t.Error("expected due for old run (>1h)")
+	if s.isDue(job, time.Now()) {
+		t.Error("expected not due — no NextRun set, one-shot already completed")
+	}
+
+	// A job with NextRun in the past — should be due
+	job2 := CronJob{
+		Enabled: true,
+		LastRun: time.Now().Add(-2 * time.Hour),
+		NextRun: time.Now().Add(-30 * time.Minute),
+	}
+	if !s.isDue(job2, time.Now()) {
+		t.Error("expected due — NextRun is in the past")
 	}
 }
 

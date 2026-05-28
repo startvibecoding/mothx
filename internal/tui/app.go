@@ -16,6 +16,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
@@ -171,6 +172,10 @@ type App struct {
 	activeAgent agentpkg.AgentID
 	agentMgr    *agent.AgentManager
 
+	// Cron state
+	cronStore  cron.CronStore
+	scheduler  *cron.Scheduler
+
 	// Current streaming message indices (-1 = none)
 	currentAssistantIdx int
 	currentThinkIdx     int
@@ -194,7 +199,7 @@ type pendingApproval struct {
 }
 
 // NewApp creates a new TUI application.
-func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, agentMgr *agent.AgentManager) *App {
+func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
 	input := textinput.New()
 	input.Placeholder = "Type a message..."
 	input.Focus()
@@ -236,6 +241,8 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		assistantDirty:      make(map[int]bool),
 		multiAgent:          multiAgent,
 		agentMgr:            agentMgr,
+		cronStore:           cronStore,
+		scheduler:           scheduler,
 	}
 
 	app.configureMarkdownRenderer()

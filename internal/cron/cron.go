@@ -16,7 +16,8 @@ type CronJob struct {
 	ID         string    `json:"id"`
 	Name       string    `json:"name"`            // Short description
 	Prompt     string    `json:"prompt"`           // Task prompt for sub-agent
-	Schedule   string    `json:"schedule"`         // Cron expression (5-field)
+	Schedule   string    `json:"schedule"`         // Schedule: @daily, @every 30m, 5-field cron, or empty for one-shot
+	OneShot    bool      `json:"oneshot,omitempty"` // If true, auto-disable after first run
 	Mode       string    `json:"mode"`             // "agent" or "yolo"
 	WorkDir    string    `json:"work_dir,omitempty"`
 	Enabled    bool      `json:"enabled"`

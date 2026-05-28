@@ -21,6 +21,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
+	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/gateway"
 	"github.com/startvibecoding/vibecoding/internal/hermes"
 	"github.com/startvibecoding/vibecoding/internal/messaging/wechat"
@@ -391,6 +392,8 @@ func run(args []string, opts runOptions) error {
 
 	// Multi-agent mode: create AgentFactory and AgentManager, register subagent tools
 	var agentMgr *agent.AgentManager
+	var cronStore cron.CronStore
+	var cronScheduler *cron.Scheduler
 	if opts.multiAgent {
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          settings.Compaction.Enabled,
@@ -413,6 +416,14 @@ func run(args []string, opts runOptions) error {
 		registry.Register(agent.NewSubAgentSendTool(agentMgr))
 		registry.Register(agent.NewSubAgentDestroyTool(agentMgr))
 
+		// Create cron store, scheduler, and tool
+		cronPath := filepath.Join(config.ConfigDir(), "cron.json")
+		cronStore = cron.NewFileCronStore(cronPath)
+		cronScheduler = cron.NewScheduler(cronStore, agentMgr, 30*time.Second)
+		cronScheduler.Start()
+		registry.Register(cron.NewCronTool(cronStore, cronScheduler))
+		defer cronScheduler.Stop()
+
 		if opts.verbose {
 			fmt.Fprintf(os.Stderr, "Multi-agent mode enabled\n")
 		}
@@ -427,7 +438,7 @@ func run(args []string, opts runOptions) error {
 	// Clear any pending stdin input (e.g., terminal color queries)
 	clearStdin()
 
-	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, agentMgr)
+	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, agentMgr, cronStore, cronScheduler)
 	// Add context files info and session info as initial message
 	var initialMsg string
 	if contextFilesInfo != "" {

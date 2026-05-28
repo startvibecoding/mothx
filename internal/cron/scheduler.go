@@ -112,10 +112,6 @@ func (s *Scheduler) isDue(job CronJob, now time.Time) bool {
 	if !job.NextRun.IsZero() && now.After(job.NextRun) {
 		return true
 	}
-	// Simple interval-based fallback: run if last run was more than 1 hour ago
-	if now.Sub(job.LastRun) > time.Hour {
-		return true
-	}
 	return false
 }
 
@@ -154,8 +150,19 @@ func (s *Scheduler) executeJob(job CronJob) {
 		job.LastError = ""
 	}
 
-	// Compute next run (simple: 1 hour from now)
-	job.NextRun = time.Now().Add(time.Hour)
+	// Compute next run from schedule
+	next, isOneShot, err := ParseSchedule(job.Schedule, time.Now())
+	if err != nil {
+		// Can't parse schedule — treat as one-shot
+		isOneShot = true
+	}
+	if isOneShot || job.OneShot {
+		// One-shot: disable after first run
+		job.Enabled = false
+		job.NextRun = time.Time{}
+	} else {
+		job.NextRun = next
+	}
 
 	s.store.Update(job)
 

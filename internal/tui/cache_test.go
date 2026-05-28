@@ -131,7 +131,7 @@ func TestLiveAssistantMessageDoesNotRenderMarkdown(t *testing.T) {
 }
 
 func TestViewClampsLiveContentToKeepInputVisible(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
@@ -561,6 +561,8 @@ func TestInitWithProgramDoesNotBlock(t *testing.T) {
 		"agent",
 		false,
 		nil,
+		nil,
+		nil,
 	)
 	a.SetInitialMessage("hello")
 	p := tea.NewProgram(a)
@@ -716,6 +718,8 @@ func TestInitThenProcessInputStillInjectsSessionHistory(t *testing.T) {
 		nil,
 		"agent",
 		false,
+		nil,
+		nil,
 		nil,
 	)
 

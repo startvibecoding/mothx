@@ -11,6 +11,7 @@ import (
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/session"
 )
 
@@ -132,6 +133,10 @@ func (a *App) handleCronCommand(parts []string) {
 		a.addMessage(errorStyle.Render("Cron commands require multi-agent mode. Use Ctrl+P to toggle."))
 		return
 	}
+	if a.cronStore == nil {
+		a.addMessage(errorStyle.Render("Cron store not initialized."))
+		return
+	}
 	if len(parts) < 2 {
 		a.addMessage(statusStyle.Render("Usage: /cron add|list|enable|disable|remove|run"))
 		return
@@ -143,34 +148,94 @@ func (a *App) handleCronCommand(parts []string) {
 			return
 		}
 		desc := strings.Join(parts[2:], " ")
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task added: %s", desc)))
-		a.addMessage(statusStyle.Render("  (Full cron integration will be available with LLM parsing)"))
+		job, err := a.cronStore.Create(cron.CronJob{
+			Name:    desc,
+			Prompt:  desc,
+			Enabled: true,
+			Mode:    a.mode,
+		})
+		if err != nil {
+			a.addMessage(errorStyle.Render(fmt.Sprintf("Failed to create cron task: %v", err)))
+			return
+		}
+		a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Cron task created: %s (id: %s)", job.Name, job.ID)))
 	case "list":
-		a.addMessage(statusStyle.Render("Cron tasks: (none configured)"))
+		jobs, err := a.cronStore.List()
+		if err != nil {
+			a.addMessage(errorStyle.Render(fmt.Sprintf("Failed to list cron tasks: %v", err)))
+			return
+		}
+		if len(jobs) == 0 {
+			a.addMessage(statusStyle.Render("Cron tasks: (none configured)"))
+			return
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Cron tasks (%d):\n", len(jobs)))
+		for _, j := range jobs {
+			status := "✅"
+			if !j.Enabled {
+				status = "⏸"
+			}
+			if j.LastStatus == "failed" {
+				status = "❌"
+			}
+			sb.WriteString(fmt.Sprintf("  %s [%s] %s (runs: %d)\n", status, j.ID, j.Name, j.RunCount))
+		}
+		a.addMessage(statusStyle.Render(sb.String()))
 	case "enable":
 		if len(parts) < 3 {
 			a.addMessage(statusStyle.Render("Usage: /cron enable <id>"))
 			return
 		}
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s enabled", parts[2])))
+		job, err := a.cronStore.Get(parts[2])
+		if err != nil {
+			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			return
+		}
+		job.Enabled = true
+		a.cronStore.Update(*job)
+		a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Cron task %s enabled", job.ID)))
 	case "disable":
 		if len(parts) < 3 {
 			a.addMessage(statusStyle.Render("Usage: /cron disable <id>"))
 			return
 		}
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s disabled", parts[2])))
+		job, err := a.cronStore.Get(parts[2])
+		if err != nil {
+			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			return
+		}
+		job.Enabled = false
+		a.cronStore.Update(*job)
+		a.addMessage(statusStyle.Render(fmt.Sprintf("⏸ Cron task %s disabled", job.ID)))
 	case "remove":
 		if len(parts) < 3 {
 			a.addMessage(statusStyle.Render("Usage: /cron remove <id>"))
 			return
 		}
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s removed", parts[2])))
+		if err := a.cronStore.Delete(parts[2]); err != nil {
+			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			return
+		}
+		a.addMessage(statusStyle.Render(fmt.Sprintf("🗑 Cron task %s removed", parts[2])))
 	case "run":
 		if len(parts) < 3 {
 			a.addMessage(statusStyle.Render("Usage: /cron run <id>"))
 			return
 		}
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Cron task %s triggered", parts[2])))
+		job, err := a.cronStore.Get(parts[2])
+		if err != nil {
+			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			return
+		}
+		if a.scheduler == nil {
+			a.addMessage(errorStyle.Render("Scheduler not running."))
+			return
+		}
+		// Trigger immediate run by resetting LastRun
+		job.LastRun = time.Time{}
+		a.cronStore.Update(*job)
+		a.addMessage(statusStyle.Render(fmt.Sprintf("▶ Cron task %s triggered (will run on next scheduler tick)", job.ID)))
 	default:
 		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown cron command: %s", parts[1])))
 	}

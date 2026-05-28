@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/hermes/webhook"
 	"github.com/startvibecoding/vibecoding/internal/hermes/ws"
 	"github.com/startvibecoding/vibecoding/internal/messaging"
@@ -40,6 +42,7 @@ type Server struct {
 	gateway    *ws.Gateway
 	dispatcher *Dispatcher
 	platforms  []messaging.Platform
+	scheduler  *cron.Scheduler
 }
 
 // Run starts the Hermes server.
@@ -95,10 +98,31 @@ func Run(opts RunOptions, version string) error {
 		cfg.WorkDir = cwd
 	}
 
+	// Create cron store (always when cron enabled, for tool registration)
+	var cronStore cron.CronStore
+	var cronScheduler *cron.Scheduler
+	if cfg.Cron.Enabled {
+		storePath := cfg.Cron.StorePath
+		if storePath == "" {
+			storePath = filepath.Join(config.ConfigDir(), "hermes-cron.json")
+		}
+		cronStore = cron.NewFileCronStore(storePath)
+	}
+
 	// Create dispatcher
-	dispatcher, err := NewDispatcher(cfg, settings, version)
+	dispatcher, err := NewDispatcher(cfg, settings, version, cronStore, cronScheduler)
 	if err != nil {
 		return fmt.Errorf("create dispatcher: %w", err)
+	}
+
+	// Create and start cron scheduler if multi-agent is available
+	if cfg.Cron.Enabled && dispatcher.agentMgr != nil {
+		interval := time.Duration(cfg.Cron.Interval) * time.Second
+		if interval <= 0 {
+			interval = 30 * time.Second
+		}
+		cronScheduler = cron.NewScheduler(cronStore, dispatcher.agentMgr, interval)
+		cronScheduler.Start()
 	}
 
 	// Create gateway
@@ -126,6 +150,7 @@ func Run(opts RunOptions, version string) error {
 		version:    version,
 		gateway:    gw,
 		dispatcher: dispatcher,
+		scheduler:  cronScheduler,
 	}
 
 	// Print startup info
@@ -147,6 +172,16 @@ func Run(opts RunOptions, version string) error {
 		fmt.Fprintf(os.Stderr, "  Sandbox: enabled\n")
 	} else {
 		fmt.Fprintf(os.Stderr, "  Sandbox: disabled\n")
+	}
+
+	if cfg.Cron.Enabled {
+		if cronScheduler != nil {
+			fmt.Fprintf(os.Stderr, "  Cron: enabled\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "  Cron: disabled (requires --multi-agent)\n")
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "  Cron: disabled\n")
 	}
 
 	// Start messaging platforms
@@ -229,7 +264,11 @@ func (srv *Server) startPlatforms() {
 	}
 
 	if srv.cfg.Cron.Enabled {
-		fmt.Fprintf(os.Stderr, "  Cron: enabled\n")
+		if srv.scheduler == nil {
+			fmt.Fprintf(os.Stderr, "  Cron: disabled (requires --multi-agent)\n")
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "  Cron: disabled\n")
 	}
 
 	if srv.cfg.A2A.Enabled {
@@ -239,6 +278,11 @@ func (srv *Server) startPlatforms() {
 
 // stop gracefully shuts down all components.
 func (srv *Server) stop() {
+	// Stop cron scheduler
+	if srv.scheduler != nil {
+		srv.scheduler.Stop()
+	}
+
 	// Stop messaging platforms
 	for _, p := range srv.platforms {
 		log.Printf("Stopping platform: %s", p.Name())
