@@ -208,6 +208,41 @@ func (a *Agent) buildFrozenPrompt() {
 	a.frozenToolNames = toolNames
 }
 
+// supportsImages checks if the model supports image input.
+func (a *Agent) supportsImages() bool {
+	if a.config.Model == nil {
+		return false
+	}
+	for _, input := range a.config.Model.Input {
+		if input == "image" {
+			return true
+		}
+	}
+	return false
+}
+
+// stripImageContent removes image content blocks from messages.
+// This prevents 404 errors when sending to models that don't support image input.
+func stripImageContent(messages []provider.Message) []provider.Message {
+	result := make([]provider.Message, 0, len(messages))
+	for _, msg := range messages {
+		if len(msg.Contents) > 0 {
+			var filtered []provider.ContentBlock
+			for _, c := range msg.Contents {
+				if c.Type != "image" {
+					filtered = append(filtered, c)
+				}
+			}
+			if len(filtered) == 0 && msg.Content == "" {
+				continue // skip message with only image content and no text
+			}
+			msg.Contents = filtered
+		}
+		result = append(result, msg)
+	}
+	return result
+}
+
 // buildSessionContextMessage builds the [session context] message with dynamic information.
 // This implements Rule R2.3 from LLM_Agent_Cache.md: dynamic info goes into a separate message.
 // The message is marked as SystemInjected so cache markers skip it.
@@ -507,6 +542,11 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		allMessages = append(allMessages, sessionContextMsg)
 		allMessages = append(allMessages, a.messages...)
 		a.mu.RUnlock()
+
+		// Strip image content if model doesn't support it
+		if !a.supportsImages() {
+			allMessages = stripImageContent(allMessages)
+		}
 
 		// Select cache markers (dual-marker rolling buffer, R3.1-R3.3)
 		markers := selectCacheMarkers(allMessages)

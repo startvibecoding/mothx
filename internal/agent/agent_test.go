@@ -548,6 +548,67 @@ func TestBuildSystemPromptMultiAgentGated(t *testing.T) {
 	}
 }
 
+// --- stripImageContent tests ---
+
+func TestStripImageContent(t *testing.T) {
+	messages := []provider.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "toolResult", ToolName: "read", Contents: []provider.ContentBlock{
+			{Type: "text", Text: "[Image file: test.png]"},
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "base64data"}},
+		}},
+		{Role: "assistant", Contents: []provider.ContentBlock{
+			{Type: "text", Text: "I see the image"},
+		}},
+	}
+
+	result := stripImageContent(messages)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 messages, got %d", len(result))
+	}
+
+	// Second message should have image stripped
+	if len(result[1].Contents) != 1 {
+		t.Errorf("expected 1 content block after stripping, got %d", len(result[1].Contents))
+	}
+	if result[1].Contents[0].Type == "image" {
+		t.Error("image content should have been stripped")
+	}
+}
+
+func TestStripImageContentOnlyImage(t *testing.T) {
+	messages := []provider.Message{
+		{Role: "user", Content: "hello"},
+		{Role: "toolResult", ToolName: "read", Contents: []provider.ContentBlock{
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "base64data"}},
+		}},
+	}
+
+	result := stripImageContent(messages)
+	// Message with only image and no text should be skipped
+	if len(result) != 1 {
+		t.Fatalf("expected 1 message (image-only skipped), got %d", len(result))
+	}
+}
+
+func TestSupportsImages(t *testing.T) {
+	a := &Agent{config: AgentLoopConfig{}}
+	a.config.Model = &provider.Model{Input: []string{"text"}}
+	if a.supportsImages() {
+		t.Error("expected false for text-only model")
+	}
+
+	a.config.Model = &provider.Model{Input: []string{"text", "image"}}
+	if !a.supportsImages() {
+		t.Error("expected true for text+image model")
+	}
+
+	a.config.Model = nil
+	if a.supportsImages() {
+		t.Error("expected false for nil model")
+	}
+}
+
 func TestFormatToolListWithSnippets(t *testing.T) {
 	// Test with tools and snippets
 	tools := []string{"read", "write", "bash"}
