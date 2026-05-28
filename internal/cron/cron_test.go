@@ -256,3 +256,69 @@ func TestIsDueOldRun(t *testing.T) {
 		t.Error("expected due for old run (>1h)")
 	}
 }
+
+func TestIsDueDisabled(t *testing.T) {
+	s := &Scheduler{}
+	// isDue only checks timing; the checkAndRun loop skips disabled jobs.
+	// But isDue itself should still return true for timing.
+	job := CronJob{
+		Enabled: false,
+		LastRun: time.Time{}, // Never run
+	}
+	// isDue doesn't check Enabled flag — that's checked in checkAndRun.
+	if !s.isDue(job, time.Now()) {
+		t.Error("isDue should return true regardless of Enabled flag")
+	}
+}
+
+func TestSchedulerCheckAndRunSkipsDisabledAndRunning(t *testing.T) {
+	tmp := t.TempDir()
+	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+
+	// Create disabled job
+	store.Create(CronJob{ID: "disabled", Name: "Disabled", Enabled: false})
+
+	// Create already running job
+	runningJob := CronJob{ID: "running", Name: "Running", Enabled: true, LastStatus: "running"}
+	store.Create(runningJob)
+
+	sched := NewScheduler(store, nil, time.Second)
+	// Should not panic even with nil manager (neither job should execute)
+	sched.checkAndRun()
+
+	// Verify no changes
+	disabled, _ := store.Get("disabled")
+	if disabled.LastStatus != "" {
+		t.Errorf("disabled job status = %q, want empty", disabled.LastStatus)
+	}
+	running, _ := store.Get("running")
+	if running.LastStatus != "running" {
+		t.Errorf("running job status = %q, want 'running'", running.LastStatus)
+	}
+}
+
+func TestCronJobStructFields(t *testing.T) {
+	now := time.Now()
+	job := CronJob{
+		ID:         "j1",
+		Name:       "Test Job",
+		Prompt:     "Run tests",
+		Schedule:   "0 9 * * *",
+		Mode:       "agent",
+		WorkDir:    "/home/user/project",
+		Enabled:    true,
+		CreatedAt:  now,
+		LastRun:    now,
+		NextRun:    now.Add(time.Hour),
+		RunCount:   5,
+		LastStatus: "success",
+		LastError:  "",
+	}
+
+	if job.ID != "j1" {
+		t.Errorf("ID = %q, want 'j1'", job.ID)
+	}
+	if job.RunCount != 5 {
+		t.Errorf("RunCount = %d, want 5", job.RunCount)
+	}
+}

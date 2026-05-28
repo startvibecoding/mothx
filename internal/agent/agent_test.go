@@ -644,6 +644,124 @@ func TestBaseProvider(t *testing.T) {
 	}
 }
 
+// --- ContextWithAgentID tests ---
+
+func TestContextWithAgentID(t *testing.T) {
+	ctx := context.Background()
+	ctx = ContextWithAgentID(ctx, "test-agent")
+
+	id, ok := AgentIDFromContext(ctx)
+	if !ok {
+		t.Fatal("expected agent ID in context")
+	}
+	if id != "test-agent" {
+		t.Errorf("agent ID = %q, want 'test-agent'", id)
+	}
+
+	// Missing from context
+	_, ok = AgentIDFromContext(context.Background())
+	if ok {
+		t.Error("expected no agent ID in empty context")
+	}
+}
+
+func TestContextWithEventChan(t *testing.T) {
+	ch := make(chan Event, 1)
+	ctx := ContextWithEventChan(context.Background(), ch)
+
+	got, ok := EventChanFromContext(ctx)
+	if !ok {
+		t.Fatal("expected event chan in context")
+	}
+	if got == nil {
+		t.Fatal("expected non-nil event chan")
+	}
+
+	_, ok = EventChanFromContext(context.Background())
+	if ok {
+		t.Error("expected no event chan in empty context")
+	}
+}
+
+// --- Manager status tests ---
+
+func TestAgentManagerMarkRunning(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	m.Create(AgentOptions{ID: "a1"})
+	m.MarkRunning("a1")
+	st, ok := m.Status("a1")
+	if !ok {
+		t.Fatal("expected status")
+	}
+	if st.State != "running" {
+		t.Errorf("state = %q, want running", st.State)
+	}
+}
+
+func TestAgentManagerMarkDone(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	m.Create(AgentOptions{ID: "a1"})
+	m.MarkDone("a1", "completed")
+	st, _ := m.Status("a1")
+	if st.State != "done" {
+		t.Errorf("state = %q, want done", st.State)
+	}
+	if st.Result != "completed" {
+		t.Errorf("result = %q, want completed", st.Result)
+	}
+}
+
+func TestAgentManagerMarkError(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	m.Create(AgentOptions{ID: "a1"})
+	m.MarkError("a1", fmt.Errorf("test error"))
+	st, _ := m.Status("a1")
+	if st.State != "error" {
+		t.Errorf("state = %q, want error", st.State)
+	}
+	if st.Error != "test error" {
+		t.Errorf("error = %q, want 'test error'", st.Error)
+	}
+}
+
+func TestAgentManagerMarkErrorNil(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	m.Create(AgentOptions{ID: "a1"})
+	m.MarkError("a1", nil)
+	st, _ := m.Status("a1")
+	if st.Error != "" {
+		t.Errorf("error = %q, want empty", st.Error)
+	}
+}
+
+func TestAgentManagerRegister(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	// Create an agent through factory to get a valid agentpkg.Agent
+	a, _ := m.Create(AgentOptions{ID: "parent"})
+	m.Destroy("parent")
+	// Re-register
+	m.Register(a)
+	if m.Count() != 1 {
+		t.Errorf("count = %d, want 1", m.Count())
+	}
+}
+
+func TestAgentManagerRegisterNil(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	m.Register(nil) // Should not panic
+	if m.Count() != 0 {
+		t.Errorf("count = %d, want 0", m.Count())
+	}
+}
+
+func TestAgentManagerStatusNotFound(t *testing.T) {
+	m := NewAgentManager(&AgentFactory{})
+	_, ok := m.Status("nonexistent")
+	if ok {
+		t.Error("expected not found")
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
 }
