@@ -183,6 +183,52 @@ func SetBuilderFunc(fn func(b *Builder) (Agent, error)) {
 	buildInternal = fn
 }
 
+// BuilderConfig is the read-only snapshot of Builder state.
+// It is used by the internal package to construct the agent without
+// exposing Builder fields directly.
+type BuilderConfig struct {
+	Provider          Provider
+	ModelID           string
+	Mode              string
+	WorkDir           string
+	ThinkingLevel     ThinkingLevel
+	MaxTokens         int
+	SystemPromptExtra string
+	MaxIterations     int
+	ToolExecutionMode string
+	Tools             []string
+	SandboxEnabled    bool
+	SessionDir        string
+	CompactionEnabled bool
+	CompactionReserve int
+	MultiAgent        bool
+	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool
+}
+
+// Config returns a read-only snapshot of the Builder's current configuration.
+// Called by the internal builder function to extract settings without
+// exporting individual fields.
+func (b *Builder) Config() BuilderConfig {
+	return BuilderConfig{
+		Provider:          b.provider,
+		ModelID:           b.modelID,
+		Mode:              b.mode,
+		WorkDir:           b.workDir,
+		ThinkingLevel:     b.thinkingLevel,
+		MaxTokens:         b.maxTokens,
+		SystemPromptExtra: b.systemPromptExtra,
+		MaxIterations:     b.maxIterations,
+		ToolExecutionMode: b.toolExecutionMode,
+		Tools:             b.tools,
+		SandboxEnabled:    b.sandboxEnabled,
+		SessionDir:        b.sessionDir,
+		CompactionEnabled: b.compactionEnabled,
+		CompactionReserve: b.compactionReserve,
+		MultiAgent:        b.multiAgent,
+		ApprovalHandler:   b.approvalHandler,
+	}
+}
+
 // resolveProviderFunc is set by internal/provider to avoid import cycles.
 var resolveProviderFunc func(vendor, baseURL, api, apiKey string) (Provider, error)
 

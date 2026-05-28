@@ -157,7 +157,6 @@ type AgentContext struct {
 }
 
 // Agent is the core agent loop.
-// Agent is the core agent loop.
 type Agent struct {
 	id          agentpkg.AgentID
 	parentID    agentpkg.AgentID

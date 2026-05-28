@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -115,7 +114,6 @@ func TestResourceToolURIOverride(t *testing.T) {
 	if uri != "file://b" {
 		t.Fatalf("expected override uri, got %q", uri)
 	}
-	_, _ = context.WithCancel(context.Background())
 }
 
 type nopWriteCloser struct {

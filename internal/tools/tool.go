@@ -11,6 +11,7 @@ import (
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	"github.com/startvibecoding/vibecoding/internal/skills"
 )
 
 // writeFileAtomic writes data to path atomically using a temporary file and rename.
@@ -148,6 +149,7 @@ type Registry struct {
 	sandbox    sandbox.Sandbox
 	workDir    string
 	jobManager *JobManager
+	skillsMgr  *skills.Manager
 }
 
 // NewRegistry creates a new tool registry.
@@ -164,7 +166,8 @@ func NewRegistry(workDir string, sb sandbox.Sandbox) *Registry {
 type RegistryConfig struct {
 	WorkDir    string
 	Sandbox    sandbox.Sandbox
-	ToolFilter []string // optional: only register these tools (empty = all)
+	ToolFilter []string         // optional: only register these tools (empty = all)
+	SkillsMgr  *skills.Manager  // optional: skills manager for skill_ref tool
 }
 
 // NewRegistryWithConfig creates a Registry with the given config.
@@ -174,6 +177,7 @@ func NewRegistryWithConfig(cfg RegistryConfig) *Registry {
 		workDir:    cfg.WorkDir,
 		sandbox:    cfg.Sandbox,
 		jobManager: NewJobManager(),
+		skillsMgr:  cfg.SkillsMgr,
 	}
 	if len(cfg.ToolFilter) == 0 {
 		r.RegisterDefaults()
@@ -330,6 +334,9 @@ func (r *Registry) RegisterDefaultsWithPlanTool(enablePlanTool bool) {
 	r.Register(bashTool)
 	r.Register(NewJobsTool(r, bashTool))
 	r.Register(NewKillTool(r, bashTool))
+	if r.skillsMgr != nil {
+		r.Register(NewSkillRefTool(r.skillsMgr))
+	}
 }
 
 // RegisterFiltered registers only the specified tools by name.
@@ -347,6 +354,9 @@ func (r *Registry) RegisterFiltered(toolNames []string) {
 	allTools["bash"] = func() Tool { return bashTool }
 	allTools["jobs"] = func() Tool { return NewJobsTool(r, bashTool) }
 	allTools["kill"] = func() Tool { return NewKillTool(r, bashTool) }
+	if r.skillsMgr != nil {
+		allTools["skill_ref"] = func() Tool { return NewSkillRefTool(r.skillsMgr) }
+	}
 
 	for _, name := range toolNames {
 		if factory, ok := allTools[name]; ok {

@@ -178,6 +178,135 @@ func WrapEventChan(in <-chan Event) <-chan agentpkg.Event {
 	return out
 }
 
+// --- ProviderAdapter wraps a public agent.Provider to satisfy internal provider.Provider ---
+
+// ProviderAdapter wraps a public agent.Provider to satisfy the internal provider.Provider interface.
+// This enables the public Builder to supply an external Provider implementation.
+type ProviderAdapter struct {
+	provider.BaseProvider
+	pub agentpkg.Provider
+}
+
+// NewProviderAdapter creates an internal Provider from a public one.
+func NewProviderAdapter(pub agentpkg.Provider) *ProviderAdapter {
+	pubModels := pub.Models()
+	models := make([]*provider.Model, len(pubModels))
+	for i, m := range pubModels {
+		models[i] = ModelInfoToInternal(m)
+	}
+	return &ProviderAdapter{
+		BaseProvider: provider.NewBaseProvider(pub.Name(), models),
+		pub:          pub,
+	}
+}
+
+// Chat delegates to the public provider, converting between public and internal types.
+func (pa *ProviderAdapter) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	pubParams := ChatParamsToPublic(params)
+	pubCh := pa.pub.Chat(ctx, pubParams)
+
+	ch := make(chan provider.StreamEvent, 100)
+	go func() {
+		defer close(ch)
+		for e := range pubCh {
+			ch <- StreamEventFromPublic(e)
+		}
+	}()
+	return ch
+}
+
+// ModelInfoToInternal converts a public ModelInfo to an internal *Model.
+func ModelInfoToInternal(m agentpkg.ModelInfo) *provider.Model {
+	model := &provider.Model{
+		ID:            m.ID,
+		Name:          m.Name,
+		Provider:      m.Provider,
+		Reasoning:     m.Reasoning,
+		Input:         m.Input,
+		ContextWindow: m.ContextWindow,
+		MaxTokens:     m.MaxTokens,
+	}
+	if m.Compat != nil {
+		model.Compat = &provider.ModelCompat{
+			ThinkingFormat:                      m.Compat.ThinkingFormat,
+			RequiresReasoningContentOnAssistant: m.Compat.RequiresReasoningContentOnAssistant,
+			ForceAdaptiveThinking:               m.Compat.ForceAdaptiveThinking,
+			SupportsDeveloperRole:               m.Compat.SupportsDeveloperRole,
+			SupportsStore:                       m.Compat.SupportsStore,
+			SupportsReasoningEffort:             m.Compat.SupportsReasoningEffort,
+			SupportsStrictMode:                  m.Compat.SupportsStrictMode,
+			MaxTokensField:                      m.Compat.MaxTokensField,
+			SupportsCacheControlOnTools:         m.Compat.SupportsCacheControlOnTools,
+			SupportsLongCacheRetention:          m.Compat.SupportsLongCacheRetention,
+			SendSessionAffinityHeaders:          m.Compat.SendSessionAffinityHeaders,
+			SupportsEagerToolInputStreaming:     m.Compat.SupportsEagerToolInputStreaming,
+		}
+	}
+	return model
+}
+
+// ChatParamsToPublic converts internal ChatParams to public.
+func ChatParamsToPublic(p provider.ChatParams) agentpkg.ChatParams {
+	msgs := make([]agentpkg.Message, len(p.Messages))
+	for i, m := range p.Messages {
+		msgs[i] = MessageToPublic(m)
+	}
+	tools := make([]agentpkg.ToolDefinition, len(p.Tools))
+	for i, t := range p.Tools {
+		tools[i] = agentpkg.ToolDefinition{
+			Name:        t.Name,
+			Description: t.Description,
+			Parameters:  t.Parameters,
+		}
+	}
+	var abort chan struct{}
+	if p.Abort != nil {
+		// The internal type is <-chan struct{}, but the public type is chan struct{}.
+		// We create a bridging channel.
+		abort = make(chan struct{})
+		go func() {
+			<-p.Abort
+			close(abort)
+		}()
+	}
+	return agentpkg.ChatParams{
+		Messages:      msgs,
+		Tools:         tools,
+		SystemPrompt:  p.SystemPrompt,
+		ThinkingLevel: agentpkg.ThinkingLevel(p.ThinkingLevel),
+		MaxTokens:     p.MaxTokens,
+		Abort:         abort,
+	}
+}
+
+// StreamEventFromPublic converts a public StreamEvent to internal.
+func StreamEventFromPublic(e agentpkg.StreamEvent) provider.StreamEvent {
+	ev := provider.StreamEvent{
+		Type:       provider.StreamEventType(e.Type),
+		TextDelta:  e.TextDelta,
+		ThinkDelta: e.ThinkDelta,
+		StopReason: e.StopReason,
+		Error:      e.Error,
+	}
+	if e.ToolCall != nil {
+		ev.ToolCall = &provider.ToolCallBlock{
+			ID:        e.ToolCall.ID,
+			Name:      e.ToolCall.Name,
+			Arguments: e.ToolCall.Arguments,
+		}
+	}
+	if e.Usage != nil {
+		ev.Usage = &provider.Usage{
+			Input:       e.Usage.InputTokens,
+			Output:      e.Usage.OutputTokens,
+			CacheRead:   e.Usage.CacheRead,
+			CacheWrite:  e.Usage.CacheWrite,
+			TotalTokens: e.Usage.TotalTokens,
+		}
+	}
+	return ev
+}
+
 // --- AgentAdapter wraps internal Agent to satisfy public agent.Agent interface ---
 
 // AgentAdapter wraps an internal *Agent and satisfies the public agent.Agent interface.

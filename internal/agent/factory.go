@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -217,9 +216,77 @@ func init() {
 }
 
 // buildFromPublicBuilder converts a public Builder into an internal Agent.
+// This bridges the public agent.Builder API to the internal Agent implementation.
 func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
-	// The Builder stores its state internally. We need to access it.
-	// For now, this requires the Builder to expose its fields or provide a way to read them.
-	// This will be fully wired in Phase 3 when Builder exposes its config.
-	return nil, fmt.Errorf("builder not yet wired to factory (Phase 3 pending)")
+	cfg := b.Config()
+
+	// Adapt the public Provider to the internal provider.Provider interface
+	internalProvider := NewProviderAdapter(cfg.Provider)
+
+	// Resolve the model from the provider
+	model := internalProvider.GetModel(cfg.ModelID)
+	if model == nil {
+		// If the model is not found, create a minimal model entry
+		model = &provider.Model{
+			ID:   cfg.ModelID,
+			Name: cfg.ModelID,
+		}
+	}
+
+	// Build compaction settings
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:       cfg.CompactionEnabled,
+		ReserveTokens: cfg.CompactionReserve,
+	}
+	if compactionSettings.ReserveTokens == 0 {
+		compactionSettings.ReserveTokens = 16384
+	}
+
+	// Build sandbox
+	var sandboxMgr *sandbox.Manager
+	if cfg.SandboxEnabled {
+		sandboxMgr = sandbox.NewManager(cfg.WorkDir)
+	}
+
+	// Build session
+	var sess *session.Manager
+	if cfg.SessionDir != "" {
+		sess = session.New(cfg.WorkDir, cfg.SessionDir)
+	}
+
+	// Build the tool registry
+	var sb sandbox.Sandbox
+	if sandboxMgr != nil {
+		sb = sandboxMgr.GetActive()
+	} else {
+		sb = sandbox.NewNoneSandbox()
+	}
+	registry := tools.NewRegistryWithConfig(tools.RegistryConfig{
+		WorkDir:    cfg.WorkDir,
+		Sandbox:    sb,
+		ToolFilter: cfg.Tools,
+	})
+
+	agentCfg := Config{
+		Provider:           internalProvider,
+		Model:              model,
+		Mode:               cfg.Mode,
+		ThinkingLevel:      provider.ThinkingLevel(cfg.ThinkingLevel),
+		MaxTokens:          cfg.MaxTokens,
+		SandboxMgr:         sandboxMgr,
+		Session:            sess,
+		ExtraContext:        cfg.SystemPromptExtra,
+		CompactionSettings: compactionSettings,
+		ApprovalHandler:    cfg.ApprovalHandler,
+		MultiAgent:         cfg.MultiAgent,
+	}
+
+	loopCfg := AgentLoopConfig{
+		Config:            agentCfg,
+		ToolExecutionMode: cfg.ToolExecutionMode,
+		MaxIterations:     cfg.MaxIterations,
+	}
+
+	a := NewWithLoopConfig(loopCfg, registry)
+	return NewAgentAdapter(a), nil
 }
