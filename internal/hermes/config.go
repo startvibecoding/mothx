@@ -72,6 +72,7 @@ type WebhookRoute struct {
 // A2AConfig defines A2A protocol settings.
 type A2AConfig struct {
 	Enabled bool `json:"enabled"`
+	Port    int  `json:"port,omitempty"`
 }
 
 // CronConfig defines cron scheduler settings.
@@ -101,9 +102,11 @@ type HooksConfig struct {
 
 // AgentConfig defines agent behavior settings.
 type AgentConfig struct {
-	MaxTurns        int  `json:"max_turns"`
-	BudgetPressure  bool `json:"budget_pressure"`
-	ContextPressure bool `json:"context_pressure"`
+	MaxTurns                  int     `json:"max_turns"`
+	BudgetPressure            bool    `json:"budget_pressure"`
+	ContextPressure           bool    `json:"context_pressure"`
+	BudgetPressureThreshold   float64 `json:"budget_pressure_threshold,omitempty"`   // remaining ratio (0-1), default 0.20
+	ContextPressureThreshold  float64 `json:"context_pressure_threshold,omitempty"`  // usage ratio (0-1), default 0.55
 }
 
 // DefaultHermesConfig returns the default configuration.
@@ -126,9 +129,11 @@ func DefaultHermesConfig() *HermesConfig {
 			SmartApprovals: true,
 		},
 		Agent: AgentConfig{
-			MaxTurns:        90,
-			BudgetPressure:  true,
-			ContextPressure: true,
+			MaxTurns:                 90,
+			BudgetPressure:           true,
+			ContextPressure:          true,
+			BudgetPressureThreshold:  0.20,
+			ContextPressureThreshold: 0.55,
 		},
 		WorkDir: ".",
 	}

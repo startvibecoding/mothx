@@ -97,6 +97,14 @@ type AgentLoopConfig struct {
 
 	// AfterToolCall is called after a tool finishes executing.
 	AfterToolCall func(ctx AfterToolCallContext) *ToolCallResult
+
+	// ContextPressureThreshold is the context usage percentage (0-1) that triggers EventContextPressure.
+	// 0 means disabled. Default: 0.55 (55%).
+	ContextPressureThreshold float64
+
+	// BudgetPressureThreshold is the remaining iteration ratio (0-1) that triggers EventBudgetPressure.
+	// 0 means disabled. Default: 0.20 (remaining 20%).
+	BudgetPressureThreshold float64
 }
 
 // ShouldStopAfterTurnContext is passed to ShouldStopAfterTurn.
@@ -500,6 +508,10 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 	const maxConsecutiveNoTextAfterWarning = 5 // After warning, allow 5 more turns before stopping
 	warningIssued := false
 
+	// Pressure tracking — fire events once per threshold crossing
+	contextPressureFired := false
+	budgetPressureFired := false
+
 	for i := 0; i < a.config.MaxIterations; i++ {
 		select {
 		case <-ctx.Done():
@@ -767,6 +779,55 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		}
 
 		ch <- Event{Type: EventTurnEnd, TurnMessage: assistantMsg, TurnToolResults: toolResults, ContextUsage: a.GetContextUsage()}
+
+		// --- Pressure checks (fire once per threshold crossing) ---
+
+		// Context Pressure: fire EventContextPressure once when usage exceeds threshold
+		if !contextPressureFired {
+			threshold := a.config.ContextPressureThreshold
+			if threshold <= 0 {
+				threshold = 0.55 // default 55%
+			}
+			if ctx := a.GetContextUsage(); ctx != nil && ctx.Percent != nil {
+				if *ctx.Percent >= threshold {
+					contextPressureFired = true
+					warnMsg := fmt.Sprintf(
+						"[Context Pressure] %.0f%% of context window used (%d/%d tokens). " +
+							"Compaction will trigger soon. Consider saving important context to memory.md and wrapping up the current task.",
+						*ctx.Percent, ctx.Tokens, ctx.ContextWindow)
+					ch <- Event{
+						Type:           EventContextPressure,
+						PressureMessage: warnMsg,
+						PressureType:    "context",
+						PressurePercent: *ctx.Percent,
+						ContextUsage:    ctx,
+					}
+				}
+			}
+		}
+
+		// Budget Pressure: fire EventBudgetPressure once when remaining iterations reach threshold
+		if !budgetPressureFired {
+			threshold := a.config.BudgetPressureThreshold
+			if threshold <= 0 {
+				threshold = 0.20 // default 20%
+			}
+			remaining := float64(a.config.MaxIterations-i) / float64(a.config.MaxIterations)
+			if remaining <= threshold {
+				budgetPressureFired = true
+				remainingTurns := a.config.MaxIterations - i
+				warnMsg := fmt.Sprintf(
+					"[Budget Pressure] %d/%d turns remaining (%.0f%%). " +
+						"Complete the current task and summarize progress.",
+					remainingTurns, a.config.MaxIterations, remaining*100)
+				ch <- Event{
+					Type:           EventBudgetPressure,
+					PressureMessage: warnMsg,
+					PressureType:    "budget",
+					PressurePercent: remaining * 100,
+				}
+			}
+		}
 
 		// Check if compaction should trigger
 		if a.ShouldCompact() {

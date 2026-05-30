@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -168,8 +169,10 @@ func (gw *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				gw.handleWSChat(r.Context(), conn, connID, text)
 
 			case "approval":
-				// TODO: forward approval to dispatcher
-				log.Printf("Approval from %s: %s = %v", connID, msg.ApprovalID, msg.Approved)
+				if msg.ApprovalID != "" && gw.dispatcher != nil {
+					gw.dispatcher.ResolveApproval(msg.ApprovalID, msg.Approved)
+				}
+				conn.Send(WSEvent{Type: "status", Message: fmt.Sprintf("Approval %s: %v", msg.ApprovalID, msg.Approved)})
 
 			default:
 				conn.Send(WSEvent{

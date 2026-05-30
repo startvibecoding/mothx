@@ -126,6 +126,45 @@ func CommandRiskLevel(command string) string {
 	return "medium" // default: unknown commands are medium risk
 }
 
+// ApprovalDecision represents the result of an approval check.
+type ApprovalDecision struct {
+	Approved bool
+	Reason   string
+	RiskLevel string
+}
+
+// FormatApprovalNotification formats a notification for medium/high risk tool calls.
+func FormatApprovalNotification(toolName string, args map[string]any, riskLevel string, approved bool) string {
+	var icon, status string
+	if approved {
+		icon = "⚠️"
+		status = "auto-approved"
+	} else {
+		icon = "🚫"
+		status = "blocked"
+	}
+
+	var detail string
+	if toolName == "bash" {
+		if cmd, ok := args["command"]; ok {
+			cmdStr := fmt.Sprintf("%v", cmd)
+			if len(cmdStr) > 80 {
+				cmdStr = cmdStr[:80] + "..."
+			}
+			detail = cmdStr
+		}
+	} else {
+		if path, ok := args["path"]; ok {
+			detail = fmt.Sprintf("%v", path)
+		}
+	}
+
+	if detail != "" {
+		return fmt.Sprintf("%s [%s] %s %s (%s risk)", icon, toolName, detail, status, riskLevel)
+	}
+	return fmt.Sprintf("%s [%s] %s (%s risk)", icon, toolName, status, riskLevel)
+}
+
 // ShouldAutoApprove returns true if the tool call can be auto-approved in Hermes mode.
 // In Hermes mode, bots run unattended so we need stricter auto-approval rules.
 func (s *Security) ShouldAutoApprove(toolName string, args map[string]any, mode string) bool {

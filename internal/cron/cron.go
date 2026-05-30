@@ -20,6 +20,8 @@ type CronJob struct {
 	OneShot    bool      `json:"oneshot,omitempty"` // If true, auto-disable after first run
 	Mode       string    `json:"mode"`             // "agent" or "yolo"
 	WorkDir    string    `json:"work_dir,omitempty"`
+	A2ATarget  string    `json:"a2a_target,omitempty"`  // A2A server URL (if set, send task via A2A protocol)
+	A2AToken   string    `json:"a2a_token,omitempty"`   // Bearer token for A2A server
 	Enabled    bool      `json:"enabled"`
 	CreatedAt  time.Time `json:"created_at"`
 	LastRun    time.Time `json:"last_run,omitempty"`

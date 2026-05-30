@@ -9,8 +9,33 @@
   - 新增消息平台网关模式，支持微信、飞书和 WebSocket
   - 持久化 per-user session，`/new` 时自动归档
   - 默认 `yolo` 模式，适合无人值守场景
-  - 智能审批 + 命令风险分类
+  - 智能审批分级策略（low/medium/high 风险等级）
   - 用户白名单访问控制
+  - WebSocket 流式推送：text_delta/think_delta/tool_call/tool_result/tool_diff/usage/done
+
+- **A2A 协议** (`vibecoding a2a`)
+  - 新增 Agent-to-Agent 协议服务器（JSON-RPC 2.0 over HTTP + SSE 流式）
+  - 独立模式：`vibecoding a2a start`（端口 8093）
+  - 集成模式：`hermes.json` 中 `a2a.enabled: true`，共享 hermes HTTP 端口
+  - Agent Card：`/.well-known/agent.json`
+  - Task 生命周期：submitted → working → completed/failed/canceled
+  - REST 端点：`/a2a/send`、`/a2a/task`、`/a2a/task/cancel`、`/a2a/events`
+  - **A2A Client**：`vibecoding a2a send <message>` 向其他 A2A Server 发送任务
+  - **A2A 发现**：`vibecoding a2a discover <url>` 获取远程 Agent Card
+  - **A2A 调度**：Cron 任务支持 `--a2a-target` 参数，定时向 A2A Server 发送任务
+
+- **压力系统**
+  - Context Pressure：55% context 使用率时触发 `EventContextPressure`（可通过 `context_pressure_threshold` 配置）
+  - Budget Pressure：剩余 20% 迭代时触发 `EventBudgetPressure`（可通过 `budget_pressure_threshold` 配置）
+  - 一次性触发：每个阈值越界只触发一次，非每轮触发
+  - 消息平台通过进度回调接收压力警告
+
+- **智能审批（分级策略）**
+  - low 风险：自动批准
+  - medium 风险：自动批准 + 通知用户
+  - high 风险（WebSocket）：发送 `approval_request`，等待用户 `approval_response`（5 分钟超时）
+  - high 风险（消息平台）：自动拒绝 + 通知用户
+  - 命令风险分类：基于 bash 命令模式的 low/medium/high 分级
 
 - **Provider/Model 配置**
   - `hermes.json` 新增 `default_provider` / `default_model`（覆盖 `settings.json`）
@@ -34,16 +59,35 @@
   - 格式：`[tool]: args ✅/❌`（工具）、`💭 ...`（思考过程）
   - agent 完成后发送完整总结
 
-- **memory.md 默认写入项目目录**
-  - 默认创建在 `.vibe/memory.md`（项目目录）
-  - 只有显式配置 `memory.path` 时才写入全局目录
+- **memory 工具**
+  - `memory` 工具支持 read/add/update/delete 操作
+  - section 级操作（User Profile、Working Memory、Lessons Learned）
+  - 默认写入 `.vibe/memory.md`（项目目录）
+  - 查找优先级：`memory.path` 配置 → `.vibe/memory.md` → `<GLOBAL_DIR>/memory.md`
+  - `/api/memory` HTTP 端点（GET/PUT）用于 memory 访问
+
+- **Hermes CLI 命令**
+  - `hermes start` — 启动守护进程（支持所有 CLI 标志）
+  - `hermes stop` — 通过 PID 文件 + SIGTERM 停止守护进程
+  - `hermes status` — 通过 PID + HTTP health 检查守护进程状态
+  - `hermes client` — WebSocket 客户端（流式输出 + 斜杠命令）
+  - `hermes config init/show` — 配置管理
+  - `hermes wechat login/status` — 微信 iLink 管理
+  - `hermes feishu setup/status` — 飞书配置
+  - `hermes webhook list` — webhook 路由查看
+  - `hermes memory show/clear` — memory 管理
+  - `hermes sessions list` — 活跃 session 列表（查询运行实例）
+  - `hermes cron list/add/remove/enable/disable` — 定时任务管理
+  - `a2a start/stop/status/card` — A2A 服务器管理
 
 ### 📝 变更
 
-- 微信 iLink 协议实现，零外部依赖
+- 微信 iLink 协议实现，零外部依赖（5 个文件：types/protocol/auth/crypto/wechat）
 - 飞书 Bot 使用官方 SDK + WebSocket 长连接
-- Shell Hooks 支持 pre/post tool call 外部脚本
-- Webhook 入站路由
+- Shell Hooks 支持 pre/post tool call 外部脚本（JSON stdin/stdout）
+- Webhook 入站路由，支持 HMAC-SHA256 签名验证
+- WebSocket 使用 `golang.org/x/net/websocket`（标准库兼容）
+- 基于 PID 文件的守护进程管理（hermes stop/status）
 
 ## v0.1.26
 

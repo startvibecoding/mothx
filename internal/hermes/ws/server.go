@@ -17,6 +17,7 @@ type Gateway struct {
 	httpServer *http.Server
 	dispatcher Dispatcher
 	platforms  PlatformStatusProvider
+	memoryStore MemoryStore
 	version    string
 	authToken  string
 	startTime  time.Time
@@ -31,6 +32,7 @@ type Dispatcher interface {
 	HandleWSMessage(ctx context.Context, connID, text string, eventCh chan<- WSEvent) error
 	ListSessions() []SessionInfo
 	RemoveSession(key string)
+	ResolveApproval(approvalID string, approved bool) bool
 }
 
 // SessionInfo is a simplified session view for API responses.
@@ -108,6 +110,24 @@ func (gw *Gateway) SetPlatformStatusProvider(p PlatformStatusProvider) {
 	gw.mu.Lock()
 	defer gw.mu.Unlock()
 	gw.platforms = p
+}
+
+// MemoryStore provides read/write access to memory.md.
+type MemoryStore interface {
+	Read() (content string, path string, source string, err error)
+	WriteAll(content string) error
+}
+
+// SetMemoryStore sets the memory store for the /api/memory endpoint.
+func (gw *Gateway) SetMemoryStore(s MemoryStore) {
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
+	gw.memoryStore = s
+}
+
+// GetMux returns the HTTP mux for registering additional routes.
+func (gw *Gateway) GetMux() *http.ServeMux {
+	return gw.mux
 }
 
 // Start starts the HTTP server. Blocks until stopped.

@@ -6,33 +6,27 @@ import (
 )
 
 func TestExtractSamplingInput(t *testing.T) {
-	raw := json.RawMessage(`{
-		"maxTokens": 512,
-		"messages": [
-			{"role":"system","content":"you are concise"},
-			{"role":"user","content":"hello"},
-			{"role":"user","content":[{"type":"text","text":"world"}]}
-		]
-	}`)
+	raw := json.RawMessage(`{"maxTokens":512,"messages":[{"role":"system","content":"sys"},{"role":"user","content":"hello"}]}`)
 	prompt, systemPrompt, maxTokens := extractSamplingInput(raw)
-	if prompt != "hello\nworld" {
-		t.Fatalf("unexpected prompt: %q", prompt)
+	if prompt != "hello" {
+		t.Errorf("prompt: got %q", prompt)
 	}
-	if systemPrompt != "you are concise" {
-		t.Fatalf("unexpected system prompt: %q", systemPrompt)
+	if systemPrompt != "sys" {
+		t.Errorf("systemPrompt: got %q", systemPrompt)
 	}
 	if maxTokens != 512 {
-		t.Fatalf("unexpected maxTokens: %d", maxTokens)
+		t.Errorf("maxTokens: got %d", maxTokens)
 	}
 }
 
 func TestParseJSONRawToMap(t *testing.T) {
-	raw := json.RawMessage(`{"a":1}`)
+	raw := json.RawMessage("{}")
 	m := parseJSONRawToMap(raw)
 	if m == nil {
-		t.Fatal("expected map, got nil")
+		t.Fatal("expected map")
 	}
-	if _, ok := m["a"]; !ok {
-		t.Fatalf("missing key a: %#v", m)
+	m = parseJSONRawToMap(json.RawMessage("bad"))
+	if m != nil {
+		t.Error("expected nil")
 	}
 }

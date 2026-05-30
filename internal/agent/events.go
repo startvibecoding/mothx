@@ -47,6 +47,10 @@ const (
 	// Compaction events
 	EventCompactionStart
 	EventCompactionEnd
+
+	// Pressure events
+	EventContextPressure // Context usage exceeded threshold (one-shot)
+	EventBudgetPressure  // Remaining iterations below threshold (one-shot)
 )
 
 // Event represents an event from the agent to the UI.
@@ -100,4 +104,9 @@ type Event struct {
 
 	// Context usage
 	ContextUsage *ctxpkg.ContextUsage
+
+	// Pressure info (for EventContextPressure / EventBudgetPressure)
+	PressureMessage string // Human-readable warning message
+	PressureType    string // "context" or "budget"
+	PressurePercent float64 // Usage percentage that triggered the event
 }

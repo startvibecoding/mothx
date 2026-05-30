@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  Progressive and agile vibe-coding tool. No need to re-deploy Claude Code 、 codex、Claw、Hermes; everything is packed into a single file.
+</p>
+
+<p align="center">
   <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
   <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>

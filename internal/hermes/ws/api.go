@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -119,20 +120,41 @@ func (gw *Gateway) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 
 // handleMemory handles memory.md read/write.
 func (gw *Gateway) handleMemory(w http.ResponseWriter, r *http.Request) {
+	gw.mu.RLock()
+	memStore := gw.memoryStore
+	gw.mu.RUnlock()
+
+	if memStore == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "memory store not configured"})
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
-		// TODO: integrate with memory store
+		content, path, source, err := memStore.Read()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"path":    "",
-			"source":  "none",
-			"content": "",
+			"path":    path,
+			"source":  source,
+			"content": content,
 		})
 
 	case http.MethodPut:
-		// TODO: integrate with memory store
-		writeJSON(w, http.StatusOK, map[string]any{
-			"message": "memory update not yet implemented",
-		})
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		if err := memStore.WriteAll(body.Content); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"message": "memory updated"})
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

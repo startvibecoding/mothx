@@ -9,8 +9,33 @@
   - New messaging gateway mode for WeChat, Feishu, and WebSocket
   - Persistent per-user sessions with auto-archiving on `/new`
   - Default `yolo` mode for unattended operation
-  - Smart approvals with command risk classification
+  - Smart approvals with tiered risk classification (low/medium/high)
   - User whitelist for platform access control
+  - WebSocket streaming: real-time text_delta/think_delta/tool_call/tool_result/tool_diff/usage/done events
+
+- **A2A Protocol** (`vibecoding a2a`)
+  - New Agent-to-Agent protocol server (JSON-RPC 2.0 over HTTP + SSE streaming)
+  - Standalone mode: `vibecoding a2a start` (port 8093)
+  - Integration mode: `hermes.json` `a2a.enabled: true` shares hermes HTTP port
+  - Agent Card at `/.well-known/agent.json`
+  - Task lifecycle: submitted → working → completed/failed/canceled
+  - REST endpoints: `/a2a/send`, `/a2a/task`, `/a2a/task/cancel`, `/a2a/events`
+  - **A2A Client**: `vibecoding a2a send <message>` to send tasks to other A2A servers
+  - **A2A Discovery**: `vibecoding a2a discover <url>` to fetch remote Agent Cards
+  - **A2A Scheduling**: Cron jobs support `--a2a-target` to schedule tasks to A2A servers
+
+- **Pressure System**
+  - Context Pressure: `EventContextPressure` fired at 55% context usage (configurable via `context_pressure_threshold`)
+  - Budget Pressure: `EventBudgetPressure` fired at 20% remaining iterations (configurable via `budget_pressure_threshold`)
+  - One-shot events: fire once per threshold crossing, not every turn
+  - Messaging platforms receive pressure warnings via progress callback
+
+- **Smart Approvals (Tiered Strategy)**
+  - Low risk: auto-approve
+  - Medium risk: auto-approve + notify user
+  - High risk (WebSocket): send `approval_request`, wait for user `approval_response` (5min timeout)
+  - High risk (messaging): auto-reject + notify user
+  - Command risk classification: low/medium/high based on bash command patterns
 
 - **Provider/Model Configuration**
   - `default_provider` / `default_model` in `hermes.json` (overrides `settings.json`)
@@ -34,16 +59,35 @@
   - Format: `[tool]: args ✅/❌` for tools, `💭 ...` for thinking process
   - Final summary sent after agent completes
 
-- **Memory Defaults to Project Directory**
-  - `memory.md` now defaults to `.vibe/memory.md` (project directory)
-  - Only writes to global directory when `memory.path` is explicitly configured
+- **Memory Tool**
+  - `memory` tool with read/add/update/delete actions
+  - Section-level operations (User Profile, Working Memory, Lessons Learned)
+  - Defaults to `.vibe/memory.md` (project directory)
+  - Lookup priority: `memory.path` config → `.vibe/memory.md` → `<GLOBAL_DIR>/memory.md`
+  - `/api/memory` HTTP endpoint (GET/PUT) for memory access
+
+- **Hermes CLI Commands**
+  - `hermes start` — start daemon with all CLI flags
+  - `hermes stop` — stop daemon via PID file + SIGTERM
+  - `hermes status` — check daemon status via PID + HTTP health
+  - `hermes client` — WebSocket client with streaming output and slash commands
+  - `hermes config init/show` — configuration management
+  - `hermes wechat login/status` — WeChat iLink management
+  - `hermes feishu setup/status` — Feishu configuration
+  - `hermes webhook list` — webhook route listing
+  - `hermes memory show/clear` — memory management
+  - `hermes sessions list` — active session listing (queries running instance)
+  - `hermes cron list/add/remove/enable/disable` — cron job management
+  - `a2a start/stop/status/card` — A2A server management
 
 ### 📝 Changes
 
-- WeChat iLink implementation with zero external dependencies
+- WeChat iLink implementation with zero external dependencies (5 files: types/protocol/auth/crypto/wechat)
 - Feishu bot with official SDK and WebSocket long-connection
-- Shell hooks for pre/post tool call external scripts
-- Webhook inbound routing
+- Shell hooks for pre/post tool call external scripts (JSON stdin/stdout)
+- Webhook inbound routing with HMAC-SHA256 signature verification
+- WebSocket uses `golang.org/x/net/websocket` (stdlib compatible)
+- PID file-based daemon management for hermes stop/status
 
 ## v0.1.26
 

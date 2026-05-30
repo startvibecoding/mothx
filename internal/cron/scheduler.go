@@ -1,8 +1,11 @@
 package cron
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -115,30 +118,38 @@ func (s *Scheduler) isDue(job CronJob, now time.Time) bool {
 	return false
 }
 
-// executeJob runs a cron job by spawning a sub-agent.
+// executeJob runs a cron job by spawning a sub-agent or sending to A2A server.
 func (s *Scheduler) executeJob(job CronJob) {
 	// Mark as running
 	job.LastStatus = "running"
 	job.LastRun = time.Now()
 	s.store.Update(job)
 
-	a, err := s.manager.Create(agent.AgentOptions{
-		Mode:    job.Mode,
-		WorkDir: job.WorkDir,
-	})
-	if err != nil {
-		job.LastStatus = "failed"
-		job.LastError = fmt.Sprintf("create agent: %v", err)
-		s.store.Update(job)
-		return
-	}
-
-	ch := a.Run(context.Background(), job.Prompt)
 	var lastErr error
-	for event := range ch {
-		if event.Error != nil {
-			lastErr = event.Error
+
+	// A2A target mode: send task to remote A2A server
+	if job.A2ATarget != "" {
+		lastErr = s.executeA2AJob(job)
+	} else {
+		// Local agent mode
+		a, err := s.manager.Create(agent.AgentOptions{
+			Mode:    job.Mode,
+			WorkDir: job.WorkDir,
+		})
+		if err != nil {
+			job.LastStatus = "failed"
+			job.LastError = fmt.Sprintf("create agent: %v", err)
+			s.store.Update(job)
+			return
 		}
+
+		ch := a.Run(context.Background(), job.Prompt)
+		for event := range ch {
+			if event.Error != nil {
+				lastErr = event.Error
+			}
+		}
+		s.manager.Destroy(a.ID())
 	}
 
 	job.RunCount++
@@ -153,11 +164,9 @@ func (s *Scheduler) executeJob(job CronJob) {
 	// Compute next run from schedule
 	next, isOneShot, err := ParseSchedule(job.Schedule, time.Now())
 	if err != nil {
-		// Can't parse schedule — treat as one-shot
 		isOneShot = true
 	}
 	if isOneShot || job.OneShot {
-		// One-shot: disable after first run
 		job.Enabled = false
 		job.NextRun = time.Time{}
 	} else {
@@ -165,7 +174,52 @@ func (s *Scheduler) executeJob(job CronJob) {
 	}
 
 	s.store.Update(job)
+}
 
-	// Clean up the sub-agent
-	s.manager.Destroy(a.ID())
+// executeA2AJob sends a task to a remote A2A server.
+func (s *Scheduler) executeA2AJob(job CronJob) error {
+	payload := map[string]any{
+		"jsonrpc": "2.0",
+		"method":  "message/send",
+		"params": map[string]any{
+			"message": map[string]any{
+				"role":  "user",
+				"parts": []map[string]string{{"type": "text", "text": job.Prompt}},
+			},
+		},
+		"id": 1,
+	}
+
+	body, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", job.A2ATarget+"/a2a", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if job.A2AToken != "" {
+		req.Header.Set("Authorization", "Bearer "+job.A2AToken)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("a2a request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("a2a request: status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+	if result.Error != nil {
+		return fmt.Errorf("a2a error: %s", result.Error.Message)
+	}
+	return nil
 }

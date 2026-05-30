@@ -54,6 +54,10 @@ type Dispatcher struct {
 
 	// Active sessions: key = "hermes/<platform>/<user_id>"
 	sessions map[string]*HermesSession
+
+	// Pending approvals for WebSocket clients: approvalID → channel
+	approvalMu      sync.Mutex
+	pendingApprovals map[string]chan bool
 }
 
 // HermesSession holds state for a single hermes user session.
@@ -103,6 +107,7 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 		cronStore:  cronStore,
 		scheduler:  scheduler,
 		sessions:   make(map[string]*HermesSession),
+		pendingApprovals: make(map[string]chan bool),
 	}
 
 	// Multi-agent mode: create AgentFactory and AgentManager
@@ -390,16 +395,39 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 		},
 		MultiAgent: d.multiAgent,
 		ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
-			// Smart approvals for hermes mode
+			// Smart approvals: tiered strategy (方案 D)
 			if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
 				return true
 			}
+
+			// Not auto-approved — check risk level
+			risk := "medium"
+			if toolName == "bash" {
+				if cmd, ok := args["command"]; ok {
+					risk = CommandRiskLevel(fmt.Sprintf("%v", cmd))
+				}
+			}
+
 			// Pre-tool hook check
 			if d.hooksMgr.HasPreHook() {
 				allowed, _, _ := d.hooksMgr.PreToolCall(ctx, toolName, args, sess.Platform, sess.UserID)
-				return allowed
+				if allowed {
+					return true
+				}
 			}
-			// No hook, no auto-approve → block in hermes (no interactive approval)
+
+			// Messaging platform: medium risk → auto-approve + notify, high risk → auto-reject + notify
+			if risk == "medium" {
+				if progress != nil {
+					progress(FormatApprovalNotification(toolName, args, risk, true))
+				}
+				return true
+			}
+
+			// High risk: auto-reject on messaging platforms
+			if progress != nil {
+				progress(FormatApprovalNotification(toolName, args, risk, false))
+			}
 			return false
 		},
 	}
@@ -407,6 +435,8 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
 		Config:          agentCfg,
 		MaxIterations:   d.cfg.Agent.MaxTurns,
+		ContextPressureThreshold: d.cfg.Agent.ContextPressureThreshold,
+		BudgetPressureThreshold:  d.cfg.Agent.BudgetPressureThreshold,
 		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
 			// Post-tool hook (fire-and-forget)
 			if d.hooksMgr.HasPostHook() {
@@ -466,6 +496,12 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 					progress(line)
 				}
 			}
+		case agent.EventContextPressure, agent.EventBudgetPressure:
+			// Forward pressure warnings to messaging platform
+			if progress != nil && ev.PressureMessage != "" {
+				progress("\n" + ev.PressureMessage)
+			}
+			log.Printf("[hermes] %s pressure event for %s/%s: %s", ev.PressureType, sess.Platform, sess.UserID, ev.PressureMessage)
 		case agent.EventError:
 			flushThink()
 			if ev.Error != nil {
@@ -534,7 +570,10 @@ func formatToolProgress(ev agent.Event, args map[string]any) string {
 }
 
 // runAgentStreaming executes the agent loop and sends events to the channel (for WebSocket).
+// The eventCh is closed when the agent loop completes.
 func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession, userInput string, eventCh chan<- agent.Event) error {
+	defer close(eventCh)
+
 	workDir := sess.WorkDir
 	extraContext := d.buildExtraContext(workDir)
 
@@ -552,20 +591,77 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 		},
 		MultiAgent: d.multiAgent,
 		ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
+			// Smart approvals: tiered strategy (方案 D)
 			if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
 				return true
 			}
+
+			risk := "medium"
+			if toolName == "bash" {
+				if cmd, ok := args["command"]; ok {
+					risk = CommandRiskLevel(fmt.Sprintf("%v", cmd))
+				}
+			}
+
+			// Pre-tool hook check
 			if d.hooksMgr.HasPreHook() {
 				allowed, _, _ := d.hooksMgr.PreToolCall(ctx, toolName, args, sess.Platform, sess.UserID)
-				return allowed
+				if allowed {
+					return true
+				}
 			}
-			return false
+
+			// Medium risk: auto-approve + notify
+			if risk == "medium" {
+				eventCh <- agent.Event{
+					Type:          agent.EventStatus,
+					StatusMessage: FormatApprovalNotification(toolName, args, risk, true),
+				}
+				return true
+			}
+
+			// High risk on WebSocket: send approval_request, wait for response
+			approvalID := fmt.Sprintf("ap_%s_%d", toolCallID, time.Now().UnixNano())
+			respCh := d.RegisterApproval(approvalID)
+
+			eventCh <- agent.Event{
+				Type:        agent.EventToolApprovalRequest,
+				ApprovalID:  approvalID,
+				ApprovalTool: toolName,
+				ApprovalArgs: args,
+			}
+
+			// Wait for response or timeout
+			select {
+			case approved := <-respCh:
+				if approved {
+					eventCh <- agent.Event{
+						Type:          agent.EventStatus,
+						StatusMessage: fmt.Sprintf("✅ [%s] approved by user", toolName),
+					}
+				}
+				return approved
+			case <-time.After(5 * time.Minute):
+				// Timeout: auto-reject
+				d.approvalMu.Lock()
+				delete(d.pendingApprovals, approvalID)
+				d.approvalMu.Unlock()
+				eventCh <- agent.Event{
+					Type:          agent.EventStatus,
+					StatusMessage: fmt.Sprintf("⏰ [%s] approval timed out — blocked", toolName),
+				}
+				return false
+			case <-ctx.Done():
+				return false
+			}
 		},
 	}
 
 	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
 		Config:        agentCfg,
 		MaxIterations: d.cfg.Agent.MaxTurns,
+		ContextPressureThreshold: d.cfg.Agent.ContextPressureThreshold,
+		BudgetPressureThreshold:  d.cfg.Agent.BudgetPressureThreshold,
 		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
 			if d.hooksMgr.HasPostHook() {
 				argsMap, _ := ctx2.Args.(map[string]any)
@@ -731,6 +827,31 @@ func (d *Dispatcher) archiveCorrupt(path string) {
 	archived := filepath.Join(dir, fmt.Sprintf("%s_corrupt.jsonl",
 		time.Now().Format("20060102-150405")))
 	os.Rename(path, archived)
+}
+
+// RegisterApproval registers a pending approval and returns its channel.
+func (d *Dispatcher) RegisterApproval(approvalID string) chan bool {
+	ch := make(chan bool, 1)
+	d.approvalMu.Lock()
+	d.pendingApprovals[approvalID] = ch
+	d.approvalMu.Unlock()
+	return ch
+}
+
+// ResolveApproval resolves a pending approval with the given decision.
+func (d *Dispatcher) ResolveApproval(approvalID string, approved bool) bool {
+	d.approvalMu.Lock()
+	ch, ok := d.pendingApprovals[approvalID]
+	if ok {
+		delete(d.pendingApprovals, approvalID)
+	}
+	d.approvalMu.Unlock()
+
+	if ok {
+		ch <- approved
+		return true
+	}
+	return false
 }
 
 func truncate(s string, maxLen int) string {

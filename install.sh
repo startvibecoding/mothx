@@ -5,6 +5,11 @@ set -euo pipefail
 trap 'error "Installation failed at line $LINENO."' ERR
 
 # VibeCoding Installer
+# Progressive and agile vibe-coding tool. No need to re-deploy Claw/Hermes;
+# everything is packed into a single file.
+# 主打渐进式、敏捷开发体验的 VibeCoding 工具，整体打包为单个文件，开箱即用，
+# 无需重复搭建部署 Claude Code、codex、Claw、Hermes 环境。
+#
 # Downloads and installs the latest release from GitHub
 #
 # Supports non-root installation to ~/.vibecoding/bin
