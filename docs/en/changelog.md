@@ -1,7 +1,7 @@
 # Changelog
 
 
-## v0.1.27 (in progress)
+## v0.1.27
 
 ### ✨ Features
 
@@ -113,6 +113,15 @@
 - Webhook inbound routing with HMAC-SHA256 signature verification
 - WebSocket uses `golang.org/x/net/websocket` (stdlib compatible)
 - PID file-based daemon management for hermes stop/status
+
+### 🐛 Bug Fixes
+
+- **NPM Installer Packaging**
+  - Fixed release packaging flow so `vibecoding-installer` always ships executable entry `bin/vibecoding`.
+  - Added `scripts/npm-installer-wrapper.js` as the single source of wrapper logic, reused by both
+    `scripts/build-npm.sh` and `scripts/build-npm-packages.sh` to avoid drift.
+  - Adjusted `npm/.npmignore` and `npm/bin` handling to avoid shipping accidental build artifacts and to keep
+    package manifests (`files`) explicit.
 
 ## v0.1.26
 
@@ -1068,4 +1077,4 @@
 
 ---
 
-**Full Changelog**: https://github.com/startvibecoding/vibecoding/compare/v0.0.1...v0.0.7
+**Full Changelog**: https://github.com/startvibecoding/vibecoding/compare/v0.1.26...v0.1.27

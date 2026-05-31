@@ -1,7 +1,7 @@
 # 更新日志
 
 
-## v0.1.27 (开发中)
+## v0.1.27
 
 ### ✨ 新功能
 
@@ -113,6 +113,14 @@
 - Webhook 入站路由，支持 HMAC-SHA256 签名验证
 - WebSocket 使用 `golang.org/x/net/websocket`（标准库兼容）
 - 基于 PID 文件的守护进程管理（hermes stop/status）
+
+### 🐛 问题修复
+
+- **NPM 安装包修复**
+  - 修复发布流水线，确保 `vibecoding-installer` 始终包含可执行入口 `bin/vibecoding`。
+  - 新增 `scripts/npm-installer-wrapper.js` 作为统一的 wrapper 逻辑源，并被 `scripts/build-npm.sh`
+    与 `scripts/build-npm-packages.sh` 复用，避免实现分叉。
+  - 调整 `npm/.npmignore` 与 `npm/bin` 的处理方式，避免误打包非发布文件，并通过 `files` 字段显式声明要发布内容。
 
 ## v0.1.26
 
@@ -1067,4 +1075,4 @@
 
 ---
 
-**完整变更日志**: https://github.com/startvibecoding/vibecoding/compare/v0.0.1...v0.0.7
+**完整变更日志**: https://github.com/startvibecoding/vibecoding/compare/v0.1.26...v0.1.27
