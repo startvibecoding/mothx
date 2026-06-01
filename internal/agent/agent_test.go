@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/tools"
@@ -465,6 +466,33 @@ func TestAgentRunSequential(t *testing.T) {
 
 	if !hasToolExecution {
 		t.Error("expected tool execution event")
+	}
+}
+
+func TestWebSearchToolDefinitionCarriesModelMetadata(t *testing.T) {
+	settings := &config.Settings{
+		WebSearch: config.WebSearchSettings{
+			Enabled:      config.BoolPtr(true),
+			Provider:     "anthropic",
+			ProviderType: "messages",
+			Model:        "claude-sonnet-4-20250514",
+		},
+	}
+	def, ok := webSearchToolDefinition(settings)
+	if !ok {
+		t.Fatal("expected web search tool definition")
+	}
+	if def.Name != "web_search" {
+		t.Fatalf("name = %q, want web_search", def.Name)
+	}
+	if def.Provider != "anthropic" {
+		t.Fatalf("provider = %q, want anthropic", def.Provider)
+	}
+	if def.ProviderType != "messages" {
+		t.Fatalf("providerType = %q, want messages", def.ProviderType)
+	}
+	if def.Model != "claude-sonnet-4-20250514" {
+		t.Fatalf("model = %q, want claude-sonnet-4-20250514", def.Model)
 	}
 }
 

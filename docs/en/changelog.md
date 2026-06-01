@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v0.1.30
+
+### ✨ Features
+
+- **Hosted Web Search Tool**
+  - Added `--web-search` for CLI and ACP runs
+  - Added top-level `webSearch` settings with `enabled`, `provider`, `providerType`, and `model`
+  - Registered hosted `web_search` tools only when enabled, keeping them separate from local function tools
+  - Added OpenAI Responses API mapping to `web_search_preview`
+  - Added Anthropic Messages API mapping to `web_search_20250305`
+  - Preserved `webSearch.model` as provider-neutral metadata for future routing and cost display
+
+- **Default Provider Templates**
+  - Added built-in default provider entries for OpenAI, Anthropic, and Xiaomi MiMo
+  - Kept DeepSeek providers and `deepseek-openai` as the default provider/model
+  - First-run `settings.json` now includes disabled web search configuration plus OpenAI/Anthropic/Xiaomi provider templates
+
+### 🧪 Tests
+
+- Added coverage for hosted web search tool serialization across OpenAI Responses and Anthropic Messages
+- Added coverage for web search configuration defaults, CLI flag parsing, and hosted tool metadata propagation
+
 ## v0.1.29
 
 ### 🐛 Bug Fixes

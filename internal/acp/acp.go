@@ -37,6 +37,7 @@ type RunOptions struct {
 	Verbose    bool
 	Debug      bool
 	MultiAgent bool
+	WebSearch  bool
 }
 
 type server struct {
@@ -225,6 +226,9 @@ func Run(opts RunOptions) error {
 	settings, err := config.LoadSettings()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
+	}
+	if opts.WebSearch {
+		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
 
 	cwd, err := os.Getwd()

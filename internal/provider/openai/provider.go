@@ -672,6 +672,9 @@ func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantRea
 func (p *Provider) convertTools(tools []provider.ToolDefinition) []openAITool {
 	var result []openAITool
 	for _, t := range tools {
+		if t.Kind == "hosted" {
+			continue
+		}
 		result = append(result, openAITool{Type: "function", Function: openAIFunction{Name: t.Name, Description: t.Description, Parameters: t.Parameters}})
 	}
 	return result

@@ -57,6 +57,7 @@ func TestRootParsesSessionFlags(t *testing.T) {
 		"--resume", "abc123",
 		"--session", "def456",
 		"--sandbox",
+		"--web-search",
 	})
 
 	if err := cmd.Execute(); err != nil {
@@ -85,6 +86,9 @@ func TestRootParsesSessionFlags(t *testing.T) {
 	}
 	if !got.sandbox {
 		t.Fatal("expected sandbox flag")
+	}
+	if !got.webSearch {
+		t.Fatal("expected web-search flag")
 	}
 }
 

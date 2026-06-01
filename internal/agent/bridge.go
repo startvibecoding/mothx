@@ -13,12 +13,12 @@ import (
 // MessageToPublic converts an internal provider.Message to a public agent.Message.
 func MessageToPublic(m provider.Message) agentpkg.Message {
 	msg := agentpkg.Message{
-		Role:            agentpkg.Role(m.Role),
-		Content:         m.Content,
-		IsError:         m.IsError,
+		Role:           agentpkg.Role(m.Role),
+		Content:        m.Content,
+		IsError:        m.IsError,
 		SystemInjected: m.SystemInjected,
-		ToolCallID:      m.ToolCallID,
-		ToolName:        m.ToolName,
+		ToolCallID:     m.ToolCallID,
+		ToolName:       m.ToolName,
 	}
 	if m.Usage != nil {
 		msg.Usage = &agentpkg.Usage{
@@ -38,12 +38,12 @@ func MessageToPublic(m provider.Message) agentpkg.Message {
 // MessageFromPublic converts a public agent.Message to an internal provider.Message.
 func MessageFromPublic(m agentpkg.Message) provider.Message {
 	msg := provider.Message{
-		Role:            string(m.Role),
-		Content:         m.Content,
-		IsError:         m.IsError,
+		Role:           string(m.Role),
+		Content:        m.Content,
+		IsError:        m.IsError,
 		SystemInjected: m.SystemInjected,
-		ToolCallID:      m.ToolCallID,
-		ToolName:        m.ToolName,
+		ToolCallID:     m.ToolCallID,
+		ToolName:       m.ToolName,
 	}
 	if m.Usage != nil {
 		msg.Usage = &provider.Usage{
@@ -254,9 +254,13 @@ func ChatParamsToPublic(p provider.ChatParams) agentpkg.ChatParams {
 	tools := make([]agentpkg.ToolDefinition, len(p.Tools))
 	for i, t := range p.Tools {
 		tools[i] = agentpkg.ToolDefinition{
-			Name:        t.Name,
-			Description: t.Description,
-			Parameters:  t.Parameters,
+			Name:         t.Name,
+			Description:  t.Description,
+			Parameters:   t.Parameters,
+			Kind:         t.Kind,
+			Provider:     t.Provider,
+			ProviderType: t.ProviderType,
+			Model:        t.Model,
 		}
 	}
 	var abort chan struct{}
@@ -319,16 +323,30 @@ func NewAgentAdapter(a *Agent) *AgentAdapter {
 	return &AgentAdapter{inner: a}
 }
 
-func (a *AgentAdapter) ID() agentpkg.AgentID                                    { return a.inner.id }
-func (a *AgentAdapter) ParentID() agentpkg.AgentID                              { return a.inner.parentID }
-func (a *AgentAdapter) Abort()                                                  { a.inner.Abort() }
-func (a *AgentAdapter) HandleApprovalResponse(id string, approved bool)         { a.inner.HandleApprovalResponse(id, approved) }
-func (a *AgentAdapter) Run(ctx context.Context, userMsg string) <-chan agentpkg.Event { return WrapEventChan(a.inner.Run(ctx, userMsg)) }
-func (a *AgentAdapter) RunWithMessages(ctx context.Context, msgs []agentpkg.Message) <-chan agentpkg.Event { return WrapEventChan(a.inner.RunWithMessages(ctx, MessagesFromPublic(msgs))) }
-func (a *AgentAdapter) GetMessages() []agentpkg.Message                         { return MessagesToPublic(a.inner.GetMessages()) }
-func (a *AgentAdapter) SetMessages(msgs []agentpkg.Message)                     { a.inner.SetMessages(MessagesFromPublic(msgs)) }
-func (a *AgentAdapter) GetContextUsage() *agentpkg.ContextUsage                 { return ContextUsageToPublic(a.inner.GetContextUsage()) }
-func (a *AgentAdapter) LoadHistoryMessages(msgs []agentpkg.Message)             { a.inner.LoadHistoryMessages(MessagesFromPublic(msgs)) }
+func (a *AgentAdapter) ID() agentpkg.AgentID       { return a.inner.id }
+func (a *AgentAdapter) ParentID() agentpkg.AgentID { return a.inner.parentID }
+func (a *AgentAdapter) Abort()                     { a.inner.Abort() }
+func (a *AgentAdapter) HandleApprovalResponse(id string, approved bool) {
+	a.inner.HandleApprovalResponse(id, approved)
+}
+func (a *AgentAdapter) Run(ctx context.Context, userMsg string) <-chan agentpkg.Event {
+	return WrapEventChan(a.inner.Run(ctx, userMsg))
+}
+func (a *AgentAdapter) RunWithMessages(ctx context.Context, msgs []agentpkg.Message) <-chan agentpkg.Event {
+	return WrapEventChan(a.inner.RunWithMessages(ctx, MessagesFromPublic(msgs)))
+}
+func (a *AgentAdapter) GetMessages() []agentpkg.Message {
+	return MessagesToPublic(a.inner.GetMessages())
+}
+func (a *AgentAdapter) SetMessages(msgs []agentpkg.Message) {
+	a.inner.SetMessages(MessagesFromPublic(msgs))
+}
+func (a *AgentAdapter) GetContextUsage() *agentpkg.ContextUsage {
+	return ContextUsageToPublic(a.inner.GetContextUsage())
+}
+func (a *AgentAdapter) LoadHistoryMessages(msgs []agentpkg.Message) {
+	a.inner.LoadHistoryMessages(MessagesFromPublic(msgs))
+}
 
 func (a *AgentAdapter) GetContext() *agentpkg.AgentContext {
 	x := a.inner.GetContext()

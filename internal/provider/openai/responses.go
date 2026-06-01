@@ -56,7 +56,7 @@ type responsesContentBlock struct {
 
 type responsesTool struct {
 	Type        string          `json:"type"`
-	Name        string          `json:"name"`
+	Name        string          `json:"name,omitempty"`
 	Description string          `json:"description,omitempty"`
 	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
@@ -297,9 +297,26 @@ func responseToolOutput(msg provider.Message) string {
 func (p *Provider) convertResponsesTools(tools []provider.ToolDefinition) []responsesTool {
 	result := make([]responsesTool, 0, len(tools))
 	for _, t := range tools {
+		if t.Kind == "hosted" {
+			toolType := hostedResponsesToolType(t)
+			if toolType == "" {
+				continue
+			}
+			result = append(result, responsesTool{Type: toolType})
+			continue
+		}
 		result = append(result, responsesTool{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters})
 	}
 	return result
+}
+
+func hostedResponsesToolType(t provider.ToolDefinition) string {
+	switch {
+	case t.Provider == "openai" && t.ProviderType == "responses" && t.Name == "web_search":
+		return "web_search_preview"
+	default:
+		return ""
+	}
 }
 
 func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) {

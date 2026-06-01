@@ -75,27 +75,27 @@ type AgentContext struct {
 type Role string
 
 const (
-	RoleUser        Role = "user"
-	RoleAssistant   Role = "assistant"
-	RoleToolResult  Role = "toolResult"
-	RoleSystem      Role = "system"
+	RoleUser       Role = "user"
+	RoleAssistant  Role = "assistant"
+	RoleToolResult Role = "toolResult"
+	RoleSystem     Role = "system"
 )
 
 // Message represents a single message in the conversation.
 type Message struct {
-	Role            Role
-	Content         string
-	Contents        []ContentBlock
-	IsError         bool
+	Role           Role
+	Content        string
+	Contents       []ContentBlock
+	IsError        bool
 	SystemInjected bool
-	ToolCallID      string
-	ToolName        string
-	Usage           *Usage
+	ToolCallID     string
+	ToolName       string
+	Usage          *Usage
 }
 
 // ContentBlock represents a typed block within a message.
 type ContentBlock struct {
-	Type         string        // "text", "toolCall", "thinking", "image"
+	Type         string // "text", "toolCall", "thinking", "image"
 	Text         string
 	ToolCall     *ToolCallBlock
 	Thinking     string
@@ -124,9 +124,13 @@ type CacheControl struct {
 
 // ToolDefinition describes a tool available to the LLM.
 type ToolDefinition struct {
-	Name        string
-	Description string
-	Parameters  []byte // JSON Schema
+	Name         string
+	Description  string
+	Parameters   []byte // JSON Schema
+	Kind         string // "function" (default) or "hosted"
+	Provider     string
+	ProviderType string
+	Model        string
 }
 
 // Usage tracks token consumption for a single LLM response.

@@ -22,12 +22,31 @@ func TestDefaultSettings(t *testing.T) {
 		t.Errorf("expected default mode 'agent', got '%s'", s.DefaultMode)
 	}
 
-	if len(s.Providers) != 2 {
-		t.Errorf("expected 2 providers, got %d", len(s.Providers))
+	if len(s.Providers) != 5 {
+		t.Errorf("expected 5 providers, got %d", len(s.Providers))
+	}
+
+	if s.Providers["openai"] == nil {
+		t.Fatal("expected default openai provider")
+	}
+	if s.Providers["anthropic"] == nil {
+		t.Fatal("expected default anthropic provider")
+	}
+	if s.Providers["xiaomi"] == nil {
+		t.Fatal("expected default xiaomi provider")
 	}
 
 	if s.DefaultThinkingLevel != "medium" {
 		t.Errorf("expected thinking level 'medium', got '%s'", s.DefaultThinkingLevel)
+	}
+	if s.WebSearch.Enabled == nil || *s.WebSearch.Enabled {
+		t.Fatalf("expected web search to be disabled by default, got %#v", s.WebSearch.Enabled)
+	}
+	if s.WebSearch.Provider != "openai" || s.WebSearch.ProviderType != "responses" {
+		t.Fatalf("unexpected web search defaults: %#v", s.WebSearch)
+	}
+	if s.WebSearch.Model != "" {
+		t.Fatalf("expected empty web search model by default, got %q", s.WebSearch.Model)
 	}
 }
 
@@ -154,6 +173,9 @@ func TestLoadSettings(t *testing.T) {
 
 	if s.DefaultProvider != "test" {
 		t.Errorf("expected provider 'test', got '%s'", s.DefaultProvider)
+	}
+	if s.WebSearch.Model != "" {
+		t.Errorf("expected empty webSearch.model, got '%s'", s.WebSearch.Model)
 	}
 }
 

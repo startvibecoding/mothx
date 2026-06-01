@@ -159,9 +159,10 @@ type anthropicImage struct {
 }
 
 type anthropicTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Type        string          `json:"type,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
 }
 
 type anthropicResponse struct {
@@ -626,9 +627,26 @@ func (p *Provider) convertToolResultMessage(msg provider.Message, cacheEnabled b
 func (p *Provider) convertTools(tools []provider.ToolDefinition) []anthropicTool {
 	var result []anthropicTool
 	for _, t := range tools {
+		if t.Kind == "hosted" {
+			toolType := hostedAnthropicToolType(t)
+			if toolType == "" {
+				continue
+			}
+			result = append(result, anthropicTool{Type: toolType})
+			continue
+		}
 		result = append(result, anthropicTool{Name: t.Name, Description: t.Description, InputSchema: t.Parameters})
 	}
 	return result
+}
+
+func hostedAnthropicToolType(t provider.ToolDefinition) string {
+	switch {
+	case t.Provider == "anthropic" && t.ProviderType == "messages" && t.Name == "web_search":
+		return "web_search_20250305"
+	default:
+		return ""
+	}
 }
 
 func deepseekReasoningEffort(level provider.ThinkingLevel) string {

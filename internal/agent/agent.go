@@ -197,8 +197,17 @@ type Agent struct {
 // These values are frozen for the entire session lifetime to maximize prompt cache hits.
 // This implements Rule R2.1 from LLM_Agent_Cache.md: System prompt must be built once and never modified.
 func (a *Agent) buildFrozenPrompt() {
-	toolNames := make([]string, 0)
-	for _, t := range a.registry.ModeTools(a.config.Mode) {
+	toolDefs := a.registry.ModeTools(a.config.Mode)
+	if a.config.Settings != nil {
+		if t, ok := webSearchToolDefinition(a.config.Settings); ok {
+			toolDefs = append(toolDefs, t)
+		}
+	}
+	toolNames := make([]string, 0, len(toolDefs))
+	for _, t := range toolDefs {
+		if t.Kind == "hosted" {
+			continue
+		}
 		toolNames = append(toolNames, t.Name)
 	}
 	toolSnippets := a.registry.ToolSnippets(toolNames)
@@ -212,8 +221,33 @@ func (a *Agent) buildFrozenPrompt() {
 		toolGuidelines,
 		a.config.MultiAgent,
 	)
-	a.frozenToolDefs = a.registry.ModeTools(a.config.Mode)
+	a.frozenToolDefs = toolDefs
 	a.frozenToolNames = toolNames
+}
+
+func webSearchToolDefinition(settings *config.Settings) (provider.ToolDefinition, bool) {
+	if settings == nil || !settings.IsWebSearchEnabled() {
+		return provider.ToolDefinition{}, false
+	}
+	cfg := settings.WebSearch
+	if cfg.Provider == "" {
+		cfg.Provider = "openai"
+	}
+	if cfg.ProviderType == "" {
+		switch cfg.Provider {
+		case "anthropic":
+			cfg.ProviderType = "messages"
+		default:
+			cfg.ProviderType = "responses"
+		}
+	}
+	return provider.ToolDefinition{
+		Name:         "web_search",
+		Kind:         "hosted",
+		Provider:     cfg.Provider,
+		ProviderType: cfg.ProviderType,
+		Model:        cfg.Model,
+	}, true
 }
 
 // supportsImages checks if the model supports image input.
@@ -794,11 +828,11 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 				if *ctx.Percent >= threshold {
 					contextPressureFired = true
 					warnMsg := fmt.Sprintf(
-						"[Context Pressure] %.0f%% of context window used (%d/%d tokens). " +
+						"[Context Pressure] %.0f%% of context window used (%d/%d tokens). "+
 							"Compaction will trigger soon. Consider saving important context to memory.md and wrapping up the current task.",
 						*ctx.Percent, ctx.Tokens, ctx.ContextWindow)
 					ch <- Event{
-						Type:           EventContextPressure,
+						Type:            EventContextPressure,
 						PressureMessage: warnMsg,
 						PressureType:    "context",
 						PressurePercent: *ctx.Percent,
@@ -819,11 +853,11 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 				budgetPressureFired = true
 				remainingTurns := a.config.MaxIterations - i
 				warnMsg := fmt.Sprintf(
-					"[Budget Pressure] %d/%d turns remaining (%.0f%%). " +
+					"[Budget Pressure] %d/%d turns remaining (%.0f%%). "+
 						"Complete the current task and summarize progress.",
 					remainingTurns, a.config.MaxIterations, remaining*100)
 				ch <- Event{
-					Type:           EventBudgetPressure,
+					Type:            EventBudgetPressure,
 					PressureMessage: warnMsg,
 					PressureType:    "budget",
 					PressurePercent: remaining * 100,

@@ -1,6 +1,28 @@
 # 更新日志
 
 
+## v0.1.30
+
+### ✨ 新功能
+
+- **Hosted Web Search 工具**
+  - 为 CLI 和 ACP 运行新增 `--web-search`
+  - 新增顶层 `webSearch` 配置，包含 `enabled`、`provider`、`providerType` 和 `model`
+  - 仅在启用时注册 hosted `web_search`，并与本地 function tools 保持隔离
+  - 新增 OpenAI Responses API 映射到 `web_search_preview`
+  - 新增 Anthropic Messages API 映射到 `web_search_20250305`
+  - 将 `webSearch.model` 保留为 provider-neutral metadata，用于后续路由和成本展示扩展
+
+- **默认 Provider 模板**
+  - 新增 OpenAI、Anthropic 和 Xiaomi MiMo 默认 provider 配置
+  - 保留 DeepSeek providers，并继续使用 `deepseek-openai` 作为默认 provider/model
+  - 首次生成的 `settings.json` 现在包含默认关闭的 web search 配置，以及 OpenAI/Anthropic/Xiaomi provider 模板
+
+### 🧪 测试
+
+- 增加 OpenAI Responses 和 Anthropic Messages hosted web search 序列化测试
+- 增加 web search 配置默认值、CLI flag 解析和 hosted tool metadata 传递测试
+
 ## v0.1.29
 
 ### 🐛 Bug 修复

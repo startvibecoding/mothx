@@ -177,6 +177,42 @@ func TestChatRequestPreservesCacheControlOnSingleTextBlock(t *testing.T) {
 	}
 }
 
+func TestChatRequestHostedWebSearchTool(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "claude-test"}}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
+	params := provider.ChatParams{
+		ModelID: "claude-test",
+		Messages: []provider.Message{
+			provider.NewUserMessage("search the web"),
+		},
+		Tools: []provider.ToolDefinition{
+			{Name: "web_search", Kind: "hosted", Provider: "anthropic", ProviderType: "messages"},
+		},
+		Abort: make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if len(req.Tools) != 1 {
+		t.Fatalf("len(tools) = %d, want 1", len(req.Tools))
+	}
+	if req.Tools[0].Type != "web_search_20250305" {
+		t.Fatalf("tool.type = %q, want web_search_20250305", req.Tools[0].Type)
+	}
+	if req.Tools[0].Name != "" {
+		t.Fatalf("hosted tool should not include name: %#v", req.Tools[0])
+	}
+}
+
 func TestConvertMessagesAnthropicToolResultEmptyContentFallback(t *testing.T) {
 	p := NewProvider("fake-key", "https://api.anthropic.com")
 	msgs := p.convertMessages(provider.ChatParams{

@@ -259,9 +259,13 @@ const (
 
 // ToolDefinition describes a tool available to the model.
 type ToolDefinition struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  json.RawMessage `json:"parameters"` // JSON Schema
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	Parameters   json.RawMessage `json:"parameters"`     // JSON Schema
+	Kind         string          `json:"kind,omitempty"` // "function" (default) or "hosted"
+	Provider     string          `json:"provider,omitempty"`
+	ProviderType string          `json:"providerType,omitempty"`
+	Model        string          `json:"model,omitempty"`
 }
 
 // StreamEventType identifies the type of a streaming event.

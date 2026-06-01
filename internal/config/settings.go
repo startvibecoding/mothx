@@ -22,6 +22,7 @@ type Settings struct {
 	DefaultThinkingLevel string                     `json:"defaultThinkingLevel,omitempty"`
 	DefaultMode          string                     `json:"defaultMode,omitempty"`
 	EnablePlanTool       *bool                      `json:"enablePlanTool,omitempty"`
+	WebSearch            WebSearchSettings          `json:"webSearch"`
 	MaxContextTokens     int                        `json:"maxContextTokens,omitempty"`
 	MaxOutputTokens      int                        `json:"maxOutputTokens,omitempty"`
 	ContextFiles         ContextFilesSettings       `json:"contextFiles"`
@@ -52,6 +53,13 @@ type ResponsesConfig struct {
 	PromptCacheEnabled   *bool  `json:"promptCacheEnabled,omitempty"`   // nil/true = on, false = off
 	PromptCacheKey       string `json:"promptCacheKey,omitempty"`       // optional explicit cache key; defaults to provider/model stable key
 	PromptCacheRetention string `json:"promptCacheRetention,omitempty"` // optional OpenAI prompt cache retention value
+}
+
+type WebSearchSettings struct {
+	Enabled      *bool  `json:"enabled,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+	ProviderType string `json:"providerType,omitempty"`
+	Model        string `json:"model,omitempty"`
 }
 
 type ModelConfig struct {
@@ -150,6 +158,17 @@ type ApprovalSettings struct {
 func DefaultSettings() *Settings {
 	return &Settings{
 		Providers: map[string]*ProviderConfig{
+			"anthropic": &ProviderConfig{
+				BaseURL: "https://api.anthropic.com",
+				APIKey:  "${ANTHROPIC_API_KEY}",
+				API:     "anthropic-messages",
+				Models: []ModelConfig{
+					{ID: "claude-sonnet-4-20250514", Name: "Claude 4 Sonnet", Reasoning: true, ContextWindow: 200000, MaxTokens: 16384, Cost: &CostConfig{Input: 3.0, Output: 15.0, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+					{ID: "claude-3-5-sonnet-20241022", Name: "Claude 3.5 Sonnet", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 3.0, Output: 15.0, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+					{ID: "claude-3-5-haiku-20241022", Name: "Claude 3.5 Haiku", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 0.8, Output: 4.0, CacheRead: 0.08, CacheWrite: 1.0}, Input: []string{"text", "image"}},
+					{ID: "claude-3-opus-20240229", Name: "Claude 3 Opus", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 15.0, Output: 75.0, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
+				},
+			},
 			"deepseek-anthropic": &ProviderConfig{
 				BaseURL: "https://api.deepseek.com/anthropic",
 				APIKey:  "${DEEPSEEK_API_KEY}",
@@ -168,12 +187,35 @@ func DefaultSettings() *Settings {
 					{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 1, Output: 4}, Input: []string{"text"}},
 				},
 			},
+			"openai": &ProviderConfig{
+				BaseURL: "https://api.openai.com/v1",
+				APIKey:  "${OPENAI_API_KEY}",
+				API:     "openai-responses",
+				Models: []ModelConfig{
+					{ID: "gpt-4o", Name: "GPT-4o", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10.0, CacheRead: 1.25, CacheWrite: 2.5}, Input: []string{"text", "image"}},
+					{ID: "gpt-4o-mini", Name: "GPT-4o Mini", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.075, CacheWrite: 0.15}, Input: []string{"text", "image"}},
+					{ID: "o1", Name: "o1", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 15.0, Output: 60.0, CacheRead: 7.5, CacheWrite: 15.0}, Input: []string{"text", "image"}},
+					{ID: "o3-mini", Name: "o3-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 1.1, Output: 4.4, CacheRead: 0.55, CacheWrite: 1.1}, Input: []string{"text", "image"}},
+				},
+			},
+			"xiaomi": &ProviderConfig{
+				BaseURL:        "https://api.xiaomimimo.com/v1",
+				APIKey:         "${XIAOMI_API_KEY}",
+				API:            "openai-chat",
+				ThinkingFormat: "xiaomi",
+				Models: []ModelConfig{
+					{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.0036}, Input: []string{"text"}},
+					{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text", "image", "audio", "video"}},
+					{ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 256000, MaxTokens: 64000, Cost: &CostConfig{Input: 0.10, Output: 0.30, CacheRead: 0.01}, Input: []string{"text"}},
+				},
+			},
 		},
 		DefaultProvider:      "deepseek-openai",
 		DefaultModel:         "deepseek-v4-flash",
 		DefaultThinkingLevel: "medium",
 		DefaultMode:          "agent",
 		EnablePlanTool:       boolPtr(true),
+		WebSearch:            WebSearchSettings{Enabled: boolPtr(false), Provider: "openai", ProviderType: "responses"},
 		ContextFiles:         ContextFilesSettings{Enabled: true},
 		SkillsDir:            platform.SkillsDir(),
 		Compaction:           CompactionSettings{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000},
@@ -292,6 +334,9 @@ func mergeSettings(s, proj *Settings) {
 	}
 	if proj.EnablePlanTool != nil {
 		s.EnablePlanTool = boolPtr(*proj.EnablePlanTool)
+	}
+	if proj.WebSearch.Enabled != nil || proj.WebSearch.Provider != "" || proj.WebSearch.ProviderType != "" {
+		s.WebSearch = mergeWebSearchSettings(s.WebSearch, proj.WebSearch)
 	}
 	if proj.MaxContextTokens != 0 {
 		s.MaxContextTokens = proj.MaxContextTokens
@@ -474,6 +519,50 @@ func (s *Settings) IsPlanToolEnabled() bool {
 		return true
 	}
 	return *s.EnablePlanTool
+}
+
+func (s *Settings) IsWebSearchEnabled() bool {
+	if s == nil || s.WebSearch.Enabled == nil {
+		return false
+	}
+	return *s.WebSearch.Enabled
+}
+
+func mergeWebSearchSettings(base, override WebSearchSettings) WebSearchSettings {
+	if override.Enabled != nil {
+		base.Enabled = boolPtr(*override.Enabled)
+	}
+	if override.Provider != "" {
+		base.Provider = override.Provider
+		if override.ProviderType == "" {
+			base.ProviderType = ""
+		}
+	}
+	if override.ProviderType != "" {
+		base.ProviderType = override.ProviderType
+	}
+	if override.Model != "" {
+		base.Model = override.Model
+	}
+	return normalizeWebSearchSettings(base)
+}
+
+func normalizeWebSearchSettings(cfg WebSearchSettings) WebSearchSettings {
+	if cfg.Enabled == nil {
+		cfg.Enabled = boolPtr(false)
+	}
+	if cfg.Provider == "" {
+		cfg.Provider = "openai"
+	}
+	if cfg.ProviderType == "" {
+		switch cfg.Provider {
+		case "anthropic":
+			cfg.ProviderType = "messages"
+		default:
+			cfg.ProviderType = "responses"
+		}
+	}
+	return cfg
 }
 
 func SaveGlobalSettings(s *Settings) error {

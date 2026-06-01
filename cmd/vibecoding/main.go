@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
-	"github.com/startvibecoding/vibecoding/internal/acp"
 	"github.com/startvibecoding/vibecoding/internal/a2a"
+	"github.com/startvibecoding/vibecoding/internal/acp"
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
@@ -39,22 +39,23 @@ func main() {
 
 func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.RunOptions) error) *cobra.Command {
 	var (
-		flagProvider          string
-		flagModel             string
-		flagMode              string
-		flagThinking          string
-		flagContinue          bool
-		flagResume            string
-		flagSession           string
-		flagSandbox           bool
-		flagPrint             bool
-		flagVerbose           bool
-		flagDebug             bool
-		flagMultiAgent        bool
-		flagInitGateway       bool
-		flagForce             bool
-		flagEnableA2AMaster   bool
-		flagInitA2AMaster     bool
+		flagProvider        string
+		flagModel           string
+		flagMode            string
+		flagThinking        string
+		flagContinue        bool
+		flagResume          string
+		flagSession         string
+		flagSandbox         bool
+		flagPrint           bool
+		flagVerbose         bool
+		flagDebug           bool
+		flagMultiAgent      bool
+		flagWebSearch       bool
+		flagInitGateway     bool
+		flagForce           bool
+		flagEnableA2AMaster bool
+		flagInitA2AMaster   bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -94,6 +95,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				verbose:         flagVerbose,
 				debug:           flagDebug,
 				multiAgent:      flagMultiAgent,
+				webSearch:       flagWebSearch,
 				enableA2AMaster: flagEnableA2AMaster,
 			})
 		},
@@ -113,6 +115,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				Verbose:    flagVerbose,
 				Debug:      flagDebug,
 				MultiAgent: flagMultiAgent,
+				WebSearch:  flagWebSearch,
 			})
 		},
 	}
@@ -130,6 +133,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	flags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	flags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	flags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	flags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this run")
 	flags.BoolVar(&flagInitGateway, "init-gateway", false, "Create gateway.json config template")
 	flags.BoolVar(&flagForce, "force", false, "Force overwrite existing files (used with --init-*)")
 	flags.BoolVar(&flagEnableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
@@ -144,6 +148,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	acpFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	acpFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	acpFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	acpFlags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this ACP run")
 
 	var (
 		flagGatewayPort    string
@@ -201,6 +206,7 @@ type runOptions struct {
 	verbose         bool
 	debug           bool
 	multiAgent      bool
+	webSearch       bool
 	enableA2AMaster bool
 }
 
@@ -226,6 +232,9 @@ func run(args []string, opts runOptions) error {
 	settings, err := config.LoadSettings()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
+	}
+	if opts.webSearch {
+		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
 
 	// Get working directory
