@@ -115,6 +115,8 @@ type openAIRequest struct {
 	Tools               []openAITool    `json:"tools,omitempty"`
 	MaxTokens           int             `json:"max_tokens,omitempty"`
 	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
+	Temperature         *float64        `json:"temperature,omitempty"`
+	TopP                *float64        `json:"top_p,omitempty"`
 	Stream              bool            `json:"stream"`
 	StreamOptions       *streamOptions  `json:"stream_options,omitempty"`
 	ReasoningEffort     string          `json:"reasoning_effort,omitempty"`
@@ -235,6 +237,8 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			Tools:         tools,
 			Stream:        true,
 			StreamOptions: &streamOptions{IncludeUsage: true},
+			Temperature:   params.Temperature,
+			TopP:          params.TopP,
 		}
 		if maxTokensField(model) == "max_completion_tokens" {
 			reqBody.MaxCompletionTokens = maxTokens

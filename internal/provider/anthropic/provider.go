@@ -111,6 +111,8 @@ type anthropicRequest struct {
 	System       interface{}            `json:"system,omitempty"` // string or []anthropicContentBlock for cache_control
 	Tools        []anthropicTool        `json:"tools,omitempty"`
 	MaxTokens    int                    `json:"max_tokens"`
+	Temperature  *float64               `json:"temperature,omitempty"`
+	TopP         *float64               `json:"top_p,omitempty"`
 	Stream       bool                   `json:"stream"`
 	Thinking     *anthropicThinking     `json:"thinking,omitempty"`
 	OutputConfig *anthropicOutputConfig `json:"output_config,omitempty"`
@@ -232,11 +234,13 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		}
 
 		reqBody := anthropicRequest{
-			Model:     modelID,
-			Messages:  p.convertMessages(params),
-			Tools:     p.convertTools(params.Tools),
-			MaxTokens: maxTokens,
-			Stream:    true,
+			Model:       modelID,
+			Messages:    p.convertMessages(params),
+			Tools:       p.convertTools(params.Tools),
+			MaxTokens:   maxTokens,
+			Temperature: params.Temperature,
+			TopP:        params.TopP,
+			Stream:      true,
 		}
 		if params.SystemPrompt != "" {
 			if p.IsCacheControlEnabled() {

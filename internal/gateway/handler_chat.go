@@ -144,6 +144,14 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		maxTokens = req.MaxTokens
 	}
 
+	// Per-request temperature/top_p override (from OpenAI-compatible client)
+	if req.Temperature != nil {
+		currentModel.Temperature = req.Temperature
+	}
+	if req.TopP != nil {
+		currentModel.TopP = req.TopP
+	}
+
 	agentCfg := agent.Config{
 		Provider:           currentProvider,
 		Model:              currentModel,

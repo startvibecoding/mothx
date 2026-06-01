@@ -218,6 +218,8 @@ type Model struct {
 	Cost          ModelPricing `json:"cost"`
 	ContextWindow int          `json:"contextWindow"` // max context tokens
 	MaxTokens     int          `json:"maxTokens"`     // max output tokens
+	Temperature   *float64     `json:"temperature,omitempty"` // nil = use API default
+	TopP          *float64     `json:"topP,omitempty"`        // nil = use API default
 	Compat        *ModelCompat `json:"compat,omitempty"`
 }
 
@@ -295,6 +297,8 @@ type ChatParams struct {
 	SystemPrompt  string
 	ThinkingLevel ThinkingLevel
 	MaxTokens     int
+	Temperature   *float64        // nil = use API default
+	TopP          *float64        // nil = use API default
 	ModelID       string          // which model to use
 	Abort         <-chan struct{} // closed to abort the request
 }

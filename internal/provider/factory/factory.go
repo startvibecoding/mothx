@@ -137,6 +137,8 @@ func ConvertModelConfigs(providerName string, models []config.ModelConfig) []*pr
 			Cost:          cost,
 			ContextWindow: m.ContextWindow,
 			MaxTokens:     m.MaxTokens,
+			Temperature:   m.Temperature,
+			TopP:          m.TopP,
 			Compat:        convertCompat(m.Compat),
 		})
 	}

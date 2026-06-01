@@ -766,6 +766,8 @@ func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, 
 		SystemPrompt:  systemPrompt,
 		ThinkingLevel: s.thinkingLevel,
 		MaxTokens:     maxTokens,
+		Temperature:   s.m.Temperature,
+		TopP:          s.m.TopP,
 		ModelID:       modelID,
 	})
 	var outText strings.Builder

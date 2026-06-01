@@ -575,6 +575,8 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			SystemPrompt:  a.frozenSystemPrompt,
 			ThinkingLevel: a.config.ThinkingLevel,
 			MaxTokens:     a.config.MaxTokens,
+			Temperature:   a.config.Model.Temperature,
+			TopP:          a.config.Model.TopP,
 			Abort:         a.abort,
 		}
 

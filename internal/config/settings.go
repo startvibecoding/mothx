@@ -52,6 +52,8 @@ type ModelConfig struct {
 	Reasoning     bool         `json:"reasoning,omitempty"`
 	ContextWindow int          `json:"contextWindow,omitempty"`
 	MaxTokens     int          `json:"maxTokens,omitempty"`
+	Temperature   *float64     `json:"temperature,omitempty"` // nil = use API default
+	TopP          *float64     `json:"top_p,omitempty"`       // nil = use API default
 	Cost          *CostConfig  `json:"cost,omitempty"`
 	Input         []string     `json:"input,omitempty"`
 	Compat        *ModelCompat `json:"compat,omitempty"` // Vendor compatibility flags (Decision 14)

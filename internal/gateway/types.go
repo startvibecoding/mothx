@@ -14,6 +14,7 @@ type ChatCompletionRequest struct {
 	Messages    []RequestMessage `json:"messages"`
 	Stream      bool             `json:"stream,omitempty"`
 	Temperature *float64         `json:"temperature,omitempty"`
+	TopP        *float64         `json:"top_p,omitempty"`
 	MaxTokens   int              `json:"max_tokens,omitempty"`
 
 	// VibeCoding extensions
