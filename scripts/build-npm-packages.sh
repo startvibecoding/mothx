@@ -14,7 +14,9 @@ PACKAGES_DIR="$NPM_DIR/packages"
 
 ensure_wrapper() {
   mkdir -p "$NPM_DIR/bin"
-  cp "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"
+  if ! cmp -s "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"; then
+    cp "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"
+  fi
   chmod +x "$NPM_DIR/bin/vibecoding"
 }
 

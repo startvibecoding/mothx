@@ -1,6 +1,8 @@
 # Binaries
 bin/
 npm/bin/
+!npm/bin/
+!npm/bin/vibecoding
 *.exe
 *.exe~
 *.dll

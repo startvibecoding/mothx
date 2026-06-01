@@ -6,7 +6,7 @@
     "vibecoding": "bin/vibecoding"
   },
   "files": [
-    "bin/vibecoding",
+    "bin/",
     "README.md"
   ],
   "keywords": [
