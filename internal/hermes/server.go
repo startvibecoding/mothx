@@ -179,10 +179,11 @@ func Run(opts RunOptions, version string) error {
 		var routes []webhook.RouteConfig
 		for _, r := range cfg.Webhooks.Routes {
 			routes = append(routes, webhook.RouteConfig{
-				Path:     r.Path,
-				Events:   r.Events,
-				Skill:    r.Skill,
-				Delivery: r.Delivery,
+				Path:           r.Path,
+				Events:         r.Events,
+				Skill:          r.Skill,
+				Delivery:       r.Delivery,
+				DeliveryTarget: r.DeliveryTarget,
 			})
 		}
 		webhookHandler = NewWebhookHandler(dispatcher, nil) // platforms wired after startPlatforms
@@ -499,10 +500,10 @@ func agentEventToWSEvent(ev agent.Event) ws.WSEvent {
 		}
 	case agent.EventToolApprovalRequest:
 		return ws.WSEvent{
-			Type:        "approval_request",
-			ApprovalID:  ev.ApprovalID,
-			Tool:        ev.ApprovalTool,
-			Args:        ev.ApprovalArgs,
+			Type:       "approval_request",
+			ApprovalID: ev.ApprovalID,
+			Tool:       ev.ApprovalTool,
+			Args:       ev.ApprovalArgs,
 		}
 	case agent.EventDone:
 		return ws.WSEvent{Type: "done", StopReason: ev.StopReason}

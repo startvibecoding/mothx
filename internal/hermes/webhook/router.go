@@ -17,10 +17,11 @@ import (
 
 // RouteConfig defines a webhook route.
 type RouteConfig struct {
-	Path     string   `json:"path"`
-	Events   []string `json:"events"`
-	Skill    string   `json:"skill"`
-	Delivery string   `json:"delivery"` // "wechat", "feishu", or "" (no delivery)
+	Path           string   `json:"path"`
+	Events         []string `json:"events"`
+	Skill          string   `json:"skill"`
+	Delivery       string   `json:"delivery"`                  // "wechat", "feishu", or "" (no delivery)
+	DeliveryTarget string   `json:"delivery_target,omitempty"` // platform-specific recipient id
 }
 
 // Handler processes incoming webhook events.
@@ -106,19 +107,10 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	if len(route.Events) > 0 && eventType != "" {
-		matched := false
-		for _, ev := range route.Events {
-			if ev == eventType || ev == "*" {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			// Event type not in filter — acknowledge but skip
-			writeJSON(w, http.StatusOK, map[string]string{"status": "skipped", "reason": "event type not matched"})
-			return
-		}
+	if !routeMatchesEvent(route.Events, eventType) {
+		// Event type not in filter — acknowledge but skip
+		writeJSON(w, http.StatusOK, map[string]string{"status": "skipped", "reason": "event type not matched"})
+		return
 	}
 
 	// Dispatch to handler
@@ -155,6 +147,21 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
+}
+
+func routeMatchesEvent(events []string, eventType string) bool {
+	if len(events) == 0 {
+		return true
+	}
+	for _, ev := range events {
+		if ev == "*" {
+			return true
+		}
+		if eventType != "" && ev == eventType {
+			return true
+		}
+	}
+	return false
 }
 
 // Ensure Router satisfies http.Handler.

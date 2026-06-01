@@ -148,6 +148,20 @@
     与 `scripts/build-npm-packages.sh` 复用，避免实现分叉。
   - 调整 `npm/.npmignore` 与 `npm/bin` 的处理方式，避免误打包非发布文件，并通过 `files` 字段显式声明要发布内容。
 
+- **Hermes Webhook 投递与过滤**
+  - 当 webhook 路由无法识别事件类型时，除非显式允许 `*`，否则按不匹配处理。
+  - 为 webhook 路由新增 `delivery_target`，让微信/飞书投递拥有明确接收者。
+  - 路由列表和配置模板会在存在投递目标时一并展示。
+
+- **OpenAI Responses thinking 映射**
+  - 将 `--thinking xhigh` 在 OpenAI Responses API 中映射为 `reasoning.effort: "high"`。
+
+### 🧪 测试
+
+- 将 webhook router 测试改为等待 handler 完成，去掉 `time.Sleep` 带来的竞态和不稳定。
+- 增加无法推断事件类型时的 webhook 拒收测试。
+- 增加 webhook delivery target 相关测试覆盖。
+
 ## v0.1.26
 
 ### ✨ 新功能

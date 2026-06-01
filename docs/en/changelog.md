@@ -149,6 +149,20 @@
   - Adjusted `npm/.npmignore` and `npm/bin` handling to avoid shipping accidental build artifacts and to keep
     package manifests (`files`) explicit.
 
+- **Hermes Webhook Delivery and Filtering**
+  - Webhook routes now treat unknown event types as non-matching unless the route explicitly allows `*`.
+  - Added `delivery_target` to webhook routes so WeChat/Feishu delivery has a concrete recipient.
+  - Updated webhook route listing and config templates to show the delivery target when present.
+
+- **OpenAI Responses Thinking Mapping**
+  - Mapped `--thinking xhigh` to `reasoning.effort: "high"` for the OpenAI Responses API.
+
+### 🧪 Tests
+
+- Reworked webhook router tests to wait on handler completion instead of sleeping, removing a race/flakiness source.
+- Added coverage for webhook event rejection when the event type cannot be inferred.
+- Added coverage for webhook delivery target handling.
+
 ## v0.1.26
 
 ### ✨ Features

@@ -204,7 +204,15 @@ Hermes 模式的配置文件。支持全局 + 项目级覆盖。
   "webhooks": {
     "enabled": false,
     "secret": "",
-    "routes": []
+    "routes": [
+      {
+        "path": "/github",
+        "events": ["push", "pull_request"],
+        "skill": "code-review",
+        "delivery": "feishu",
+        "delivery_target": "chat_id"
+      }
+    ]
   },
   "a2a": {
     "enabled": false,

@@ -63,10 +63,11 @@ type WebhookConfig struct {
 
 // WebhookRoute maps an inbound webhook path to an agent skill + delivery.
 type WebhookRoute struct {
-	Path     string   `json:"path"`
-	Events   []string `json:"events"`
-	Skill    string   `json:"skill"`
-	Delivery string   `json:"delivery"`
+	Path           string   `json:"path"`
+	Events         []string `json:"events"`
+	Skill          string   `json:"skill"`
+	Delivery       string   `json:"delivery"`
+	DeliveryTarget string   `json:"delivery_target,omitempty"`
 }
 
 // A2AConfig defines A2A protocol settings.
@@ -77,9 +78,9 @@ type A2AConfig struct {
 
 // CronConfig defines cron scheduler settings.
 type CronConfig struct {
-	Enabled  bool   `json:"enabled"`
+	Enabled   bool   `json:"enabled"`
 	StorePath string `json:"store_path,omitempty"` // empty = <sessionDir>/hermes/cron.json
-	Interval int    `json:"interval,omitempty"`    // seconds between checks (default 30)
+	Interval  int    `json:"interval,omitempty"`   // seconds between checks (default 30)
 }
 
 // MemoryConfig defines persistent memory settings.
@@ -102,11 +103,11 @@ type HooksConfig struct {
 
 // AgentConfig defines agent behavior settings.
 type AgentConfig struct {
-	MaxTurns                  int     `json:"max_turns"`
-	BudgetPressure            bool    `json:"budget_pressure"`
-	ContextPressure           bool    `json:"context_pressure"`
-	BudgetPressureThreshold   float64 `json:"budget_pressure_threshold,omitempty"`   // remaining ratio (0-1), default 0.20
-	ContextPressureThreshold  float64 `json:"context_pressure_threshold,omitempty"`  // usage ratio (0-1), default 0.55
+	MaxTurns                 int     `json:"max_turns"`
+	BudgetPressure           bool    `json:"budget_pressure"`
+	ContextPressure          bool    `json:"context_pressure"`
+	BudgetPressureThreshold  float64 `json:"budget_pressure_threshold,omitempty"`  // remaining ratio (0-1), default 0.20
+	ContextPressureThreshold float64 `json:"context_pressure_threshold,omitempty"` // usage ratio (0-1), default 0.55
 }
 
 // DefaultHermesConfig returns the default configuration.
@@ -319,16 +320,18 @@ func InitWebhookConfig(project, force bool) (string, error) {
 		Secret:  "${WEBHOOK_SECRET}",
 		Routes: []WebhookRoute{
 			{
-				Path:     "/github",
-				Events:   []string{"push", "pull_request", "issues"},
-				Skill:    "code-review",
-				Delivery: "",
+				Path:           "/github",
+				Events:         []string{"push", "pull_request", "issues"},
+				Skill:          "code-review",
+				Delivery:       "",
+				DeliveryTarget: "",
 			},
 			{
-				Path:     "/ci",
-				Events:   []string{"*"},
-				Skill:    "ci-monitor",
-				Delivery: "",
+				Path:           "/ci",
+				Events:         []string{"*"},
+				Skill:          "ci-monitor",
+				Delivery:       "",
+				DeliveryTarget: "",
 			},
 		},
 	}

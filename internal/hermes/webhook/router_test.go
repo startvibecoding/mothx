@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -68,7 +69,9 @@ func TestRouterServeHTTPMatchRoute(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	time.Sleep(100 * time.Millisecond)
+	if !handler.waitCalled(t) {
+		t.Fatal("expected handler to be called")
+	}
 	if !handler.called {
 		t.Error("expected handler to be called")
 	}
@@ -108,9 +111,37 @@ func TestRouterServeHTTPWildcardEvent(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	time.Sleep(100 * time.Millisecond)
+	if !handler.waitCalled(t) {
+		t.Fatal("expected handler to be called (wildcard)")
+	}
 	if !handler.called {
 		t.Error("expected handler to be called (wildcard)")
+	}
+}
+
+func TestRouterServeHTTPRejectsUnknownEventType(t *testing.T) {
+	handler := &mockHandler{}
+	router := NewRouter([]RouteConfig{
+		{Path: "/github", Events: []string{"push"}},
+	}, "", handler)
+
+	body := `{"repository": {"name": "repo"}}`
+	req := httptest.NewRequest("POST", "/webhook/github", bytes.NewReader([]byte(body)))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var resp map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp["status"] != "skipped" {
+		t.Fatalf("expected skipped response, got %#v", resp)
+	}
+	if handler.waitCalled(t) {
+		t.Fatal("expected handler not to be called for unknown event type")
 	}
 }
 
@@ -136,7 +167,9 @@ func TestRouterSignatureVerification(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	time.Sleep(100 * time.Millisecond)
+	if !handler.waitCalled(t) {
+		t.Fatal("expected handler to be called with valid signature")
+	}
 	if !handler.called {
 		t.Error("expected handler to be called with valid signature")
 	}
@@ -197,7 +230,9 @@ func TestRouterNoSecret(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
-	time.Sleep(100 * time.Millisecond)
+	if !handler.waitCalled(t) {
+		t.Fatal("expected handler to be called (no secret)")
+	}
 	if !handler.called {
 		t.Error("expected handler to be called (no secret)")
 	}
@@ -245,12 +280,41 @@ func TestWriteJSON(t *testing.T) {
 }
 
 type mockHandler struct {
+	mu        sync.Mutex
 	called    bool
 	lastRoute RouteConfig
+	calledCh  chan struct{}
 }
 
 func (h *mockHandler) HandleWebhookEvent(ctx context.Context, route RouteConfig, payload []byte) error {
+	h.mu.Lock()
 	h.called = true
 	h.lastRoute = route
+	if h.calledCh == nil {
+		h.calledCh = make(chan struct{})
+	}
+	close(h.calledCh)
+	h.mu.Unlock()
 	return nil
+}
+
+func (h *mockHandler) waitCalled(t *testing.T) bool {
+	t.Helper()
+	h.mu.Lock()
+	ch := h.calledCh
+	if h.called {
+		h.mu.Unlock()
+		return true
+	}
+	if ch == nil {
+		ch = make(chan struct{})
+		h.calledCh = ch
+	}
+	h.mu.Unlock()
+	select {
+	case <-ch:
+		return true
+	case <-time.After(time.Second):
+		return false
+	}
 }

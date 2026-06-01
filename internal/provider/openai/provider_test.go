@@ -270,8 +270,8 @@ func TestOpenAIResponsesAPIRequest(t *testing.T) {
 		t.Fatalf("reasoning = %#v, want object", raw["reasoning"])
 	}
 	reasoning := raw["reasoning"].(map[string]any)
-	if reasoning["effort"] != "xhigh" {
-		t.Fatalf("reasoning.effort = %#v, want xhigh", reasoning["effort"])
+	if reasoning["effort"] != "high" {
+		t.Fatalf("reasoning.effort = %#v, want high", reasoning["effort"])
 	}
 	if reasoning["summary"] != "auto" {
 		t.Fatalf("reasoning.summary = %#v, want auto", reasoning["summary"])

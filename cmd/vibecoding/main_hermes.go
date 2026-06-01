@@ -364,7 +364,11 @@ func newHermesCommand() *cobra.Command {
 				if len(r.Events) > 0 {
 					events = fmt.Sprintf("%v", r.Events)
 				}
-				fmt.Printf("  POST /webhook%s  events=%s  skill=%s  delivery=%s\n", r.Path, events, r.Skill, r.Delivery)
+				delivery := r.Delivery
+				if r.DeliveryTarget != "" {
+					delivery = fmt.Sprintf("%s:%s", r.Delivery, r.DeliveryTarget)
+				}
+				fmt.Printf("  POST /webhook%s  events=%s  skill=%s  delivery=%s\n", r.Path, events, r.Skill, delivery)
 			}
 			return nil
 		},

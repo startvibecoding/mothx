@@ -12,8 +12,8 @@ import (
 
 // WebhookHandler implements webhook.Handler by spawning agent tasks.
 type WebhookHandler struct {
-	dispatcher   *Dispatcher
-	platforms    map[string]messaging.Platform // platform name → Platform for delivery
+	dispatcher *Dispatcher
+	platforms  map[string]messaging.Platform // platform name → Platform for delivery
 }
 
 // NewWebhookHandler creates a webhook handler that spawns agent tasks.
@@ -71,7 +71,7 @@ func (h *WebhookHandler) HandleWebhookEvent(ctx context.Context, route webhook.R
 
 	// Deliver result if configured
 	if route.Delivery != "" && result != "" {
-		h.deliverResult(route.Delivery, result)
+		h.deliverResult(route.Delivery, route.DeliveryTarget, result)
 	}
 
 	log.Printf("[webhook] Task completed for route %s (result len=%d)", route.Path, len(result))
@@ -79,14 +79,17 @@ func (h *WebhookHandler) HandleWebhookEvent(ctx context.Context, route webhook.R
 }
 
 // deliverResult sends the result to the configured messaging platform.
-func (h *WebhookHandler) deliverResult(platform, result string) {
+func (h *WebhookHandler) deliverResult(platform, target, result string) {
 	p, ok := h.platforms[platform]
 	if !ok {
 		log.Printf("[webhook] Delivery platform %q not found", platform)
 		return
 	}
-	// Send to the platform's default channel (no specific chatID — platform broadcasts or uses default)
-	if err := p.SendMessage(context.Background(), "", result); err != nil {
+	if target == "" {
+		log.Printf("[webhook] Delivery target missing for %s", platform)
+		return
+	}
+	if err := p.SendMessage(context.Background(), target, result); err != nil {
 		log.Printf("[webhook] Delivery error to %s: %v", platform, err)
 	}
 }

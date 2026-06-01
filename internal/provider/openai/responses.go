@@ -448,7 +448,7 @@ func responsesReasoningEffort(level provider.ThinkingLevel) string {
 	case provider.ThinkingHigh:
 		return "high"
 	case provider.ThinkingXHigh:
-		return "xhigh"
+		return "high"
 	default:
 		return ""
 	}
