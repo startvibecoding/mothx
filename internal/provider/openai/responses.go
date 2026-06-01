@@ -298,7 +298,7 @@ func (p *Provider) convertResponsesTools(tools []provider.ToolDefinition) []resp
 	result := make([]responsesTool, 0, len(tools))
 	for _, t := range tools {
 		if t.Kind == "hosted" {
-			toolType := hostedResponsesToolType(t)
+			toolType := provider.HostedWebSearchToolType(t.ProviderType, t.Name)
 			if toolType == "" {
 				continue
 			}
@@ -308,15 +308,6 @@ func (p *Provider) convertResponsesTools(tools []provider.ToolDefinition) []resp
 		result = append(result, responsesTool{Type: "function", Name: t.Name, Description: t.Description, Parameters: t.Parameters})
 	}
 	return result
-}
-
-func hostedResponsesToolType(t provider.ToolDefinition) string {
-	switch {
-	case t.ProviderType == "responses" && t.Name == "web_search":
-		return "web_search"
-	default:
-		return ""
-	}
 }
 
 func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) {

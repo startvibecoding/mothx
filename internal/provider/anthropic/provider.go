@@ -628,7 +628,7 @@ func (p *Provider) convertTools(tools []provider.ToolDefinition) []anthropicTool
 	var result []anthropicTool
 	for _, t := range tools {
 		if t.Kind == "hosted" {
-			toolType := hostedAnthropicToolType(t)
+			toolType := provider.HostedWebSearchToolType(t.ProviderType, t.Name)
 			if toolType == "" {
 				continue
 			}
@@ -638,15 +638,6 @@ func (p *Provider) convertTools(tools []provider.ToolDefinition) []anthropicTool
 		result = append(result, anthropicTool{Name: t.Name, Description: t.Description, InputSchema: t.Parameters})
 	}
 	return result
-}
-
-func hostedAnthropicToolType(t provider.ToolDefinition) string {
-	switch {
-	case t.Provider == "anthropic" && t.ProviderType == "messages" && t.Name == "web_search":
-		return "web_search_20250305"
-	default:
-		return ""
-	}
 }
 
 func deepseekReasoningEffort(level provider.ThinkingLevel) string {

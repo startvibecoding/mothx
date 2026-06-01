@@ -515,8 +515,8 @@ func TestWebSearchToolDefinitionResolvesProviderReference(t *testing.T) {
 	if !ok {
 		t.Fatal("expected web search tool definition")
 	}
-	if def.Provider != "openai" {
-		t.Fatalf("provider = %q, want openai", def.Provider)
+	if def.Provider != "gpt" {
+		t.Fatalf("provider = %q, want gpt", def.Provider)
 	}
 	if def.ProviderType != "responses" {
 		t.Fatalf("providerType = %q, want responses", def.ProviderType)

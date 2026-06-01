@@ -261,20 +261,10 @@ func webSearchToolDefinition(settings *config.Settings) (provider.ToolDefinition
 		}
 	}
 
-	hostedProvider := resolved.Vendor
-	if hostedProvider == "" {
-		switch resolved.API {
-		case "anthropic-messages":
-			hostedProvider = "anthropic"
-		default:
-			hostedProvider = "openai"
-		}
-	}
-
 	return provider.ToolDefinition{
 		Name:         "web_search",
 		Kind:         "hosted",
-		Provider:     hostedProvider,
+		Provider:     providerName,
 		ProviderType: providerType,
 		Model:        cfg.Model,
 	}, true
