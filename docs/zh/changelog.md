@@ -1,6 +1,14 @@
 # 更新日志
 
 
+## v0.1.29
+
+### 🐛 Bug 修复
+
+- **NPM 包装修复**
+  - 修复 `npm/bin/vibecoding` 入口脚本，确保安装包正确附带可执行包装器
+  - 调整 `build-npm.sh` 和 `build-npm-packages.sh` 保证包装器一致性
+
 ## v0.1.28
 
 ### ✨ 新功能

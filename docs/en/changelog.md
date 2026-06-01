@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v0.1.29
+
+### 🐛 Bug Fixes
+
+- **NPM Package Wrapper**
+  - Fixed `npm/bin/vibecoding` entry script to ensure installer packages ship the correct executable wrapper
+  - Adjusted `build-npm.sh` and `build-npm-packages.sh` to include the wrapper consistently
+
 ## v0.1.28
 
 ### ✨ Features
