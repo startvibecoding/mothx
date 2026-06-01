@@ -12,6 +12,17 @@
   - Gateway supports per-request `temperature`/`top_p` override via `ChatParams`
   - When not configured, parameters are omitted entirely (no zero-value sent to API)
 
+- **OpenAI Responses API Support**
+  - Added a dedicated OpenAI Responses provider path under `api: "openai-responses"`
+  - Supports Responses streaming, tool calls, reasoning summaries, and prompt cache parameters
+  - Responses configuration is exposed under provider `responses` settings with default prompt cache enabled
+  - Added model compat flags for `supportsPromptCacheKey` and `supportsReasoningSummary`
+
+### 🧪 Tests
+
+- Improved provider test coverage for OpenAI Responses API and Anthropic request parsing
+- Reworked Anthropic tests to use in-memory HTTP mocks instead of port-binding test servers
+
 ### 📝 Docs
 
 - Updated `AGENTS.md` version to v0.1.28

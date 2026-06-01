@@ -37,13 +37,21 @@ type Settings struct {
 }
 
 type ProviderConfig struct {
-	Vendor         string        `json:"vendor,omitempty"` // Explicit vendor adapter (Decision 12/13)
-	APIKey         string        `json:"apiKey,omitempty"`
-	BaseURL        string        `json:"baseUrl,omitempty"`
-	API            string        `json:"api,omitempty"`
-	ThinkingFormat string        `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "deepseek", "xiaomi"
-	CacheControl   *bool         `json:"cacheControl,omitempty"`   // enable Anthropic prompt caching (nil/false=off, true=on; set true for Claude models)
-	Models         []ModelConfig `json:"models"`
+	Vendor         string          `json:"vendor,omitempty"` // Explicit vendor adapter (Decision 12/13)
+	APIKey         string          `json:"apiKey,omitempty"`
+	BaseURL        string          `json:"baseUrl,omitempty"`
+	API            string          `json:"api,omitempty"`
+	ThinkingFormat string          `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "deepseek", "xiaomi"
+	CacheControl   *bool           `json:"cacheControl,omitempty"`   // enable Anthropic prompt caching (nil/false=off, true=on; set true for Claude models)
+	Responses      ResponsesConfig `json:"responses,omitempty"`
+	Models         []ModelConfig   `json:"models"`
+}
+
+type ResponsesConfig struct {
+	ReasoningSummary     string `json:"reasoningSummary,omitempty"`     // "auto" (default), "concise", or "detailed"
+	PromptCacheEnabled   *bool  `json:"promptCacheEnabled,omitempty"`   // nil/true = on, false = off
+	PromptCacheKey       string `json:"promptCacheKey,omitempty"`       // optional explicit cache key; defaults to provider/model stable key
+	PromptCacheRetention string `json:"promptCacheRetention,omitempty"` // optional OpenAI prompt cache retention value
 }
 
 type ModelConfig struct {
@@ -85,6 +93,8 @@ type ModelCompat struct {
 	// Cache
 	SupportsCacheControlOnTools *bool `json:"supportsCacheControlOnTools,omitempty"`
 	SupportsLongCacheRetention  *bool `json:"supportsLongCacheRetention,omitempty"`
+	SupportsPromptCacheKey      *bool `json:"supportsPromptCacheKey,omitempty"`
+	SupportsReasoningSummary    *bool `json:"supportsReasoningSummary,omitempty"`
 	SendSessionAffinityHeaders  bool  `json:"sendSessionAffinityHeaders,omitempty"`
 
 	// Streaming

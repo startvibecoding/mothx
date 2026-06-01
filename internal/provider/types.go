@@ -112,6 +112,7 @@ func NewToolResultMessageWithContents(toolCallID, toolName, text string, content
 type Usage struct {
 	Input       int  `json:"input"`
 	Output      int  `json:"output"`
+	Reasoning   int  `json:"reasoning,omitempty"`
 	CacheRead   int  `json:"cacheRead"`
 	CacheWrite  int  `json:"cacheWrite"`
 	TotalTokens int  `json:"totalTokens"`
@@ -216,8 +217,8 @@ type Model struct {
 	Reasoning     bool         `json:"reasoning"` // supports extended thinking
 	Input         []string     `json:"input"`     // "text", "image"
 	Cost          ModelPricing `json:"cost"`
-	ContextWindow int          `json:"contextWindow"` // max context tokens
-	MaxTokens     int          `json:"maxTokens"`     // max output tokens
+	ContextWindow int          `json:"contextWindow"`         // max context tokens
+	MaxTokens     int          `json:"maxTokens"`             // max output tokens
 	Temperature   *float64     `json:"temperature,omitempty"` // nil = use API default
 	TopP          *float64     `json:"topP,omitempty"`        // nil = use API default
 	Compat        *ModelCompat `json:"compat,omitempty"`
@@ -237,6 +238,8 @@ type ModelCompat struct {
 
 	SupportsCacheControlOnTools *bool `json:"supportsCacheControlOnTools,omitempty"`
 	SupportsLongCacheRetention  *bool `json:"supportsLongCacheRetention,omitempty"`
+	SupportsPromptCacheKey      *bool `json:"supportsPromptCacheKey,omitempty"`
+	SupportsReasoningSummary    *bool `json:"supportsReasoningSummary,omitempty"`
 	SendSessionAffinityHeaders  bool  `json:"sendSessionAffinityHeaders,omitempty"`
 
 	SupportsEagerToolInputStreaming *bool `json:"supportsEagerToolInputStreaming,omitempty"`

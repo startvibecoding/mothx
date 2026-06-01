@@ -157,7 +157,7 @@ Multi-provider configuration. Each provider is an object keyed by a user-chosen 
 | `baseUrl` | string | ✓ | — | API base URL |
 | `vendor` | string | — | auto-detect | Optional vendor adapter name (see below) |
 | `apiKey` | string | — | `""` | API key (see [Authentication](#authentication-configuration) below) |
-| `api` | string | — | auto-detect | API protocol: `"openai-chat"` or `"anthropic-messages"` |
+| `api` | string | — | auto-detect | API protocol: `"openai-chat"`, `"openai-responses"`, or `"anthropic-messages"` |
 | `thinkingFormat` | string | — | auto-detect | Thinking parameter format (see below) |
 | `cacheControl` | bool | — | `false` | Enable Anthropic prompt caching; set `true` when using Claude models |
 | `models` | array | — | `[]` | List of available models |
@@ -170,7 +170,7 @@ Selection order:
 
 1. Explicit `vendor`
 2. Base URL detection
-3. Generic fallback: `openai-chat` or `anthropic-messages`
+3. Generic fallback: `openai-chat`, `openai-responses`, or `anthropic-messages`
 
 Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `xiaomi`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-sgp`, `kimi`, `minimax`, `seed`, `qianfan`, `bailian`, `gitee`, `openrouter`, `together`, `groq`, and `fireworks`.
 
@@ -195,6 +195,7 @@ Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `x
 The `api` field specifies the **protocol format**, not the service provider. You can point any provider to any compatible endpoint:
 
 - `openai-chat`: OpenAI Chat Completions API format
+- `openai-responses`: OpenAI Responses API format (`POST /v1/responses`)
 - `anthropic-messages`: Anthropic Messages API format
 
 For example, DeepSeek offers both formats at different endpoints, and you can also use these formats to connect to the actual OpenAI or Anthropic services.

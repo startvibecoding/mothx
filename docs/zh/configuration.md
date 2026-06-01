@@ -157,7 +157,7 @@ VibeCoding 使用两个配置文件:
 | `baseUrl` | string | ✓ | — | API 基础 URL |
 | `vendor` | string | — | 自动检测 | 可选厂商适配器名称 (见下文) |
 | `apiKey` | string | — | `""` | API 密钥 (见[认证配置](#认证配置)) |
-| `api` | string | — | 自动检测 | API 协议: `"openai-chat"` 或 `"anthropic-messages"` |
+| `api` | string | — | 自动检测 | API 协议: `"openai-chat"`、`"openai-responses"` 或 `"anthropic-messages"` |
 | `thinkingFormat` | string | — | 自动检测 | 思考参数格式 (见下文) |
 | `cacheControl` | bool | — | `false` | 启用 Anthropic 提示缓存；使用 Claude 模型时设为 `true` |
 | `models` | array | — | `[]` | 可用模型列表 |
@@ -170,7 +170,7 @@ VibeCoding 使用两个配置文件:
 
 1. 显式 `vendor`
 2. `baseUrl` 自动识别
-3. 通用 fallback：`openai-chat` 或 `anthropic-messages`
+3. 通用 fallback：`openai-chat`、`openai-responses` 或 `anthropic-messages`
 
 内置厂商适配器包括 `openai`、`anthropic`、`claude`、`deepseek`、`xiaomi`、`xiaomi-token-plan-ams`、`xiaomi-token-plan-cn`、`xiaomi-token-plan-sgp`、`kimi`、`minimax`、`seed`、`qianfan`、`bailian`、`gitee`、`openrouter`、`together`、`groq` 和 `fireworks`。
 
@@ -195,6 +195,7 @@ VibeCoding 使用两个配置文件:
 `api` 字段指定的是**协议格式**，而非服务商。你可以将任意提供商指向任意兼容的端点：
 
 - `openai-chat`: OpenAI Chat Completions API 格式
+- `openai-responses`: OpenAI Responses API 格式 (`POST /v1/responses`)
 - `anthropic-messages`: Anthropic Messages API 格式
 
 例如，DeepSeek 在不同端点提供两种格式，你也可以用这些格式去连接真正的 OpenAI 或 Anthropic 服务。

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/ua"
 )
@@ -26,9 +27,18 @@ type Provider struct {
 	// Configuration options
 	disableReasoning bool   // Disable reasoning_content support for incompatible APIs
 	thinkingFormat   string // "", "openai", "deepseek", "xiaomi"
+	useResponsesAPI  bool
+	responsesConfig  *responsesConfig
 
 	// Retry configuration
 	retryConfig *provider.RetryConfig
+}
+
+type responsesConfig struct {
+	reasoningSummary     string
+	promptCacheEnabled   bool
+	promptCacheKey       string
+	promptCacheRetention string
 }
 
 // DefaultModels returns the default OpenAI model list.
@@ -76,6 +86,10 @@ func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Pr
 		apiKey:       apiKey,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		client:       &http.Client{Timeout: 30 * time.Minute},
+		responsesConfig: &responsesConfig{
+			reasoningSummary:   "auto",
+			promptCacheEnabled: true,
+		},
 	}
 
 	// Check environment variable to disable reasoning
@@ -84,6 +98,21 @@ func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Pr
 	}
 
 	return p
+}
+
+// SetUseResponsesAPI switches the provider to the Responses API.
+func (p *Provider) SetUseResponsesAPI(enabled bool) {
+	p.useResponsesAPI = enabled
+}
+
+// SetResponsesConfig applies Responses API-specific configuration.
+func (p *Provider) SetResponsesConfig(cfg config.ResponsesConfig) {
+	p.responsesConfig = &responsesConfig{
+		reasoningSummary:     cfg.ReasoningSummary,
+		promptCacheEnabled:   cfg.PromptCacheEnabled == nil || *cfg.PromptCacheEnabled,
+		promptCacheKey:       cfg.PromptCacheKey,
+		promptCacheRetention: cfg.PromptCacheRetention,
+	}
 }
 
 // DisableReasoning disables reasoning_content support for incompatible APIs.
@@ -204,6 +233,13 @@ type openAIUsageResponse struct {
 
 // Chat implements the streaming chat interface.
 func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	if p.useResponsesAPI {
+		return p.chatResponses(ctx, params)
+	}
+	return p.chatCompletions(ctx, params)
+}
+
+func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
 	ch := make(chan provider.StreamEvent, 100)
 
 	go func() {
@@ -363,8 +399,6 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var (
-		textContent     string
-		reasonContent   string
 		toolCalls       []provider.ToolCallBlock
 		toolCallBuffers = make(map[int]*strings.Builder)
 		stopReason      string
@@ -399,40 +433,14 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		}
 
 		if chunk.Usage != nil {
-			// Only update usage if not already set (to avoid overwriting with partial values from different chunks)
-			if usage == nil {
-				usage = &provider.Usage{
-					Input:       chunk.Usage.PromptTokens,
-					Output:      chunk.Usage.CompletionTokens,
-					TotalTokens: chunk.Usage.TotalTokens,
-				}
-				if chunk.Usage.PromptTokensDetails != nil {
-					usage.CacheRead = chunk.Usage.PromptTokensDetails.CachedTokens
-				}
-			} else {
-				// Update only if new values are provided and current values are 0
-				if chunk.Usage.PromptTokens > 0 && usage.Input == 0 {
-					usage.Input = chunk.Usage.PromptTokens
-				}
-				if chunk.Usage.CompletionTokens > 0 && usage.Output == 0 {
-					usage.Output = chunk.Usage.CompletionTokens
-				}
-				if chunk.Usage.TotalTokens > 0 && usage.TotalTokens == 0 {
-					usage.TotalTokens = chunk.Usage.TotalTokens
-				}
-				if chunk.Usage.PromptTokensDetails != nil && chunk.Usage.PromptTokensDetails.CachedTokens > 0 && usage.CacheRead == 0 {
-					usage.CacheRead = chunk.Usage.PromptTokensDetails.CachedTokens
-				}
-			}
+			mergeOpenAIUsage(&usage, chunk.Usage)
 		}
 
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
-				textContent += choice.Delta.Content
 				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: choice.Delta.Content}
 			}
 			if !p.disableReasoning && choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
-				reasonContent += *choice.Delta.Reasoning
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: *choice.Delta.Reasoning}
 			}
 			for _, tc := range choice.Delta.ToolCalls {
@@ -442,7 +450,6 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				}
 				if _, ok := toolCallBuffers[idx]; !ok {
 					toolCallBuffers[idx] = &strings.Builder{}
-					// Ensure slice is long enough
 					for len(toolCalls) <= idx {
 						toolCalls = append(toolCalls, provider.ToolCallBlock{})
 					}
@@ -474,8 +481,6 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		if buf, ok := toolCallBuffers[i]; ok {
 			if tc.ID == "" {
 				// Some OpenAI-compatible providers omit tool call IDs in stream deltas.
-				// Generate a stable fallback ID so subsequent tool results can always
-				// bind to the corresponding assistant tool call.
 				tc.ID = fmt.Sprintf("toolcall_%d", i)
 			}
 			tc.Arguments = json.RawMessage(buf.String())
@@ -488,6 +493,35 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: usage}
 	}
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: stopReason}
+}
+
+func mergeOpenAIUsage(dst **provider.Usage, src *openAIUsageResponse) {
+	if src == nil {
+		return
+	}
+	if *dst == nil {
+		*dst = &provider.Usage{
+			Input:       src.PromptTokens,
+			Output:      src.CompletionTokens,
+			TotalTokens: src.TotalTokens,
+		}
+		if src.PromptTokensDetails != nil {
+			(*dst).CacheRead = src.PromptTokensDetails.CachedTokens
+		}
+		return
+	}
+	if src.PromptTokens > 0 && (*dst).Input == 0 {
+		(*dst).Input = src.PromptTokens
+	}
+	if src.CompletionTokens > 0 && (*dst).Output == 0 {
+		(*dst).Output = src.CompletionTokens
+	}
+	if src.TotalTokens > 0 && (*dst).TotalTokens == 0 {
+		(*dst).TotalTokens = src.TotalTokens
+	}
+	if src.PromptTokensDetails != nil && src.PromptTokensDetails.CachedTokens > 0 && (*dst).CacheRead == 0 {
+		(*dst).CacheRead = src.PromptTokensDetails.CachedTokens
+	}
 }
 
 func openAIReasoningEffort(level provider.ThinkingLevel) string {

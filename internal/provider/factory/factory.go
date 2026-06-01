@@ -47,15 +47,19 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			}
 			ConfigureRetry(ap, settings)
 			p = ap
-		case "openai-chat", "openai":
+		case "openai-chat", "openai", "openai-responses", "responses":
 			op := openai.NewProviderWithModels(apiKey, resolved.BaseURL, models)
 			if resolved.ThinkingFormat != "" {
 				op.SetThinkingFormat(resolved.ThinkingFormat)
 			}
+			if resolved.API == "openai-responses" || resolved.API == "responses" {
+				op.SetUseResponsesAPI(true)
+				op.SetResponsesConfig(pc.Responses)
+			}
 			ConfigureRetry(op, settings)
 			p = op
 		default:
-			return nil, nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat' or 'anthropic-messages')", resolved.API)
+			return nil, nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat', 'openai-responses', or 'anthropic-messages')", resolved.API)
 		}
 
 		model := p.GetModel(modelID)
@@ -160,6 +164,8 @@ func convertCompat(c *config.ModelCompat) *provider.ModelCompat {
 		MaxTokensField:                      c.MaxTokensField,
 		SupportsCacheControlOnTools:         cloneBoolPtr(c.SupportsCacheControlOnTools),
 		SupportsLongCacheRetention:          cloneBoolPtr(c.SupportsLongCacheRetention),
+		SupportsPromptCacheKey:              cloneBoolPtr(c.SupportsPromptCacheKey),
+		SupportsReasoningSummary:            cloneBoolPtr(c.SupportsReasoningSummary),
 		SendSessionAffinityHeaders:          c.SendSessionAffinityHeaders,
 		SupportsEagerToolInputStreaming:     cloneBoolPtr(c.SupportsEagerToolInputStreaming),
 	}

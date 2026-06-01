@@ -66,6 +66,37 @@ func TestConvertModelConfigsPreservesCompat(t *testing.T) {
 	}
 }
 
+func TestCreateOpenAIResponsesProvider(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"openai-responses-test": {
+				APIKey:  "fake-key",
+				BaseURL: "https://api.openai.com/v1",
+				API:     "openai-responses",
+				Responses: config.ResponsesConfig{
+					ReasoningSummary:     "concise",
+					PromptCacheKey:       "custom-cache-key",
+					PromptCacheRetention: "24h",
+				},
+				Models: []config.ModelConfig{
+					{ID: "gpt-test", Name: "GPT Test"},
+				},
+			},
+		},
+	}
+
+	p, model, err := Create(settings, "openai-responses-test", "gpt-test")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if p == nil {
+		t.Fatal("provider is nil")
+	}
+	if model == nil || model.ID != "gpt-test" {
+		t.Fatalf("model = %#v, want gpt-test", model)
+	}
+}
+
 func TestConvertModelConfigsSupportsReferenceReasoningAlias(t *testing.T) {
 	models := ConvertModelConfigs("test", []config.ModelConfig{
 		{

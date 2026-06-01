@@ -1,13 +1,11 @@
 package anthropic
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -15,37 +13,43 @@ import (
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-func newTestServer(t *testing.T, sse string) *httptest.Server {
+func chatAndCollect(t *testing.T, p *Provider, params provider.ChatParams) []provider.StreamEvent {
 	t.Helper()
-	defer func() {
-		if r := recover(); r != nil {
-			if strings.Contains(fmt.Sprint(r), "httptest: failed to listen on a port") {
-				t.Skipf("local httptest listener unavailable: %v", r)
-			}
-			panic(r)
-		}
-	}()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(sse))
-	}))
-	t.Cleanup(srv.Close)
-	return srv
-}
-
-func chatAndCollect(t *testing.T, srv *httptest.Server) []provider.StreamEvent {
-	t.Helper()
-	p := NewProvider("fake-key", srv.URL)
-	params := provider.ChatParams{
-		Messages: []provider.Message{provider.NewUserMessage("hi")},
-		Abort:    make(chan struct{}),
-	}
 	var events []provider.StreamEvent
 	for e := range p.Chat(context.Background(), params) {
 		events = append(events, e)
 	}
 	return events
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func newMockAnthropicProvider(t *testing.T, models []*provider.Model, sse string, bodyCh chan<- string, check func(*http.Request)) *Provider {
+	t.Helper()
+	p := NewProviderWithModels("fake-key", "https://api.anthropic.com", models)
+	p.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if check != nil {
+			check(r)
+		}
+		if bodyCh != nil {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				return nil, err
+			}
+			bodyCh <- string(body)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(bytes.NewBufferString(sse)),
+			Request:    r,
+		}, nil
+	})}
+	return p
 }
 
 func mustUsage(t *testing.T, events []provider.StreamEvent) *provider.Usage {
@@ -123,20 +127,7 @@ func TestConvertMessagesOmitsCacheControlWhenDisabled(t *testing.T) {
 
 func TestChatRequestPreservesCacheControlOnSingleTextBlock(t *testing.T) {
 	bodyCh := make(chan string, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		bodyCh <- string(body)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
-	}))
-	t.Cleanup(srv.Close)
-
-	p := NewProvider("fake-key", srv.URL)
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "claude-test"}}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
 	p.SetCacheControlEnabled(boolPtr(true))
 	params := provider.ChatParams{
 		ModelID: "claude-test",
@@ -257,22 +248,9 @@ func TestConvertMessagesAnthropicGroupsConsecutiveToolResults(t *testing.T) {
 
 func TestAnthropicThinkingFormatDeepSeek(t *testing.T) {
 	bodyCh := make(chan string, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		bodyCh <- string(body)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
-	}))
-	t.Cleanup(srv.Close)
-
-	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+	p := newMockAnthropicProvider(t, []*provider.Model{
 		{ID: "deepseek-test", Reasoning: true},
-	})
+	}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
 	p.SetThinkingFormat("deepseek")
 	params := provider.ChatParams{
 		ModelID:       "deepseek-test",
@@ -303,22 +281,9 @@ func TestAnthropicThinkingFormatDeepSeek(t *testing.T) {
 
 func TestAnthropicThinkingOmittedForNonReasoningModel(t *testing.T) {
 	bodyCh := make(chan string, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		bodyCh <- string(body)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
-	}))
-	t.Cleanup(srv.Close)
-
-	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+	p := newMockAnthropicProvider(t, []*provider.Model{
 		{ID: "claude-opus-test", Reasoning: false},
-	})
+	}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
 	params := provider.ChatParams{
 		ModelID:       "claude-opus-test",
 		Messages:      []provider.Message{provider.NewUserMessage("hi")},
@@ -348,22 +313,9 @@ func TestAnthropicThinkingOmittedForNonReasoningModel(t *testing.T) {
 
 func TestAnthropicThinkingAdaptiveForOpus47(t *testing.T) {
 	bodyCh := make(chan string, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		bodyCh <- string(body)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
-	}))
-	t.Cleanup(srv.Close)
-
-	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+	p := newMockAnthropicProvider(t, []*provider.Model{
 		{ID: "claude-opus-4-7", Reasoning: true},
-	})
+	}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
 	params := provider.ChatParams{
 		ModelID:       "claude-opus-4-7",
 		Messages:      []provider.Message{provider.NewUserMessage("hi")},
@@ -393,22 +345,9 @@ func TestAnthropicThinkingAdaptiveForOpus47(t *testing.T) {
 
 func TestAnthropicThinkingAdaptiveFromModelCompat(t *testing.T) {
 	bodyCh := make(chan string, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		bodyCh <- string(body)
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("data: {\"type\":\"message_stop\"}\n"))
-	}))
-	t.Cleanup(srv.Close)
-
-	p := NewProviderWithModels("fake-key", srv.URL, []*provider.Model{
+	p := newMockAnthropicProvider(t, []*provider.Model{
 		{ID: "custom-adaptive", Reasoning: true, Compat: &provider.ModelCompat{ForceAdaptiveThinking: true}},
-	})
+	}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
 	params := provider.ChatParams{
 		ModelID:       "custom-adaptive",
 		Messages:      []provider.Message{provider.NewUserMessage("hi")},
@@ -445,8 +384,8 @@ func TestAnthropicCache_FirstTurn(t *testing.T) {
 		"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":10}}\n" +
 		"data: {\"type\":\"message_stop\"}\n"
 
-	srv := newTestServer(t, sse)
-	u := mustUsage(t, chatAndCollect(t, srv))
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	u := mustUsage(t, chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})}))
 
 	if u.Input != 1000 {
 		t.Errorf("Input = %d, want 1000", u.Input)
@@ -478,8 +417,8 @@ func TestAnthropicCache_CachedTurn(t *testing.T) {
 		"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":15}}\n" +
 		"data: {\"type\":\"message_stop\"}\n"
 
-	srv := newTestServer(t, sse)
-	u := mustUsage(t, chatAndCollect(t, srv))
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	u := mustUsage(t, chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})}))
 
 	if u.Input != 1000 {
 		t.Errorf("Input = %d, want 1000", u.Input)
@@ -510,8 +449,8 @@ func TestAnthropicCache_NoCache(t *testing.T) {
 		"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":5}}\n" +
 		"data: {\"type\":\"message_stop\"}\n"
 
-	srv := newTestServer(t, sse)
-	u := mustUsage(t, chatAndCollect(t, srv))
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	u := mustUsage(t, chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})}))
 
 	if u.Input != 200 {
 		t.Errorf("Input = %d, want 200", u.Input)
@@ -541,8 +480,8 @@ func TestAnthropicCache_ProxyAllUsageInMessageDelta(t *testing.T) {
 		"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":800,\"output_tokens\":20,\"cache_read_input_tokens\":600,\"cache_creation_input_tokens\":0}}\n" +
 		"data: {\"type\":\"message_stop\"}\n"
 
-	srv := newTestServer(t, sse)
-	u := mustUsage(t, chatAndCollect(t, srv))
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	u := mustUsage(t, chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})}))
 
 	if u.Input != 800 {
 		t.Errorf("Input = %d, want 800", u.Input)
@@ -569,8 +508,8 @@ func TestAnthropicCache_ProxySplitUsage(t *testing.T) {
 		"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":8}}\n" +
 		"data: {\"type\":\"message_stop\"}\n"
 
-	srv := newTestServer(t, sse)
-	u := mustUsage(t, chatAndCollect(t, srv))
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	u := mustUsage(t, chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})}))
 
 	if u.Input != 500 {
 		t.Errorf("Input = %d, want 500", u.Input)
@@ -599,8 +538,8 @@ func TestAnthropicCache_FirstWinsOnConflict(t *testing.T) {
 		"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":999,\"output_tokens\":12,\"cache_read_input_tokens\":800}}\n" +
 		"data: {\"type\":\"message_stop\"}\n"
 
-	srv := newTestServer(t, sse)
-	u := mustUsage(t, chatAndCollect(t, srv))
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	u := mustUsage(t, chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})}))
 
 	// message_start values win
 	if u.Input != 1000 {

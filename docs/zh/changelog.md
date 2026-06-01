@@ -12,6 +12,17 @@
   - Gateway 模式支持请求级 `temperature`/`top_p` 覆盖（通过 `ChatParams`）
   - 未配置时完全省略参数（不会向 API 发送零值）
 
+- **OpenAI Responses API 支持**
+  - 新增独立的 OpenAI Responses provider 路径，通过 `api: "openai-responses"` 启用
+  - 支持 Responses 流式输出、工具调用、reasoning summary 和 prompt cache 参数
+  - 在 provider `responses` 配置中暴露 Responses 专用设置，默认启用 prompt cache
+  - 新增模型兼容标志 `supportsPromptCacheKey` 和 `supportsReasoningSummary`
+
+### 🧪 测试
+
+- 提升 OpenAI Responses API 和 Anthropic 请求解析相关测试覆盖
+- 将 Anthropic 测试改为内存 HTTP mock，避免依赖本地端口监听
+
 ### 📝 文档
 
 - 更新 `AGENTS.md` 版本至 v0.1.28
