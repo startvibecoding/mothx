@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
+	_ "github.com/startvibecoding/vibecoding/internal/provider/google"
 )
 
 func TestProviderRegistryRegisterAndCreate(t *testing.T) {
@@ -68,6 +69,8 @@ func TestVendorFromBaseURL(t *testing.T) {
 		{"https://api.together.xyz/v1", "together"},
 		{"https://api.groq.com/openai", "groq"},
 		{"https://api.fireworks.ai/inference", "fireworks"},
+		{"https://generativelanguage.googleapis.com/v1beta/models", "google-gemini"},
+		{"https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models", "google-vertex"},
 		{"https://unknown.example.com/v1", ""},
 		{"", ""},
 	}

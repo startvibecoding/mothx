@@ -103,6 +103,10 @@ func ResolveProvider(cfg *config.ProviderConfig) (Provider, error) {
 	switch resolved.API {
 	case "anthropic-messages":
 		return globalRegistry.Create("anthropic_compatible", cfg)
+	case "google-gemini":
+		return globalRegistry.Create("google-gemini", cfg)
+	case "google-vertex":
+		return globalRegistry.Create("google-vertex", cfg)
 	default: // "openai-chat" or empty
 		return globalRegistry.Create("openai_compatible", cfg)
 	}

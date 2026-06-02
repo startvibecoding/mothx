@@ -97,6 +97,58 @@ func TestCreateOpenAIResponsesProvider(t *testing.T) {
 	}
 }
 
+func TestCreateGoogleGeminiProvider(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"gemini-test": {
+				APIKey:  "fake-key",
+				BaseURL: "https://generativelanguage.googleapis.com/v1beta/models",
+				API:     "google-gemini",
+				Models: []config.ModelConfig{
+					{ID: "gemini-test", Name: "Gemini Test", Reasoning: true},
+				},
+			},
+		},
+	}
+
+	p, model, err := Create(settings, "gemini-test", "gemini-test")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if p.Name() != "google-gemini" {
+		t.Fatalf("provider name = %q, want google-gemini", p.Name())
+	}
+	if model == nil || model.ID != "gemini-test" {
+		t.Fatalf("model = %#v, want gemini-test", model)
+	}
+}
+
+func TestCreateGoogleVertexProvider(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"vertex-test": {
+				APIKey:  "fake-token",
+				BaseURL: "https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models",
+				API:     "google-vertex",
+				Models: []config.ModelConfig{
+					{ID: "gemini-test", Name: "Gemini Test", Reasoning: true},
+				},
+			},
+		},
+	}
+
+	p, model, err := Create(settings, "vertex-test", "gemini-test")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if p.Name() != "google-vertex" {
+		t.Fatalf("provider name = %q, want google-vertex", p.Name())
+	}
+	if model == nil || model.ID != "gemini-test" {
+		t.Fatalf("model = %#v, want gemini-test", model)
+	}
+}
+
 func TestConvertModelConfigsSupportsReferenceReasoningAlias(t *testing.T) {
 	models := ConvertModelConfigs("test", []config.ModelConfig{
 		{

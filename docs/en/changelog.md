@@ -5,6 +5,12 @@
 
 ### ✨ Features
 
+- **Google Gemini and Vertex Vendor Adapters**
+  - Added native `google-gemini` and `google-vertex` providers using Google `streamGenerateContent`
+  - Enabled base URL detection for Gemini API and Vertex AI native Gemini endpoints
+  - Added default Google provider templates for Gemini API keys and Vertex bearer tokens
+  - Updated provider documentation and lookup coverage for Google vendor names
+
 - **Hosted Web Search Tool**
   - Added `--web-search` for CLI and ACP runs
   - Added top-level `webSearch` settings with `enabled`, `provider`, `providerType`, and `model`

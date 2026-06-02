@@ -7,6 +7,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/provider/anthropic"
+	"github.com/startvibecoding/vibecoding/internal/provider/google"
 	"github.com/startvibecoding/vibecoding/internal/provider/openai"
 )
 
@@ -58,8 +59,16 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			}
 			ConfigureRetry(op, settings)
 			p = op
+		case "google-gemini":
+			gp := google.NewGeminiProviderWithModels(apiKey, resolved.BaseURL, models)
+			ConfigureRetry(gp, settings)
+			p = gp
+		case "google-vertex":
+			gp := google.NewVertexProviderWithModels(apiKey, resolved.BaseURL, models)
+			ConfigureRetry(gp, settings)
+			p = gp
 		default:
-			return nil, nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat', 'openai-responses', or 'anthropic-messages')", resolved.API)
+			return nil, nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat', 'openai-responses', 'anthropic-messages', 'google-gemini', or 'google-vertex')", resolved.API)
 		}
 
 		model := p.GetModel(modelID)
@@ -83,6 +92,10 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			ap.SetCacheControlEnabled(opts.BuiltinAnthropicCacheControl)
 		}
 		p = ap
+	case "google-gemini":
+		p = google.NewGeminiProvider(settings.ResolveKey(providerName), "")
+	case "google-vertex":
+		p = google.NewVertexProvider(settings.ResolveKey(providerName), "")
 	default:
 		return nil, nil, fmt.Errorf("unknown provider: %s (add it to settings.json providers section)", providerName)
 	}

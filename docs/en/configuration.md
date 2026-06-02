@@ -158,7 +158,7 @@ Multi-provider configuration. Each provider is an object keyed by a user-chosen 
 | `baseUrl` | string | ✓ | — | API base URL |
 | `vendor` | string | — | auto-detect | Optional vendor adapter name (see below) |
 | `apiKey` | string | — | `""` | API key (see [Authentication](#authentication-configuration) below) |
-| `api` | string | — | auto-detect | API protocol: `"openai-chat"`, `"openai-responses"`, or `"anthropic-messages"` |
+| `api` | string | — | auto-detect | API protocol: `"openai-chat"`, `"openai-responses"`, `"anthropic-messages"`, `"google-gemini"`, or `"google-vertex"` |
 | `thinkingFormat` | string | — | auto-detect | Thinking parameter format (see below) |
 | `cacheControl` | bool | — | `false` | Enable Anthropic prompt caching; set `true` when using Claude models |
 | `models` | array | — | `[]` | List of available models |
@@ -171,9 +171,9 @@ Selection order:
 
 1. Explicit `vendor`
 2. Base URL detection
-3. Generic fallback: `openai-chat`, `openai-responses`, or `anthropic-messages`
+3. Generic fallback: `openai-chat`, `openai-responses`, `anthropic-messages`, `google-gemini`, or `google-vertex`
 
-Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `xiaomi`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-sgp`, `kimi`, `minimax`, `seed`, `qianfan`, `bailian`, `gitee`, `openrouter`, `together`, `groq`, and `fireworks`.
+Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `google-gemini`, `google-vertex`, `xiaomi`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-sgp`, `kimi`, `minimax`, `seed`, `qianfan`, `bailian`, `gitee`, `openrouter`, `together`, `groq`, and `fireworks`.
 
 ```json
 {
@@ -222,12 +222,41 @@ The `api` field specifies the **protocol format**, not the service provider. You
 - `openai-chat`: OpenAI Chat Completions API format
 - `openai-responses`: OpenAI Responses API format (`POST /v1/responses`)
 - `anthropic-messages`: Anthropic Messages API format
+- `google-gemini`: Native Gemini API `streamGenerateContent` format
+- `google-vertex`: Native Vertex AI Gemini `streamGenerateContent` format
 
 For example, DeepSeek offers both formats at different endpoints, and you can also use these formats to connect to the actual OpenAI or Anthropic services.
 
 If not specified, auto-detected based on `baseUrl`:
+- Contains `generativelanguage.googleapis.com` → `google-gemini`
+- Contains `aiplatform.googleapis.com` → `google-vertex`
 - Contains "anthropic" → `anthropic-messages`
 - Others → `openai-chat`
+
+Google native providers can be configured directly:
+
+```json
+{
+  "providers": {
+    "google-gemini": {
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/models",
+      "apiKey": "${GOOGLE_API_KEY}",
+      "api": "google-gemini",
+      "models": [
+        { "id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "reasoning": true, "contextWindow": 1000000, "maxTokens": 65536 }
+      ]
+    },
+    "google-vertex": {
+      "baseUrl": "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/publishers/google/models",
+      "apiKey": "!gcloud auth print-access-token",
+      "api": "google-vertex",
+      "models": [
+        { "id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "reasoning": true, "contextWindow": 1000000, "maxTokens": 65536 }
+      ]
+    }
+  }
+}
+```
 
 #### thinkingFormat field
 

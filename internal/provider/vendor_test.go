@@ -69,9 +69,50 @@ func TestResolveAdapterConfigGenericFallback(t *testing.T) {
 	}
 }
 
+func TestResolveAdapterConfigGoogleGemini(t *testing.T) {
+	resolved := ResolveAdapterConfig(&config.ProviderConfig{
+		BaseURL: "https://generativelanguage.googleapis.com/v1beta/models",
+	})
+	if resolved.Vendor != "google-gemini" {
+		t.Fatalf("Vendor = %q, want google-gemini", resolved.Vendor)
+	}
+	if resolved.API != "google-gemini" {
+		t.Fatalf("API = %q, want google-gemini", resolved.API)
+	}
+}
+
+func TestResolveAdapterConfigGoogleVertex(t *testing.T) {
+	resolved := ResolveAdapterConfig(&config.ProviderConfig{
+		BaseURL: "https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models",
+	})
+	if resolved.Vendor != "google-vertex" {
+		t.Fatalf("Vendor = %q, want google-vertex", resolved.Vendor)
+	}
+	if resolved.API != "google-vertex" {
+		t.Fatalf("API = %q, want google-vertex", resolved.API)
+	}
+}
+
 func TestVendorFromBaseURLDetectsXiaomiTokenPlan(t *testing.T) {
 	got := VendorFromBaseURL("https://token-plan-cn.xiaomimimo.com/v1")
 	if got != "xiaomi-token-plan-cn" {
 		t.Fatalf("VendorFromBaseURL = %q, want xiaomi-token-plan-cn", got)
+	}
+}
+
+func TestVendorFromBaseURLDetectsGoogleAdapters(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected string
+	}{
+		{"https://generativelanguage.googleapis.com/v1beta/models", "google-gemini"},
+		{"https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models", "google-vertex"},
+	}
+
+	for _, tt := range tests {
+		got := VendorFromBaseURL(tt.url)
+		if got != tt.expected {
+			t.Errorf("VendorFromBaseURL(%q) = %q, want %q", tt.url, got, tt.expected)
+		}
 	}
 }

@@ -198,6 +198,24 @@ func DefaultSettings() *Settings {
 					{ID: "o3-mini", Name: "o3-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 1.1, Output: 4.4, CacheRead: 0.55, CacheWrite: 1.1}, Input: []string{"text", "image"}},
 				},
 			},
+			"google-gemini": &ProviderConfig{
+				BaseURL: "https://generativelanguage.googleapis.com/v1beta/models",
+				APIKey:  "${GOOGLE_API_KEY}",
+				API:     "google-gemini",
+				Models: []ModelConfig{
+					{ID: "gemini-2.5-pro", Name: "Gemini 2.5 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
+					{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
+				},
+			},
+			"google-vertex": &ProviderConfig{
+				BaseURL: "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/publishers/google/models",
+				APIKey:  "${GOOGLE_VERTEX_ACCESS_TOKEN}",
+				API:     "google-vertex",
+				Models: []ModelConfig{
+					{ID: "gemini-2.5-pro", Name: "Gemini 2.5 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
+					{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
+				},
+			},
 			"xiaomi": &ProviderConfig{
 				BaseURL:        "https://api.xiaomimimo.com/v1",
 				APIKey:         "${XIAOMI_API_KEY}",

@@ -5,6 +5,12 @@
 
 ### ✨ 新功能
 
+- **Google Gemini 和 Vertex 厂商适配器**
+  - 新增原生 `google-gemini` 和 `google-vertex` provider，使用 Google `streamGenerateContent`
+  - 支持 Gemini API 和 Vertex AI 原生 Gemini 端点的 baseUrl 自动识别
+  - 新增 Gemini API key 和 Vertex bearer token 的默认 Google provider 模板
+  - 更新 provider 文档与识别测试覆盖
+
 - **Hosted Web Search 工具**
   - 为 CLI 和 ACP 运行新增 `--web-search`
   - 新增顶层 `webSearch` 配置，包含 `enabled`、`provider`、`providerType` 和 `model`

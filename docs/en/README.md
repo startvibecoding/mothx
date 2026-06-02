@@ -96,7 +96,7 @@ Welcome to the VibeCoding Documentation Center!
 | **DeepSeek** (default) | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
 | **OpenAI** | GPT-4o, o1, etc. | OpenAI Chat |
 | **Anthropic** | Claude Sonnet, Opus, etc. | Anthropic Messages |
-| **Vendor adapters** | Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more | OpenAI Chat or Anthropic Messages |
+| **Vendor adapters** | Google Gemini, Google Vertex, Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more | OpenAI Chat or Anthropic Messages |
 | **Custom** | Any compatible model | Generic OpenAI Chat or Anthropic Messages fallback |
 
 ## Quick Install

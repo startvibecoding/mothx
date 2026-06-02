@@ -12,7 +12,7 @@ A:
 - DeepSeek (default): deepseek-v4-flash, deepseek-v4-pro (1M context, up to 384K output)
 - OpenAI: GPT-4o, o1, etc.
 - Anthropic: Claude Sonnet, Opus, etc.
-- Vendor adapters: Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more
+- Vendor adapters: Google Gemini, Google Vertex, Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more
 - Custom: Any OpenAI Chat or Anthropic Messages compatible API endpoint through generic fallback
 
 ### Q: How to install?

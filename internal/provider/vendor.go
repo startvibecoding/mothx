@@ -116,10 +116,6 @@ func ResolveAdapterConfig(cfg *config.ProviderConfig) AdapterConfig {
 		return resolved
 	}
 
-	if resolved.API == "" {
-		resolved.API = protocolFromBaseURL(cfg.BaseURL)
-	}
-
 	vendorRegistry.RLock()
 	for _, name := range vendorRegistry.order {
 		adapter := vendorRegistry.adapters[name]
@@ -130,6 +126,10 @@ func ResolveAdapterConfig(cfg *config.ProviderConfig) AdapterConfig {
 		}
 	}
 	vendorRegistry.RUnlock()
+
+	if resolved.API == "" {
+		resolved.API = protocolFromBaseURL(cfg.BaseURL)
+	}
 
 	return resolved
 }

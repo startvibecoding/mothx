@@ -12,7 +12,7 @@ A:
 - DeepSeek (默认): deepseek-v4-flash, deepseek-v4-pro (1M 上下文，最多 384K 输出)
 - OpenAI: GPT-4o, o1 等
 - Anthropic: Claude Sonnet, Opus 等
-- 厂商适配器: 小米、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、OpenRouter、Together、Groq、Fireworks 等
+- 厂商适配器: Google Gemini、Google Vertex、小米、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、OpenRouter、Together、Groq、Fireworks 等
 - 自定义: 任何 OpenAI Chat 或 Anthropic Messages 兼容 API 端点，会回退到通用 provider
 
 ### Q: 如何安装?

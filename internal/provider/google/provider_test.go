@@ -1,0 +1,171 @@
+package google
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"testing"
+
+	"github.com/startvibecoding/vibecoding/internal/provider"
+)
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+func newMockGoogleProvider(t *testing.T, p *Provider, sse string, bodyCh chan<- string, check func(*http.Request)) *Provider {
+	t.Helper()
+	p.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if check != nil {
+			check(r)
+		}
+		if bodyCh != nil {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				return nil, err
+			}
+			bodyCh <- string(body)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(bytes.NewBufferString(sse)),
+			Request:    r,
+		}, nil
+	})}
+	return p
+}
+
+func TestGoogleGeminiRequest(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockGoogleProvider(t,
+		NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test", Reasoning: true}}),
+		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}]}\n",
+		bodyCh,
+		func(r *http.Request) {
+			if r.URL.Path != "/v1beta/models/gemini-test:streamGenerateContent" {
+				t.Fatalf("path = %q, want /v1beta/models/gemini-test:streamGenerateContent", r.URL.Path)
+			}
+			if r.URL.Query().Get("alt") != "sse" {
+				t.Fatalf("alt query = %q, want sse", r.URL.Query().Get("alt"))
+			}
+			if r.Header.Get("x-goog-api-key") != "fake-key" {
+				t.Fatalf("x-goog-api-key = %q, want fake-key", r.Header.Get("x-goog-api-key"))
+			}
+		})
+
+	temp := 0.2
+	params := provider.ChatParams{
+		ModelID:       "gemini-test",
+		SystemPrompt:  "system",
+		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		Tools:         []provider.ToolDefinition{{Name: "read", Description: "Read file", Parameters: json.RawMessage(`{"type":"object"}`)}},
+		ThinkingLevel: provider.ThinkingHigh,
+		MaxTokens:     123,
+		Temperature:   &temp,
+		Abort:         make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req googleRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if req.SystemInstruction == nil || req.SystemInstruction.Parts[0].Text != "system" {
+		t.Fatalf("systemInstruction = %#v, want system text", req.SystemInstruction)
+	}
+	if len(req.Contents) != 1 || req.Contents[0].Role != "user" || req.Contents[0].Parts[0].Text != "hi" {
+		t.Fatalf("contents = %#v, want user hi", req.Contents)
+	}
+	if req.GenerationConfig == nil || req.GenerationConfig.MaxOutputTokens != 123 {
+		t.Fatalf("generationConfig = %#v, want max 123", req.GenerationConfig)
+	}
+	if req.GenerationConfig.Temperature == nil || *req.GenerationConfig.Temperature != temp {
+		t.Fatalf("temperature = %#v, want %v", req.GenerationConfig.Temperature, temp)
+	}
+	if req.GenerationConfig.ThinkingConfig == nil || req.GenerationConfig.ThinkingConfig.ThinkingBudget != 8192 {
+		t.Fatalf("thinkingConfig = %#v, want high budget", req.GenerationConfig.ThinkingConfig)
+	}
+	if len(req.Tools) != 1 || len(req.Tools[0].FunctionDeclarations) != 1 || req.Tools[0].FunctionDeclarations[0].Name != "read" {
+		t.Fatalf("tools = %#v, want read declaration", req.Tools)
+	}
+}
+
+func TestGoogleVertexAuthorizationHeader(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockGoogleProvider(t,
+		NewVertexProviderWithModels("fake-token", "https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models", []*provider.Model{{ID: "gemini-test"}}),
+		"data: {}\n",
+		bodyCh,
+		func(r *http.Request) {
+			if r.URL.Path != "/v1/projects/test/locations/global/publishers/google/models/gemini-test:streamGenerateContent" {
+				t.Fatalf("path = %q, want Vertex streamGenerateContent path", r.URL.Path)
+			}
+			if r.Header.Get("Authorization") != "Bearer fake-token" {
+				t.Fatalf("Authorization = %q, want Bearer fake-token", r.Header.Get("Authorization"))
+			}
+		})
+
+	for range p.Chat(context.Background(), provider.ChatParams{
+		ModelID:  "gemini-test",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}) {
+	}
+}
+
+func TestGoogleStreamTextToolCallAndUsage(t *testing.T) {
+	sse := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello \"}]}}]}\n" +
+		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"read\",\"args\":{\"path\":\"main.go\"}}}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":5,\"thoughtsTokenCount\":2,\"totalTokenCount\":17}}\n"
+	p := newMockGoogleProvider(t,
+		NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}}),
+		sse,
+		nil,
+		nil)
+
+	var text string
+	var tool *provider.ToolCallBlock
+	var usage *provider.Usage
+	var done bool
+	for ev := range p.Chat(context.Background(), provider.ChatParams{
+		ModelID:  "gemini-test",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}) {
+		switch ev.Type {
+		case provider.StreamTextDelta:
+			text += ev.TextDelta
+		case provider.StreamToolCall:
+			tool = ev.ToolCall
+		case provider.StreamUsage:
+			usage = ev.Usage
+		case provider.StreamDone:
+			done = true
+			if ev.StopReason != "stop" {
+				t.Fatalf("stop reason = %q, want stop", ev.StopReason)
+			}
+		}
+	}
+	if text != "Hello " {
+		t.Fatalf("text = %q, want Hello", text)
+	}
+	if tool == nil || tool.Name != "read" || string(tool.Arguments) != `{"path":"main.go"}` {
+		t.Fatalf("tool = %#v, want read path", tool)
+	}
+	if usage == nil || usage.Input != 10 || usage.Output != 5 || usage.Reasoning != 2 || usage.TotalTokens != 17 {
+		t.Fatalf("usage = %#v, want token counts", usage)
+	}
+	if !done {
+		t.Fatal("missing StreamDone")
+	}
+}
