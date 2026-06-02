@@ -155,6 +155,12 @@ func TestRegistryResolvePath(t *testing.T) {
 		t.Error("expected error for path escape")
 	}
 
+	// Sibling directory with same prefix should fail.
+	_, err = r.ResolvePath("/home/user/project2/file.txt")
+	if err == nil {
+		t.Error("expected error for sibling prefix path escape")
+	}
+
 	// Tilde expansion - may fail if home is outside workdir
 	_, err = r.ResolvePath("~")
 	// This is expected to fail if home dir is outside workdir

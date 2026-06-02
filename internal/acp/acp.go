@@ -2,6 +2,7 @@ package acp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 )
 
 const protocolVersion = 1
+const maxRequestBytes = 10 << 20
 
 type RunOptions struct {
 	Provider   string
@@ -70,6 +72,8 @@ type server struct {
 	nextID int64
 	r      *bufio.Reader
 	w      io.Writer
+
+	permissionTimeout time.Duration
 }
 
 type sessionRuntime struct {
@@ -323,10 +327,12 @@ func Run(opts RunOptions) error {
 			if err == io.EOF {
 				return nil
 			}
-			srv.writeMessage(map[string]any{
+			if err := srv.writeMessage(map[string]any{
 				"jsonrpc": "2.0",
 				"error":   &mcp.RPCError{Code: -32700, Message: err.Error()},
-			})
+			}); err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -895,7 +901,7 @@ func (s *server) requestPermission(sessionID, toolCallID, toolName string, args 
 	s.mu.Lock()
 	s.pending[id] = ch
 	s.mu.Unlock()
-	s.notifyRequest(id, "session/request_permission", requestPermissionRequest{
+	if err := s.notifyRequest(id, "session/request_permission", requestPermissionRequest{
 		SessionID: sessionID,
 		ToolCall: permissionToolCall{
 			ToolCallID: toolCallID,
@@ -908,15 +914,29 @@ func (s *server) requestPermission(sessionID, toolCallID, toolName string, args 
 			{OptionID: "allow-once", Name: "Allow once", Kind: "allow_once"},
 			{OptionID: "reject-once", Name: "Reject", Kind: "reject_once"},
 		},
-	})
+	}); err != nil {
+		s.deletePending(id)
+		return false
+	}
+	timeout := s.permissionTimeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
 	select {
-	case <-time.After(30 * time.Second):
+	case <-time.After(timeout):
+		s.deletePending(id)
 		return false
 	case resp := <-ch:
 		var out permissionResult
 		_ = json.Unmarshal(resp, &out)
 		return out.Outcome != nil && out.Outcome.Outcome == "selected" && out.Outcome.OptionID == "allow-once"
 	}
+}
+
+func (s *server) deletePending(id string) {
+	s.mu.Lock()
+	delete(s.pending, id)
+	s.mu.Unlock()
 }
 
 func (s *server) deliverResponse(id json.RawMessage, result json.RawMessage, errMsg json.RawMessage) {
@@ -1082,11 +1102,24 @@ func (s *server) nextRequestID() string {
 
 func (s *server) readRequest() (rpcRequest, error) {
 	var req rpcRequest
-	line, err := s.r.ReadBytes('\n')
-	if err != nil {
-		return req, err
+	var buf bytes.Buffer
+	for {
+		part, err := s.r.ReadSlice('\n')
+		if len(part) > 0 {
+			if buf.Len()+len(part) > maxRequestBytes {
+				return req, fmt.Errorf("message exceeds maximum size of %d bytes", maxRequestBytes)
+			}
+			buf.Write(part)
+		}
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+		if err != nil {
+			return req, err
+		}
+		break
 	}
-	payload := strings.TrimRight(string(line), "\r\n")
+	payload := strings.TrimRight(buf.String(), "\r\n")
 	if strings.TrimSpace(payload) == "" {
 		return req, fmt.Errorf("empty message")
 	}
@@ -1096,7 +1129,7 @@ func (s *server) readRequest() (rpcRequest, error) {
 	return req, nil
 }
 
-func (s *server) writeResponse(id json.RawMessage, result any, errResp *mcp.RPCError) {
+func (s *server) writeResponse(id json.RawMessage, result any, errResp *mcp.RPCError) error {
 	resp := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      id,
@@ -1106,11 +1139,11 @@ func (s *server) writeResponse(id json.RawMessage, result any, errResp *mcp.RPCE
 	} else {
 		resp["result"] = result
 	}
-	s.writeMessage(resp)
+	return s.writeMessage(resp)
 }
 
-func (s *server) notify(sessionID string, update sessionUpdate) {
-	s.writeMessage(map[string]any{
+func (s *server) notify(sessionID string, update sessionUpdate) error {
+	return s.writeMessage(map[string]any{
 		"jsonrpc": "2.0",
 		"method":  "session/update",
 		"params": map[string]any{
@@ -1120,8 +1153,8 @@ func (s *server) notify(sessionID string, update sessionUpdate) {
 	})
 }
 
-func (s *server) notifyRequest(id string, method string, params any) {
-	s.writeMessage(map[string]any{
+func (s *server) notifyRequest(id string, method string, params any) error {
+	return s.writeMessage(map[string]any{
 		"jsonrpc": "2.0",
 		"id":      id,
 		"method":  method,
@@ -1129,13 +1162,23 @@ func (s *server) notifyRequest(id string, method string, params any) {
 	})
 }
 
-func (s *server) writeMessage(v any) {
-	data, _ := json.Marshal(v)
+func (s *server) writeMessage(v any) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
 	s.wmu.Lock()
 	defer s.wmu.Unlock()
-	_, _ = s.w.Write(data)
-	_, _ = s.w.Write([]byte("\n"))
-	if f, ok := s.w.(interface{ Flush() error }); ok {
-		_ = f.Flush()
+	if _, err := s.w.Write(data); err != nil {
+		return err
 	}
+	if _, err := s.w.Write([]byte("\n")); err != nil {
+		return err
+	}
+	if f, ok := s.w.(interface{ Flush() error }); ok {
+		if err := f.Flush(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

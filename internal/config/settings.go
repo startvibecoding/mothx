@@ -454,6 +454,9 @@ func providerToEnvVar(name string) string {
 
 func resolveKeyValue(key string) string {
 	if strings.HasPrefix(key, "!") {
+		if os.Getenv("VIBECODING_ALLOW_SHELL_CONFIG") != "1" {
+			return key
+		}
 		return resolveShellCommand(key[1:])
 	}
 

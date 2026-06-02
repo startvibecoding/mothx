@@ -2,6 +2,7 @@ package hermes
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -25,6 +26,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
 // Dispatcher routes messages to per-user agent sessions.
@@ -209,6 +211,9 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 	dir := d.hermesSessionDir(platform, userID)
 	activePath := filepath.Join(dir, "active.jsonl")
 	workDir := d.cfg.GetPlatformWorkDir(platform)
+	if err := d.security.CheckWorkDirAllowed(workDir); err != nil {
+		return nil, err
+	}
 
 	var mgr *session.Manager
 	if _, err := os.Stat(activePath); err == nil {
@@ -237,7 +242,11 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 				return nil, fmt.Errorf("rename to active.jsonl: %w", err)
 			}
 			// Re-open from the renamed path
-			mgr, _ = session.Open(activePath)
+			var openErr error
+			mgr, openErr = session.Open(activePath)
+			if openErr != nil {
+				return nil, fmt.Errorf("open renamed session: %w", openErr)
+			}
 		}
 	}
 
@@ -831,12 +840,30 @@ func (d *Dispatcher) handleCommandForWS(connID, text string) string {
 
 // hermesSessionDir returns the directory for a platform user's sessions.
 func (d *Dispatcher) hermesSessionDir(platform, userID string) string {
-	return filepath.Join(d.sessionDir, "hermes", platform, userID)
+	return filepath.Join(d.sessionDir, "hermes", safeSessionPathComponent(platform), safeSessionPathComponent(userID))
 }
 
 // sessionKey builds a session pool key.
 func sessionKey(platform, userID string) string {
 	return fmt.Sprintf("hermes/%s/%s", platform, userID)
+}
+
+func safeSessionPathComponent(s string) string {
+	if s == "" || s == "." || s == ".." {
+		return "b64_" + base64.RawURLEncoding.EncodeToString([]byte(s))
+	}
+	for _, r := range s {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
+			continue
+		}
+		switch r {
+		case '-', '_', '.', '@':
+			continue
+		default:
+			return "b64_" + base64.RawURLEncoding.EncodeToString([]byte(s))
+		}
+	}
+	return s
 }
 
 // archiveCorrupt renames a corrupt session file.
@@ -873,8 +900,5 @@ func (d *Dispatcher) ResolveApproval(approvalID string, approved bool) bool {
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
+	return util.TruncateWithSuffix(s, maxLen, "...")
 }

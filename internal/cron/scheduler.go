@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -21,6 +22,10 @@ type Scheduler struct {
 	running  bool
 	mu       sync.Mutex
 }
+
+var a2aHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
+const maxA2AResponseBytes = 1 << 20
 
 // NewScheduler creates a new cron scheduler.
 func NewScheduler(store CronStore, manager *agent.AgentManager, interval time.Duration) *Scheduler {
@@ -121,9 +126,11 @@ func (s *Scheduler) isDue(job CronJob, now time.Time) bool {
 // executeJob runs a cron job by spawning a sub-agent or sending to A2A server.
 func (s *Scheduler) executeJob(job CronJob) {
 	// Mark as running
-	job.LastStatus = "running"
-	job.LastRun = time.Now()
-	s.store.Update(job)
+	startedAt := time.Now()
+	s.updateJob(job.ID, func(current *CronJob) {
+		current.LastStatus = "running"
+		current.LastRun = startedAt
+	})
 
 	var lastErr error
 
@@ -137,9 +144,10 @@ func (s *Scheduler) executeJob(job CronJob) {
 			WorkDir: job.WorkDir,
 		})
 		if err != nil {
-			job.LastStatus = "failed"
-			job.LastError = fmt.Sprintf("create agent: %v", err)
-			s.store.Update(job)
+			s.updateJob(job.ID, func(current *CronJob) {
+				current.LastStatus = "failed"
+				current.LastError = fmt.Sprintf("create agent: %v", err)
+			})
 			return
 		}
 
@@ -152,28 +160,37 @@ func (s *Scheduler) executeJob(job CronJob) {
 		s.manager.Destroy(a.ID())
 	}
 
-	job.RunCount++
-	if lastErr != nil {
-		job.LastStatus = "failed"
-		job.LastError = lastErr.Error()
-	} else {
-		job.LastStatus = "success"
-		job.LastError = ""
-	}
+	s.updateJob(job.ID, func(current *CronJob) {
+		current.RunCount++
+		if lastErr != nil {
+			current.LastStatus = "failed"
+			current.LastError = lastErr.Error()
+		} else {
+			current.LastStatus = "success"
+			current.LastError = ""
+		}
 
-	// Compute next run from schedule
-	next, isOneShot, err := ParseSchedule(job.Schedule, time.Now())
+		// Compute next run from the latest stored schedule.
+		next, isOneShot, err := ParseSchedule(current.Schedule, time.Now())
+		if err != nil {
+			isOneShot = true
+		}
+		if isOneShot || current.OneShot {
+			current.Enabled = false
+			current.NextRun = time.Time{}
+		} else {
+			current.NextRun = next
+		}
+	})
+}
+
+func (s *Scheduler) updateJob(id string, update func(*CronJob)) {
+	current, err := s.store.Get(id)
 	if err != nil {
-		isOneShot = true
+		return
 	}
-	if isOneShot || job.OneShot {
-		job.Enabled = false
-		job.NextRun = time.Time{}
-	} else {
-		job.NextRun = next
-	}
-
-	s.store.Update(job)
+	update(current)
+	_ = s.store.Update(*current)
 }
 
 // executeA2AJob sends a task to a remote A2A server.
@@ -200,7 +217,7 @@ func (s *Scheduler) executeA2AJob(job CronJob) error {
 		req.Header.Set("Authorization", "Bearer "+job.A2AToken)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := a2aHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("a2a request: %w", err)
 	}
@@ -215,7 +232,7 @@ func (s *Scheduler) executeA2AJob(job CronJob) error {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxA2AResponseBytes)).Decode(&result); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
 	if result.Error != nil {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
 func planStatusMarker(status string) string {
@@ -259,10 +260,7 @@ func minInt(a, b int) int {
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
+	return util.TruncateWithSuffix(s, maxLen, "...")
 }
 
 func formatDuration(d time.Duration) string {

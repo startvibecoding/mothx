@@ -210,6 +210,32 @@ func TestCORSMiddleware_Enabled(t *testing.T) {
 	}
 }
 
+func TestCORSMiddleware_MultipleOriginsEchoesRequestOrigin(t *testing.T) {
+	handler := CORSMiddleware(CORSConfig{Enabled: true, AllowOrigins: []string{"http://a.example", "http://b.example"}}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "http://b.example")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "http://b.example" {
+		t.Errorf("CORS origin = %q, want http://b.example", got)
+	}
+}
+
+func TestCORSMiddleware_MultipleOriginsRejectsUnknownOrigin(t *testing.T) {
+	handler := CORSMiddleware(CORSConfig{Enabled: true, AllowOrigins: []string{"http://a.example", "http://b.example"}}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Origin", "http://evil.example")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("CORS origin = %q, want empty", got)
+	}
+}
+
 func TestCORSMiddleware_Preflight(t *testing.T) {
 	handler := CORSMiddleware(CORSConfig{Enabled: true}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -472,6 +498,25 @@ func newTestServer(t *testing.T) *Server {
 		sandboxMgr: sbMgr,
 		skillsMgr:  skillsMgr,
 		pool:       pool,
+	}
+}
+
+func TestCloneModelCopiesMutableFields(t *testing.T) {
+	model := &provider.Model{
+		ID:     "m1",
+		Input:  []string{"text"},
+		Compat: &provider.ModelCompat{ThinkingFormat: "anthropic"},
+	}
+
+	clone := cloneModel(model)
+	clone.Input[0] = "image"
+	clone.Compat.ThinkingFormat = "deepseek"
+
+	if model.Input[0] != "text" {
+		t.Fatalf("original input mutated: %v", model.Input)
+	}
+	if model.Compat.ThinkingFormat != "anthropic" {
+		t.Fatalf("original compat mutated: %s", model.Compat.ThinkingFormat)
 	}
 }
 
@@ -1062,6 +1107,27 @@ func TestCORSMiddleware_DefaultOrigins(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
 		t.Errorf("CORS origin = %q, want *", got)
+	}
+}
+
+func TestGatewaySecurityWarning(t *testing.T) {
+	cfg := DefaultGatewayConfig()
+	cfg.Listen = ":8080"
+	cfg.DefaultMode = "yolo"
+	cfg.Auth.Enabled = false
+	if got := gatewaySecurityWarning(cfg); got == "" {
+		t.Fatal("expected warning for public yolo gateway without auth")
+	}
+
+	cfg.Listen = "127.0.0.1:8080"
+	if got := gatewaySecurityWarning(cfg); got != "" {
+		t.Fatalf("warning for loopback = %q, want empty", got)
+	}
+
+	cfg.Listen = ":8080"
+	cfg.Auth.Enabled = true
+	if got := gatewaySecurityWarning(cfg); got != "" {
+		t.Fatalf("warning with auth = %q, want empty", got)
 	}
 }
 

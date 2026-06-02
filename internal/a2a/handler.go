@@ -118,12 +118,12 @@ func (h *Handler) handleSendMessage(w http.ResponseWriter, r *http.Request, req 
 			return
 		}
 	} else {
-		taskID := fmt.Sprintf("task_%d", time.Now().UnixNano())
-		task = h.taskStore.Create(taskID)
+		task = h.taskStore.Create(newTaskID())
 	}
 
 	task.Message = params.Message
-	h.taskStore.SetState(task.ID, TaskStateWorking)
+	task.State = TaskStateWorking
+	h.taskStore.Update(task)
 
 	if isSSE {
 		h.streamResponse(w, r, task, params.Message)

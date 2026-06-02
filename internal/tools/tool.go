@@ -166,8 +166,8 @@ func NewRegistry(workDir string, sb sandbox.Sandbox) *Registry {
 type RegistryConfig struct {
 	WorkDir    string
 	Sandbox    sandbox.Sandbox
-	ToolFilter []string         // optional: only register these tools (empty = all)
-	SkillsMgr  *skills.Manager  // optional: skills manager for skill_ref tool
+	ToolFilter []string        // optional: only register these tools (empty = all)
+	SkillsMgr  *skills.Manager // optional: skills manager for skill_ref tool
 }
 
 // NewRegistryWithConfig creates a Registry with the given config.
@@ -300,7 +300,8 @@ func (r *Registry) ResolvePath(path string) (string, error) {
 
 	// Validate: path must not escape workDir
 	workDir = filepath.Clean(workDir)
-	if !strings.HasPrefix(path, workDir) {
+	rel, err := filepath.Rel(workDir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path %s escapes working directory %s", path, workDir)
 	}
 

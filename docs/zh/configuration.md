@@ -258,6 +258,8 @@ Google 原生 provider 可以直接配置：
 }
 ```
 
+上面的 `!gcloud auth print-access-token` 示例使用 shell 命令解析。使用 `!command` 值前需要设置 `VIBECODING_ALLOW_SHELL_CONFIG=1`，也可以改用 `${GOOGLE_VERTEX_TOKEN}` 这样的环境变量引用。
+
 #### thinkingFormat 字段
 
 指定思考/推理参数如何发送到 API：
@@ -894,7 +896,7 @@ VibeCoding 需要某个提供商的 API 密钥时，按以下顺序查找：
 | 格式 | 示例 | 行为 |
 |------|------|------|
 | `${VAR}` | `"${DEEPSEEK_API_KEY}"` | 读取环境变量 `VAR` 的值 |
-| `!command` | `"!pass show deepseek-key"` | 执行 shell 命令，使用其标准输出 |
+| `!command` | `"!pass show deepseek-key"` | 仅当 `VIBECODING_ALLOW_SHELL_CONFIG=1` 时执行 shell 命令，并使用其标准输出 |
 | 纯字符串 | `"sk-abc123..."` | 直接使用 (⚠️ 不建议用于共享配置) |
 
 #### 环境变量引用
@@ -918,6 +920,12 @@ export DEEPSEEK_API_KEY=sk-...
 #### Shell 命令 (密码管理器集成)
 
 前缀加 `!` 可执行 shell 命令。VibeCoding 在 Linux/macOS 上使用 `sh -c`，在 Windows 上使用 `powershell.exe`。
+
+Shell 命令解析默认关闭。如需在可信本地配置中启用，设置：
+
+```bash
+export VIBECODING_ALLOW_SHELL_CONFIG=1
+```
 
 ```json
 {

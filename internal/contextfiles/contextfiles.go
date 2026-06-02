@@ -66,7 +66,10 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 	// 1. Load from current directory (highest priority)
 	// Only the first matching file is loaded per directory (priority order: AGENTS.md > CLAUDE.md > ...)
 	for _, name := range uniqueNames {
-		path := filepath.Join(cwd, name)
+		path, ok := safeContextFilePath(cwd, name)
+		if !ok {
+			continue
+		}
 		if content, err := os.ReadFile(path); err == nil {
 			result.ProjectFiles = append(result.ProjectFiles, FileContent{
 				Path:    path,
@@ -91,7 +94,10 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 
 		// Only the first matching file is loaded per parent directory
 		for _, name := range uniqueNames {
-			path := filepath.Join(parent, name)
+			path, ok := safeContextFilePath(parent, name)
+			if !ok {
+				continue
+			}
 			if content, err := os.ReadFile(path); err == nil {
 				result.ParentFiles = append(result.ParentFiles, FileContent{
 					Path:    path,
@@ -108,7 +114,10 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 	// Only the first matching file is loaded
 	if globalConfigDir != "" {
 		for _, name := range uniqueNames {
-			path := filepath.Join(globalConfigDir, name)
+			path, ok := safeContextFilePath(globalConfigDir, name)
+			if !ok {
+				continue
+			}
 			if content, err := os.ReadFile(path); err == nil {
 				result.GlobalFiles = append(result.GlobalFiles, FileContent{
 					Path:    path,
@@ -121,6 +130,19 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 	}
 
 	return result
+}
+
+func safeContextFilePath(baseDir, name string) (string, bool) {
+	if filepath.IsAbs(name) {
+		return "", false
+	}
+	base := filepath.Clean(baseDir)
+	path := filepath.Clean(filepath.Join(base, name))
+	rel, err := filepath.Rel(base, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return path, true
 }
 
 // BuildContextString concatenates all context files into a single string

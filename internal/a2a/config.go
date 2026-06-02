@@ -14,12 +14,12 @@ import (
 
 // Config holds A2A server configuration.
 type Config struct {
-	Enabled    bool          `json:"enabled"`
-	Port       int           `json:"port"`
-	Host       string        `json:"host"`
-	AuthToken  string        `json:"auth_token,omitempty"`
-	WorkDir    string        `json:"work_dir,omitempty"`
-	AgentCard  *AgentCardCfg `json:"agent_card,omitempty"`
+	Enabled   bool          `json:"enabled"`
+	Port      int           `json:"port"`
+	Host      string        `json:"host"`
+	AuthToken string        `json:"auth_token,omitempty"`
+	WorkDir   string        `json:"work_dir,omitempty"`
+	AgentCard *AgentCardCfg `json:"agent_card,omitempty"`
 }
 
 // AgentCardCfg holds customizable Agent Card fields.
@@ -34,7 +34,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		Enabled: false,
 		Port:    8093,
-		Host:    "0.0.0.0",
+		Host:    "127.0.0.1",
 	}
 }
 

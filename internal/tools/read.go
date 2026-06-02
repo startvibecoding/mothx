@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
 // ReadTool reads file contents.
@@ -64,6 +66,8 @@ var imageMimeType = map[string]string{
 	".webp": "image/webp",
 }
 
+const maxImageFileBytes = 10 << 20
+
 func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	path, _ := params["path"].(string)
 	if path == "" {
@@ -78,6 +82,13 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// Check for image files
 	ext := strings.ToLower(filepath.Ext(path))
 	if mimeType, ok := imageMimeType[ext]; ok {
+		info, err := os.Stat(path)
+		if err != nil {
+			return ToolResult{}, fmt.Errorf("cannot stat image file: %w", err)
+		}
+		if info.Size() > maxImageFileBytes {
+			return ToolResult{}, fmt.Errorf("image file too large: %d bytes (max %d)", info.Size(), maxImageFileBytes)
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return ToolResult{}, fmt.Errorf("cannot read image file: %w", err)
@@ -129,7 +140,7 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// Truncate
 	const maxBytes = 50000
 	if len(result) > maxBytes {
-		result = result[:maxBytes] + fmt.Sprintf("\n... (truncated, total %d lines)", len(lines))
+		result = util.TruncateString(result, maxBytes) + fmt.Sprintf("\n... (truncated, total %d lines)", len(lines))
 	}
 
 	return NewTextToolResult(result), nil

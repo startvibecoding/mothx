@@ -1,6 +1,8 @@
 package hermes
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -45,6 +47,37 @@ func TestCheckUserAllowed(t *testing.T) {
 	sec2 := NewSecurity(cfg2)
 	if err := sec2.CheckUserAllowed("wechat", "anyone"); err != nil {
 		t.Errorf("empty whitelist should allow all: %v", err)
+	}
+}
+
+func TestCheckWorkDirAllowedUsesPathBoundary(t *testing.T) {
+	cfg := &HermesConfig{
+		Security: SecurityConfig{AllowedWorkDirs: []string{"/home/free/work"}},
+	}
+	sec := NewSecurity(cfg)
+
+	if err := sec.CheckWorkDirAllowed("/home/free/work/project"); err != nil {
+		t.Fatalf("expected nested workdir to be allowed: %v", err)
+	}
+	if err := sec.CheckWorkDirAllowed("/home/free/work2/project"); err == nil {
+		t.Fatal("expected sibling prefix workdir to be blocked")
+	}
+}
+
+func TestHermesSessionDirEncodesUnsafeComponents(t *testing.T) {
+	root := t.TempDir()
+	d := &Dispatcher{sessionDir: root}
+
+	dir := d.hermesSessionDir("wechat", "../evil/user")
+	rel, err := filepath.Rel(filepath.Join(root, "hermes"), dir)
+	if err != nil {
+		t.Fatalf("rel error: %v", err)
+	}
+	if strings.HasPrefix(rel, "..") {
+		t.Fatalf("session dir escaped root: %s", dir)
+	}
+	if strings.Contains(rel, "../") || strings.Contains(rel, `..\`) {
+		t.Fatalf("session dir contains path traversal: %s", rel)
 	}
 }
 

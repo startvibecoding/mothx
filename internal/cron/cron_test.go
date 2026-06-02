@@ -3,6 +3,7 @@ package cron
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -40,6 +41,30 @@ func TestFileCronStoreCreateDuplicate(t *testing.T) {
 	_, err := store.Create(CronJob{ID: "j1", Name: "duplicate"})
 	if err == nil {
 		t.Fatal("expected error for duplicate ID")
+	}
+}
+
+func TestNewCronIDConcurrentUnique(t *testing.T) {
+	const count = 500
+	var wg sync.WaitGroup
+	ids := make(chan string, count)
+
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ids <- newCronID()
+		}()
+	}
+	wg.Wait()
+	close(ids)
+
+	seen := make(map[string]bool, count)
+	for id := range ids {
+		if seen[id] {
+			t.Fatalf("duplicate id: %s", id)
+		}
+		seen[id] = true
 	}
 }
 
@@ -214,6 +239,28 @@ func TestSchedulerDefaultInterval(t *testing.T) {
 	}
 }
 
+func TestSchedulerUpdateJobPreservesExistingFields(t *testing.T) {
+	tmp := t.TempDir()
+	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store.Create(CronJob{ID: "j1", Name: "keep name", Schedule: "@daily", Enabled: true})
+
+	sched := NewScheduler(store, nil, time.Second)
+	sched.updateJob("j1", func(job *CronJob) {
+		job.LastStatus = "running"
+	})
+
+	got, err := store.Get("j1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "keep name" {
+		t.Fatalf("name = %q, want keep name", got.Name)
+	}
+	if got.LastStatus != "running" {
+		t.Fatalf("last status = %q, want running", got.LastStatus)
+	}
+}
+
 func TestIsDueNeverRun(t *testing.T) {
 	s := &Scheduler{}
 	job := CronJob{Enabled: true}
@@ -271,9 +318,9 @@ func TestIsDueOldRun(t *testing.T) {
 func TestIsDueOneShotFirstRun(t *testing.T) {
 	s := &Scheduler{}
 	job := CronJob{
-		Enabled:  true,
-		OneShot:  true,
-		LastRun:  time.Time{}, // never run
+		Enabled: true,
+		OneShot: true,
+		LastRun: time.Time{}, // never run
 	}
 	if !s.isDue(job, time.Now()) {
 		t.Error("expected due — one-shot never run")

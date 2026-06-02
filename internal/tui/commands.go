@@ -854,7 +854,7 @@ func (a *App) sessionsDel(id string) {
 		return
 	}
 
-	if err := session.DeleteSession(match.Path); err != nil {
+	if err := session.DeleteSession(match.Path, a.settings.GetSessionDir()); err != nil {
 		a.addMessage(errorStyle.Render(fmt.Sprintf("Error deleting session: %v", err)))
 		return
 	}

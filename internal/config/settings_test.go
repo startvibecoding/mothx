@@ -476,6 +476,18 @@ func TestResolveKeyValue(t *testing.T) {
 	os.Unsetenv("TEST_ENV_KEY")
 }
 
+func TestResolveKeyValueShellCommandRequiresOptIn(t *testing.T) {
+	t.Setenv("VIBECODING_ALLOW_SHELL_CONFIG", "")
+	if got := resolveKeyValue("!printf secret"); got != "!printf secret" {
+		t.Fatalf("resolveKeyValue without opt-in = %q, want literal", got)
+	}
+
+	t.Setenv("VIBECODING_ALLOW_SHELL_CONFIG", "1")
+	if got := resolveKeyValue("!printf secret"); got != "secret" {
+		t.Fatalf("resolveKeyValue with opt-in = %q, want secret", got)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
 }

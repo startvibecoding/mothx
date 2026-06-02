@@ -34,12 +34,10 @@ func CORSMiddleware(cfg CORSConfig, next http.Handler) http.Handler {
 	if !cfg.Enabled {
 		return next
 	}
-	origins := "*"
-	if len(cfg.AllowOrigins) > 0 {
-		origins = strings.Join(cfg.AllowOrigins, ", ")
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", origins)
+		if origin := allowedCORSOrigin(cfg, r.Header.Get("Origin")); origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
@@ -48,6 +46,24 @@ func CORSMiddleware(cfg CORSConfig, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func allowedCORSOrigin(cfg CORSConfig, requestOrigin string) string {
+	if len(cfg.AllowOrigins) == 0 {
+		return "*"
+	}
+	for _, allowed := range cfg.AllowOrigins {
+		if allowed == "*" {
+			return "*"
+		}
+		if requestOrigin != "" && allowed == requestOrigin {
+			return requestOrigin
+		}
+	}
+	if requestOrigin == "" && len(cfg.AllowOrigins) == 1 {
+		return cfg.AllowOrigins[0]
+	}
+	return ""
 }
 
 // ConcurrencyMiddleware limits the number of concurrent in-flight requests.

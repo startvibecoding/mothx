@@ -110,6 +110,8 @@ vibecoding --init-gateway --force  # 强制覆盖
 }
 ```
 
+如果 Gateway 监听在非 loopback 地址、默认模式为 `yolo` 且未启用认证，启动时会输出警告。对外部署时应启用 `auth.enabled`、限制 `allowedWorkDirs`，并考虑启用 sandbox。
+
 ## API 端点
 
 ### POST /v1/chat/completions
@@ -245,6 +247,14 @@ vibecoding --init-gateway --force  # 强制覆盖
 
 `/health` 端点始终不需要认证。
 
+## CORS
+
+启用 CORS 后，Gateway 只返回一个 `Access-Control-Allow-Origin` 值：
+
+- `allowOrigins: ["*"]` 允许任意 origin
+- 否则请求的 `Origin` 必须与配置中的某个 origin 完全匹配
+- 如果请求没有 `Origin` header，且只配置了一个 origin，则返回该 origin
+
 ## 安全
 
 三层独立防护：
@@ -261,7 +271,7 @@ vibecoding --init-gateway --force  # 强制覆盖
 
 - 未设置（`null`）→ 不限制
 - 空 `[]` → 禁止所有切换，只能用 `workingDir`
-- 目录列表 → 前缀匹配（路径分隔符边界）
+- 目录列表 → 路径感知匹配（包含路径分隔符边界）
 
 `workingDir` 本身始终被信任（管理员配置的值）。
 

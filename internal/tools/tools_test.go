@@ -248,6 +248,22 @@ func TestReadToolImage(t *testing.T) {
 	}
 }
 
+func TestReadToolImageTooLarge(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "large.png")
+	if err := os.WriteFile(tmpFile, make([]byte, maxImageFileBytes+1), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewRegistry(tmpDir, sandbox.NewNoneSandbox())
+	tool := NewReadTool(r)
+
+	_, err := tool.Execute(context.Background(), map[string]any{"path": "large.png"})
+	if err == nil || !strings.Contains(err.Error(), "image file too large") {
+		t.Fatalf("err = %v, want image file too large", err)
+	}
+}
+
 func TestWriteTool(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)

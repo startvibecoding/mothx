@@ -110,6 +110,8 @@ vibecoding --init-gateway --force  # overwrite existing
 }
 ```
 
+If Gateway is configured to listen beyond loopback, runs in `yolo` mode, and authentication is disabled, startup prints a warning. For exposed deployments, enable `auth.enabled`, restrict `allowedWorkDirs`, and consider enabling the sandbox.
+
 ## API Endpoints
 
 ### POST /v1/chat/completions
@@ -245,6 +247,14 @@ Clients send: `Authorization: Bearer sk-token-1`
 
 The `/health` endpoint is always unauthenticated.
 
+## CORS
+
+When CORS is enabled, Gateway returns a single `Access-Control-Allow-Origin` value:
+
+- `allowOrigins: ["*"]` allows any origin
+- otherwise, the request `Origin` must exactly match one configured origin
+- if there is no `Origin` header and exactly one origin is configured, that origin is returned
+
 ## Security
 
 Three independent layers:
@@ -261,7 +271,7 @@ Controls which directories `x_working_dir` can switch to:
 
 - Not set (`null`) → no restriction
 - Empty `[]` → deny all overrides, only `workingDir` allowed
-- List of paths → prefix match with path separator boundary
+- List of paths → path-aware match with separator boundaries
 
 `workingDir` itself is always trusted (admin-configured).
 

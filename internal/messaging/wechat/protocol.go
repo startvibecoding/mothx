@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +21,8 @@ const (
 	ChannelVersion = "0.1.0"
 	iLinkAppID     = "bot"
 	iLinkClientVer = "256"
+
+	maxAPIResponseBytes = 1 << 20
 )
 
 // Client wraps HTTP calls to the iLink API.
@@ -118,7 +120,10 @@ func (c *Client) apiPost(ctx context.Context, baseURL, endpoint, token string, b
 	}
 	defer resp.Body.Close()
 
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponseBytes))
+	if err != nil {
+		return nil, fmt.Errorf("%s: read response: %w", endpoint, err)
+	}
 	if resp.StatusCode >= 400 {
 		return nil, &APIError{Message: string(raw), HTTPStatus: resp.StatusCode}
 	}

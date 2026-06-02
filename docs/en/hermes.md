@@ -278,8 +278,16 @@ Platform work_dir (wechat/feishu) > Global work_dir > CLI --work-dir > cwd
 ### Connection
 
 ```
-ws://localhost:8090/ws?token=<auth_token>&session=<session_id>
+ws://localhost:8090/ws?session=<session_id>
 ```
+
+When `server.auth_token` is configured, send the token with an HTTP header during the WebSocket handshake:
+
+```http
+Authorization: Bearer <auth_token>
+```
+
+The legacy `?token=` query parameter is still accepted for compatibility, but the header form avoids exposing tokens in URLs and logs.
 
 ### Client → Server Messages
 

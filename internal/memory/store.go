@@ -7,12 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
 )
 
 // Store manages reading and writing of memory.md files.
 type Store struct {
+	mu sync.Mutex
+
 	// explicitPath overrides auto-discovery when set via config.
 	explicitPath string
 	// workDir is the project working directory, used as fallback for default write path.
@@ -40,6 +43,12 @@ const defaultTemplate = `# Agent Memory
 // Priority: explicit path → .vibe/memory.md → <GLOBAL_DIR>/memory.md
 // Returns (path, source, error). source is "explicit", "project", "global", or "".
 func (s *Store) Resolve() (path string, source string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.resolveNoLock()
+}
+
+func (s *Store) resolveNoLock() (path string, source string, err error) {
 	// 1. Explicit path from config
 	if s.explicitPath != "" {
 		if _, err := os.Stat(s.explicitPath); err == nil {
@@ -67,7 +76,13 @@ func (s *Store) Resolve() (path string, source string, err error) {
 
 // Read returns the full content of memory.md.
 func (s *Store) Read() (content string, path string, source string, err error) {
-	path, source, err = s.Resolve()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.readNoLock()
+}
+
+func (s *Store) readNoLock() (content string, path string, source string, err error) {
+	path, source, err = s.resolveNoLock()
 	if err != nil {
 		return "", "", "", err
 	}
@@ -88,7 +103,10 @@ func (s *Store) Read() (content string, path string, source string, err error) {
 
 // ReadSection returns the content of a specific ## section.
 func (s *Store) ReadSection(section string) (string, error) {
-	content, _, _, err := s.Read()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	content, _, _, err := s.readNoLock()
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +119,10 @@ func (s *Store) ReadSection(section string) (string, error) {
 
 // Add appends a line to a specific section.
 func (s *Store) Add(section, entry string) error {
-	content, path, _, err := s.Read()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	content, path, _, err := s.readNoLock()
 	if err != nil {
 		return err
 	}
@@ -118,7 +139,10 @@ func (s *Store) Add(section, entry string) error {
 
 // Update replaces old text with new text in a section.
 func (s *Store) Update(section, oldText, newText string) error {
-	content, path, _, err := s.Read()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	content, path, _, err := s.readNoLock()
 	if err != nil {
 		return err
 	}
@@ -135,13 +159,19 @@ func (s *Store) Update(section, oldText, newText string) error {
 		return fmt.Errorf("text not found in section '%s'", section)
 	}
 
-	updated := strings.Replace(content, oldText, newText, 1)
+	updated, ok := replaceInSection(content, section, oldText, newText)
+	if !ok {
+		return fmt.Errorf("text not found in section '%s'", section)
+	}
 	return s.writeFile(path, updated)
 }
 
 // Delete removes a line from a section.
 func (s *Store) Delete(section, entry string) error {
-	content, path, _, err := s.Read()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	content, path, _, err := s.readNoLock()
 	if err != nil {
 		return err
 	}
@@ -149,32 +179,20 @@ func (s *Store) Delete(section, entry string) error {
 		return fmt.Errorf("no memory file to delete from")
 	}
 
-	// Remove the line containing the entry
-	lines := strings.Split(content, "\n")
-	var result []string
-	found := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// Match "- entry" or "entry" (with or without bullet)
-		cleanEntry := strings.TrimPrefix(strings.TrimSpace(entry), "- ")
-		cleanLine := strings.TrimPrefix(trimmed, "- ")
-		if cleanLine == cleanEntry && !found {
-			found = true
-			continue // skip this line
-		}
-		result = append(result, line)
-	}
-
+	updated, found := deleteFromSection(content, section, entry)
 	if !found {
-		return fmt.Errorf("entry not found in memory")
+		return fmt.Errorf("entry not found in section '%s'", section)
 	}
 
-	return s.writeFile(path, strings.Join(result, "\n"))
+	return s.writeFile(path, updated)
 }
 
 // WriteAll overwrites the entire memory.md content.
 func (s *Store) WriteAll(content string) error {
-	path, _, _, err := s.Read()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	_, path, _, err := s.readNoLock()
 	if err != nil {
 		return err
 	}
@@ -198,6 +216,65 @@ func (s *Store) defaultWritePath() string {
 	}
 	// Fallback: cwd/.vibe/memory.md
 	return filepath.Join(".vibe", "memory.md")
+}
+
+func replaceInSection(content, section, oldText, newText string) (string, bool) {
+	start, end, ok := sectionBounds(content, section)
+	if !ok {
+		return content, false
+	}
+	segment := content[start:end]
+	if !strings.Contains(segment, oldText) {
+		return content, false
+	}
+	segment = strings.Replace(segment, oldText, newText, 1)
+	return content[:start] + segment + content[end:], true
+}
+
+func deleteFromSection(content, section, entry string) (string, bool) {
+	start, end, ok := sectionBounds(content, section)
+	if !ok {
+		return content, false
+	}
+	segment := content[start:end]
+	lines := strings.Split(segment, "\n")
+	result := make([]string, 0, len(lines))
+	found := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// Match "- entry" or "entry" (with or without bullet)
+		cleanEntry := strings.TrimPrefix(strings.TrimSpace(entry), "- ")
+		cleanLine := strings.TrimPrefix(trimmed, "- ")
+		if cleanLine == cleanEntry && !found {
+			found = true
+			continue // skip this line
+		}
+		result = append(result, line)
+	}
+	if !found {
+		return content, false
+	}
+	return content[:start] + strings.Join(result, "\n") + content[end:], true
+}
+
+func sectionBounds(content, section string) (start, end int, ok bool) {
+	header := "## " + section
+	idx := strings.Index(content, header)
+	if idx < 0 {
+		return 0, 0, false
+	}
+	afterHeader := content[idx+len(header):]
+	nlIdx := strings.Index(afterHeader, "\n")
+	if nlIdx < 0 {
+		return len(content), len(content), true
+	}
+	start = idx + len(header) + nlIdx + 1
+	rest := content[start:]
+	nextSection := strings.Index(rest, "\n## ")
+	if nextSection >= 0 {
+		return start, start + nextSection, true
+	}
+	return start, len(content), true
 }
 
 // writeFile writes content to path, creating parent dirs as needed.

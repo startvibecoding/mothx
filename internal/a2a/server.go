@@ -2,6 +2,7 @@ package a2a
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -69,10 +70,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/.well-known/agent.json", HandleAgentCard(s.card))
 
 	// JSON-RPC endpoint
-	s.mux.Handle("/a2a", s.handler)
+	s.mux.Handle("/a2a", s.withAuth(s.handler))
 
 	// REST-style endpoints (alternative to JSON-RPC)
-	s.mux.HandleFunc("/a2a/send", func(w http.ResponseWriter, r *http.Request) {
+	s.mux.HandleFunc("/a2a/send", s.withAuthFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -98,19 +99,19 @@ func (s *Server) registerRoutes() {
 				return
 			}
 		} else {
-			taskID := fmt.Sprintf("task_%d", time.Now().UnixNano())
-			task = s.handler.taskStore.Create(taskID)
+			task = s.handler.taskStore.Create(newTaskID())
 		}
 		task.Message = req.Message
-		s.handler.taskStore.SetState(task.ID, TaskStateWorking)
+		task.State = TaskStateWorking
+		s.handler.taskStore.Update(task)
 		if isSSE {
 			s.handler.streamResponse(w, r, task, req.Message)
 		} else {
 			s.handler.syncResponse(w, r, task, req.Message, nil)
 		}
-	})
+	}))
 
-	s.mux.HandleFunc("/a2a/task", func(w http.ResponseWriter, r *http.Request) {
+	s.mux.HandleFunc("/a2a/task", s.withAuthFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -127,9 +128,9 @@ func (s *Server) registerRoutes() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(task)
-	})
+	}))
 
-	s.mux.HandleFunc("/a2a/task/cancel", func(w http.ResponseWriter, r *http.Request) {
+	s.mux.HandleFunc("/a2a/task/cancel", s.withAuthFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -154,17 +155,47 @@ func (s *Server) registerRoutes() {
 		s.handler.taskStore.Update(task)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(task)
-	})
+	}))
 
 	// SSE event stream
-	s.mux.HandleFunc("/a2a/events", s.handler.SubscribeSSE)
+	s.mux.HandleFunc("/a2a/events", s.withAuthFunc(s.handler.SubscribeSSE))
 }
 
 // RegisterRoutes registers A2A routes on an external mux (for integration mode).
 func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.Handle("/.well-known/agent.json", HandleAgentCard(s.card))
-	mux.Handle("/a2a", s.handler)
-	mux.HandleFunc("/a2a/events", s.handler.SubscribeSSE)
+	mux.Handle("/a2a", s.withAuth(s.handler))
+	mux.HandleFunc("/a2a/events", s.withAuthFunc(s.handler.SubscribeSSE))
+}
+
+func (s *Server) withAuth(next http.Handler) http.Handler {
+	if s.cfg.AuthToken == "" {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !validBearerToken(r, s.cfg.AuthToken) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) withAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return s.withAuth(next).ServeHTTP
+}
+
+func validBearerToken(r *http.Request, want string) bool {
+	const prefix = "Bearer "
+	auth := r.Header.Get("Authorization")
+	if len(auth) <= len(prefix) || auth[:len(prefix)] != prefix {
+		return false
+	}
+	got := auth[len(prefix):]
+	if len(got) != len(want) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
 // Start starts the A2A server in standalone mode. Blocks until stopped.

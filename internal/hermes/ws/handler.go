@@ -16,8 +16,8 @@ import (
 // WSEvent is the event type sent over WebSocket.
 // Mapped from agent.Event by the dispatcher.
 type WSEvent struct {
-	Type    string         `json:"type"`
-	Content string         `json:"content,omitempty"`
+	Type    string `json:"type"`
+	Content string `json:"content,omitempty"`
 
 	// Connected event fields
 	SessionID string `json:"session_id,omitempty"`
@@ -114,8 +114,7 @@ func (c *WSConn) Close() {
 func (gw *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Auth check
 	if gw.authToken != "" {
-		token := r.URL.Query().Get("token")
-		if token != gw.authToken {
+		if !gw.validToken(requestAuthToken(r)) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

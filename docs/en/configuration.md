@@ -258,6 +258,8 @@ Google native providers can be configured directly:
 }
 ```
 
+The `!gcloud auth print-access-token` example uses shell command resolution. Set `VIBECODING_ALLOW_SHELL_CONFIG=1` before using `!command` values, or replace it with an environment-variable reference such as `${GOOGLE_VERTEX_TOKEN}`.
+
 #### thinkingFormat field
 
 Specifies how thinking/reasoning parameters are sent to the API:
@@ -894,7 +896,7 @@ The `apiKey` field in a provider config supports three formats:
 | Format | Example | Behavior |
 |--------|---------|----------|
 | `${VAR}` | `"${DEEPSEEK_API_KEY}"` | Reads the value of environment variable `VAR` |
-| `!command` | `"!pass show deepseek-key"` | Executes a shell command and uses its stdout |
+| `!command` | `"!pass show deepseek-key"` | Executes a shell command and uses its stdout only when `VIBECODING_ALLOW_SHELL_CONFIG=1` |
 | Plain string | `"sk-abc123..."` | Used as-is (⚠️ not recommended for shared configs) |
 
 #### Environment Variable Reference
@@ -918,6 +920,12 @@ export DEEPSEEK_API_KEY=sk-...
 #### Shell Command (Password Manager Integration)
 
 Prefix with `!` to run a shell command. VibeCoding uses `sh -c` on Linux/macOS and `powershell.exe` on Windows.
+
+Shell command resolution is disabled by default. To enable it for trusted local configuration, set:
+
+```bash
+export VIBECODING_ALLOW_SHELL_CONFIG=1
+```
 
 ```json
 {

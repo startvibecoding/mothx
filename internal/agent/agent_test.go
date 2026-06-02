@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -402,6 +403,38 @@ func TestToolOnlyWarningAppendedAfterToolResults(t *testing.T) {
 	}
 	if messages[warningIndex-2].Role != "assistant" {
 		t.Fatalf("message before tool result role = %q, want assistant", messages[warningIndex-2].Role)
+	}
+}
+
+func TestCallbackSnapshotDoesNotExposeInternalSlices(t *testing.T) {
+	mockProvider := newMockProvider()
+	a := New(Config{
+		Provider: mockProvider,
+		Model:    mockProvider.Models()[0],
+		Mode:     "agent",
+	}, tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox()))
+
+	a.messages = []provider.Message{
+		provider.NewAssistantMessage([]provider.ContentBlock{{
+			Type: "toolCall",
+			ToolCall: &provider.ToolCallBlock{
+				ID:        "call-1",
+				Name:      "read",
+				Arguments: json.RawMessage(`{"path":"a"}`),
+			},
+		}}),
+	}
+	a.context.Messages = a.messages
+
+	messages, ctx := a.callbackSnapshot()
+	messages[0].Contents[0].ToolCall.Name = "mutated"
+	ctx.Messages[0].Contents[0].ToolCall.Arguments[0] = '{'
+
+	if a.messages[0].Contents[0].ToolCall.Name != "read" {
+		t.Fatalf("internal tool name mutated: %s", a.messages[0].Contents[0].ToolCall.Name)
+	}
+	if string(a.context.Messages[0].Contents[0].ToolCall.Arguments) != `{"path":"a"}` {
+		t.Fatalf("internal arguments mutated: %s", string(a.context.Messages[0].Contents[0].ToolCall.Arguments))
 	}
 }
 

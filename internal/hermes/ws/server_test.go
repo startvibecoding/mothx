@@ -163,6 +163,15 @@ func TestWithAuthValidToken(t *testing.T) {
 	}
 }
 
+func TestRequestAuthTokenPrefersBearerHeader(t *testing.T) {
+	req := httptest.NewRequest("GET", "/test?token=query-secret", nil)
+	req.Header.Set("Authorization", "Bearer header-secret")
+
+	if got := requestAuthToken(req); got != "header-secret" {
+		t.Fatalf("requestAuthToken = %q, want header-secret", got)
+	}
+}
+
 func TestWithAuthInvalidToken(t *testing.T) {
 	gw := NewGateway("localhost:8090", "secret", "0.1.27")
 

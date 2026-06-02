@@ -30,11 +30,13 @@ vibecoding a2a stop
 
 ### 独立模式
 
-在单独的端口（默认 8093）运行专用的 A2A HTTP 服务器。
+在单独的端口运行专用的 A2A HTTP 服务器（默认：`127.0.0.1:8093`）。
 
 ```bash
 vibecoding a2a start --port 8093 --work-dir /path/to/project
 ```
+
+只有在明确需要对外暴露 A2A 服务时才使用 `--host 0.0.0.0`，并为对外部署配置 auth token。
 
 ### 集成模式
 
@@ -69,7 +71,7 @@ Agent Card 描述 Agent 的能力，在 `/.well-known/agent.json` 提供。
   "name": "VibeCoding",
   "description": "AI coding assistant with file editing, terminal, and search capabilities",
   "url": "http://localhost:8093/a2a",
-  "version": "0.1.27",
+  "version": "0.1.31",
   "capabilities": {
     "streaming": true,
     "pushNotifications": false
@@ -256,7 +258,13 @@ curl -X POST http://localhost:8093/a2a/task/cancel \
 
 - **Auth Token**：Bearer token 认证（与 hermes 相同）
 - **Agent Card**：公开访问（无需认证）
-- **JSON-RPC**：配置了 auth token 时需要认证
+- **受保护端点**：配置 `auth_token` 后，`/a2a`、REST A2A 路由和 `/a2a/events` 都需要认证
+
+配置认证后，客户端需要发送：
+
+```bash
+Authorization: Bearer <auth_token>
+```
 
 ## A2A Client
 

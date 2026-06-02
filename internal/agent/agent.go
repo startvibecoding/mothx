@@ -178,6 +178,61 @@ type AgentContext struct {
 	Tools        []provider.ToolDefinition
 }
 
+func cloneAgentContext(ctx *AgentContext) *AgentContext {
+	if ctx == nil {
+		return nil
+	}
+	return &AgentContext{
+		SystemPrompt: ctx.SystemPrompt,
+		Messages:     cloneMessages(ctx.Messages),
+		Tools:        append([]provider.ToolDefinition(nil), ctx.Tools...),
+	}
+}
+
+func cloneMessages(messages []provider.Message) []provider.Message {
+	if len(messages) == 0 {
+		return nil
+	}
+	cloned := make([]provider.Message, len(messages))
+	for i, msg := range messages {
+		cloned[i] = cloneMessage(msg)
+	}
+	return cloned
+}
+
+func cloneMessage(msg provider.Message) provider.Message {
+	cloned := msg
+	if len(msg.Contents) > 0 {
+		cloned.Contents = make([]provider.ContentBlock, len(msg.Contents))
+		for i, block := range msg.Contents {
+			cloned.Contents[i] = cloneContentBlock(block)
+		}
+	}
+	if msg.Usage != nil {
+		usage := *msg.Usage
+		cloned.Usage = &usage
+	}
+	return cloned
+}
+
+func cloneContentBlock(block provider.ContentBlock) provider.ContentBlock {
+	cloned := block
+	if block.Image != nil {
+		image := *block.Image
+		cloned.Image = &image
+	}
+	if block.ToolCall != nil {
+		toolCall := *block.ToolCall
+		toolCall.Arguments = append([]byte(nil), block.ToolCall.Arguments...)
+		cloned.ToolCall = &toolCall
+	}
+	if block.CacheControl != nil {
+		cacheControl := *block.CacheControl
+		cloned.CacheControl = &cacheControl
+	}
+	return cloned
+}
+
 // Agent is the core agent loop.
 type Agent struct {
 	id          agentpkg.AgentID
@@ -504,6 +559,12 @@ func (a *Agent) Abort() {
 	a.abortOnce.Do(func() {
 		close(a.abort)
 	})
+}
+
+func (a *Agent) callbackSnapshot() ([]provider.Message, *AgentContext) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return cloneMessages(a.messages), cloneAgentContext(a.context)
 }
 
 // emit sends an event with this agent's ID stamped on it.
@@ -908,11 +969,12 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		// Check if we should stop after this turn
 		if a.config.ShouldStopAfterTurn != nil {
+			messagesSnapshot, contextSnapshot := a.callbackSnapshot()
 			stopCtx := ShouldStopAfterTurnContext{
 				Message:     assistantMsg,
-				ToolResults: toolResults,
-				Context:     a.context,
-				NewMessages: a.messages,
+				ToolResults: cloneMessages(toolResults),
+				Context:     contextSnapshot,
+				NewMessages: messagesSnapshot,
 			}
 			if a.config.ShouldStopAfterTurn(stopCtx) {
 				ch <- Event{Type: EventDone, StopReason: "should_stop"}
@@ -929,12 +991,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		// Prepare next turn
 		if a.config.PrepareNextTurn != nil {
+			messagesSnapshot, contextSnapshot := a.callbackSnapshot()
 			prepCtx := PrepareNextTurnContext{
 				ShouldStopAfterTurnContext: ShouldStopAfterTurnContext{
 					Message:     assistantMsg,
-					ToolResults: toolResults,
-					Context:     a.context,
-					NewMessages: a.messages,
+					ToolResults: cloneMessages(toolResults),
+					Context:     contextSnapshot,
+					NewMessages: messagesSnapshot,
 				},
 			}
 			update := a.config.PrepareNextTurn(prepCtx)

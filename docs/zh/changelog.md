@@ -1,6 +1,57 @@
 # 更新日志
 
 
+## v0.1.31
+
+### 🐛 Bug 修复
+
+- **终端输入**
+  - 输入框支持 Home/End 光标移动
+  - 修复在权限审批提示中按 Esc 取消后，第一次回车提交的输入被吞掉的问题
+  - 输入框支持 Up/Down 历史记录导航，并可反复上下选择历史输入
+
+- **A2A 安全与可靠性**
+  - A2A 默认监听地址从 `0.0.0.0` 改为 `127.0.0.1`
+  - 为 `/a2a`、REST A2A 路由和 SSE 事件添加 Bearer token 认证，同时保持 Agent Card 公开
+  - 将基于时间戳的 A2A task ID 替换为抗碰撞的随机 ID
+  - A2A task store 读写改为使用 task 快照，避免外部意外修改共享状态
+
+- **路径与 Session 安全**
+  - 路径包含校验改为使用路径边界，而不是字符串前缀匹配
+  - 禁止 context `extraFiles` 逃逸工作目录
+  - 对 Hermes session 路径组件进行安全编码，并在创建 session 时强制校验 `allowed_work_dirs`
+  - 限制 session 删除只能删除配置 session 目录下的 `.jsonl` 文件
+
+- **认证、审批与资源限制**
+  - Hermes HTTP/WebSocket token 校验改为常量时间比较
+  - Hermes WebSocket 客户端改为通过 `Authorization: Bearer ...` 发送认证信息，不再放入 query string
+  - ACP 权限请求超时后清理 pending 状态，并向调用方传播写入错误
+  - 为 ACP、read 工具图片文件、微信响应和 cron A2A 响应增加大小限制
+  - 为 cron A2A HTTP 请求增加超时
+
+- **Memory、Context 与并发**
+  - 为 memory store 操作增加锁
+  - 修复 `memory.WriteAll()` 路径处理，并将 memory update/delete 限制在指定 section 内
+  - Gateway 在请求级 `temperature`/`top_p` 覆盖前克隆模型配置
+  - Agent callback 使用 context/message 快照，避免共享引用
+  - Cron job 状态变更通过 job store 串行化
+
+- **配置与 Gateway 加固**
+  - `!command` API key 解析现在必须显式设置 `VIBECODING_ALLOW_SHELL_CONFIG=1`
+  - 修复 Gateway CORS，使其只回显被允许的请求 origin
+  - Gateway 在非 loopback 监听、`yolo` 模式且未开启认证时输出启动警告
+  - 加固 platform home/shell fallback 行为
+
+### 🧪 测试
+
+- 增加 A2A 认证、task ID 唯一性、task 快照隔离和 working task message 持久化回归测试
+- 增加路径逃逸、危险 session ID、memory section 操作、ACP 清理、CORS、UTF-8 截断和 shell-config opt-in 测试
+- 已运行聚焦包测试，以及 A2A、agent、gateway、cron 的 race 测试
+
+### 📝 文档
+
+- 更新 A2A、Hermes、Gateway、配置和安全文档，说明新的认证和加固行为
+
 ## v0.1.30
 
 ### ✨ 新功能

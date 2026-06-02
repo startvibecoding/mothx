@@ -31,6 +31,9 @@ func resolveAPIKey(cfg *config.ProviderConfig) string {
 	}
 	key := cfg.APIKey
 	if strings.HasPrefix(key, "!") {
+		if os.Getenv("VIBECODING_ALLOW_SHELL_CONFIG") != "1" {
+			return key
+		}
 		return resolveProviderShellCommand(key[1:])
 	}
 	if strings.HasPrefix(key, "${") && strings.HasSuffix(key, "}") {

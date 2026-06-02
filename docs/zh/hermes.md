@@ -278,8 +278,16 @@ CLI 标志 > hermes.json（项目） > hermes.json（全局） > 默认值
 ### 连接
 
 ```
-ws://localhost:8090/ws?token=<auth_token>&session=<session_id>
+ws://localhost:8090/ws?session=<session_id>
 ```
+
+配置 `server.auth_token` 后，应在 WebSocket 握手时通过 HTTP header 发送 token：
+
+```http
+Authorization: Bearer <auth_token>
+```
+
+旧的 `?token=` query 参数仍兼容，但推荐使用 header，避免 token 暴露在 URL 和日志中。
 
 ### 客户端 → 服务端消息
 

@@ -2,6 +2,7 @@ package hermes
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -54,8 +55,11 @@ func (s *Security) CheckWorkDirAllowed(workDir string) error {
 		return nil
 	}
 
+	cleanWorkDir := filepath.Clean(workDir)
 	for _, dir := range allowed {
-		if workDir == dir || strings.HasPrefix(workDir, dir+"/") {
+		cleanAllowed := filepath.Clean(dir)
+		rel, err := filepath.Rel(cleanAllowed, cleanWorkDir)
+		if err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))) {
 			return nil
 		}
 	}
@@ -128,8 +132,8 @@ func CommandRiskLevel(command string) string {
 
 // ApprovalDecision represents the result of an approval check.
 type ApprovalDecision struct {
-	Approved bool
-	Reason   string
+	Approved  bool
+	Reason    string
 	RiskLevel string
 }
 

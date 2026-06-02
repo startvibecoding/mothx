@@ -31,8 +31,14 @@ func IsLinux() bool {
 
 // HomeDir returns the user's home directory.
 func HomeDir() string {
-	home, _ := os.UserHomeDir()
-	return home
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return home
+	}
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		return cwd
+	}
+	return string(os.PathSeparator)
 }
 
 // ConfigDir returns the platform-specific configuration directory.
@@ -93,7 +99,7 @@ func SkillsDir() string {
 
 // DefaultShell returns the default shell for the current platform.
 func DefaultShell() string {
-	if shell := os.Getenv("SHELL"); shell != "" {
+	if shell := os.Getenv("SHELL"); isExecutableAbsolutePath(shell) {
 		return shell
 	}
 
@@ -109,6 +115,17 @@ func DefaultShell() string {
 	default: // linux and others
 		return "/bin/bash"
 	}
+}
+
+func isExecutableAbsolutePath(path string) bool {
+	if path == "" || !filepath.IsAbs(path) {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode()&0111 != 0
 }
 
 // ShellArgs returns the arguments to execute a command in the shell.

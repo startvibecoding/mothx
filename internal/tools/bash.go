@@ -14,6 +14,7 @@ import (
 
 	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	"github.com/startvibecoding/vibecoding/internal/util"
 	"github.com/startvibecoding/vibecoding/internal/vendored"
 )
 
@@ -273,8 +274,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	const maxOutput = 50000
 	resultStr := result.String()
 	if len(resultStr) > maxOutput {
-		truncated := len(resultStr) - maxOutput
-		resultStr = resultStr[:maxOutput] + fmt.Sprintf("\n... (truncated %d bytes)", truncated)
+		prefix := util.TruncateString(resultStr, maxOutput)
+		truncated := len(resultStr) - len(prefix)
+		resultStr = prefix + fmt.Sprintf("\n... (truncated %d bytes)", truncated)
 	}
 
 	if err != nil {

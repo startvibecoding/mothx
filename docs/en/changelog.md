@@ -1,6 +1,57 @@
 # Changelog
 
 
+## v0.1.31
+
+### 🐛 Bug Fixes
+
+- **Terminal Input**
+  - Added Home/End cursor movement support in the TUI input box
+  - Fixed the first submitted input being swallowed after canceling an approval prompt with Esc
+  - Added command history navigation with Up/Down, including repeated selection through previous inputs
+
+- **A2A Security and Reliability**
+  - Changed the default A2A host from `0.0.0.0` to `127.0.0.1`
+  - Added Bearer token authentication for `/a2a`, REST A2A routes, and SSE events while keeping the Agent Card public
+  - Replaced timestamp-based A2A task IDs with collision-resistant random IDs
+  - Made A2A task store reads and writes use cloned task snapshots to avoid accidental shared mutation
+
+- **Path and Session Safety**
+  - Fixed path containment checks to use path-aware boundaries instead of string prefix checks
+  - Prevented context `extraFiles` from escaping the working directory
+  - Encoded unsafe Hermes session path components and enforced `allowed_work_dirs` during session creation
+  - Restricted session deletion to `.jsonl` files under the configured session directory
+
+- **Auth, Approval, and Resource Limits**
+  - Switched Hermes HTTP/WebSocket token checks to constant-time comparison
+  - Changed the Hermes WebSocket client to send auth via `Authorization: Bearer ...` instead of query strings
+  - Cleaned up pending ACP permission requests on timeout and propagated ACP write errors
+  - Added request/body size limits for ACP, read-tool image files, WeChat responses, and cron A2A responses
+  - Added timeouts to cron A2A HTTP calls
+
+- **Memory, Context, and Concurrency**
+  - Added locking to memory store operations
+  - Fixed `memory.WriteAll()` path handling and kept memory update/delete scoped to the requested section
+  - Cloned gateway model settings before per-request `temperature`/`top_p` overrides
+  - Passed agent callback context/message snapshots instead of shared references
+  - Serialized cron job state transitions through the job store
+
+- **Configuration and Gateway Hardening**
+  - Gated `!command` API key resolution behind `VIBECODING_ALLOW_SHELL_CONFIG=1`
+  - Fixed Gateway CORS to echo only the allowed request origin
+  - Added a startup warning when Gateway listens beyond loopback in `yolo` mode without authentication
+  - Hardened platform home/shell fallback behavior
+
+### 🧪 Tests
+
+- Added regression coverage for A2A auth, task ID uniqueness, task snapshot isolation, and persisted working task messages
+- Added coverage for path traversal, unsafe session IDs, memory section operations, ACP cleanup, CORS behavior, UTF-8 truncation, and shell-config opt-in
+- Ran focused package tests plus race tests for A2A, agent, gateway, and cron
+
+### 📝 Docs
+
+- Updated A2A, Hermes, Gateway, configuration, and security docs for the new authentication and hardening behavior
+
 ## v0.1.30
 
 ### ✨ Features

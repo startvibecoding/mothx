@@ -60,6 +60,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			currentModel = m
 		}
 	}
+	currentModel = cloneModel(currentModel)
 
 	// Extract last user message
 	lastUserMsg, systemMsgs, historyMsgs := parseMessages(req.Messages)
@@ -207,6 +208,19 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	} else {
 		s.handleNonStreamingResponse(w, eventCh, currentModel.ID, sess.ID)
 	}
+}
+
+func cloneModel(model *provider.Model) *provider.Model {
+	if model == nil {
+		return nil
+	}
+	copy := *model
+	copy.Input = append([]string(nil), model.Input...)
+	if model.Compat != nil {
+		compat := *model.Compat
+		copy.Compat = &compat
+	}
+	return &copy
 }
 
 func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string) {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,15 +22,15 @@ type ClientOptions struct {
 
 // WSEvent matches the ws.WSEvent type for client-side parsing.
 type clientWSEvent struct {
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
-	Message string `json:"message,omitempty"`
-	Command string `json:"command,omitempty"`
-	Tool    string `json:"tool,omitempty"`
-	CallID  string `json:"call_id,omitempty"`
+	Type       string `json:"type"`
+	Content    string `json:"content,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Command    string `json:"command,omitempty"`
+	Tool       string `json:"tool,omitempty"`
+	CallID     string `json:"call_id,omitempty"`
 	StopReason string `json:"stop_reason,omitempty"`
-	Error   bool   `json:"error,omitempty"`
-	Code    string `json:"code,omitempty"`
+	Error      bool   `json:"error,omitempty"`
+	Code       string `json:"code,omitempty"`
 }
 
 // clientMessage matches the ws.ClientMessage type.
@@ -45,13 +46,6 @@ func RunClient(opts ClientOptions) error {
 	if wsURL == "" {
 		wsURL = "ws://localhost:8090/ws"
 	}
-	if opts.AuthToken != "" {
-		if strings.Contains(wsURL, "?") {
-			wsURL += "&token=" + opts.AuthToken
-		} else {
-			wsURL += "?token=" + opts.AuthToken
-		}
-	}
 	if opts.SessionID != "" {
 		if strings.Contains(wsURL, "?") {
 			wsURL += "&session=" + opts.SessionID
@@ -62,7 +56,17 @@ func RunClient(opts ClientOptions) error {
 
 	// Connect to WebSocket
 	fmt.Fprintf(os.Stderr, "Connecting to %s...\n", wsURL)
-	ws, err := websocket.Dial(wsURL, "", "http://localhost/")
+	wsCfg, err := websocket.NewConfig(wsURL, "http://localhost/")
+	if err != nil {
+		return fmt.Errorf("websocket config: %w", err)
+	}
+	if opts.AuthToken != "" {
+		if wsCfg.Header == nil {
+			wsCfg.Header = http.Header{}
+		}
+		wsCfg.Header.Set("Authorization", "Bearer "+opts.AuthToken)
+	}
+	ws, err := websocket.DialConfig(wsCfg)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}

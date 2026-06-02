@@ -3,6 +3,7 @@ package ws
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -12,15 +13,15 @@ import (
 
 // Gateway is the WebSocket + HTTP gateway server.
 type Gateway struct {
-	mu         sync.RWMutex
-	mux        *http.ServeMux
-	httpServer *http.Server
-	dispatcher Dispatcher
-	platforms  PlatformStatusProvider
+	mu          sync.RWMutex
+	mux         *http.ServeMux
+	httpServer  *http.Server
+	dispatcher  Dispatcher
+	platforms   PlatformStatusProvider
 	memoryStore MemoryStore
-	version    string
-	authToken  string
-	startTime  time.Time
+	version     string
+	authToken   string
+	startTime   time.Time
 
 	// Active WebSocket connections
 	connMu sync.RWMutex
@@ -163,19 +164,32 @@ func (gw *Gateway) ConnectionCount() int {
 func (gw *Gateway) withAuth(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if gw.authToken != "" {
-			token := r.Header.Get("Authorization")
-			if token == "" {
-				token = r.URL.Query().Get("token")
-			} else if len(token) > 7 && token[:7] == "Bearer " {
-				token = token[7:]
-			}
-			if token != gw.authToken {
+			if !gw.validToken(requestAuthToken(r)) {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 				return
 			}
 		}
 		handler(w, r)
 	}
+}
+
+func requestAuthToken(r *http.Request) string {
+	const prefix = "Bearer "
+	token := r.Header.Get("Authorization")
+	if len(token) > len(prefix) && token[:len(prefix)] == prefix {
+		return token[len(prefix):]
+	}
+	if token != "" {
+		return token
+	}
+	return r.URL.Query().Get("token")
+}
+
+func (gw *Gateway) validToken(token string) bool {
+	if token == "" || len(token) != len(gw.authToken) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(token), []byte(gw.authToken)) == 1
 }
 
 // --- Helpers ---

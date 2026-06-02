@@ -3,25 +3,30 @@
 package cron
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 )
+
+var fallbackCronCounter uint64
 
 // CronJob represents a scheduled task.
 type CronJob struct {
 	ID         string    `json:"id"`
-	Name       string    `json:"name"`            // Short description
-	Prompt     string    `json:"prompt"`           // Task prompt for sub-agent
-	Schedule   string    `json:"schedule"`         // Schedule: @daily, @every 30m, 5-field cron, or empty for one-shot
+	Name       string    `json:"name"`              // Short description
+	Prompt     string    `json:"prompt"`            // Task prompt for sub-agent
+	Schedule   string    `json:"schedule"`          // Schedule: @daily, @every 30m, 5-field cron, or empty for one-shot
 	OneShot    bool      `json:"oneshot,omitempty"` // If true, auto-disable after first run
-	Mode       string    `json:"mode"`             // "agent" or "yolo"
+	Mode       string    `json:"mode"`              // "agent" or "yolo"
 	WorkDir    string    `json:"work_dir,omitempty"`
-	A2ATarget  string    `json:"a2a_target,omitempty"`  // A2A server URL (if set, send task via A2A protocol)
-	A2AToken   string    `json:"a2a_token,omitempty"`   // Bearer token for A2A server
+	A2ATarget  string    `json:"a2a_target,omitempty"` // A2A server URL (if set, send task via A2A protocol)
+	A2AToken   string    `json:"a2a_token,omitempty"`  // Bearer token for A2A server
 	Enabled    bool      `json:"enabled"`
 	CreatedAt  time.Time `json:"created_at"`
 	LastRun    time.Time `json:"last_run,omitempty"`
@@ -42,9 +47,9 @@ type CronStore interface {
 
 // FileCronStore persists cron jobs to a JSON file.
 type FileCronStore struct {
-	mu       sync.RWMutex
-	path     string
-	jobs     map[string]*CronJob
+	mu   sync.RWMutex
+	path string
+	jobs map[string]*CronJob
 }
 
 // NewFileCronStore creates a new file-based cron store.
@@ -115,7 +120,7 @@ func (s *FileCronStore) Create(job CronJob) (*CronJob, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if job.ID == "" {
-		job.ID = fmt.Sprintf("cron-%d", time.Now().UnixNano())
+		job.ID = newCronID()
 	}
 	if _, exists := s.jobs[job.ID]; exists {
 		return nil, fmt.Errorf("cron job %q already exists", job.ID)
@@ -128,6 +133,15 @@ func (s *FileCronStore) Create(job CronJob) (*CronJob, error) {
 		return nil, err
 	}
 	return &copy, nil
+}
+
+func newCronID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err == nil {
+		return "cron-" + hex.EncodeToString(b[:])
+	}
+	n := atomic.AddUint64(&fallbackCronCounter, 1)
+	return fmt.Sprintf("cron-%d-%d", time.Now().UnixNano(), n)
 }
 
 // Update updates an existing cron job.

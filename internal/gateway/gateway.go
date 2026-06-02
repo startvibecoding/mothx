@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -38,9 +39,9 @@ type RunOptions struct {
 type Server struct {
 	mu sync.RWMutex
 
-	cfg        *GatewayConfig
-	settings   *config.Settings
-	version    string
+	cfg      *GatewayConfig
+	settings *config.Settings
+	version  string
 
 	provider   provider.Provider
 	model      *provider.Model
@@ -211,6 +212,9 @@ func Run(opts RunOptions, version string) error {
 		} else {
 			fmt.Fprintf(os.Stderr, "  Auth: disabled\n")
 		}
+		if warning := gatewaySecurityWarning(gCfg); warning != "" {
+			fmt.Fprintf(os.Stderr, "  WARNING: %s\n", warning)
+		}
 		if gCfg.Sandbox.Enabled {
 			fmt.Fprintf(os.Stderr, "  Sandbox: enabled (level: %s)\n", gCfg.Sandbox.Level)
 		}
@@ -269,6 +273,19 @@ func (lw *loggingResponseWriter) Flush() {
 	if f, ok := lw.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+func gatewaySecurityWarning(cfg *GatewayConfig) string {
+	if cfg.Auth.Enabled || cfg.DefaultMode != "yolo" {
+		return ""
+	}
+	listen := cfg.Listen
+	if strings.HasPrefix(listen, ":") ||
+		strings.HasPrefix(listen, "0.0.0.0:") ||
+		strings.HasPrefix(listen, "[::]:") {
+		return "gateway is listening beyond loopback in yolo mode without authentication"
+	}
+	return ""
 }
 
 // --- Helpers ---

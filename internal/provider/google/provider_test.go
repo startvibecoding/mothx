@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 )
 
@@ -39,6 +40,18 @@ func newMockGoogleProvider(t *testing.T, p *Provider, sse string, bodyCh chan<- 
 		}, nil
 	})}
 	return p
+}
+
+func TestResolveAPIKeyShellCommandRequiresOptIn(t *testing.T) {
+	t.Setenv("VIBECODING_ALLOW_SHELL_CONFIG", "")
+	if got := resolveAPIKey(&config.ProviderConfig{APIKey: "!printf secret"}); got != "!printf secret" {
+		t.Fatalf("resolveAPIKey without opt-in = %q, want literal", got)
+	}
+
+	t.Setenv("VIBECODING_ALLOW_SHELL_CONFIG", "1")
+	if got := resolveAPIKey(&config.ProviderConfig{APIKey: "!printf secret"}); got != "secret" {
+		t.Fatalf("resolveAPIKey with opt-in = %q, want secret", got)
+	}
 }
 
 func TestGoogleProviderHTTPProxy(t *testing.T) {

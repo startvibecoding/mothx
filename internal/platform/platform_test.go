@@ -166,6 +166,14 @@ func TestDefaultShell(t *testing.T) {
 	}
 }
 
+func TestDefaultShellIgnoresRelativeShellEnv(t *testing.T) {
+	t.Setenv("SHELL", "sh -c bad")
+
+	if got := DefaultShell(); got == "sh -c bad" {
+		t.Fatal("DefaultShell trusted relative SHELL env")
+	}
+}
+
 func TestShellArgs(t *testing.T) {
 	tests := []struct {
 		shell    string

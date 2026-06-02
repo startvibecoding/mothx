@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
 func abs(x int) int {
@@ -141,11 +142,7 @@ func SerializeConversation(messages []provider.Message) string {
 		case "user":
 			content := msg.Content
 			if content == "" {
-				for _, block := range msg.Contents {
-					if block.Type == "text" {
-						content += block.Text
-					}
-				}
+				content = serializeContentBlocks(msg.Contents)
 			}
 			sb.WriteString(fmt.Sprintf("User: %s\n\n", content))
 
@@ -153,11 +150,7 @@ func SerializeConversation(messages []provider.Message) string {
 			sb.WriteString("Assistant: ")
 			content := msg.Content
 			if content == "" {
-				for _, block := range msg.Contents {
-					if block.Type == "text" {
-						content += block.Text
-					}
-				}
+				content = serializeTextBlocks(msg.Contents)
 			}
 			sb.WriteString(content)
 			for _, block := range msg.Contents {
@@ -173,18 +166,54 @@ func SerializeConversation(messages []provider.Message) string {
 			sb.WriteString("\n\n")
 
 		case "toolResult":
-			sb.WriteString(fmt.Sprintf("Tool Result [%s]: %s\n\n", msg.ToolName, truncateString(msg.Content, 500)))
+			content := msg.Content
+			if content == "" {
+				content = serializeContentBlocks(msg.Contents)
+			}
+			sb.WriteString(fmt.Sprintf("Tool Result [%s]: %s\n\n", msg.ToolName, truncateString(content, 500)))
 		}
 	}
 
 	return sb.String()
 }
 
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
+func serializeTextBlocks(blocks []provider.ContentBlock) string {
+	var sb strings.Builder
+	for _, block := range blocks {
+		if block.Type == "text" {
+			sb.WriteString(block.Text)
+		}
 	}
-	return s[:maxLen] + "..."
+	return sb.String()
+}
+
+func serializeContentBlocks(blocks []provider.ContentBlock) string {
+	var parts []string
+	for _, block := range blocks {
+		switch block.Type {
+		case "text":
+			if block.Text != "" {
+				parts = append(parts, block.Text)
+			}
+		case "image":
+			if block.Image != nil {
+				parts = append(parts, fmt.Sprintf("[image: %s]", block.Image.MimeType))
+			} else {
+				parts = append(parts, "[image]")
+			}
+		case "thinking":
+			parts = append(parts, fmt.Sprintf("[thinking: %s]", block.Thinking))
+		case "toolCall":
+			if block.ToolCall != nil {
+				parts = append(parts, fmt.Sprintf("[tool_call: %s(%s)]", block.ToolCall.Name, string(block.ToolCall.Arguments)))
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func truncateString(s string, maxLen int) string {
+	return util.TruncateWithSuffix(s, maxLen, "...")
 }
 
 // compressionInstruction is the instruction injected into the conversation for Insert-then-Compress.

@@ -86,6 +86,24 @@ func TestExtraFiles(t *testing.T) {
 	}
 }
 
+func TestExtraFilesCannotEscapeBaseDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "project")
+	os.MkdirAll(projectDir, 0755)
+
+	os.WriteFile(filepath.Join(tmpDir, "SECRET.md"), []byte("# Secret"), 0644)
+	os.WriteFile(filepath.Join(projectDir, "SAFE.md"), []byte("# Safe"), 0644)
+
+	result := LoadContextFiles(projectDir, "", []string{"../SECRET.md", filepath.Join(tmpDir, "SECRET.md"), "SAFE.md"})
+
+	if len(result.ProjectFiles) != 1 {
+		t.Fatalf("expected 1 project file, got %d", len(result.ProjectFiles))
+	}
+	if result.ProjectFiles[0].Name != "SAFE.md" {
+		t.Fatalf("loaded %q, want SAFE.md", result.ProjectFiles[0].Name)
+	}
+}
+
 func TestParentFiles(t *testing.T) {
 	// Create nested directory structure
 	tmpDir := t.TempDir()

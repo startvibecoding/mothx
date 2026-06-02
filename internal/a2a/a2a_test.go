@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -15,8 +16,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Port != 8093 {
 		t.Errorf("expected port 8093, got %d", cfg.Port)
 	}
-	if cfg.Host != "0.0.0.0" {
-		t.Errorf("expected host 0.0.0.0, got %s", cfg.Host)
+	if cfg.Host != "127.0.0.1" {
+		t.Errorf("expected host 127.0.0.1, got %s", cfg.Host)
 	}
 	if cfg.Enabled {
 		t.Error("expected disabled by default")
@@ -82,6 +83,55 @@ func TestTaskStore(t *testing.T) {
 	task = store.Get("task_1")
 	if task.State != TaskStateCompleted {
 		t.Errorf("expected completed, got %s", task.State)
+	}
+}
+
+func TestTaskStoreGetReturnsCopy(t *testing.T) {
+	store := NewTaskStore()
+	task := store.Create("task_1")
+	task.State = TaskStateCompleted
+	task.Message = &Message{Role: "user", Parts: []MessagePart{{Type: "text", Text: "original"}}}
+	task.Metadata = map[string]any{"k": "v"}
+	store.Update(task)
+
+	got := store.Get("task_1")
+	got.State = TaskStateFailed
+	got.Message.Parts[0].Text = "mutated"
+	got.Metadata["k"] = "mutated"
+
+	again := store.Get("task_1")
+	if again.State != TaskStateCompleted {
+		t.Fatalf("state = %s, want completed", again.State)
+	}
+	if again.Message.Parts[0].Text != "original" {
+		t.Fatalf("message text = %q, want original", again.Message.Parts[0].Text)
+	}
+	if again.Metadata["k"] != "v" {
+		t.Fatalf("metadata k = %v, want v", again.Metadata["k"])
+	}
+}
+
+func TestNewTaskIDConcurrentUnique(t *testing.T) {
+	const count = 500
+	var wg sync.WaitGroup
+	ids := make(chan string, count)
+
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ids <- newTaskID()
+		}()
+	}
+	wg.Wait()
+	close(ids)
+
+	seen := make(map[string]bool, count)
+	for id := range ids {
+		if seen[id] {
+			t.Fatalf("duplicate id: %s", id)
+		}
+		seen[id] = true
 	}
 }
 
@@ -151,6 +201,57 @@ func TestHandleAgentCard(t *testing.T) {
 	}
 }
 
+func TestServerAuthProtectsA2AEndpoints(t *testing.T) {
+	srv := NewServer(&Config{Host: "127.0.0.1", Port: 8093, AuthToken: "secret"}, "0.1.27", &mockExecutor{response: "ok"})
+
+	params := SendMessageParams{
+		Message: &Message{
+			Role:  "user",
+			Parts: []MessagePart{{Type: "text", Text: "hello"}},
+		},
+	}
+	paramsJSON, _ := json.Marshal(params)
+	reqBody := JSONRPCRequest{JSONRPC: "2.0", Method: "message/send", Params: paramsJSON, ID: 1}
+	body, _ := json.Marshal(reqBody)
+
+	for _, tc := range []struct {
+		name   string
+		auth   string
+		status int
+	}{
+		{name: "missing", status: http.StatusUnauthorized},
+		{name: "invalid", auth: "Bearer wrong", status: http.StatusUnauthorized},
+		{name: "valid", auth: "Bearer secret", status: http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/a2a", strings.NewReader(string(body)))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.auth != "" {
+				req.Header.Set("Authorization", tc.auth)
+			}
+			w := httptest.NewRecorder()
+
+			srv.mux.ServeHTTP(w, req)
+
+			if w.Code != tc.status {
+				t.Fatalf("status = %d, want %d; body=%s", w.Code, tc.status, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestServerAuthLeavesAgentCardPublic(t *testing.T) {
+	srv := NewServer(&Config{Host: "127.0.0.1", Port: 8093, AuthToken: "secret"}, "0.1.27", &mockExecutor{})
+
+	req := httptest.NewRequest("GET", "/.well-known/agent.json", nil)
+	w := httptest.NewRecorder()
+	srv.mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
 func TestHandlerMessageSend(t *testing.T) {
 	executor := &mockExecutor{
 		response: "Hello from agent",
@@ -193,6 +294,61 @@ func TestHandlerMessageSend(t *testing.T) {
 	}
 	if resp.JSONRPC != "2.0" {
 		t.Errorf("expected jsonrpc 2.0, got %s", resp.JSONRPC)
+	}
+}
+
+func TestHandlerMessageSendPersistsWorkingMessage(t *testing.T) {
+	executor := &blockingExecutor{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	handler := NewHandler(executor)
+	handler.GetTaskStore().Create("persist_task")
+
+	params := SendMessageParams{
+		TaskID: "persist_task",
+		Message: &Message{
+			Role:  "user",
+			Parts: []MessagePart{{Type: "text", Text: "hello"}},
+		},
+	}
+	paramsJSON, _ := json.Marshal(params)
+	reqBody := JSONRPCRequest{
+		JSONRPC: "2.0",
+		Method:  "message/send",
+		Params:  paramsJSON,
+		ID:      1,
+	}
+	body, _ := json.Marshal(reqBody)
+
+	req := httptest.NewRequest("POST", "/a2a", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		handler.ServeHTTP(w, req)
+	}()
+
+	select {
+	case <-executor.started:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for executor")
+	}
+
+	task := handler.GetTaskStore().Get("persist_task")
+	if task.State != TaskStateWorking {
+		t.Fatalf("state = %s, want working", task.State)
+	}
+	if task.Message == nil || task.Message.Parts[0].Text != "hello" {
+		t.Fatalf("message = %#v, want hello text", task.Message)
+	}
+
+	close(executor.release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for handler")
 	}
 }
 
@@ -528,5 +684,29 @@ func (m *mockExecutor) ExecuteTask(ctx context.Context, task *Task, msg *Message
 		}
 	}()
 
+	return ch, nil
+}
+
+type blockingExecutor struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingExecutor) ExecuteTask(ctx context.Context, task *Task, msg *Message) (<-chan TaskEvent, error) {
+	ch := make(chan TaskEvent, 1)
+	go func() {
+		defer close(ch)
+		close(b.started)
+		select {
+		case <-b.release:
+		case <-ctx.Done():
+			return
+		}
+		ch <- TaskEvent{
+			TaskID:    task.ID,
+			State:     TaskStateCompleted,
+			Timestamp: time.Now(),
+		}
+	}()
 	return ch, nil
 }

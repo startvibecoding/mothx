@@ -592,7 +592,7 @@ func TestDeleteSession(t *testing.T) {
 		t.Fatalf("session file should exist: %v", err)
 	}
 
-	err := DeleteSession(path)
+	err := DeleteSession(path, sessionDir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -603,9 +603,22 @@ func TestDeleteSession(t *testing.T) {
 }
 
 func TestDeleteSessionNonExistent(t *testing.T) {
-	err := DeleteSession("/nonexistent/path.jsonl")
+	sessionDir := t.TempDir()
+	err := DeleteSession(filepath.Join(sessionDir, "missing.jsonl"), sessionDir)
 	if err == nil {
 		t.Error("expected error for non-existent file")
+	}
+}
+
+func TestDeleteSessionRejectsPathOutsideSessionDir(t *testing.T) {
+	sessionDir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.jsonl")
+	if err := os.WriteFile(outside, []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DeleteSession(outside, sessionDir); err == nil {
+		t.Fatal("expected outside session path to be rejected")
 	}
 }
 

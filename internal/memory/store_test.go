@@ -147,6 +147,36 @@ func TestStoreUpdate(t *testing.T) {
 	}
 }
 
+func TestStoreUpdateOnlyWithinSection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "memory.md")
+
+	md := `# Agent Memory
+
+## User Profile
+
+- shared fact
+
+## Working Memory
+
+- shared fact
+`
+	os.WriteFile(path, []byte(md), 0600)
+	store := NewStore(path, "")
+
+	if err := store.Update("Working Memory", "shared fact", "working fact"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, _, _, _ := store.Read()
+	if !strings.Contains(content, "## User Profile\n\n- shared fact") {
+		t.Fatalf("user profile entry should remain unchanged, got %q", content)
+	}
+	if !strings.Contains(content, "## Working Memory\n\n- working fact") {
+		t.Fatalf("working memory entry should be updated, got %q", content)
+	}
+}
+
 func TestStoreDelete(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "memory.md")
@@ -172,6 +202,56 @@ func TestStoreDelete(t *testing.T) {
 	}
 	if !strings.Contains(content, "fact one") || !strings.Contains(content, "fact three") {
 		t.Error("non-deleted entries should remain")
+	}
+}
+
+func TestStoreDeleteOnlyWithinSection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "memory.md")
+
+	md := `# Agent Memory
+
+## User Profile
+
+- shared fact
+
+## Working Memory
+
+- shared fact
+`
+	os.WriteFile(path, []byte(md), 0600)
+	store := NewStore(path, "")
+
+	if err := store.Delete("Working Memory", "shared fact"); err != nil {
+		t.Fatal(err)
+	}
+
+	content, _, _, _ := store.Read()
+	if !strings.Contains(content, "## User Profile\n\n- shared fact") {
+		t.Fatalf("user profile entry should remain, got %q", content)
+	}
+	working := extractSection(content, "Working Memory")
+	if strings.Contains(working, "shared fact") {
+		t.Fatalf("working memory entry should be removed, got %q", working)
+	}
+}
+
+func TestStoreWriteAllUsesReadPath(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "memory.md")
+	os.WriteFile(path, []byte("# old"), 0600)
+	store := NewStore(path, "")
+
+	if err := store.WriteAll("# new"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "# new" {
+		t.Fatalf("content = %q, want # new", string(got))
 	}
 }
 

@@ -123,6 +123,25 @@ vibecoding -M yolo
 - May execute dangerous commands
 - May expose sensitive information
 
+## Network Service Hardening
+
+Gateway, Hermes, and A2A can expose HTTP/WebSocket entry points. Treat these services as remote code-execution surfaces whenever tools can run in `agent` or `yolo` mode.
+
+- **Gateway**: enable `auth.enabled` before exposing beyond loopback; startup warns when Gateway listens beyond loopback in `yolo` mode without authentication.
+- **A2A**: standalone A2A binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only for intentional exposure, and configure an auth token.
+- **Hermes WebSocket**: send tokens with `Authorization: Bearer <token>` during the WebSocket handshake. Query-string tokens are accepted only for compatibility.
+- **Working directories**: use `allowedWorkDirs` / `allowed_work_dirs` to restrict per-request or per-platform working directories.
+
+## Trusted Config Shell Commands
+
+Provider API keys can be loaded from shell commands with `apiKey: "!command"`, but this is disabled by default. Enable it only for trusted local config:
+
+```bash
+export VIBECODING_ALLOW_SHELL_CONFIG=1
+```
+
+Prefer environment-variable references such as `${DEEPSEEK_API_KEY}` for shared configs.
+
 ## Enabling Sandbox
 
 ### Command Line

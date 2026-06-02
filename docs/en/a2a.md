@@ -30,11 +30,13 @@ vibecoding a2a stop
 
 ### Standalone Mode
 
-Runs a dedicated A2A HTTP server on a separate port (default: 8093).
+Runs a dedicated A2A HTTP server on a separate port (default: `127.0.0.1:8093`).
 
 ```bash
 vibecoding a2a start --port 8093 --work-dir /path/to/project
 ```
+
+Use `--host 0.0.0.0` only when you intentionally want to expose the A2A server beyond loopback, and configure an auth token for exposed deployments.
 
 ### Integration Mode
 
@@ -69,7 +71,7 @@ The Agent Card describes the agent's capabilities and is served at `/.well-known
   "name": "VibeCoding",
   "description": "AI coding assistant with file editing, terminal, and search capabilities",
   "url": "http://localhost:8093/a2a",
-  "version": "0.1.27",
+  "version": "0.1.31",
   "capabilities": {
     "streaming": true,
     "pushNotifications": false
@@ -256,7 +258,13 @@ curl -X POST http://localhost:8093/a2a/task/cancel \
 
 - **Auth Token**: Bearer token authentication (same as hermes)
 - **Agent Card**: Publicly accessible (no auth required)
-- **JSON-RPC**: Requires auth token when configured
+- **Protected Endpoints**: `/a2a`, REST A2A routes, and `/a2a/events` require auth when `auth_token` is configured
+
+When auth is configured, clients must send:
+
+```bash
+Authorization: Bearer <auth_token>
+```
 
 ## A2A Client
 

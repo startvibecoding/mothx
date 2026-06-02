@@ -518,6 +518,32 @@ func TestSerializeConversationUserContentBlocks(t *testing.T) {
 	}
 }
 
+func TestSerializeConversationUserNonTextContentBlocks(t *testing.T) {
+	messages := []provider.Message{
+		{Role: "user", Contents: []provider.ContentBlock{
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc"}},
+		}},
+	}
+
+	result := SerializeConversation(messages)
+	if !contains(result, "[image: image/png]") {
+		t.Errorf("SerializeConversation() missing image block, got: %s", result)
+	}
+}
+
+func TestSerializeConversationToolResultContentBlocks(t *testing.T) {
+	messages := []provider.Message{
+		{Role: "toolResult", ToolName: "read", Contents: []provider.ContentBlock{
+			{Type: "text", Text: "tool block output"},
+		}},
+	}
+
+	result := SerializeConversation(messages)
+	if !contains(result, "tool block output") {
+		t.Errorf("SerializeConversation() missing tool result content block, got: %s", result)
+	}
+}
+
 func TestSerializeConversationLongToolResult(t *testing.T) {
 	longContent := strings.Repeat("x", 600)
 	messages := []provider.Message{
@@ -540,6 +566,7 @@ func TestTruncateString(t *testing.T) {
 		{"short", 10, "short"},
 		{"exact", 5, "exact"},
 		{"toolong", 4, "tool..."},
+		{"你好世界", 5, "你..."},
 		{"", 10, ""},
 	}
 

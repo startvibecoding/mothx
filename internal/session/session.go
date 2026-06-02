@@ -391,8 +391,8 @@ func (m *Manager) AppendSessionInfo(name string) (string, error) {
 
 // GetMessages extracts all messages from the current branch.
 func (m *Manager) GetMessages() []provider.Message {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	var messages []provider.Message
 	for _, e := range m.entries {
@@ -523,8 +523,23 @@ func (m *Manager) load() error {
 }
 
 // writeEntry writes a single entry to the session file.
-// DeleteSession deletes a session file.
-func DeleteSession(path string) error {
+// DeleteSession deletes a session file if it is under sessionDir.
+func DeleteSession(path string, sessionDir string) error {
+	cleanPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return fmt.Errorf("resolve session path: %w", err)
+	}
+	cleanSessionDir, err := filepath.Abs(filepath.Clean(sessionDir))
+	if err != nil {
+		return fmt.Errorf("resolve session dir: %w", err)
+	}
+	rel, err := filepath.Rel(cleanSessionDir, cleanPath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("session path %s is outside session directory %s", path, sessionDir)
+	}
+	if filepath.Ext(cleanPath) != ".jsonl" {
+		return fmt.Errorf("session path %s is not a .jsonl file", path)
+	}
 	return os.Remove(path)
 }
 

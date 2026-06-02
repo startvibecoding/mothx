@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
 // CronTool provides cron job management for the agent.
@@ -261,8 +262,5 @@ func (t *CronTool) executeRun(id string) (tools.ToolResult, error) {
 }
 
 func truncateStr(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
+	return util.TruncateWithSuffix(s, maxLen, "...")
 }
