@@ -25,11 +25,12 @@ const (
 
 type Provider struct {
 	provider.BaseProvider
-	apiKey      string
-	baseURL     string
-	apiKind     APIKind
-	client      *http.Client
-	retryConfig *provider.RetryConfig
+	apiKey        string
+	baseURL       string
+	apiKind       APIKind
+	client        *http.Client
+	retryConfig   *provider.RetryConfig
+	cachedContent string
 }
 
 func DefaultModels(providerName string) []*provider.Model {
@@ -110,11 +111,19 @@ func (p *Provider) SetRetryConfig(cfg *provider.RetryConfig) {
 	p.retryConfig = cfg
 }
 
+// SetCachedContent sets an explicit Google cached content resource to reuse.
+// The value should be a full cached content resource name, for example
+// "cachedContents/abc123". Empty disables explicit cached content reuse.
+func (p *Provider) SetCachedContent(name string) {
+	p.cachedContent = strings.TrimSpace(name)
+}
+
 type googleRequest struct {
 	SystemInstruction *googleContent        `json:"systemInstruction,omitempty"`
 	Contents          []googleContent       `json:"contents"`
 	Tools             []googleTool          `json:"tools,omitempty"`
 	GenerationConfig  *googleGenerationConf `json:"generationConfig,omitempty"`
+	CachedContent     string                `json:"cachedContent,omitempty"`
 }
 
 type googleGenerationConf struct {
@@ -125,7 +134,8 @@ type googleGenerationConf struct {
 }
 
 type googleThinkingConfig struct {
-	ThinkingBudget int `json:"thinkingBudget,omitempty"`
+	ThinkingBudget  int  `json:"thinkingBudget,omitempty"`
+	IncludeThoughts bool `json:"includeThoughts,omitempty"`
 }
 
 type googleContent struct {
@@ -135,6 +145,8 @@ type googleContent struct {
 
 type googlePart struct {
 	Text             string                  `json:"text,omitempty"`
+	Thought          bool                    `json:"thought,omitempty"`
+	ThoughtSignature string                  `json:"thoughtSignature,omitempty"`
 	InlineData       *googleInlineData       `json:"inlineData,omitempty"`
 	FunctionCall     *googleFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *googleFunctionResponse `json:"functionResponse,omitempty"`
@@ -177,10 +189,11 @@ type googleCandidate struct {
 }
 
 type googleUsageMetadata struct {
-	PromptTokenCount     int `json:"promptTokenCount,omitempty"`
-	CandidatesTokenCount int `json:"candidatesTokenCount,omitempty"`
-	TotalTokenCount      int `json:"totalTokenCount,omitempty"`
-	ThoughtsTokenCount   int `json:"thoughtsTokenCount,omitempty"`
+	PromptTokenCount        int `json:"promptTokenCount,omitempty"`
+	CandidatesTokenCount    int `json:"candidatesTokenCount,omitempty"`
+	TotalTokenCount         int `json:"totalTokenCount,omitempty"`
+	ThoughtsTokenCount      int `json:"thoughtsTokenCount,omitempty"`
+	CachedContentTokenCount int `json:"cachedContentTokenCount,omitempty"`
 }
 
 type googleResponseError struct {
@@ -212,6 +225,9 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			Contents:         p.convertMessages(params),
 			Tools:            p.convertTools(params.Tools),
 			GenerationConfig: p.generationConfig(params, p.GetModel(modelID)),
+		}
+		if p.cachedContent != "" {
+			reqBody.CachedContent = p.cachedContent
 		}
 		if params.SystemPrompt != "" {
 			reqBody.SystemInstruction = &googleContent{Parts: []googlePart{{Text: params.SystemPrompt}}}
@@ -328,7 +344,7 @@ func (p *Provider) generationConfig(params provider.ChatParams, model *provider.
 		TopP:            params.TopP,
 	}
 	if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
-		cfg.ThinkingConfig = &googleThinkingConfig{ThinkingBudget: googleThinkingBudget(params.ThinkingLevel)}
+		cfg.ThinkingConfig = &googleThinkingConfig{ThinkingBudget: googleThinkingBudget(params.ThinkingLevel), IncludeThoughts: true}
 	}
 	return cfg
 }
@@ -467,7 +483,14 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			}
 			for _, part := range candidate.Content.Parts {
 				if part.Text != "" {
-					ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: part.Text}
+					if part.Thought {
+						ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: part.Text}
+					} else {
+						ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: part.Text}
+					}
+				}
+				if part.ThoughtSignature != "" {
+					ch <- provider.StreamEvent{Type: provider.StreamThinkSignature, ThinkSignature: part.ThoughtSignature}
 				}
 				if part.FunctionCall != nil {
 					toolCallIndex++
@@ -504,6 +527,7 @@ func convertUsage(u *googleUsageMetadata) *provider.Usage {
 		Input:       u.PromptTokenCount,
 		Output:      u.CandidatesTokenCount,
 		Reasoning:   u.ThoughtsTokenCount,
+		CacheRead:   u.CachedContentTokenCount,
 		TotalTokens: u.TotalTokenCount,
 	}
 }

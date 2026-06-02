@@ -115,8 +115,39 @@ func TestGoogleGeminiRequest(t *testing.T) {
 	if req.GenerationConfig.ThinkingConfig == nil || req.GenerationConfig.ThinkingConfig.ThinkingBudget != 8192 {
 		t.Fatalf("thinkingConfig = %#v, want high budget", req.GenerationConfig.ThinkingConfig)
 	}
+	if !req.GenerationConfig.ThinkingConfig.IncludeThoughts {
+		t.Fatal("thinkingConfig.includeThoughts = false, want true")
+	}
 	if len(req.Tools) != 1 || len(req.Tools[0].FunctionDeclarations) != 1 || req.Tools[0].FunctionDeclarations[0].Name != "read" {
 		t.Fatalf("tools = %#v, want read declaration", req.Tools)
+	}
+}
+
+func TestGoogleRequestCachedContent(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}})
+	p.SetCachedContent("cachedContents/test-cache")
+	p = newMockGoogleProvider(t, p, "data: {}\n", bodyCh, nil)
+
+	for range p.Chat(context.Background(), provider.ChatParams{
+		ModelID:  "gemini-test",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}) {
+	}
+
+	var req googleRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+
+	if req.CachedContent != "cachedContents/test-cache" {
+		t.Fatalf("cachedContent = %q, want cachedContents/test-cache", req.CachedContent)
 	}
 }
 
@@ -143,9 +174,9 @@ func TestGoogleVertexAuthorizationHeader(t *testing.T) {
 	}
 }
 
-func TestGoogleStreamTextToolCallAndUsage(t *testing.T) {
-	sse := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello \"}]}}]}\n" +
-		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"read\",\"args\":{\"path\":\"main.go\"}}}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":5,\"thoughtsTokenCount\":2,\"totalTokenCount\":17}}\n"
+func TestGoogleStreamTextThinkToolCallAndUsage(t *testing.T) {
+	sse := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"thinking\",\"thought\":true,\"thoughtSignature\":\"sig-1\"},{\"text\":\"Hello \"}]}}]}\n" +
+		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"functionCall\":{\"name\":\"read\",\"args\":{\"path\":\"main.go\"}}}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{\"promptTokenCount\":10,\"candidatesTokenCount\":5,\"thoughtsTokenCount\":2,\"cachedContentTokenCount\":7,\"totalTokenCount\":17}}\n"
 	p := newMockGoogleProvider(t,
 		NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}}),
 		sse,
@@ -153,6 +184,8 @@ func TestGoogleStreamTextToolCallAndUsage(t *testing.T) {
 		nil)
 
 	var text string
+	var think string
+	var thinkSignature string
 	var tool *provider.ToolCallBlock
 	var usage *provider.Usage
 	var done bool
@@ -164,6 +197,10 @@ func TestGoogleStreamTextToolCallAndUsage(t *testing.T) {
 		switch ev.Type {
 		case provider.StreamTextDelta:
 			text += ev.TextDelta
+		case provider.StreamThinkDelta:
+			think += ev.ThinkDelta
+		case provider.StreamThinkSignature:
+			thinkSignature = ev.ThinkSignature
 		case provider.StreamToolCall:
 			tool = ev.ToolCall
 		case provider.StreamUsage:
@@ -178,10 +215,16 @@ func TestGoogleStreamTextToolCallAndUsage(t *testing.T) {
 	if text != "Hello " {
 		t.Fatalf("text = %q, want Hello", text)
 	}
+	if think != "thinking" {
+		t.Fatalf("think = %q, want thinking", think)
+	}
+	if thinkSignature != "sig-1" {
+		t.Fatalf("thinkSignature = %q, want sig-1", thinkSignature)
+	}
 	if tool == nil || tool.Name != "read" || string(tool.Arguments) != `{"path":"main.go"}` {
 		t.Fatalf("tool = %#v, want read path", tool)
 	}
-	if usage == nil || usage.Input != 10 || usage.Output != 5 || usage.Reasoning != 2 || usage.TotalTokens != 17 {
+	if usage == nil || usage.Input != 10 || usage.Output != 5 || usage.Reasoning != 2 || usage.CacheRead != 7 || usage.TotalTokens != 17 {
 		t.Fatalf("usage = %#v, want token counts", usage)
 	}
 	if !done {
