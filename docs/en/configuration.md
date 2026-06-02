@@ -159,6 +159,7 @@ Multi-provider configuration. Each provider is an object keyed by a user-chosen 
 | `vendor` | string | — | auto-detect | Optional vendor adapter name (see below) |
 | `apiKey` | string | — | `""` | API key (see [Authentication](#authentication-configuration) below) |
 | `api` | string | — | auto-detect | API protocol: `"openai-chat"`, `"openai-responses"`, `"anthropic-messages"`, `"google-gemini"`, or `"google-vertex"` |
+| `httpProxy` | string | — | `""` | Optional per-provider HTTP proxy URL, e.g. `"http://127.0.0.1:7890"` |
 | `thinkingFormat` | string | — | auto-detect | Thinking parameter format (see below) |
 | `cacheControl` | bool | — | `false` | Enable Anthropic prompt caching; set `true` when using Claude models |
 | `models` | array | — | `[]` | List of available models |
@@ -1055,7 +1056,9 @@ Switch between providers at runtime using `/provider` or `--provider`:
 }
 ```
 
-### Custom API Endpoint / Proxy
+### Custom API Endpoint / HTTP Proxy
+
+`baseUrl` points to an API endpoint or API gateway. `httpProxy` configures the network proxy used only by that provider's HTTP client. When `httpProxy` is empty, the provider keeps Go's default `HTTP_PROXY` / `HTTPS_PROXY` environment behavior.
 
 ```json
 {
@@ -1064,6 +1067,7 @@ Switch between providers at runtime using `/provider` or `--provider`:
       "baseUrl": "https://my-proxy.example.com/v1",
       "api": "openai-chat",
       "apiKey": "${MY_PROXY_API_KEY}",
+      "httpProxy": "http://127.0.0.1:7890",
       "models": [
         {
           "id": "gpt-4o",

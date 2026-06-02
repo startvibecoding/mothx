@@ -5,6 +5,10 @@
 
 ### ✨ Features
 
+- **Per-Provider HTTP Proxy**
+  - Added `providers.<name>.httpProxy` to route individual providers through different HTTP proxies
+  - Kept default environment proxy behavior when a provider does not set `httpProxy`
+
 - **Google Gemini and Vertex Vendor Adapters**
   - Added native `google-gemini` and `google-vertex` providers using Google `streamGenerateContent`
   - Enabled base URL detection for Gemini API and Vertex AI native Gemini endpoints

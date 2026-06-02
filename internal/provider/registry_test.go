@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
-	_ "github.com/startvibecoding/vibecoding/internal/provider/google"
 )
 
 func TestProviderRegistryRegisterAndCreate(t *testing.T) {

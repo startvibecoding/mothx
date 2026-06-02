@@ -149,6 +149,26 @@ func TestCreateGoogleVertexProvider(t *testing.T) {
 	}
 }
 
+func TestCreateProviderRejectsInvalidHTTPProxy(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"bad-proxy": {
+				APIKey:    "fake-key",
+				BaseURL:   "https://api.openai.com/v1",
+				API:       "openai-chat",
+				HTTPProxy: "http://[::1",
+				Models: []config.ModelConfig{
+					{ID: "gpt-test", Name: "GPT Test"},
+				},
+			},
+		},
+	}
+
+	if _, _, err := Create(settings, "bad-proxy", "gpt-test"); err == nil {
+		t.Fatal("expected invalid http proxy error")
+	}
+}
+
 func TestConvertModelConfigsSupportsReferenceReasoningAlias(t *testing.T) {
 	models := ConvertModelConfigs("test", []config.ModelConfig{
 		{

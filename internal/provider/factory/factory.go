@@ -39,7 +39,10 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 		var p provider.Provider
 		switch resolved.API {
 		case "anthropic-messages":
-			ap := anthropic.NewProviderWithModels(apiKey, resolved.BaseURL, models)
+			ap, err := anthropic.NewProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			if err != nil {
+				return nil, nil, err
+			}
 			if resolved.ThinkingFormat != "" {
 				ap.SetThinkingFormat(resolved.ThinkingFormat)
 			}
@@ -49,7 +52,10 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			ConfigureRetry(ap, settings)
 			p = ap
 		case "openai-chat", "openai", "openai-responses", "responses":
-			op := openai.NewProviderWithModels(apiKey, resolved.BaseURL, models)
+			op, err := openai.NewProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			if err != nil {
+				return nil, nil, err
+			}
 			if resolved.ThinkingFormat != "" {
 				op.SetThinkingFormat(resolved.ThinkingFormat)
 			}
@@ -60,11 +66,17 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			ConfigureRetry(op, settings)
 			p = op
 		case "google-gemini":
-			gp := google.NewGeminiProviderWithModels(apiKey, resolved.BaseURL, models)
+			gp, err := google.NewGeminiProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			if err != nil {
+				return nil, nil, err
+			}
 			ConfigureRetry(gp, settings)
 			p = gp
 		case "google-vertex":
-			gp := google.NewVertexProviderWithModels(apiKey, resolved.BaseURL, models)
+			gp, err := google.NewVertexProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			if err != nil {
+				return nil, nil, err
+			}
 			ConfigureRetry(gp, settings)
 			p = gp
 		default:

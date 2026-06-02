@@ -41,6 +41,7 @@ type ProviderConfig struct {
 	Vendor         string          `json:"vendor,omitempty"` // Explicit vendor adapter (Decision 12/13)
 	APIKey         string          `json:"apiKey,omitempty"`
 	BaseURL        string          `json:"baseUrl,omitempty"`
+	HTTPProxy      string          `json:"httpProxy,omitempty"` // optional per-provider HTTP proxy URL, e.g. http://127.0.0.1:7890
 	API            string          `json:"api,omitempty"`
 	ThinkingFormat string          `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "deepseek", "xiaomi"
 	CacheControl   *bool           `json:"cacheControl,omitempty"`   // enable Anthropic prompt caching (nil/false=off, true=on; set true for Claude models)

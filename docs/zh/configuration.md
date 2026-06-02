@@ -159,6 +159,7 @@ VibeCoding 使用两个配置文件:
 | `vendor` | string | — | 自动检测 | 可选厂商适配器名称 (见下文) |
 | `apiKey` | string | — | `""` | API 密钥 (见[认证配置](#认证配置)) |
 | `api` | string | — | 自动检测 | API 协议: `"openai-chat"`、`"openai-responses"`、`"anthropic-messages"`、`"google-gemini"` 或 `"google-vertex"` |
+| `httpProxy` | string | — | `""` | 可选的 provider 级 HTTP 代理 URL，例如 `"http://127.0.0.1:7890"` |
 | `thinkingFormat` | string | — | 自动检测 | 思考参数格式 (见下文) |
 | `cacheControl` | bool | — | `false` | 启用 Anthropic 提示缓存；使用 Claude 模型时设为 `true` |
 | `models` | array | — | `[]` | 可用模型列表 |
@@ -1055,7 +1056,9 @@ export DEEPSEEK_API_KEY=sk-...
 }
 ```
 
-### 自定义 API 端点 / 代理
+### 自定义 API 端点 / HTTP 代理
+
+`baseUrl` 指向 API 端点或 API 网关；`httpProxy` 只配置该 provider 的网络代理。`httpProxy` 为空时，会保留 Go 默认的 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量行为。
 
 ```json
 {
@@ -1064,6 +1067,7 @@ export DEEPSEEK_API_KEY=sk-...
       "baseUrl": "https://my-proxy.example.com/v1",
       "api": "openai-chat",
       "apiKey": "${MY_PROXY_API_KEY}",
+      "httpProxy": "http://127.0.0.1:7890",
       "models": [
         {
           "id": "gpt-4o",

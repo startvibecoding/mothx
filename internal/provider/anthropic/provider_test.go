@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -50,6 +51,24 @@ func newMockAnthropicProvider(t *testing.T, models []*provider.Model, sse string
 		}, nil
 	})}
 	return p
+}
+
+func TestAnthropicProviderHTTPProxy(t *testing.T) {
+	p, err := NewProviderWithModelsAndProxy("fake-key", "https://api.anthropic.com", "http://127.0.0.1:7890", []*provider.Model{{ID: "m1"}})
+	if err != nil {
+		t.Fatalf("provider with proxy: %v", err)
+	}
+	transport, ok := p.client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", p.client.Transport)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "api.anthropic.com"}})
+	if err != nil {
+		t.Fatalf("proxy lookup: %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:7890" {
+		t.Fatalf("proxy = %v, want http://127.0.0.1:7890", proxyURL)
+	}
 }
 
 func mustUsage(t *testing.T, events []provider.StreamEvent) *provider.Usage {

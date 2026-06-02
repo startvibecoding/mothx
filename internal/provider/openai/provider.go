@@ -74,6 +74,22 @@ func NewProvider(apiKey, baseURL string) *Provider {
 
 // NewProviderWithModels creates a new OpenAI provider with custom models.
 func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Provider {
+	p, err := NewProviderWithModelsAndProxy(apiKey, baseURL, "", models)
+	if err != nil {
+		return newProviderWithHTTPClient(apiKey, baseURL, models, &http.Client{Timeout: 30 * time.Minute})
+	}
+	return p
+}
+
+func NewProviderWithModelsAndProxy(apiKey, baseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
+	client, err := provider.NewHTTPClient(30*time.Minute, proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("configure http proxy: %w", err)
+	}
+	return newProviderWithHTTPClient(apiKey, baseURL, models, client), nil
+}
+
+func newProviderWithHTTPClient(apiKey, baseURL string, models []*provider.Model, client *http.Client) *Provider {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
 	}
@@ -85,7 +101,7 @@ func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Pr
 		BaseProvider: provider.NewBaseProvider("openai", models),
 		apiKey:       apiKey,
 		baseURL:      strings.TrimRight(baseURL, "/"),
-		client:       &http.Client{Timeout: 30 * time.Minute},
+		client:       client,
 		responsesConfig: &responsesConfig{
 			reasoningSummary:   "auto",
 			promptCacheEnabled: true,

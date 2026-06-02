@@ -5,6 +5,10 @@
 
 ### ✨ 新功能
 
+- **Provider 级 HTTP 代理**
+  - 新增 `providers.<name>.httpProxy`，支持为不同 provider 配置不同 HTTP 代理
+  - 未配置 `httpProxy` 时继续保留默认环境变量代理行为
+
 - **Google Gemini 和 Vertex 厂商适配器**
   - 新增原生 `google-gemini` 和 `google-vertex` provider，使用 Google `streamGenerateContent`
   - 支持 Gemini API 和 Vertex AI 原生 Gemini 端点的 baseUrl 自动识别

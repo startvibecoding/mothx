@@ -15,13 +15,13 @@ func init() {
 		if cfg == nil {
 			return NewGeminiProvider("", ""), nil
 		}
-		return NewGeminiProviderWithModels(resolveAPIKey(cfg), cfg.BaseURL, convertModels("google-gemini", cfg.Models)), nil
+		return NewGeminiProviderWithModelsAndProxy(resolveAPIKey(cfg), cfg.BaseURL, cfg.HTTPProxy, convertModels("google-gemini", cfg.Models))
 	})
 	provider.Register("google-vertex", func(cfg *config.ProviderConfig) (provider.Provider, error) {
 		if cfg == nil {
 			return NewVertexProvider("", ""), nil
 		}
-		return NewVertexProviderWithModels(resolveAPIKey(cfg), cfg.BaseURL, convertModels("google-vertex", cfg.Models)), nil
+		return NewVertexProviderWithModelsAndProxy(resolveAPIKey(cfg), cfg.BaseURL, cfg.HTTPProxy, convertModels("google-vertex", cfg.Models))
 	})
 }
 

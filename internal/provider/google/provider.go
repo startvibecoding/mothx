@@ -50,7 +50,15 @@ func NewGeminiProvider(apiKey, baseURL string) *Provider {
 }
 
 func NewGeminiProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Provider {
-	return newProvider("google-gemini", APIKindGemini, apiKey, baseURL, "https://generativelanguage.googleapis.com/v1beta/models", models)
+	p, err := NewGeminiProviderWithModelsAndProxy(apiKey, baseURL, "", models)
+	if err != nil {
+		return newProviderWithHTTPClient("google-gemini", APIKindGemini, apiKey, baseURL, "https://generativelanguage.googleapis.com/v1beta/models", models, &http.Client{Timeout: 30 * time.Minute})
+	}
+	return p
+}
+
+func NewGeminiProviderWithModelsAndProxy(apiKey, baseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
+	return newProvider("google-gemini", APIKindGemini, apiKey, baseURL, "https://generativelanguage.googleapis.com/v1beta/models", proxyURL, models)
 }
 
 func NewVertexProvider(apiKey, baseURL string) *Provider {
@@ -58,10 +66,26 @@ func NewVertexProvider(apiKey, baseURL string) *Provider {
 }
 
 func NewVertexProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Provider {
-	return newProvider("google-vertex", APIKindVertex, apiKey, baseURL, "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/publishers/google/models", models)
+	p, err := NewVertexProviderWithModelsAndProxy(apiKey, baseURL, "", models)
+	if err != nil {
+		return newProviderWithHTTPClient("google-vertex", APIKindVertex, apiKey, baseURL, "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/publishers/google/models", models, &http.Client{Timeout: 30 * time.Minute})
+	}
+	return p
 }
 
-func newProvider(name string, kind APIKind, apiKey, baseURL, defaultBaseURL string, models []*provider.Model) *Provider {
+func NewVertexProviderWithModelsAndProxy(apiKey, baseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
+	return newProvider("google-vertex", APIKindVertex, apiKey, baseURL, "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/publishers/google/models", proxyURL, models)
+}
+
+func newProvider(name string, kind APIKind, apiKey, baseURL, defaultBaseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
+	client, err := provider.NewHTTPClient(30*time.Minute, proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("configure http proxy: %w", err)
+	}
+	return newProviderWithHTTPClient(name, kind, apiKey, baseURL, defaultBaseURL, models, client), nil
+}
+
+func newProviderWithHTTPClient(name string, kind APIKind, apiKey, baseURL, defaultBaseURL string, models []*provider.Model, client *http.Client) *Provider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
@@ -78,7 +102,7 @@ func newProvider(name string, kind APIKind, apiKey, baseURL, defaultBaseURL stri
 		apiKey:       apiKey,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		apiKind:      kind,
-		client:       &http.Client{Timeout: 30 * time.Minute},
+		client:       client,
 	}
 }
 
@@ -142,14 +166,14 @@ type googleFunctionDeclaration struct {
 }
 
 type googleResponse struct {
-	Candidates     []googleCandidate    `json:"candidates,omitempty"`
-	UsageMetadata *googleUsageMetadata  `json:"usageMetadata,omitempty"`
-	Error         *googleResponseError  `json:"error,omitempty"`
+	Candidates    []googleCandidate    `json:"candidates,omitempty"`
+	UsageMetadata *googleUsageMetadata `json:"usageMetadata,omitempty"`
+	Error         *googleResponseError `json:"error,omitempty"`
 }
 
 type googleCandidate struct {
 	Content      googleContent `json:"content"`
-	FinishReason string       `json:"finishReason,omitempty"`
+	FinishReason string        `json:"finishReason,omitempty"`
 }
 
 type googleUsageMetadata struct {

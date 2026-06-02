@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -38,6 +39,24 @@ func newMockGoogleProvider(t *testing.T, p *Provider, sse string, bodyCh chan<- 
 		}, nil
 	})}
 	return p
+}
+
+func TestGoogleProviderHTTPProxy(t *testing.T) {
+	p, err := NewGeminiProviderWithModelsAndProxy("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", "http://127.0.0.1:7890", []*provider.Model{{ID: "m1"}})
+	if err != nil {
+		t.Fatalf("provider with proxy: %v", err)
+	}
+	transport, ok := p.client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", p.client.Transport)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "generativelanguage.googleapis.com"}})
+	if err != nil {
+		t.Fatalf("proxy lookup: %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:7890" {
+		t.Fatalf("proxy = %v, want http://127.0.0.1:7890", proxyURL)
+	}
 }
 
 func TestGoogleGeminiRequest(t *testing.T) {
