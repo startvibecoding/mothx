@@ -30,6 +30,12 @@ func (a *App) showNextApproval() {
 	a.addMessage(warningStyle.Render("Approve? (y/n): "))
 }
 
+func (a *App) clearApprovalState() {
+	a.waitingForApproval = false
+	a.pendingApprovalID = ""
+	a.approvalQueue = a.approvalQueue[:0]
+}
+
 func formatApprovalArgs(toolName string, args map[string]any) string {
 	if toolName == "edit" {
 		return formatEditApprovalArgs(args)

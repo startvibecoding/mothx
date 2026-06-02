@@ -134,6 +134,71 @@ func (a *App) cycleMode() {
 	a.addMessage(statusStyle.Render(fmt.Sprintf("Mode: %s", modeLabel)))
 }
 
+func (a *App) recordInputHistory(input string) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return
+	}
+	if len(a.inputHistory) > 0 && a.inputHistory[len(a.inputHistory)-1] == input {
+		a.resetInputHistoryNavigation()
+		return
+	}
+	a.inputHistory = append(a.inputHistory, input)
+	const maxInputHistory = 200
+	if len(a.inputHistory) > maxInputHistory {
+		a.inputHistory = a.inputHistory[len(a.inputHistory)-maxInputHistory:]
+	}
+	a.resetInputHistoryNavigation()
+}
+
+func (a *App) navigateInputHistory(direction int) bool {
+	if a.waitingForApproval || len(a.inputHistory) == 0 {
+		return false
+	}
+
+	switch {
+	case direction < 0:
+		if !a.inputHistoryBrowsing {
+			a.inputHistoryDraft = a.input.Value()
+			a.inputHistoryIndex = len(a.inputHistory) - 1
+			a.inputHistoryBrowsing = true
+		} else if a.inputHistoryIndex > 0 {
+			a.inputHistoryIndex--
+		}
+	case direction > 0:
+		if !a.inputHistoryBrowsing {
+			return false
+		}
+		if a.inputHistoryIndex < len(a.inputHistory)-1 {
+			a.inputHistoryIndex++
+		} else {
+			a.inputHistoryBrowsing = false
+			a.inputHistoryIndex = 0
+			a.input.SetValue(a.inputHistoryDraft)
+			a.input.CursorEnd()
+			a.inputHistoryDraft = ""
+			a.scheduleRender()
+			return true
+		}
+	default:
+		return false
+	}
+
+	if a.inputHistoryIndex >= 0 && a.inputHistoryIndex < len(a.inputHistory) {
+		a.input.SetValue(a.inputHistory[a.inputHistoryIndex])
+		a.input.CursorEnd()
+		a.scheduleRender()
+		return true
+	}
+	return false
+}
+
+func (a *App) resetInputHistoryNavigation() {
+	a.inputHistoryBrowsing = false
+	a.inputHistoryIndex = 0
+	a.inputHistoryDraft = ""
+}
+
 func (a *App) processInput(input string) tea.Cmd {
 	if strings.HasPrefix(input, "/") {
 		return a.handleCommand(input)

@@ -548,6 +548,96 @@ func teaKeyMsgForTest(s string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
 
+func teaSpecialKeyMsgForTest(key tea.KeyType) tea.KeyMsg {
+	return tea.KeyMsg{Type: key}
+}
+
+func TestInputHomeEndKeysReachTextInput(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.input.SetValue("abc")
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyHome))
+	a.flushInputQueue()
+	a.Update(teaKeyMsgForTest("X"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "Xabc" {
+		t.Fatalf("value after home insert = %q, want Xabc", got)
+	}
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnd))
+	a.flushInputQueue()
+	a.Update(teaKeyMsgForTest("Z"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "XabcZ" {
+		t.Fatalf("value after end insert = %q, want XabcZ", got)
+	}
+}
+
+func TestInputHistoryNavigationPreservesDraft(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.recordInputHistory("first")
+	a.recordInputHistory("second")
+	a.input.SetValue("draft")
+
+	if !a.navigateInputHistory(-1) || a.input.Value() != "second" {
+		t.Fatalf("first up value = %q, want second", a.input.Value())
+	}
+	if !a.navigateInputHistory(-1) || a.input.Value() != "first" {
+		t.Fatalf("second up value = %q, want first", a.input.Value())
+	}
+	if !a.navigateInputHistory(-1) || a.input.Value() != "first" {
+		t.Fatalf("third up value = %q, want first", a.input.Value())
+	}
+	if !a.navigateInputHistory(1) || a.input.Value() != "second" {
+		t.Fatalf("first down value = %q, want second", a.input.Value())
+	}
+	if !a.navigateInputHistory(1) || a.input.Value() != "draft" {
+		t.Fatalf("second down value = %q, want draft", a.input.Value())
+	}
+	if a.navigateInputHistory(1) {
+		t.Fatal("down outside history returned true, want false")
+	}
+}
+
+func TestInputHistoryNavigationFlushesQueuedDraft(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.recordInputHistory("previous")
+
+	a.Update(teaKeyMsgForTest("draft"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyUp))
+
+	if got := a.input.Value(); got != "previous" {
+		t.Fatalf("up value = %q, want previous", got)
+	}
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyDown))
+	if got := a.input.Value(); got != "draft" {
+		t.Fatalf("down value = %q, want queued draft restored", got)
+	}
+}
+
+func TestEscAbortClearsApprovalState(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.isThinking = true
+	a.waitingForApproval = true
+	a.pendingApprovalID = "approval-1"
+	a.approvalQueue = []pendingApproval{{approvalID: "approval-2", toolName: "bash"}}
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEsc))
+
+	if a.waitingForApproval {
+		t.Fatal("waitingForApproval = true, want false")
+	}
+	if a.pendingApprovalID != "" {
+		t.Fatalf("pendingApprovalID = %q, want empty", a.pendingApprovalID)
+	}
+	if len(a.approvalQueue) != 0 {
+		t.Fatalf("len(approvalQueue) = %d, want 0", len(a.approvalQueue))
+	}
+}
+
 func TestInitWithProgramDoesNotBlock(t *testing.T) {
 	a := NewApp(
 		&historyInjectMockProvider{},

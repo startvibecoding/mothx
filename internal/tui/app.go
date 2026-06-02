@@ -156,6 +156,12 @@ type App struct {
 	historyLoaded      bool
 	agentHistoryLoaded bool
 
+	// Prompt input history
+	inputHistory         []string
+	inputHistoryBrowsing bool
+	inputHistoryIndex    int
+	inputHistoryDraft    string
+
 	// Render throttling
 	lastRender     time.Time
 	renderPending  bool
@@ -173,8 +179,8 @@ type App struct {
 	agentMgr    *agent.AgentManager
 
 	// Cron state
-	cronStore  cron.CronStore
-	scheduler  *cron.Scheduler
+	cronStore cron.CronStore
+	scheduler *cron.Scheduler
 
 	// Current streaming message indices (-1 = none)
 	currentAssistantIdx int
@@ -426,23 +432,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return a, tea.Quit
 		case "esc":
-			if a.isThinking {
+			if a.isThinking || a.waitingForApproval {
 				if a.agent != nil {
 					a.agent.Abort()
 					a.agent = nil // Reset agent so next request creates a fresh one with new abort channel
 					a.agentHistoryLoaded = false
 				}
+				a.clearApprovalState()
 				a.inputQueueMu.Lock()
 				a.inputQueue = a.inputQueue[:0]
 				a.lastInputTime = time.Time{}
 				a.inputQueueMu.Unlock()
 				a.input.Reset()
+				a.resetInputHistoryNavigation()
 				a.isThinking = false
 				a.finishRequestTimer()
 				a.addMessage(statusStyle.Render("⏹ Aborted"))
 				return a, a.timer.Stop()
 			} else {
 				a.input.Reset()
+				a.resetInputHistoryNavigation()
 			}
 			return a, nil
 		case "enter":
@@ -469,12 +478,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.pendingApprovalID = ""
 				}
 				a.input.Reset()
+				a.resetInputHistoryNavigation()
 				a.scheduleRender()
 				return a, nil
 			}
 
 			if input != "" {
 				a.input.Reset()
+				a.recordInputHistory(input)
 				expandedInput := a.expandPasteMarkers(input)
 				return a, a.processInput(expandedInput)
 			}
@@ -486,10 +497,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case "pgdown":
 			return a, nil
-		case "home":
-			return a, nil
-		case "end":
-			return a, nil
+		case "up":
+			a.flushInputQueue()
+			if a.navigateInputHistory(-1) {
+				return a, nil
+			}
+		case "down":
+			a.flushInputQueue()
+			if a.navigateInputHistory(1) {
+				return a, nil
+			}
 		case "ctrl+o":
 			a.openLatestToolModal()
 			return a, nil
@@ -508,6 +525,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		a.queueInput(msg)
+		a.resetInputHistoryNavigation()
 		return a, nil
 
 	case agentStartMsg:
@@ -790,4 +808,3 @@ func (a *App) markAssistantRenderedDirty() {
 // Message types
 type agentStartMsg struct{ input string }
 type renderRequestMsg struct{}
-
