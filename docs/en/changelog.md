@@ -33,6 +33,12 @@
 
 - Added coverage for hosted web search tool serialization across OpenAI Responses and Anthropic Messages
 - Added coverage for web search configuration defaults, CLI flag parsing, and hosted tool metadata propagation
+- Added coverage for macOS default config directory resolution
+
+### 🐛 Bug Fixes
+
+- **macOS Config Directory**
+  - Unified the default macOS global config directory with Linux at `~/.vibecoding`
 
 ## v0.1.29
 
@@ -250,7 +256,7 @@
   - Inherits detailed sandbox settings (allowedRead, deniedPaths, etc.) from `settings.json`
 
 - **Gateway Configuration** (`gateway.json`)
-  - Independent config file at `~/.config/vibecoding/gateway.json`
+  - Independent config file at `~/.vibecoding/gateway.json`
   - Covers: listen address, auth, mode, sandbox, workingDir, allowedWorkDirs, session management, CORS, tool visibility, system prompt mode, request timeout, concurrency limit, logging
   - `vibecoding --init-gateway` to generate template; `--force` to overwrite
 
@@ -338,7 +344,7 @@
   - Added missing settings: `cacheControl`, idle compression, full sandbox fields (`bwrapPath`, `allowedRead`, `allowedWrite`, `deniedPaths`, `passEnv`, `tmpSize`), `shellPath`, `shellCommandPrefix`, `sessionDir`, `skillsDir`, `theme`, `retry`
   - Documented shell command `apiKey` format (`!cmd`) for password manager integration
   - Fixed key resolution order: config `apiKey` first, then derived env var
-  - Fixed macOS config path: `~/Library/Application Support/vibecoding/`
+  - Updated macOS config path documentation
   - Added top-level fields reference table with all defaults
   - Added per-platform defaults for sandbox paths and env vars
   - Improved examples with Claude provider `cacheControl`, idle compression, project-level overrides, and custom sandbox paths

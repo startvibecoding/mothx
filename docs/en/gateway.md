@@ -49,7 +49,7 @@ Gateway uses its own config file `gateway.json`, separate from `settings.json`.
 
 1. CLI `--config /path/to/gateway.json`
 2. `.vibe/gateway.json` (project-level)
-3. `~/.config/vibecoding/gateway.json` (global)
+3. `~/.vibecoding/gateway.json` (global)
 
 Generate a template with:
 

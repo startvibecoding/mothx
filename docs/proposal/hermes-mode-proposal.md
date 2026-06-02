@@ -34,12 +34,11 @@ VibeCoding 使用 **全局 + 项目级** 的两层配置体系，项目级优先
 
 | 平台 | 默认路径 | 来源 |
 |------|----------|------|
-| **Linux** | `~/.vibecoding/` | `platform.ConfigDir()` |
-| **macOS** | `~/Library/Application Support/vibecoding/` | `platform.ConfigDir()` |
+| **Linux/macOS** | `~/.vibecoding/` | `platform.ConfigDir()` |
 | **Windows** | `%APPDATA%\vibecoding\` | `platform.ConfigDir()` |
 | **自定义** | `$VIBECODING_DIR` | 环境变量覆盖，优先级最高 |
 
-> 后文中 `<GLOBAL_DIR>` 均指上述路径。Linux 下即 `~/.vibecoding/`。
+> 后文中 `<GLOBAL_DIR>` 均指上述路径。Linux/macOS 下即 `~/.vibecoding/`。
 
 全局目录下的文件布局：
 

@@ -99,7 +99,7 @@ func ProjectGatewayConfigPath() string {
 }
 
 // LoadGatewayConfig loads the gateway configuration, merging global + project.
-// Priority: .vibe/gateway.json > ~/.config/vibecoding/gateway.json > defaults
+// Priority: .vibe/gateway.json > ~/.vibecoding/gateway.json > defaults
 func LoadGatewayConfig() (*GatewayConfig, error) {
 	cfg, err := LoadGatewayConfigFrom(GatewayConfigPath())
 	if err != nil {

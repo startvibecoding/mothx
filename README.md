@@ -156,8 +156,7 @@ vibecoding --no-sandbox
 
 | Location | Platform | Scope |
 |----------|----------|-------|
-| `~/.vibecoding/settings.json` | Linux | Global (all projects) |
-| `~/Library/Application Support/vibecoding/settings.json` | macOS | Global (all projects) |
+| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) |
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) |
 | `.vibe/settings.json` | All | Project (overrides global) |
 

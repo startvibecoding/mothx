@@ -33,6 +33,12 @@
 
 - 增加 OpenAI Responses 和 Anthropic Messages hosted web search 序列化测试
 - 增加 web search 配置默认值、CLI flag 解析和 hosted tool metadata 传递测试
+- 增加 macOS 默认配置目录解析测试
+
+### 🐛 Bug 修复
+
+- **macOS 配置目录**
+  - 将 macOS 默认全局配置目录与 Linux 统一为 `~/.vibecoding`
 
 ## v0.1.29
 
@@ -249,7 +255,7 @@
   - 细节配置（allowedRead、deniedPaths 等）继承 `settings.json`
 
 - **Gateway 配置文件** (`gateway.json`)
-  - 独立配置文件，位于 `~/.config/vibecoding/gateway.json`
+  - 独立配置文件，位于 `~/.vibecoding/gateway.json`
   - 覆盖: 监听地址、认证、模式、沙箱、工作目录、目录白名单、session 管理、CORS、tool 可见性、system prompt 策略、请求超时、并发限制、日志
   - `vibecoding --init-gateway` 生成配置模板；`--force` 强制覆盖
 
@@ -337,7 +343,7 @@
   - 补充缺失配置项：`cacheControl`、空闲压缩、完整沙箱字段（`bwrapPath`、`allowedRead`、`allowedWrite`、`deniedPaths`、`passEnv`、`tmpSize`）、`shellPath`、`shellCommandPrefix`、`sessionDir`、`skillsDir`、`theme`、`retry`
   - 记录 shell 命令格式的 `apiKey`（`!cmd`），支持密码管理器集成
   - 修正密钥解析顺序：优先使用配置中的 `apiKey`，其次使用推导的环境变量
-  - 修正 macOS 配置路径：`~/Library/Application Support/vibecoding/`
+  - 更新 macOS 配置路径文档
   - 新增顶层字段参考表及所有默认值
   - 新增各平台沙箱路径与环境变量默认值
   - 改进示例：Claude provider `cacheControl`、空闲压缩、项目级覆盖、自定义沙箱路径

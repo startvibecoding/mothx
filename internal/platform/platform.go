@@ -41,17 +41,18 @@ func ConfigDir() string {
 		return dir
 	}
 
-	switch runtime.GOOS {
+	return configDirForOS(runtime.GOOS, HomeDir(), os.Getenv("APPDATA"))
+}
+
+func configDirForOS(goos, home, appData string) string {
+	switch goos {
 	case "windows":
-		appData := os.Getenv("APPDATA")
 		if appData != "" {
 			return filepath.Join(appData, "vibecoding")
 		}
-		return filepath.Join(HomeDir(), "AppData", "Roaming", "vibecoding")
-	case "darwin":
-		return filepath.Join(HomeDir(), "Library", "Application Support", "vibecoding")
+		return filepath.Join(home, "AppData", "Roaming", "vibecoding")
 	default: // linux and others
-		return filepath.Join(HomeDir(), ".vibecoding")
+		return filepath.Join(home, ".vibecoding")
 	}
 }
 

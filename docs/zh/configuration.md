@@ -6,8 +6,7 @@ VibeCoding 使用两个配置文件:
 
 | 文件 | 平台 | 范围 | 优先级 |
 |------|------|------|--------|
-| `~/.vibecoding/settings.json` | Linux | 全局 (所有项目) | 低 |
-| `~/Library/Application Support/vibecoding/settings.json` | macOS | 全局 (所有项目) | 低 |
+| `~/.vibecoding/settings.json` | Linux/macOS | 全局 (所有项目) | 低 |
 | `%APPDATA%\vibecoding\settings.json` | Windows | 全局 (所有项目) | 低 |
 | `.vibe/settings.json` | 全部 | 项目级 | 高 |
 
@@ -496,8 +495,7 @@ VibeCoding 会自动搜索并加载以下文件:
 
 | 平台 | 默认值 |
 |------|--------|
-| Linux | `~/.vibecoding/skills` |
-| macOS | `~/Library/Application Support/vibecoding/skills` |
+| Linux/macOS | `~/.vibecoding/skills` |
 | Windows | `%APPDATA%\vibecoding\skills` |
 
 ```json
@@ -633,8 +631,7 @@ VibeCoding 会自动搜索并加载以下文件:
 
 | 平台 | 默认值 |
 |------|--------|
-| Linux | `~/.vibecoding/sessions` |
-| macOS | `~/Library/Application Support/vibecoding/sessions` |
+| Linux/macOS | `~/.vibecoding/sessions` |
 | Windows | `%APPDATA%\vibecoding\sessions` |
 
 ```json
@@ -830,7 +827,7 @@ MCP 服务器配置保存在独立的 `mcp.json` 文件中，不写入 `settings
 
 VibeCoding 启动时会从以下位置加载 MCP 配置：
 
-1. 全局配置：Linux 为 `~/.vibecoding/mcp.json`，macOS 为 `~/Library/Application Support/vibecoding/mcp.json`，Windows 为 `%APPDATA%\vibecoding\mcp.json`
+1. 全局配置：Linux/macOS 为 `~/.vibecoding/mcp.json`，Windows 为 `%APPDATA%\vibecoding\mcp.json`
 2. 项目配置：`.vibe/mcp.json`
 
 可在 TUI 中创建模板：

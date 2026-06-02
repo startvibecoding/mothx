@@ -6,8 +6,7 @@ VibeCoding uses two configuration files:
 
 | File | Platform | Scope | Priority |
 |------|----------|-------|----------|
-| `~/.vibecoding/settings.json` | Linux | Global (all projects) | Low |
-| `~/Library/Application Support/vibecoding/settings.json` | macOS | Global (all projects) | Low |
+| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) | Low |
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) | Low |
 | `.vibe/settings.json` | All | Project-level | High |
 
@@ -496,8 +495,7 @@ Path to the global skills directory. Supports `~` expansion.
 
 | Platform | Default |
 |----------|---------|
-| Linux | `~/.vibecoding/skills` |
-| macOS | `~/Library/Application Support/vibecoding/skills` |
+| Linux/macOS | `~/.vibecoding/skills` |
 | Windows | `%APPDATA%\vibecoding\skills` |
 
 ```json
@@ -633,8 +631,7 @@ Directory for storing session files (JSONL format). Supports `~` expansion.
 
 | Platform | Default |
 |----------|---------|
-| Linux | `~/.vibecoding/sessions` |
-| macOS | `~/Library/Application Support/vibecoding/sessions` |
+| Linux/macOS | `~/.vibecoding/sessions` |
 | Windows | `%APPDATA%\vibecoding\sessions` |
 
 ```json
@@ -830,7 +827,7 @@ MCP servers are configured in standalone `mcp.json` files, not in `settings.json
 
 VibeCoding loads MCP configuration at startup from:
 
-1. Global config: `~/.vibecoding/mcp.json` on Linux, `~/Library/Application Support/vibecoding/mcp.json` on macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
+1. Global config: `~/.vibecoding/mcp.json` on Linux/macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
 2. Project config: `.vibe/mcp.json`
 
 Create a template from the TUI:

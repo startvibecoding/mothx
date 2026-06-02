@@ -72,6 +72,48 @@ func TestConfigDir(t *testing.T) {
 	}
 }
 
+func TestConfigDirForOS(t *testing.T) {
+	home := filepath.Join(string(os.PathSeparator), "home", "tester")
+	appData := filepath.Join(string(os.PathSeparator), "Users", "tester", "AppData", "Roaming")
+
+	tests := []struct {
+		name    string
+		goos    string
+		appData string
+		want    string
+	}{
+		{
+			name: "darwin defaults to home dot directory",
+			goos: "darwin",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name: "linux defaults to home dot directory",
+			goos: "linux",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name:    "windows uses appdata when available",
+			goos:    "windows",
+			appData: appData,
+			want:    filepath.Join(appData, "vibecoding"),
+		},
+		{
+			name: "windows falls back to roaming appdata",
+			goos: "windows",
+			want: filepath.Join(home, "AppData", "Roaming", "vibecoding"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := configDirForOS(tt.goos, home, tt.appData); got != tt.want {
+				t.Fatalf("configDirForOS() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDataDir(t *testing.T) {
 	dir := DataDir()
 	if dir == "" {
