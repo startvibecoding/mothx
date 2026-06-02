@@ -148,6 +148,39 @@ func TestAgentManagerDestroyChild(t *testing.T) {
 	}
 }
 
+func TestAgentManagerFinishCancelsChildrenAndRetainsStatus(t *testing.T) {
+	m := newTestManager()
+	m.Create(AgentOptions{ID: "main"})
+	m.Create(AgentOptions{ID: "sub-1", ParentID: "main"})
+	m.MarkRunning("sub-1")
+
+	cancelled := false
+	m.SetCancel("sub-1", func() {
+		cancelled = true
+	})
+	m.Finish("main", errors.New("network error"))
+
+	if !cancelled {
+		t.Fatal("expected child cancel func to be called")
+	}
+	if m.Count() != 0 {
+		t.Fatalf("expected no active agents, got %d", m.Count())
+	}
+	if _, ok := m.Status("main"); ok {
+		t.Fatal("expected finished parent status to be removed")
+	}
+	st, ok := m.Status("sub-1")
+	if !ok {
+		t.Fatal("expected child status to be retained")
+	}
+	if st.State != "error" {
+		t.Fatalf("expected child state error, got %q", st.State)
+	}
+	if st.Error != "network error" {
+		t.Fatalf("expected child error to preserve cause, got %q", st.Error)
+	}
+}
+
 func TestAgentManagerDestroyNotFound(t *testing.T) {
 	m := newTestManager()
 	err := m.Destroy("nonexistent")
@@ -331,18 +364,18 @@ func TestAgentAdapterImplementsInterface(t *testing.T) {
 
 func TestEventToPublic(t *testing.T) {
 	e := Event{
-		AgentID:       "test-agent",
-		Type:          EventTextDelta,
-		TextDelta:     "hello",
-		ToolCallID:    "tc1",
-		ToolName:      "bash",
-		ToolArgs:      map[string]any{"cmd": "ls"},
-		StatusMessage: "running",
-		Done:          true,
-		StopReason:    "end_turn",
-		Error:         context.Canceled,
-		ApprovalID:    "ap1",
-		ApprovalTool:  "write",
+		AgentID:        "test-agent",
+		Type:           EventTextDelta,
+		TextDelta:      "hello",
+		ToolCallID:     "tc1",
+		ToolName:       "bash",
+		ToolArgs:       map[string]any{"cmd": "ls"},
+		StatusMessage:  "running",
+		Done:           true,
+		StopReason:     "end_turn",
+		Error:          context.Canceled,
+		ApprovalID:     "ap1",
+		ApprovalTool:   "write",
 		ApprovalResult: true,
 	}
 

@@ -16,8 +16,8 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
 	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/hermes/hooks"
-	"github.com/startvibecoding/vibecoding/internal/memory"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
+	"github.com/startvibecoding/vibecoding/internal/memory"
 	"github.com/startvibecoding/vibecoding/internal/messaging"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
@@ -38,16 +38,16 @@ type Dispatcher struct {
 	hooksMgr   *hooks.Manager
 
 	// Cached provider/model for creating agent instances
-	provider   provider.Provider
-	model      *provider.Model
+	provider provider.Provider
+	model    *provider.Model
 
 	// Multi-agent mode
 	multiAgent bool
 	agentMgr   *agent.AgentManager
 
 	// Cron
-	cronStore  cron.CronStore
-	scheduler  *cron.Scheduler
+	cronStore cron.CronStore
+	scheduler *cron.Scheduler
 
 	// Sandbox mode
 	sandbox bool
@@ -56,26 +56,26 @@ type Dispatcher struct {
 	sessions map[string]*HermesSession
 
 	// Pending approvals for WebSocket clients: approvalID → channel
-	approvalMu      sync.Mutex
+	approvalMu       sync.Mutex
 	pendingApprovals map[string]chan bool
 }
 
 // HermesSession holds state for a single hermes user session.
 type HermesSession struct {
-	ID         string           // e.g. "hermes/wechat/wxid_user1"
-	Platform   string           // "wechat", "feishu", "ws"
+	ID         string // e.g. "hermes/wechat/wxid_user1"
+	Platform   string // "wechat", "feishu", "ws"
 	UserID     string
 	WorkDir    string
 	Manager    *session.Manager
 	Registry   *tools.Registry
-	MCPClients []*mcp.Client    // connected MCP clients (nil if none)
+	MCPClients []*mcp.Client // connected MCP clients (nil if none)
 	Mode       string
 	LastUsed   time.Time
 	mu         sync.Mutex // serializes requests within this session
 }
 
 // Lock acquires the session lock.
-func (s *HermesSession) Lock()   { s.mu.Lock() }
+func (s *HermesSession) Lock() { s.mu.Lock() }
 
 // Unlock releases the session lock.
 func (s *HermesSession) Unlock() { s.mu.Unlock() }
@@ -94,19 +94,19 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 	}
 
 	d := &Dispatcher{
-		cfg:        cfg,
-		settings:   settings,
-		version:    version,
-		sessionDir: settings.GetSessionDir(),
-		security:   NewSecurity(cfg),
-		hooksMgr:   hooks.NewManager(cfg.Hooks.PreToolCall, cfg.Hooks.PostToolCall),
-		provider:   p,
-		model:      model,
-		multiAgent: cfg.MultiAgent,
-		sandbox:    cfg.Sandbox,
-		cronStore:  cronStore,
-		scheduler:  scheduler,
-		sessions:   make(map[string]*HermesSession),
+		cfg:              cfg,
+		settings:         settings,
+		version:          version,
+		sessionDir:       settings.GetSessionDir(),
+		security:         NewSecurity(cfg),
+		hooksMgr:         hooks.NewManager(cfg.Hooks.PreToolCall, cfg.Hooks.PostToolCall),
+		provider:         p,
+		model:            model,
+		multiAgent:       cfg.MultiAgent,
+		sandbox:          cfg.Sandbox,
+		cronStore:        cronStore,
+		scheduler:        scheduler,
+		sessions:         make(map[string]*HermesSession),
 		pendingApprovals: make(map[string]chan bool),
 	}
 
@@ -433,8 +433,8 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 	}
 
 	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
-		Config:          agentCfg,
-		MaxIterations:   d.cfg.Agent.MaxTurns,
+		Config:                   agentCfg,
+		MaxIterations:            d.cfg.Agent.MaxTurns,
 		ContextPressureThreshold: d.cfg.Agent.ContextPressureThreshold,
 		BudgetPressureThreshold:  d.cfg.Agent.BudgetPressureThreshold,
 		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
@@ -450,6 +450,13 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 			return nil
 		},
 	}, sess.Registry)
+	var runErr error
+	if d.agentMgr != nil {
+		d.agentMgr.Register(agent.NewAgentAdapter(a))
+		defer func() {
+			d.agentMgr.Finish(a.ID(), runErr)
+		}()
+	}
 
 	// Load session history so the agent has conversation context
 	if history := sess.Manager.GetMessages(); len(history) > 0 {
@@ -505,6 +512,7 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 		case agent.EventError:
 			flushThink()
 			if ev.Error != nil {
+				runErr = ev.Error
 				log.Printf("[hermes] Agent error for %s/%s: %v", sess.Platform, sess.UserID, ev.Error)
 				return "", ev.Error
 			}
@@ -625,8 +633,8 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 			respCh := d.RegisterApproval(approvalID)
 
 			eventCh <- agent.Event{
-				Type:        agent.EventToolApprovalRequest,
-				ApprovalID:  approvalID,
+				Type:         agent.EventToolApprovalRequest,
+				ApprovalID:   approvalID,
 				ApprovalTool: toolName,
 				ApprovalArgs: args,
 			}
@@ -658,8 +666,8 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 	}
 
 	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
-		Config:        agentCfg,
-		MaxIterations: d.cfg.Agent.MaxTurns,
+		Config:                   agentCfg,
+		MaxIterations:            d.cfg.Agent.MaxTurns,
 		ContextPressureThreshold: d.cfg.Agent.ContextPressureThreshold,
 		BudgetPressureThreshold:  d.cfg.Agent.BudgetPressureThreshold,
 		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
@@ -674,6 +682,13 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 			return nil
 		},
 	}, sess.Registry)
+	var runErr error
+	if d.agentMgr != nil {
+		d.agentMgr.Register(agent.NewAgentAdapter(a))
+		defer func() {
+			d.agentMgr.Finish(a.ID(), runErr)
+		}()
+	}
 
 	// Load session history so the agent has conversation context
 	if history := sess.Manager.GetMessages(); len(history) > 0 {
@@ -683,6 +698,9 @@ func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession,
 	agentCh := a.Run(ctx, userInput)
 
 	for ev := range agentCh {
+		if ev.Type == agent.EventError {
+			runErr = ev.Error
+		}
 		eventCh <- ev
 	}
 	return nil

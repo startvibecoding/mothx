@@ -26,6 +26,8 @@ const (
 	agentIDKey contextKey = iota
 	// agentEventChanKey is the context key for the current agent's event channel.
 	agentEventChanKey
+	// parentRunContextKey carries the parent agent run context through tool timeouts.
+	parentRunContextKey
 )
 
 // ContextWithAgentID returns a new context with the agent ID attached.
@@ -48,6 +50,17 @@ func ContextWithEventChan(ctx context.Context, ch chan<- Event) context.Context 
 func EventChanFromContext(ctx context.Context) (chan<- Event, bool) {
 	ch, ok := ctx.Value(agentEventChanKey).(chan<- Event)
 	return ch, ok
+}
+
+// ContextWithParentRunContext attaches the parent agent run context to a tool context.
+func ContextWithParentRunContext(ctx context.Context, parent context.Context) context.Context {
+	return context.WithValue(ctx, parentRunContextKey, parent)
+}
+
+// ParentRunContextFromContext extracts the parent agent run context.
+func ParentRunContextFromContext(ctx context.Context) (context.Context, bool) {
+	parent, ok := ctx.Value(parentRunContextKey).(context.Context)
+	return parent, ok
 }
 
 // Config holds the agent configuration.
@@ -1105,6 +1118,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	// Inject agent ID and event channel into context for sub-agent tools
 	toolCtx = ContextWithAgentID(toolCtx, a.id)
 	toolCtx = ContextWithEventChan(toolCtx, ch)
+	toolCtx = ContextWithParentRunContext(toolCtx, ctx)
 
 	result, err := tool.Execute(toolCtx, params)
 	isError := err != nil

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -27,6 +28,7 @@ type AgentManager struct {
 	parentOf map[agentpkg.AgentID]agentpkg.AgentID
 	children map[agentpkg.AgentID][]agentpkg.AgentID
 	statuses map[agentpkg.AgentID]ManagedAgentStatus
+	cancels  map[agentpkg.AgentID]context.CancelFunc
 	factory  *AgentFactory
 	counter  int64
 }
@@ -38,6 +40,7 @@ func NewAgentManager(factory *AgentFactory) *AgentManager {
 		parentOf: make(map[agentpkg.AgentID]agentpkg.AgentID),
 		children: make(map[agentpkg.AgentID][]agentpkg.AgentID),
 		statuses: make(map[agentpkg.AgentID]ManagedAgentStatus),
+		cancels:  make(map[agentpkg.AgentID]context.CancelFunc),
 		factory:  factory,
 	}
 }
@@ -114,6 +117,17 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 	return a, nil
 }
 
+// SetCancel records the active run cancel function for an agent.
+func (m *AgentManager) SetCancel(id agentpkg.AgentID, cancel context.CancelFunc) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if cancel == nil {
+		delete(m.cancels, id)
+		return
+	}
+	m.cancels[id] = cancel
+}
+
 // Get returns an agent by ID.
 func (m *AgentManager) Get(id agentpkg.AgentID) (agentpkg.Agent, bool) {
 	m.mu.RLock()
@@ -139,6 +153,10 @@ func (m *AgentManager) Destroy(id agentpkg.AgentID) error {
 	}
 
 	// Abort the agent
+	if cancel, ok := m.cancels[id]; ok {
+		cancel()
+		delete(m.cancels, id)
+	}
 	a.Abort()
 
 	// Remove from parent's children list
@@ -158,8 +176,34 @@ func (m *AgentManager) Destroy(id agentpkg.AgentID) error {
 	delete(m.parentOf, id)
 	delete(m.children, id)
 	delete(m.statuses, id)
+	delete(m.cancels, id)
 
 	return nil
+}
+
+// Finish unregisters a completed top-level agent and cancels any remaining children.
+// Child statuses are retained so callers can inspect why a delegated task stopped.
+func (m *AgentManager) Finish(id agentpkg.AgentID, cause error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, childID := range m.children[id] {
+		m.finishChildLocked(childID, cause)
+	}
+	if cancel, ok := m.cancels[id]; ok {
+		cancel()
+		delete(m.cancels, id)
+	}
+	if a, ok := m.agents[id]; ok {
+		a.Abort()
+	}
+	if parentID, hasParent := m.parentOf[id]; hasParent {
+		m.children[parentID] = removeAgentID(m.children[parentID], id)
+	}
+	delete(m.agents, id)
+	delete(m.parentOf, id)
+	delete(m.children, id)
+	delete(m.statuses, id)
 }
 
 // destroyLocked destroys an agent without locking (caller must hold lock).
@@ -169,12 +213,52 @@ func (m *AgentManager) destroyLocked(id agentpkg.AgentID) {
 		m.destroyLocked(childID)
 	}
 	if a, ok := m.agents[id]; ok {
+		if cancel, ok := m.cancels[id]; ok {
+			cancel()
+			delete(m.cancels, id)
+		}
 		a.Abort()
 	}
 	delete(m.agents, id)
 	delete(m.parentOf, id)
 	delete(m.children, id)
 	delete(m.statuses, id)
+	delete(m.cancels, id)
+}
+
+func (m *AgentManager) finishChildLocked(id agentpkg.AgentID, cause error) {
+	for _, childID := range m.children[id] {
+		m.finishChildLocked(childID, cause)
+	}
+	if cancel, ok := m.cancels[id]; ok {
+		cancel()
+		delete(m.cancels, id)
+	}
+	if a, ok := m.agents[id]; ok {
+		a.Abort()
+	}
+	st := m.statuses[id]
+	st.ID = id
+	if st.StartedAt.IsZero() {
+		st.StartedAt = time.Now()
+	}
+	if parentID, ok := m.parentOf[id]; ok {
+		st.ParentID = parentID
+	}
+	if st.State != "done" {
+		st.State = "error"
+		if cause != nil {
+			st.Error = cause.Error()
+		} else if st.Error == "" {
+			st.Error = "parent agent finished"
+		}
+	}
+	st.UpdatedAt = time.Now()
+	m.statuses[id] = st
+
+	delete(m.agents, id)
+	delete(m.parentOf, id)
+	delete(m.children, id)
 }
 
 // MarkRunning records that an agent has started processing a task.
@@ -244,6 +328,19 @@ func appendUniqueAgentID(ids []agentpkg.AgentID, id agentpkg.AgentID) []agentpkg
 		}
 	}
 	return append(ids, id)
+}
+
+func removeAgentID(ids []agentpkg.AgentID, id agentpkg.AgentID) []agentpkg.AgentID {
+	if len(ids) == 0 {
+		return nil
+	}
+	filtered := make([]agentpkg.AgentID, 0, len(ids))
+	for _, existing := range ids {
+		if existing != id {
+			filtered = append(filtered, existing)
+		}
+	}
+	return filtered
 }
 
 // Children returns the children of an agent.

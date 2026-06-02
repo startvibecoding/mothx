@@ -127,6 +127,33 @@ func TestSubAgentStatusToolNotFound(t *testing.T) {
 	}
 }
 
+func TestSubAgentStatusToolAfterParentFinish(t *testing.T) {
+	_, mgr := newTestFactoryAndManager(t)
+	mgr.Create(AgentOptions{ID: "main"})
+	mgr.Create(AgentOptions{ID: "sub-1", ParentID: "main"})
+	mgr.MarkDone("sub-1", "finished work")
+	mgr.Finish("main", nil)
+
+	tool := NewSubAgentStatusTool(mgr)
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"handle": "sub-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result.Text), &parsed); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+	if parsed["status"] != "done" {
+		t.Fatalf("expected done status, got %q", parsed["status"])
+	}
+	if parsed["last_response"] != "finished work" {
+		t.Fatalf("expected retained response, got %q", parsed["last_response"])
+	}
+}
+
 func TestSubAgentStatusToolMissingHandle(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentStatusTool(mgr)

@@ -22,9 +22,13 @@ func NewSubAgentSpawnTool(m *AgentManager) *SubAgentSpawnTool {
 	return &SubAgentSpawnTool{manager: m}
 }
 
-func (t *SubAgentSpawnTool) Name() string         { return "subagent_spawn" }
-func (t *SubAgentSpawnTool) Description() string   { return "Create and start a bounded sub-agent task. Returns a handle for status/result polling." }
-func (t *SubAgentSpawnTool) PromptSnippet() string { return "Create a bounded sub-agent task for independent work" }
+func (t *SubAgentSpawnTool) Name() string { return "subagent_spawn" }
+func (t *SubAgentSpawnTool) Description() string {
+	return "Create and start a bounded sub-agent task. Returns a handle for status/result polling."
+}
+func (t *SubAgentSpawnTool) PromptSnippet() string {
+	return "Create a bounded sub-agent task for independent work"
+}
 func (t *SubAgentSpawnTool) PromptGuidelines() []string {
 	return []string{
 		"Use subagent_spawn only for independent subtasks with clear scope, expected output, and stop conditions",
@@ -84,10 +88,18 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 	// Extract parent's event channel from context (injected by executeTool)
 	parentEventCh, _ := EventChanFromContext(ctx)
 
+	// Apply per-agent timeout from default policy, tied to the parent run context.
+	policy := DefaultSubAgentPolicy()
+	parentRunCtx, ok := ParentRunContextFromContext(ctx)
+	if !ok || parentRunCtx == nil {
+		parentRunCtx = context.Background()
+	}
+	runCtx, cancel := context.WithTimeout(parentRunCtx, policy.TimeoutPerAgent)
+
 	// Create approval forwarder that bridges sub-agent approval to parent
 	var approvalHandler func(toolCallID, toolName string, args map[string]any) bool
 	if parentEventCh != nil {
-		approvalHandler = newApprovalForwarder(parentID, parentEventCh)
+		approvalHandler = newApprovalForwarder(runCtx, parentID, parentEventCh)
 	}
 
 	a, err := t.manager.Create(AgentOptions{
@@ -100,28 +112,29 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 		ApprovalHandler:   approvalHandler,
 	})
 	if err != nil {
+		cancel()
 		return tools.ToolResult{}, fmt.Errorf("create sub-agent: %w", err)
 	}
 	t.manager.MarkRunning(a.ID())
-
-	// Apply per-agent timeout from default policy
-	policy := DefaultSubAgentPolicy()
-	runCtx, cancel := context.WithTimeout(context.Background(), policy.TimeoutPerAgent)
+	t.manager.SetCancel(a.ID(), cancel)
 
 	// Start the sub-agent asynchronously, forward events to parent
 	go func() {
-		defer cancel()
+		defer func() {
+			cancel()
+			t.manager.SetCancel(a.ID(), nil)
+		}()
 		ch := a.Run(runCtx, buildSubAgentTask(task))
 		for e := range ch {
 			// Forward approval events to parent so the UI can handle them
 			if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
-				parentEventCh <- Event{
+				_ = sendParentEvent(runCtx, parentEventCh, Event{
 					Type:         EventToolApprovalRequest,
 					AgentID:      a.ID(),
 					ApprovalID:   e.ApprovalID,
 					ApprovalTool: e.ApprovalTool,
 					ApprovalArgs: e.ApprovalArgs,
-				}
+				})
 			}
 			switch e.Type {
 			case agentpkg.EventDone:
@@ -131,7 +144,9 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 			}
 		}
 		if runCtx.Err() != nil {
-			t.manager.MarkError(a.ID(), runCtx.Err())
+			if st, ok := t.manager.Status(a.ID()); !ok || st.State != "done" {
+				t.manager.MarkError(a.ID(), runCtx.Err())
+			}
 		}
 	}()
 
@@ -146,7 +161,7 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 
 // newApprovalForwarder creates an ApprovalHandler that forwards sub-agent approval
 // requests to the parent agent's event channel and waits for a response.
-func newApprovalForwarder(parentID agentpkg.AgentID, parentEventCh chan<- Event) func(toolCallID, toolName string, args map[string]any) bool {
+func newApprovalForwarder(ctx context.Context, parentID agentpkg.AgentID, parentEventCh chan<- Event) func(toolCallID, toolName string, args map[string]any) bool {
 	var mu sync.Mutex
 	counter := int64(0)
 	pending := make(map[string]chan bool)
@@ -159,23 +174,47 @@ func newApprovalForwarder(parentID agentpkg.AgentID, parentEventCh chan<- Event)
 		pending[approvalID] = responseCh
 		mu.Unlock()
 
-		// Forward approval request to parent's event channel
-		parentEventCh <- Event{
+		// Forward approval request to parent's event channel.
+		if !sendParentEvent(ctx, parentEventCh, Event{
 			Type:         EventToolApprovalRequest,
 			AgentID:      parentID,
 			ApprovalID:   approvalID,
 			ApprovalTool: toolName,
 			ApprovalArgs: args,
+		}) {
+			mu.Lock()
+			delete(pending, approvalID)
+			mu.Unlock()
+			return false
 		}
 
 		// Wait for response (the parent TUI should call HandleSubAgentApprovalResponse)
-		approved := <-responseCh
+		var approved bool
+		select {
+		case approved = <-responseCh:
+		case <-ctx.Done():
+			approved = false
+		}
 
 		mu.Lock()
 		delete(pending, approvalID)
 		mu.Unlock()
 
 		return approved
+	}
+}
+
+func sendParentEvent(ctx context.Context, ch chan<- Event, ev Event) (ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	select {
+	case ch <- ev:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -188,9 +227,11 @@ func NewSubAgentStatusTool(m *AgentManager) *SubAgentStatusTool {
 	return &SubAgentStatusTool{manager: m}
 }
 
-func (t *SubAgentStatusTool) Name() string         { return "subagent_status" }
-func (t *SubAgentStatusTool) Description() string   { return "Query the status and results of a sub-agent." }
-func (t *SubAgentStatusTool) PromptSnippet() string { return "Check sub-agent status and get results" }
+func (t *SubAgentStatusTool) Name() string { return "subagent_status" }
+func (t *SubAgentStatusTool) Description() string {
+	return "Query the status and results of a sub-agent."
+}
+func (t *SubAgentStatusTool) PromptSnippet() string      { return "Check sub-agent status and get results" }
 func (t *SubAgentStatusTool) PromptGuidelines() []string { return nil }
 
 func (t *SubAgentStatusTool) Parameters() json.RawMessage {
@@ -209,26 +250,30 @@ func (t *SubAgentStatusTool) Execute(ctx context.Context, params map[string]any)
 		return tools.ToolResult{}, fmt.Errorf("handle is required")
 	}
 
-	a, ok := t.manager.Get(agentpkg.AgentID(handle))
-	if !ok {
+	st, statusOK := t.manager.Status(agentpkg.AgentID(handle))
+	a, agentOK := t.manager.Get(agentpkg.AgentID(handle))
+	if !statusOK && !agentOK {
 		return tools.ToolResult{}, fmt.Errorf("sub-agent %q not found", handle)
 	}
 
-	messages := a.GetMessages()
-	st, _ := t.manager.Status(agentpkg.AgentID(handle))
 	status := st.State
 	if status == "" {
 		status = "unknown"
 	}
 	lastResponse := st.Result
-	if lastResponse == "" {
+	messageCount := 0
+	if agentOK {
+		messages := a.GetMessages()
+		messageCount = len(messages)
+	}
+	if lastResponse == "" && agentOK {
 		lastResponse = lastAssistantResponse(a)
 	}
 
 	result := map[string]any{
 		"handle":        handle,
 		"status":        status,
-		"message_count": len(messages),
+		"message_count": messageCount,
 	}
 	if lastResponse != "" {
 		result["last_response"] = lastResponse
@@ -253,9 +298,13 @@ func NewSubAgentSendTool(m *AgentManager) *SubAgentSendTool {
 	return &SubAgentSendTool{manager: m}
 }
 
-func (t *SubAgentSendTool) Name() string         { return "subagent_send" }
-func (t *SubAgentSendTool) Description() string   { return "Send a follow-up message to a running sub-agent." }
-func (t *SubAgentSendTool) PromptSnippet() string { return "Send follow-up instructions to a sub-agent" }
+func (t *SubAgentSendTool) Name() string { return "subagent_send" }
+func (t *SubAgentSendTool) Description() string {
+	return "Send a follow-up message to a running sub-agent."
+}
+func (t *SubAgentSendTool) PromptSnippet() string {
+	return "Send follow-up instructions to a sub-agent"
+}
 func (t *SubAgentSendTool) PromptGuidelines() []string { return nil }
 
 func (t *SubAgentSendTool) Parameters() json.RawMessage {
@@ -283,25 +332,33 @@ func (t *SubAgentSendTool) Execute(ctx context.Context, params map[string]any) (
 
 	// Apply per-agent timeout for follow-up messages too
 	policy := DefaultSubAgentPolicy()
-	runCtx, cancel := context.WithTimeout(context.Background(), policy.TimeoutPerAgent)
+	parentRunCtx, ok := ParentRunContextFromContext(ctx)
+	if !ok || parentRunCtx == nil {
+		parentRunCtx = context.Background()
+	}
+	runCtx, cancel := context.WithTimeout(parentRunCtx, policy.TimeoutPerAgent)
 	t.manager.MarkRunning(a.ID())
+	t.manager.SetCancel(a.ID(), cancel)
 
 	// Extract parent's event channel for approval forwarding
 	parentEventCh, _ := EventChanFromContext(ctx)
 
 	go func() {
-		defer cancel()
+		defer func() {
+			cancel()
+			t.manager.SetCancel(a.ID(), nil)
+		}()
 		ch := a.Run(runCtx, message)
 		for e := range ch {
 			// Forward approval events to parent
 			if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
-				parentEventCh <- Event{
+				_ = sendParentEvent(runCtx, parentEventCh, Event{
 					Type:         EventToolApprovalRequest,
 					AgentID:      a.ID(),
 					ApprovalID:   e.ApprovalID,
 					ApprovalTool: e.ApprovalTool,
 					ApprovalArgs: e.ApprovalArgs,
-				}
+				})
 			}
 			switch e.Type {
 			case agentpkg.EventDone:
@@ -311,7 +368,9 @@ func (t *SubAgentSendTool) Execute(ctx context.Context, params map[string]any) (
 			}
 		}
 		if runCtx.Err() != nil {
-			t.manager.MarkError(a.ID(), runCtx.Err())
+			if st, ok := t.manager.Status(a.ID()); !ok || st.State != "done" {
+				t.manager.MarkError(a.ID(), runCtx.Err())
+			}
 		}
 	}()
 
@@ -359,9 +418,11 @@ func NewSubAgentDestroyTool(m *AgentManager) *SubAgentDestroyTool {
 	return &SubAgentDestroyTool{manager: m}
 }
 
-func (t *SubAgentDestroyTool) Name() string         { return "subagent_destroy" }
-func (t *SubAgentDestroyTool) Description() string   { return "Destroy a sub-agent and release resources." }
-func (t *SubAgentDestroyTool) PromptSnippet() string { return "Destroy a finished sub-agent" }
+func (t *SubAgentDestroyTool) Name() string { return "subagent_destroy" }
+func (t *SubAgentDestroyTool) Description() string {
+	return "Destroy a sub-agent and release resources."
+}
+func (t *SubAgentDestroyTool) PromptSnippet() string      { return "Destroy a finished sub-agent" }
 func (t *SubAgentDestroyTool) PromptGuidelines() []string { return nil }
 
 func (t *SubAgentDestroyTool) Parameters() json.RawMessage {

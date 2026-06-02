@@ -152,6 +152,14 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		currentModel.TopP = req.TopP
 	}
 
+	// Register sub-agent tools before agent construction; the agent freezes tools at New().
+	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
+		sess.Registry.Register(agent.NewSubAgentSpawnTool(sess.AgentMgr))
+		sess.Registry.Register(agent.NewSubAgentStatusTool(sess.AgentMgr))
+		sess.Registry.Register(agent.NewSubAgentSendTool(sess.AgentMgr))
+		sess.Registry.Register(agent.NewSubAgentDestroyTool(sess.AgentMgr))
+	}
+
 	agentCfg := agent.Config{
 		Provider:           currentProvider,
 		Model:              currentModel,
@@ -161,7 +169,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		SandboxMgr:         s.sandboxMgr,
 		Settings:           s.settings,
 		Session:            sess.Manager,
-		ExtraContext:        extraContext,
+		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,
 		MultiAgent:         s.cfg.EnableSubAgents,
 	}
@@ -180,18 +188,16 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		a.LoadHistoryMessages(internalMsgs)
 	}
 
-	// Register sub-agent tools if enabled
-	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
-		sess.Registry.Register(agent.NewSubAgentSpawnTool(sess.AgentMgr))
-		sess.Registry.Register(agent.NewSubAgentStatusTool(sess.AgentMgr))
-		sess.Registry.Register(agent.NewSubAgentSendTool(sess.AgentMgr))
-		sess.Registry.Register(agent.NewSubAgentDestroyTool(sess.AgentMgr))
-	}
-
 	// Setup request timeout
 	timeout := time.Duration(s.cfg.RequestTimeoutSecs) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
+	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
+		sess.AgentMgr.Register(agent.NewAgentAdapter(a))
+		defer func() {
+			sess.AgentMgr.Finish(a.ID(), ctx.Err())
+		}()
+	}
 
 	// Run agent
 	eventCh := a.Run(ctx, lastUserMsg)

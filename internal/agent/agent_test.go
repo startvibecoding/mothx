@@ -802,6 +802,24 @@ func TestContextWithEventChan(t *testing.T) {
 	}
 }
 
+func TestContextWithParentRunContext(t *testing.T) {
+	parent := context.Background()
+	ctx := ContextWithParentRunContext(context.Background(), parent)
+
+	got, ok := ParentRunContextFromContext(ctx)
+	if !ok {
+		t.Fatal("expected parent run context")
+	}
+	if got != parent {
+		t.Fatal("unexpected parent run context")
+	}
+
+	_, ok = ParentRunContextFromContext(context.Background())
+	if ok {
+		t.Error("expected no parent run context in empty context")
+	}
+}
+
 // --- Manager status tests ---
 
 func TestAgentManagerMarkRunning(t *testing.T) {

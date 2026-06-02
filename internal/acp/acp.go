@@ -541,7 +541,12 @@ func (s *server) handlePrompt(req rpcRequest) {
 	}
 	rt.agent = a
 	go func() {
+		stopReason := "end_turn"
+		var runErr error
 		defer func() {
+			if s.agentMgr != nil && rt.agent != nil {
+				s.agentMgr.Finish(rt.agent.ID(), runErr)
+			}
 			rt.cancelMu.Lock()
 			if rt.promptID == promptKey {
 				rt.cancel = nil
@@ -550,8 +555,6 @@ func (s *server) handlePrompt(req rpcRequest) {
 			rt.cancelMu.Unlock()
 			cancel()
 		}()
-		stopReason := "end_turn"
-		var runErr error
 		events := rt.agent.Run(ctx, userText)
 		for ev := range events {
 			s.handleAgentEvent(rt.id, ev)

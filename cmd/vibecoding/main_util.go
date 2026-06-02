@@ -114,6 +114,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 	eventCh := a.Run(ctx, input)
 
 	var textBuffer strings.Builder
+	var runErr error
 
 	err = agent.ConsumeEvents(ctx, eventCh, agent.EventHandlerFunc(func(_ context.Context, event agent.Event) error {
 		switch event.Type {
@@ -164,6 +165,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 					formatTokenCount(event.ContextUsage.ContextWindow))
 			}
 		case agent.EventError:
+			runErr = event.Error
 			// Flush text buffer before error
 			if textBuffer.Len() > 0 {
 				flushTextBuffer(&textBuffer, renderer)
@@ -198,6 +200,13 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		}
 		return nil
 	}))
+	if multiAgent && agentMgr != nil {
+		finishErr := runErr
+		if finishErr == nil {
+			finishErr = err
+		}
+		agentMgr.Finish(a.ID(), finishErr)
+	}
 	if err != nil {
 		return err
 	}
