@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v0.1.32
+
+### 🐛 Bug Fixes
+
+- **TUI Bash Output Display**
+  - Compressed bash tool output summary by removing blank lines to prevent excessive vertical height in the TUI collapsed view
+
+
 ## v0.1.31
 
 ### 🐛 Bug Fixes
