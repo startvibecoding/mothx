@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -84,6 +85,9 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// 获取 rg 路径
 	rgPath, err := resolveRgPath()
 	if err != nil {
+		if errors.Is(err, vendored.ErrUnsupportedPlatform) {
+			return executeNativeGrep(ctx, pattern, searchPath, include, maxResults)
+		}
 		return ToolResult{}, err
 	}
 
@@ -118,6 +122,9 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		if errMsg != "" {
 			return ToolResult{}, fmt.Errorf("rg 执行失败: %s", errMsg)
 		}
+		if isExecFormatError(err) {
+			return executeNativeGrep(ctx, pattern, searchPath, include, maxResults)
+		}
 		return ToolResult{}, fmt.Errorf("rg 执行失败: %w", err)
 	}
 
@@ -132,6 +139,10 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 }
 
 func resolveRgPath() (string, error) {
+	if !vendored.HasEmbeddedTools() {
+		return "", fmt.Errorf("%w", vendored.ErrUnsupportedPlatform)
+	}
+
 	rgPath := vendored.RgPath()
 	if rgPath == "" {
 		return "", fmt.Errorf("无法确定 rg 路径")
@@ -143,4 +154,59 @@ func resolveRgPath() (string, error) {
 	}
 
 	return rgPath, nil
+}
+
+func executeNativeGrep(ctx context.Context, pattern, searchPath, include string, maxResults int) (ToolResult, error) {
+	grepPath, err := exec.LookPath("grep")
+	if err != nil {
+		return ToolResult{}, fmt.Errorf("rg is unsupported on this platform and system grep was not found: %w", err)
+	}
+
+	args := []string{"-R", "-n", "-E", "-I", "--color=never"}
+	if include != "" {
+		args = append(args, "--include="+include)
+	}
+	args = append(args, "--", pattern, searchPath)
+
+	cmd := exec.CommandContext(ctx, grepPath, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return NewTextToolResult("(no matches found)"), nil
+		}
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg != "" {
+			return ToolResult{}, fmt.Errorf("grep execution failed: %s", errMsg)
+		}
+		return ToolResult{}, fmt.Errorf("grep execution failed: %w", err)
+	}
+
+	output := limitOutputLines(stdout.String(), maxResults)
+	if output == "" {
+		return NewTextToolResult("(no matches found)"), nil
+	}
+	return NewTextToolResult(output), nil
+}
+
+func isExecFormatError(err error) bool {
+	return strings.Contains(strings.ToLower(err.Error()), "exec format error")
+}
+
+func limitOutputLines(output string, maxResults int) string {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return ""
+	}
+	if maxResults <= 0 {
+		return output
+	}
+	lines := strings.Split(output, "\n")
+	if len(lines) > maxResults {
+		lines = lines[:maxResults]
+	}
+	return strings.Join(lines, "\n")
 }

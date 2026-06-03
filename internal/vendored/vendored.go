@@ -1,6 +1,7 @@
 package vendored
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,14 @@ import (
 
 // rgData 和 fdData 由各平台的 embed_*.go 文件定义
 // 通过 go:embed 嵌入对应的二进制数据
+
+// ErrUnsupportedPlatform indicates that rg/fd are not embedded for this target.
+var ErrUnsupportedPlatform = errors.New("vendored rg/fd unsupported for current platform")
+
+// HasEmbeddedTools reports whether the current target has embedded rg/fd data.
+func HasEmbeddedTools() bool {
+	return len(rgData) > 0 && len(fdData) > 0
+}
 
 // binDir 返回 ~/.vibecoding/bin/ 目录路径
 func binDir() (string, error) {
@@ -22,6 +31,10 @@ func binDir() (string, error) {
 // Ensure 确保 rg 和 fd 已解压到 ~/.vibecoding/bin/
 // 首次运行时从嵌入数据写入，后续跳过
 func Ensure() error {
+	if !HasEmbeddedTools() {
+		return fmt.Errorf("%w: %s-%s", ErrUnsupportedPlatform, runtime.GOOS, runtime.GOARCH)
+	}
+
 	dir, err := binDir()
 	if err != nil {
 		return err

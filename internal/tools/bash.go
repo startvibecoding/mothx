@@ -163,9 +163,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	workDir := t.registry.GetWorkDir()
 
 	// 构建环境变量，将 ~/.vibecoding/bin 加入 PATH
-	rgPath := vendored.RgPath()
 	vendoredBin := ""
-	if rgPath != "" {
+	if vendored.HasEmbeddedTools() {
+		rgPath := vendored.RgPath()
 		vendoredBin = filepath.Dir(rgPath)
 	}
 	env := os.Environ()

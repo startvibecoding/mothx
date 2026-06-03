@@ -32,6 +32,7 @@
   "optionalDependencies": {
     "vibecoding-installer-linux-x64": "0.1.31",
     "vibecoding-installer-linux-arm64": "0.1.31",
+    "vibecoding-installer-linux-loong64": "0.1.31",
     "vibecoding-installer-linux-musl-x64": "0.1.31",
     "vibecoding-installer-darwin-x64": "0.1.31",
     "vibecoding-installer-darwin-arm64": "0.1.31",

@@ -166,6 +166,10 @@ func TestFdPath(t *testing.T) {
 // --- Ensure ---
 
 func TestEnsure(t *testing.T) {
+	if !HasEmbeddedTools() {
+		t.Skip("vendored rg/fd are not embedded for this platform")
+	}
+
 	withTempHome(t)
 
 	if err := Ensure(); err != nil {
@@ -204,6 +208,10 @@ func TestEnsure(t *testing.T) {
 }
 
 func TestEnsure_Idempotent(t *testing.T) {
+	if !HasEmbeddedTools() {
+		t.Skip("vendored rg/fd are not embedded for this platform")
+	}
+
 	withTempHome(t)
 
 	// First call

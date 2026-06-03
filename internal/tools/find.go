@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/vendored"
@@ -85,9 +88,12 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		maxResults = int(v)
 	}
 
-	// 选择可用的 fd 命令（优先 vendored，其次系统 fd/fdfind）
+	// 选择可用的 fd 命令，当前平台没有内嵌 fd 时退回系统 find。
 	fdPath, err := resolveFdPath()
 	if err != nil {
+		if errors.Is(err, vendored.ErrUnsupportedPlatform) {
+			return executeNativeFind(ctx, pattern, searchPath, maxDepth, maxResults)
+		}
 		return ToolResult{}, err
 	}
 
@@ -121,6 +127,9 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		if errMsg != "" {
 			return ToolResult{}, fmt.Errorf("fd 执行失败: %s", errMsg)
 		}
+		if isExecFormatError(err) {
+			return executeNativeFind(ctx, pattern, searchPath, maxDepth, maxResults)
+		}
 		return ToolResult{}, fmt.Errorf("fd 执行失败: %w", err)
 	}
 
@@ -134,6 +143,10 @@ func (t *FindTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 }
 
 func resolveFdPath() (string, error) {
+	if !vendored.HasEmbeddedTools() {
+		return "", fmt.Errorf("%w", vendored.ErrUnsupportedPlatform)
+	}
+
 	fdPath := vendored.FdPath()
 	if fdPath == "" {
 		return "", fmt.Errorf("无法确定 fd 路径")
@@ -145,4 +158,48 @@ func resolveFdPath() (string, error) {
 	}
 
 	return fdPath, nil
+}
+
+func executeNativeFind(ctx context.Context, pattern, searchPath string, maxDepth, maxResults int) (ToolResult, error) {
+	findPath, err := exec.LookPath("find")
+	if err != nil {
+		return ToolResult{}, fmt.Errorf("fd is unsupported on this platform and system find was not found: %w", err)
+	}
+
+	args := []string{searchPath}
+	if maxDepth >= 0 {
+		args = append(args, "-maxdepth", fmt.Sprintf("%d", maxDepth))
+	}
+	args = append(args, "-type", "f")
+
+	pathPattern := pattern
+	if !filepath.IsAbs(pathPattern) {
+		pathPattern = filepath.Join(searchPath, filepath.FromSlash(pattern))
+	}
+	args = append(args, "(", "-name", pattern, "-o", "-path", pathPattern, ")")
+
+	cmd := exec.CommandContext(ctx, findPath, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg != "" {
+			return ToolResult{}, fmt.Errorf("find execution failed: %s", errMsg)
+		}
+		return ToolResult{}, fmt.Errorf("find execution failed: %w", err)
+	}
+
+	output := strings.TrimSpace(stdout.String())
+	if output == "" {
+		return NewTextToolResult("(no files found)"), nil
+	}
+
+	lines := strings.Split(output, "\n")
+	sort.Strings(lines)
+	if maxResults > 0 && len(lines) > maxResults {
+		lines = lines[:maxResults]
+	}
+	return NewTextToolResult(strings.Join(lines, "\n")), nil
 }

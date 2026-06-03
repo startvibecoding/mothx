@@ -1,6 +1,7 @@
 .PHONY: help build build-all install test test-vendored lint fmt clean run
-.PHONY: build-linux build-linux-musl build-darwin build-windows
+.PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows
 .PHONY: dist dist-linux dist-darwin dist-windows dist-deb dist-tarball dist-zip
+.PHONY: dist-linux-loong64
 .PHONY: clean-all checksums
 .PHONY: npm-version npm-binaries npm-packages npm-pack npm-publish-all npm-publish-pre npm-publish
 .PHONY: prepare-vendored
@@ -25,7 +26,7 @@ UPX_CMD = @true
 endif
 
 # Platforms and architectures (for reference)
-# linux: amd64 arm64
+# linux: amd64 arm64 loong64
 # darwin: amd64 arm64
 # windows: amd64 arm64
 
@@ -35,7 +36,8 @@ help:
 	@echo ""
 	@echo "Build targets:"
 	@echo "  build            Build for current platform"
-	@echo "  build-linux      Build for Linux (amd64, arm64)"
+	@echo "  build-linux      Build for Linux (amd64, arm64, loong64)"
+	@echo "  build-linux-loong64 Build for Linux LoongArch64"
 	@echo "  build-linux-musl Build for Linux musl (amd64)"
 	@echo "  build-darwin     Build for macOS (amd64, arm64)"
 	@echo "  build-windows    Build for Windows (amd64, arm64)"
@@ -47,6 +49,7 @@ help:
 	@echo "  dist-linux     Build Linux packages (tar.gz + deb)"
 	@echo "  dist-darwin    Build macOS packages (tar.gz)"
 	@echo "  dist-windows   Build Windows packages (zip)"
+	@echo "  dist-linux-loong64 Build Linux LoongArch64 packages"
 	@echo "  dist-deb       Build Debian packages only"
 	@echo "  dist-tarball   Build tarball packages only"
 	@echo "  dist-zip       Build zip packages only"
@@ -85,8 +88,14 @@ build-linux: prepare-vendored
 	@mkdir -p bin
 	GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 ./cmd/vibecoding
 	GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-arm64 ./cmd/vibecoding
+	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/vibecoding
 	@echo "Compressing Linux amd64 binary with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-linux-amd64
+
+build-linux-loong64: prepare-vendored
+	@echo "Building for Linux LoongArch64..."
+	@mkdir -p bin
+	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/vibecoding
 
 # musl: static build with CGO_ENABLED=0, arm64 not commonly needed
 build-linux-musl: prepare-vendored
@@ -126,9 +135,10 @@ test: prepare-vendored test-vendored
 
 test-vendored:
 	@case "$$(go env GOOS)-$$(go env GOARCH)" in \
-		windows-*) ext=".exe" ;; \
-		*) ext="" ;; \
+		linux-amd64|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64|windows-arm64) ;; \
+		*) echo "Vendored rg/fd unsupported for $$(go env GOOS)-$$(go env GOARCH); system grep/find fallback will be used."; exit 0 ;; \
 	esac; \
+	case "$$(go env GOOS)" in windows) ext=".exe" ;; *) ext="" ;; esac; \
 	dir="internal/vendored/bin/$$(go env GOOS)-$$(go env GOARCH)"; \
 	if [ ! -f "$$dir/rg$$ext" ] || [ ! -f "$$dir/fd$$ext" ]; then \
 		echo "Missing vendored rg/fd for $$(go env GOOS)-$$(go env GOARCH)."; \
@@ -162,11 +172,13 @@ run: build
 dist-tarball: build-linux build-linux-musl build-darwin
 	@echo ""
 	@echo "Creating tarball packages..."
-	@for os in linux darwin; do \
-		for arch in amd64 arm64; do \
-			echo "  Packaging $(BINARY_NAME)-$${os}-$${arch}.tar.gz..."; \
-			./scripts/build-tarball.sh $${os} $${arch} $(VERSION); \
-		done; \
+	@for arch in amd64 arm64 loong64; do \
+		echo "  Packaging $(BINARY_NAME)-linux-$${arch}.tar.gz..."; \
+		./scripts/build-tarball.sh linux $${arch} $(VERSION); \
+	done
+	@for arch in amd64 arm64; do \
+		echo "  Packaging $(BINARY_NAME)-darwin-$${arch}.tar.gz..."; \
+		./scripts/build-tarball.sh darwin $${arch} $(VERSION); \
 	done
 	@echo "  Packaging $(BINARY_NAME)-linux-musl-amd64.tar.gz..."; \
 	./scripts/build-tarball.sh linux-musl amd64 $(VERSION)
@@ -175,7 +187,7 @@ dist-tarball: build-linux build-linux-musl build-darwin
 dist-deb: build-linux build-linux-musl
 	@echo ""
 	@echo "Creating Debian packages..."
-	@for arch in amd64 arm64; do \
+	@for arch in amd64 arm64 loong64; do \
 		echo "  Packaging $(BINARY_NAME)_$(VERSION)_$${arch}.deb..."; \
 		./scripts/build-deb.sh $${arch} $(VERSION); \
 	done
@@ -194,6 +206,13 @@ dist-zip: build-windows
 # Platform distributions
 dist-linux: dist-deb dist-tarball
 	@echo "Linux packages complete!"
+
+dist-linux-loong64: build-linux-loong64
+	@echo ""
+	@echo "Creating Linux LoongArch64 packages..."
+	./scripts/build-tarball.sh linux loong64 $(VERSION)
+	./scripts/build-deb.sh loong64 $(VERSION)
+	@echo "Linux LoongArch64 packages complete!"
 
 dist-darwin: dist-tarball
 	@echo "macOS packages complete!"

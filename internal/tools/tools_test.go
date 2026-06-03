@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -607,6 +608,31 @@ func TestGrepToolExecute(t *testing.T) {
 	}
 }
 
+func TestNativeGrepFallbackExecute(t *testing.T) {
+	if _, err := exec.LookPath("grep"); err != nil {
+		t.Skip("system grep not available")
+	}
+
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "one.go"), []byte("package main\nfunc Hello() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "two.txt"), []byte("Hello text\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := executeNativeGrep(context.Background(), "Hello", tmpDir, "*.go", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "one.go") {
+		t.Fatalf("expected .go match, got: %s", result.Text)
+	}
+	if strings.Contains(result.Text, "two.txt") {
+		t.Fatalf("include filter should exclude two.txt, got: %s", result.Text)
+	}
+}
+
 func TestFindTool(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)
@@ -641,6 +667,35 @@ func TestFindToolExecute(t *testing.T) {
 
 	if result.Text == "" {
 		t.Error("expected non-empty result")
+	}
+}
+
+func TestNativeFindFallbackExecute(t *testing.T) {
+	if _, err := exec.LookPath("find"); err != nil {
+		t.Skip("system find not available")
+	}
+
+	tmpDir := t.TempDir()
+	nested := filepath.Join(tmpDir, "nested")
+	if err := os.MkdirAll(nested, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "root.go"), []byte("package root\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "nested.go"), []byte("package nested\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := executeNativeFind(context.Background(), "*.go", tmpDir, 1, 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "root.go") {
+		t.Fatalf("expected root.go, got: %s", result.Text)
+	}
+	if strings.Contains(result.Text, "nested.go") {
+		t.Fatalf("maxDepth should exclude nested.go, got: %s", result.Text)
 	}
 }
 

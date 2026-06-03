@@ -8,6 +8,13 @@
 - **TUI Bash 输出显示**
   - 压缩 bash 工具输出摘要，去除空行，避免 TUI 折叠视图中占用过高垂直空间
 
+- **内嵌搜索工具**
+  - 当当前架构没有内嵌 `rg` / `fd` 时，退回使用系统 `grep` / `find`
+
+### 📦 分发
+
+- 新增 Linux LoongArch64 (`loong64`) 构建与打包目标，包括 tarball、Debian 和 npm 包元数据
+
 
 ## v0.1.31
 

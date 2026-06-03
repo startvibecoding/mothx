@@ -12,6 +12,7 @@ const fs = require('fs');
 const PLATFORM_MAP = {
   'linux-x64-glibc': 'vibecoding-installer-linux-x64',
   'linux-arm64-glibc': 'vibecoding-installer-linux-arm64',
+  'linux-loong64-glibc': 'vibecoding-installer-linux-loong64',
   'linux-x64-musl': 'vibecoding-installer-linux-musl-x64',
   'darwin-x64': 'vibecoding-installer-darwin-x64',
   'darwin-arm64': 'vibecoding-installer-darwin-arm64',
@@ -86,7 +87,7 @@ function findBinary() {
   const fallbackBinName = (() => {
     const suffix = process.platform === 'win32' ? '.exe' : '';
     const osMap = { linux: 'linux', darwin: 'darwin', win32: 'windows' };
-    const archMap = { x64: 'amd64', arm64: 'arm64' };
+    const archMap = { x64: 'amd64', arm64: 'arm64', loong64: 'loong64' };
     return `vibecoding-${osMap[process.platform]}-${archMap[process.arch]}${suffix}`;
   })();
 

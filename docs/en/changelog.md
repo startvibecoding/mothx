@@ -8,6 +8,13 @@
 - **TUI Bash Output Display**
   - Compressed bash tool output summary by removing blank lines to prevent excessive vertical height in the TUI collapsed view
 
+- **Vendored Search Tools**
+  - Added fallback to system `grep` / `find` when embedded `rg` / `fd` are unavailable for the current architecture
+
+### 📦 Distribution
+
+- Added Linux LoongArch64 (`loong64`) build and packaging targets, including tarball, Debian, and npm package metadata
+
 
 ## v0.1.31
 
