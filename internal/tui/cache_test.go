@@ -638,6 +638,33 @@ func TestEscAbortClearsApprovalState(t *testing.T) {
 	}
 }
 
+func TestRuneInputTabDoesNotCycleMode(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.input.SetValue("prefix ")
+
+	a.Update(teaKeyMsgForTest("tab"))
+	a.flushInputQueue()
+
+	if got := a.mode; got != "agent" {
+		t.Fatalf("mode = %q, want agent", got)
+	}
+	if got := a.input.Value(); got != "prefix tab" {
+		t.Fatalf("input = %q, want %q", got, "prefix tab")
+	}
+}
+
+func TestRuneInputEscDoesNotAbortOrClearInput(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.input.SetValue("prefix ")
+
+	a.Update(teaKeyMsgForTest("esc"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "prefix esc" {
+		t.Fatalf("input = %q, want %q", got, "prefix esc")
+	}
+}
+
 func TestInitWithProgramDoesNotBlock(t *testing.T) {
 	a := NewApp(
 		&historyInjectMockProvider{},

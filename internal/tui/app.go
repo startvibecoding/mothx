@@ -399,27 +399,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if a.toolModalOpen {
-			switch msg.String() {
-			case "esc", "ctrl+o", "q":
+			switch {
+			case msg.Type == tea.KeyEsc || msg.Type == tea.KeyCtrlO || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
 				a.closeToolModal()
 				return a, nil
-			case "up":
+			case msg.Type == tea.KeyUp:
 				a.scrollToolModal(-1)
 				return a, nil
-			case "down":
+			case msg.Type == tea.KeyDown:
 				a.scrollToolModal(1)
 				return a, nil
-			case "pgup":
+			case msg.Type == tea.KeyPgUp:
 				a.scrollToolModal(-a.toolModalPageSize())
 				return a, nil
-			case "pgdown":
+			case msg.Type == tea.KeyPgDown:
 				a.scrollToolModal(a.toolModalPageSize())
 				return a, nil
-			case "home":
+			case msg.Type == tea.KeyHome:
 				a.toolModalOffset = 0
 				a.toolModalPinnedBottom = false
 				return a, nil
-			case "end":
+			case msg.Type == tea.KeyEnd:
 				a.toolModalOffset = a.maxToolModalOffset()
 				a.toolModalPinnedBottom = true
 				return a, nil
@@ -428,10 +428,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Special keys are processed immediately; regular text input is batched.
-		switch msg.String() {
-		case "ctrl+c":
+		switch msg.Type {
+		case tea.KeyCtrlC:
 			return a, tea.Quit
-		case "esc":
+		case tea.KeyEsc:
 			if a.isThinking || a.waitingForApproval {
 				if a.agent != nil {
 					a.agent.Abort()
@@ -454,7 +454,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.resetInputHistoryNavigation()
 			}
 			return a, nil
-		case "enter":
+		case tea.KeyEnter:
 			// Process enter immediately
 			a.flushInputQueue()
 			input := strings.TrimSpace(a.input.Value())
@@ -490,27 +490,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, a.processInput(expandedInput)
 			}
 			return a, nil
-		case "tab":
+		case tea.KeyTab:
 			a.cycleMode()
 			return a, nil
-		case "pgup":
+		case tea.KeyPgUp:
 			return a, nil
-		case "pgdown":
+		case tea.KeyPgDown:
 			return a, nil
-		case "up":
+		case tea.KeyUp:
 			a.flushInputQueue()
 			if a.navigateInputHistory(-1) {
 				return a, nil
 			}
-		case "down":
+		case tea.KeyDown:
 			a.flushInputQueue()
 			if a.navigateInputHistory(1) {
 				return a, nil
 			}
-		case "ctrl+o":
+		case tea.KeyCtrlO:
 			a.openLatestToolModal()
 			return a, nil
-		case "ctrl+p":
+		case tea.KeyCtrlP:
 			a.toggleMultiAgent()
 			return a, nil
 		}
