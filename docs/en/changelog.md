@@ -3,6 +3,14 @@
 
 ## v0.1.32
 
+### ✨ Features
+
+- **Plan Mode Question Tool**
+  - Added `question` tool, registered only in TUI + plan mode
+  - AI can ask users multiple-choice questions; users select a preset option or type a custom answer
+  - Helps clarify requirements before forming a plan, producing higher-quality proposals
+  - Exposed via `QuestionHandler` optional interface (type assertion); does not pollute the public `Agent` interface
+
 ### 🐛 Bug Fixes
 
 - **Bash Tool Output Safety**
@@ -34,11 +42,6 @@
 
 - **Cron Scheduler Error Logging**
   - `checkAndRun` now logs store errors instead of silently swallowing them
-
-- **Plan Mode Question Tool**
-  - Added `question` tool, registered only in TUI + plan mode
-  - AI can ask users multiple-choice questions; users select a preset option or type a custom answer
-  - Helps clarify requirements before forming a plan, producing higher-quality proposals
 
 - **TUI Bash Output Display**
   - Compressed bash tool output summary by removing blank lines to prevent excessive vertical height in the TUI collapsed view

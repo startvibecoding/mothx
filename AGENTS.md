@@ -100,15 +100,18 @@ Built-in tools include:
 - `read`, `write`, `edit`
 - `bash`, `jobs`, `kill`
 - `grep`, `find`, `ls`
+- `plan`, `question` (TUI plan mode only)
 - `skill_ref`
 
 `grep` and `find` are backed by embedded `rg` and `fd` binaries in `internal/vendored/`. On unsupported architectures (e.g., loong64), they automatically fall back to system `grep` / `find`.
 
 ## Modes and Safety
 
-- `plan`: read-only tools
+- `plan`: read-only tools + `question` (interactive, TUI only)
 - `agent`: file edits allowed; `bash` usually requires approval
 - `yolo`: all tools auto-execute
+
+The `question` tool is only registered in TUI + plan mode. It uses the `QuestionHandler` optional interface (type assertion) to avoid polluting the public `Agent` interface. Gateway/Hermes/ACP never register or expose it.
 
 When changing code, prefer the least risky approach that satisfies the request.
 
