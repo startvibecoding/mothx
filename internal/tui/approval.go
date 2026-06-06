@@ -19,15 +19,21 @@ func (a *App) showNextApproval() {
 	a.approvalQueue = a.approvalQueue[1:]
 	a.pendingApprovalID = next.approvalID
 	a.waitingForApproval = true
+
+	// Build all lines into one message to preserve order.
+	var sb strings.Builder
 	if len(a.approvalQueue) > 0 {
-		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s] (%d more pending)", next.toolName, len(a.approvalQueue))))
+		sb.WriteString(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s] (%d more pending)", next.toolName, len(a.approvalQueue))))
 	} else {
-		a.addMessage(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s]", next.toolName)))
+		sb.WriteString(warningStyle.Render(fmt.Sprintf("⚠️  Approval required for [%s]", next.toolName)))
 	}
+	sb.WriteByte('\n')
 	if len(next.args) > 0 {
-		a.addMessage(warningStyle.Render(formatApprovalArgs(next.toolName, next.args)))
+		sb.WriteString(warningStyle.Render(formatApprovalArgs(next.toolName, next.args)))
+		sb.WriteByte('\n')
 	}
-	a.addMessage(warningStyle.Render("Approve? (y/n): "))
+	sb.WriteString(warningStyle.Render("Approve? (y/n): "))
+	a.addMessage(sb.String())
 }
 
 func (a *App) clearApprovalState() {
@@ -48,16 +54,23 @@ func (a *App) showNextQuestion() {
 	a.pendingQuestionID = next.questionID
 	a.waitingForQuestion = true
 
-	// Display the question
+	// Build all lines into one message to preserve order (addMessage uses
+	// async goroutines, so multiple calls can interleave).
+	var sb strings.Builder
 	if next.context != "" {
-		a.addMessage(warningStyle.Render("💬 " + next.context))
+		sb.WriteString(warningStyle.Render("💬 " + next.context))
+		sb.WriteByte('\n')
 	}
-	a.addMessage(warningStyle.Render("❓ " + next.question))
+	sb.WriteString(warningStyle.Render("❓ " + next.question))
+	sb.WriteByte('\n')
 	for i, opt := range next.options {
-		a.addMessage(statusStyle.Render(fmt.Sprintf("  [%d] %s", i+1, opt)))
+		sb.WriteString(statusStyle.Render(fmt.Sprintf("  [%d] %s", i+1, opt)))
+		sb.WriteByte('\n')
 	}
-	a.addMessage(statusStyle.Render(fmt.Sprintf("  [%d] ✍️  Custom input", len(next.options)+1)))
-	a.addMessage(warningStyle.Render("Enter number or custom text: "))
+	sb.WriteString(statusStyle.Render(fmt.Sprintf("  [%d] ✍️  Custom input", len(next.options)+1)))
+	sb.WriteByte('\n')
+	sb.WriteString(warningStyle.Render("Enter number or custom text: "))
+	a.addMessage(sb.String())
 }
 
 func (a *App) clearQuestionState() {
