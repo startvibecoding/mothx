@@ -36,6 +36,36 @@ func (a *App) clearApprovalState() {
 	a.approvalQueue = a.approvalQueue[:0]
 }
 
+// showNextQuestion pops the next question request from the queue and displays it.
+func (a *App) showNextQuestion() {
+	if len(a.questionQueue) == 0 {
+		a.waitingForQuestion = false
+		a.pendingQuestionID = ""
+		return
+	}
+	next := a.questionQueue[0]
+	a.questionQueue = a.questionQueue[1:]
+	a.pendingQuestionID = next.questionID
+	a.waitingForQuestion = true
+
+	// Display the question
+	if next.context != "" {
+		a.addMessage(warningStyle.Render("💬 " + next.context))
+	}
+	a.addMessage(warningStyle.Render("❓ " + next.question))
+	for i, opt := range next.options {
+		a.addMessage(statusStyle.Render(fmt.Sprintf("  [%d] %s", i+1, opt)))
+	}
+	a.addMessage(statusStyle.Render(fmt.Sprintf("  [%d] ✍️  Custom input", len(next.options)+1)))
+	a.addMessage(warningStyle.Render("Enter number or custom text: "))
+}
+
+func (a *App) clearQuestionState() {
+	a.waitingForQuestion = false
+	a.pendingQuestionID = ""
+	a.questionQueue = a.questionQueue[:0]
+}
+
 func formatApprovalArgs(toolName string, args map[string]any) string {
 	if toolName == "edit" {
 		return formatEditApprovalArgs(args)

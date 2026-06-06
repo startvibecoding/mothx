@@ -370,18 +370,27 @@ func (r *Registry) RegisterFiltered(toolNames []string) {
 func (r *Registry) ModeTools(mode string) []provider.ToolDefinition {
 	switch mode {
 	case "plan":
-		// Plan mode: read-only tools
+		// Plan mode: read-only tools + any extras like question
 		var defs []provider.ToolDefinition
 		for _, t := range r.All() {
 			switch t.Name() {
 			case "read", "grep", "find", "ls", "plan":
 				defs = append(defs, ToolDefinition(t))
+			case "question":
+				defs = append(defs, ToolDefinition(t))
 			}
 		}
 		return defs
 	default:
-		// Agent/YOLO: all tools
-		return r.Definitions()
+		// Agent/YOLO: all tools except question (TUI-plan only)
+		var defs []provider.ToolDefinition
+		for _, t := range r.All() {
+			if t.Name() == "question" {
+				continue
+			}
+			defs = append(defs, ToolDefinition(t))
+		}
+		return defs
 	}
 }
 

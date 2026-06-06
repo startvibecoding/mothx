@@ -147,22 +147,27 @@ func ContextUsageToPublic(u *ctxpkg.ContextUsage) *agentpkg.ContextUsage {
 // EventToPublic converts an internal Event to a public agent.Event.
 func EventToPublic(e Event) agentpkg.Event {
 	return agentpkg.Event{
-		AgentID:        agentpkg.AgentID(e.AgentID),
-		Type:           agentpkg.EventType(e.Type),
-		TextDelta:      e.TextDelta,
-		ThinkDelta:     e.ThinkDelta,
-		ToolCallID:     e.ToolCallID,
-		ToolName:       e.ToolName,
-		ToolArgs:       e.ToolArgs,
-		ToolResult:     e.ToolResult,
-		StatusMessage:  e.StatusMessage,
-		Done:           e.Done,
-		StopReason:     e.StopReason,
-		Error:          e.Error,
-		ApprovalID:     e.ApprovalID,
-		ApprovalTool:   e.ApprovalTool,
-		ApprovalArgs:   e.ApprovalArgs,
-		ApprovalResult: e.ApprovalResult,
+		AgentID:         agentpkg.AgentID(e.AgentID),
+		Type:            agentpkg.EventType(e.Type),
+		TextDelta:       e.TextDelta,
+		ThinkDelta:      e.ThinkDelta,
+		ToolCallID:      e.ToolCallID,
+		ToolName:        e.ToolName,
+		ToolArgs:        e.ToolArgs,
+		ToolResult:      e.ToolResult,
+		StatusMessage:   e.StatusMessage,
+		Done:            e.Done,
+		StopReason:      e.StopReason,
+		Error:           e.Error,
+		ApprovalID:      e.ApprovalID,
+		ApprovalTool:    e.ApprovalTool,
+		ApprovalArgs:    e.ApprovalArgs,
+		ApprovalResult:  e.ApprovalResult,
+		QuestionID:      e.QuestionID,
+		QuestionText:    e.QuestionText,
+		QuestionOptions: e.QuestionOptions,
+		QuestionContext: e.QuestionContext,
+		QuestionAnswer:  e.QuestionAnswer,
 	}
 }
 
@@ -328,6 +333,10 @@ func (a *AgentAdapter) ParentID() agentpkg.AgentID { return a.inner.parentID }
 func (a *AgentAdapter) Abort()                     { a.inner.Abort() }
 func (a *AgentAdapter) HandleApprovalResponse(id string, approved bool) {
 	a.inner.HandleApprovalResponse(id, approved)
+}
+
+func (a *AgentAdapter) HandleQuestionResponse(questionID string, answer string) {
+	a.inner.HandleQuestionResponse(questionID, answer)
 }
 func (a *AgentAdapter) Run(ctx context.Context, userMsg string) <-chan agentpkg.Event {
 	return WrapEventChan(a.inner.Run(ctx, userMsg))

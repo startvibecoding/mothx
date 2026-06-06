@@ -862,3 +862,132 @@ func TestWriteFileAtomic_ErrorCleansUp(t *testing.T) {
 		}
 	}
 }
+
+// --- QuestionTool tests ---
+
+func TestQuestionToolMetadata(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	qt := NewQuestionTool(r)
+
+	if qt.Name() != "question" {
+		t.Errorf("name = %q, want 'question'", qt.Name())
+	}
+	if qt.Description() == "" {
+		t.Error("expected non-empty description")
+	}
+	if qt.Parameters() == nil {
+		t.Error("expected non-nil parameters")
+	}
+	if qt.PromptSnippet() == "" {
+		t.Error("expected non-empty prompt snippet")
+	}
+	if len(qt.PromptGuidelines()) == 0 {
+		t.Error("expected non-empty guidelines")
+	}
+}
+
+func TestQuestionTool_InPlanModeOnly(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	r.RegisterDefaults()
+	r.Register(NewQuestionTool(r))
+
+	planTools := r.ModeTools("plan")
+	planNames := make(map[string]bool)
+	for _, td := range planTools {
+		planNames[td.Name] = true
+	}
+	if !planNames["question"] {
+		t.Error("expected 'question' in plan mode")
+	}
+
+	agentTools := r.ModeTools("agent")
+	agentNames := make(map[string]bool)
+	for _, td := range agentTools {
+		agentNames[td.Name] = true
+	}
+	if agentNames["question"] {
+		t.Error("did not expect 'question' in agent mode")
+	}
+
+	yoloTools := r.ModeTools("yolo")
+	yoloNames := make(map[string]bool)
+	for _, td := range yoloTools {
+		yoloNames[td.Name] = true
+	}
+	if yoloNames["question"] {
+		t.Error("did not expect 'question' in yolo mode")
+	}
+}
+
+// mockAsker implements QuestionAsker for testing.
+type mockAsker struct {
+	lastQuestion string
+	lastOptions  []string
+	lastContext  string
+	answer       string
+}
+
+func (m *mockAsker) AskQuestion(_ context.Context, question string, options []string, ctx string) string {
+	m.lastQuestion = question
+	m.lastOptions = options
+	m.lastContext = ctx
+	return m.answer
+}
+
+func TestQuestionTool_Execute(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	qt := NewQuestionTool(r)
+
+	asker := &mockAsker{answer: "Option B"}
+	ctx := ContextWithQuestionAsker(context.Background(), asker)
+
+	result, err := qt.Execute(ctx, map[string]any{
+		"question": "Which approach do you prefer?",
+		"options":  []any{"Option A", "Option B", "Option C"},
+		"context":  "We need to choose an architecture.",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "Option B") {
+		t.Errorf("result = %q, expected to contain 'Option B'", result.Text)
+	}
+	if asker.lastQuestion != "Which approach do you prefer?" {
+		t.Errorf("question = %q", asker.lastQuestion)
+	}
+	if len(asker.lastOptions) != 3 {
+		t.Errorf("options count = %d, want 3", len(asker.lastOptions))
+	}
+}
+
+func TestQuestionTool_ExecuteMissingQuestion(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	qt := NewQuestionTool(r)
+
+	ctx := ContextWithQuestionAsker(context.Background(), &mockAsker{})
+
+	_, err := qt.Execute(ctx, map[string]any{
+		"options": []any{"A"},
+	})
+	if err == nil {
+		t.Fatal("expected error for missing question")
+	}
+}
+
+func TestQuestionTool_ExecuteMissingAsker(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	qt := NewQuestionTool(r)
+
+	_, err := qt.Execute(context.Background(), map[string]any{
+		"question": "Test?",
+		"options":  []any{"A"},
+	})
+	if err == nil {
+		t.Fatal("expected error for missing asker in context")
+	}
+}

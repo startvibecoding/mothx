@@ -125,6 +125,22 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.scheduleRender()
 		return a.listenAgentEvents()
 
+	case agent.EventQuestionRequest:
+		a.commitActiveStream()
+		// Queue the question request
+		a.questionQueue = append(a.questionQueue, pendingQuestion{
+			questionID: event.QuestionID,
+			question:   event.QuestionText,
+			options:    event.QuestionOptions,
+			context:    event.QuestionContext,
+		})
+		// If not currently waiting for a question, show the next one
+		if !a.waitingForQuestion {
+			a.showNextQuestion()
+		}
+		a.scheduleRender()
+		return a.listenAgentEvents()
+
 	case agent.EventTurnEnd:
 		if event.ContextUsage != nil {
 			a.contextUsage = event.ContextUsage

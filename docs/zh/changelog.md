@@ -35,6 +35,11 @@
 - **Cron 调度器错误日志**
   - `checkAndRun` 现在记录 store 错误，不再静默吞掉
 
+- **Plan 模式提问工具**
+  - 新增 `question` 工具，仅在 TUI + plan 模式下注册
+  - AI 可向用户提出多选问题，用户选择预设选项或输入自定义答案
+  - 用于在制定方案前澄清需求，形成更优质的计划
+
 - **TUI Bash 输出显示**
   - 压缩 bash 工具输出摘要，去除空行，避免 TUI 折叠视图中占用过高垂直空间
 
@@ -47,7 +52,7 @@
 
 ### ✅ 测试
 
-- 新增 `limitedBuffer` 截断、`JobManager` GC、`writeFileAtomic` 清理、`sendParentEvent` panic 恢复、`MaxConsecutiveNoText` 可配置性、session fsync 持久性和损坏行容忍的单元测试
+- 新增 `limitedBuffer` 截断、`JobManager` GC、`writeFileAtomic` 清理、`sendParentEvent` panic 恢复、`MaxConsecutiveNoText` 可配置性、session fsync 持久性、损坏行容忍、`QuestionTool` 元数据/模式过滤/执行/错误处理的单元测试
 
 
 ## v0.1.31

@@ -173,6 +173,11 @@ type App struct {
 	pendingApprovalID  string
 	approvalQueue      []pendingApproval
 
+	// Question state
+	waitingForQuestion bool
+	pendingQuestionID  string
+	questionQueue      []pendingQuestion
+
 	// Multi-agent state (Decision 8: default off)
 	multiAgent  bool
 	activeAgent agentpkg.AgentID
@@ -202,6 +207,14 @@ type pendingApproval struct {
 	approvalID string
 	toolName   string
 	args       map[string]any
+}
+
+// pendingQuestion holds a queued question request.
+type pendingQuestion struct {
+	questionID string
+	question   string
+	options    []string
+	context    string
 }
 
 // NewApp creates a new TUI application.
@@ -432,13 +445,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return a, tea.Quit
 		case tea.KeyEsc:
-			if a.isThinking || a.waitingForApproval {
+			if a.isThinking || a.waitingForApproval || a.waitingForQuestion {
 				if a.agent != nil {
 					a.agent.Abort()
 					a.agent = nil // Reset agent so next request creates a fresh one with new abort channel
 					a.agentHistoryLoaded = false
 				}
 				a.clearApprovalState()
+				a.clearQuestionState()
 				a.inputQueueMu.Lock()
 				a.inputQueue = a.inputQueue[:0]
 				a.lastInputTime = time.Time{}
@@ -476,6 +490,42 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					a.waitingForApproval = false
 					a.pendingApprovalID = ""
+				}
+				a.input.Reset()
+				a.resetInputHistoryNavigation()
+				a.scheduleRender()
+				return a, nil
+			}
+
+			// Check if waiting for a question
+			if a.waitingForQuestion {
+				if a.agent != nil {
+					answer := strings.TrimSpace(input)
+					// Check if it's a number selection
+					var num int
+					if _, err := fmt.Sscanf(answer, "%d", &num); err == nil && num > 0 {
+						// Find the question to resolve options
+						// Options are already shown; just pass the number as the answer
+						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
+						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Selected: [%s]", answer)))
+					} else if answer != "" {
+						// Custom text input
+						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
+						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Answer: %s", answer)))
+					} else {
+						// Empty input — re-prompt
+						a.input.Reset()
+						a.resetInputHistoryNavigation()
+						a.scheduleRender()
+						return a, nil
+					}
+				}
+				// Show next queued question or clear waiting state
+				if len(a.questionQueue) > 0 {
+					a.showNextQuestion()
+				} else {
+					a.waitingForQuestion = false
+					a.pendingQuestionID = ""
 				}
 				a.input.Reset()
 				a.resetInputHistoryNavigation()

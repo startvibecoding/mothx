@@ -47,6 +47,9 @@ type Agent interface {
 
 	// HandleApprovalResponse processes the user's approval response for a pending tool call.
 	HandleApprovalResponse(approvalID string, approved bool)
+
+	// HandleQuestionResponse processes the user's answer to a pending question.
+	HandleQuestionResponse(questionID string, answer string)
 }
 
 // AgentConfigView is a read-only view of agent configuration for external inspection.
@@ -190,6 +193,8 @@ const (
 	EventToolResult
 	EventToolApprovalRequest  // Request user approval for tool execution
 	EventToolApprovalResponse // User response to approval request
+	EventQuestionRequest      // Ask user a multiple-choice question
+	EventQuestionResponse     // User response to question
 	EventPlanUpdate           // Structured task plan update
 
 	// Status events
@@ -240,6 +245,13 @@ type Event struct {
 	ApprovalTool   string
 	ApprovalArgs   map[string]any
 	ApprovalResult bool
+
+	// Question events
+	QuestionID      string
+	QuestionText    string
+	QuestionOptions []string
+	QuestionContext string
+	QuestionAnswer  string
 
 	// Status
 	StatusMessage string

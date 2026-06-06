@@ -35,6 +35,11 @@
 - **Cron Scheduler Error Logging**
   - `checkAndRun` now logs store errors instead of silently swallowing them
 
+- **Plan Mode Question Tool**
+  - Added `question` tool, registered only in TUI + plan mode
+  - AI can ask users multiple-choice questions; users select a preset option or type a custom answer
+  - Helps clarify requirements before forming a plan, producing higher-quality proposals
+
 - **TUI Bash Output Display**
   - Compressed bash tool output summary by removing blank lines to prevent excessive vertical height in the TUI collapsed view
 
@@ -47,7 +52,7 @@
 
 ### ✅ Tests
 
-- Added unit tests for `limitedBuffer` truncation, `JobManager` GC, `writeFileAtomic` cleanup, `sendParentEvent` panic recovery, `MaxConsecutiveNoText` configurability, session fsync durability, and corrupt-line tolerance
+- Added unit tests for `limitedBuffer` truncation, `JobManager` GC, `writeFileAtomic` cleanup, `sendParentEvent` panic recovery, `MaxConsecutiveNoText` configurability, session fsync durability, corrupt-line tolerance, and `QuestionTool` metadata/mode-filtering/execution/error-handling
 
 
 ## v0.1.31

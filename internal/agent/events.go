@@ -36,6 +36,8 @@ const (
 	EventToolResult
 	EventToolApprovalRequest  // Request user approval for tool execution
 	EventToolApprovalResponse // User response to approval request
+	EventQuestionRequest      // Ask user a multiple-choice question
+	EventQuestionResponse     // User response to question
 	EventPlanUpdate           // Structured task plan update
 
 	// Status events
@@ -90,6 +92,13 @@ type Event struct {
 	ApprovalTool   string         // Tool name requiring approval
 	ApprovalArgs   map[string]any // Tool arguments
 	ApprovalResult bool           // true = approved, false = denied
+
+	// Question events
+	QuestionID      string   // Unique ID for question request
+	QuestionText    string   // The question to display
+	QuestionOptions []string // Predefined options (last one is always "Custom input")
+	QuestionContext string   // Optional context/explanation
+	QuestionAnswer  string   // User's answer (set in response)
 
 	// Status
 	StatusMessage string

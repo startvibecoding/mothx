@@ -381,6 +381,9 @@ func run(args []string, opts runOptions) error {
 	registry := tools.NewRegistry(cwd, sbMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(settings.IsPlanToolEnabled())
 
+	// Register question tool for interactive plan mode (TUI only)
+	registry.Register(tools.NewQuestionTool(registry))
+
 	// Register skill reference tool if skills are available
 	if skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(skillsMgr))

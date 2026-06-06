@@ -261,6 +261,11 @@ type Agent struct {
 	approvalMu       sync.Mutex
 	approvalCounter  int64
 
+	// Question mechanism for plan mode
+	pendingQuestions map[string]chan string // questionID -> response channel
+	questionMu       sync.Mutex
+	questionCounter  int64
+
 	// Force compaction flag — set by /compact command, consumed by ShouldCompact
 	forceCompact int32 // atomic: 0=false, 1=true
 }
@@ -506,6 +511,7 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 		registry:         registry,
 		abort:            make(chan struct{}),
 		pendingApprovals: make(map[string]chan bool),
+		pendingQuestions:  make(map[string]chan string),
 		context: &AgentContext{
 			Messages: make([]provider.Message, 0),
 		},
@@ -538,6 +544,7 @@ func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 		registry:         registry,
 		abort:            make(chan struct{}),
 		pendingApprovals: make(map[string]chan bool),
+		pendingQuestions:  make(map[string]chan string),
 		context: &AgentContext{
 			Messages: make([]provider.Message, 0),
 		},
@@ -1189,6 +1196,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	toolCtx = ContextWithAgentID(toolCtx, a.id)
 	toolCtx = ContextWithEventChan(toolCtx, ch)
 	toolCtx = ContextWithParentRunContext(toolCtx, ctx)
+	toolCtx = tools.ContextWithQuestionAsker(toolCtx, a)
 
 	result, err := tool.Execute(toolCtx, params)
 	isError := err != nil
@@ -1513,4 +1521,53 @@ func (a *Agent) HandleApprovalResponse(approvalID string, approved bool) {
 		ch <- approved
 		delete(a.pendingApprovals, approvalID)
 	}
+}
+
+// RequestQuestion sends a question request and waits for the user's answer.
+func (a *Agent) RequestQuestion(ch chan<- Event, question string, options []string, context string) string {
+	a.questionMu.Lock()
+	a.questionCounter++
+	questionID := fmt.Sprintf("question-%d", a.questionCounter)
+	responseCh := make(chan string, 1)
+	a.pendingQuestions[questionID] = responseCh
+	a.questionMu.Unlock()
+
+	ch <- Event{
+		Type:            EventQuestionRequest,
+		QuestionID:      questionID,
+		QuestionText:    question,
+		QuestionOptions: options,
+		QuestionContext: context,
+	}
+
+	select {
+	case answer := <-responseCh:
+		return answer
+	case <-a.abort:
+		a.questionMu.Lock()
+		delete(a.pendingQuestions, questionID)
+		a.questionMu.Unlock()
+		return ""
+	}
+}
+
+// HandleQuestionResponse processes the user's answer to a question.
+func (a *Agent) HandleQuestionResponse(questionID string, answer string) {
+	a.questionMu.Lock()
+	defer a.questionMu.Unlock()
+
+	if ch, ok := a.pendingQuestions[questionID]; ok {
+		ch <- answer
+		delete(a.pendingQuestions, questionID)
+	}
+}
+
+// AskQuestion implements the tools.QuestionAsker interface.
+// It gets the event channel from the context and delegates to RequestQuestion.
+func (a *Agent) AskQuestion(ctx context.Context, question string, options []string, explanation string) string {
+	eventCh, ok := EventChanFromContext(ctx)
+	if !ok {
+		return ""
+	}
+	return a.RequestQuestion(eventCh, question, options, explanation)
 }
