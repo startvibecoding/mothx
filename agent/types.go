@@ -47,8 +47,12 @@ type Agent interface {
 
 	// HandleApprovalResponse processes the user's approval response for a pending tool call.
 	HandleApprovalResponse(approvalID string, approved bool)
+}
 
-	// HandleQuestionResponse processes the user's answer to a pending question.
+// QuestionHandler is an optional extension of Agent that supports interactive questions.
+// Only implemented by agents in TUI plan mode. Use type assertion to check support.
+type QuestionHandler interface {
+	Agent
 	HandleQuestionResponse(questionID string, answer string)
 }
 
