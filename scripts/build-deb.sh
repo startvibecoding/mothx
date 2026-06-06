@@ -7,7 +7,7 @@ set -e
 
 BINARY_NAME="vibecoding"
 PACKAGE_NAME="vibecoding"
-MAINTAINER="VibeCoding Team <team@vibecoding.dev>"
+MAINTAINER="VibeCoding Team <admin@pkold.com>"
 DESCRIPTION="AI-powered terminal coding assistant"
 HOMEPAGE="https://github.com/startvibecoding/vibecoding"
 
