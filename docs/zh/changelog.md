@@ -1,6 +1,18 @@
 # 更新日志
 
 
+## v0.1.33
+
+### ✨ 新功能
+
+- **多项目技能目录支持**
+  - Skills 管理器现支持从项目根目录下的 `.skills/` 和 `skills/` 两个目录加载技能
+  - 优先级顺序：`.skills/` > `skills/` > 全局技能目录
+  - 新增 `NewManagerWithProjectDirs` 构造函数，接受按优先级排列的项目目录列表
+  - 新增 `ProjectSkillDirs` 辅助函数，返回标准项目技能目录列表
+  - 更新所有调用点：CLI、ACP、Gateway、Hermes
+  - 新增多目录优先级和普通 `skills/` 目录加载的测试
+
 ## v0.1.32
 
 ### ✨ 新功能

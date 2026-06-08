@@ -1,6 +1,18 @@
 # Changelog
 
 
+## v0.1.33
+
+### ✨ Features
+
+- **Multiple Project Skill Directories**
+  - Skills manager now supports loading from both `.skills/` and `skills/` directories in the project root
+  - Priority order: `.skills/` > `skills/` > global skills directory
+  - New `NewManagerWithProjectDirs` constructor accepts explicit project dirs in priority order
+  - New `ProjectSkillDirs` helper returns the standard project skill directory list
+  - Updated all call sites: CLI, ACP, gateway, and hermes
+  - Added tests for multi-directory priority and plain `skills/` directory loading
+
 ## v0.1.32
 
 ### ✨ Features
