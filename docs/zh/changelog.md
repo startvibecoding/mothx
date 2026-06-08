@@ -1,6 +1,33 @@
 # 更新日志
 
 
+## v0.1.34
+
+### ✨ 新功能
+
+- **Hermes 远程 TUI 客户端**
+  - 将纯文本 WebSocket 客户端替换为完整的 Bubble Tea TUI（`hermes client`）
+  - 通过 Glamour 实现 Markdown 渲染与语法高亮
+  - 可滚动的工具详情 Modal（Ctrl+O）、审批提示（Enter/Esc）和 question 工具支持
+  - Plan 更新展示、Context 压力/预算警告和请求计时器
+  - 已完成消息输出到终端原生 scrollback
+  - 支持斜杠命令（`/clear`、`/mode`、`/model`、`/compact`、`/help` 等）
+  - 新增 `internal/hermes/remotetui` 包：`app.go`、`render.go`、`input.go`、`remote.go`、`agent_events.go`、`approval.go`、`commands.go`、`formatters.go`、`tool_modal.go`、`events.go`
+
+- **WebSocket 协议增强**
+  - 新增 `question_request` / `question_response` 事件，支持 Plan 模式下通过 WebSocket 使用 question 工具
+  - 新增 `plan_update` 事件，携带结构化 plan 步骤数据
+  - 新增 `compaction_start` / `compaction_end` 事件，展示上下文压缩进度
+  - `connected` 事件新增 `model` 和 `work_dir` 元数据
+  - `approval_request` 事件新增 `approval_tool` 和 `approval_args`，丰富客户端展示
+
+- **Dispatcher 重构**
+  - 将 `buildAgent()` 从 `runAgent()` 中提取，改善消息平台与 WebSocket 路径间的 agent 创建复用
+
+### 🧪 测试
+
+- 新增 WebSocket Gateway 服务器测试，覆盖连接、认证、聊天、审批、提问和命令流程
+
 ## v0.1.33
 
 ### ✨ 新功能

@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v0.1.34
+
+### ✨ Features
+
+- **Hermes Remote TUI Client**
+  - Replaced the plain-text WebSocket client with a full Bubble Tea TUI (`hermes client`)
+  - Markdown rendering with syntax highlighting via Glamour
+  - Scrollable tool details modal (Ctrl+O), approval prompts (Enter/Esc), and question tool support
+  - Plan update display, context pressure/budget warnings, and request timers
+  - Native terminal scrollback for completed messages
+  - Slash command support (`/clear`, `/mode`, `/model`, `/compact`, `/help`, etc.)
+  - New `internal/hermes/remotetui` package: `app.go`, `render.go`, `input.go`, `remote.go`, `agent_events.go`, `approval.go`, `commands.go`, `formatters.go`, `tool_modal.go`, `events.go`
+
+- **WebSocket Protocol Enhancements**
+  - Added `question_request` / `question_response` events for plan-mode question tool over WebSocket
+  - Added `plan_update` events with structured plan step data
+  - Added `compaction_start` / `compaction_end` events for context compaction progress
+  - `connected` event now includes `model` and `work_dir` metadata
+  - `approval_request` event now carries `approval_tool` and `approval_args` for richer client-side display
+
+- **Dispatcher Refactor**
+  - Extracted `buildAgent()` from `runAgent()` for agent creation and cleanup, improving reuse between messaging and WebSocket paths
+
+### 🧪 Tests
+
+- Added WebSocket gateway server tests for connection, auth, chat, approval, question, and command flows
+
 ## v0.1.33
 
 ### ✨ Features
