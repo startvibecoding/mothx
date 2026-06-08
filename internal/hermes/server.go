@@ -166,6 +166,15 @@ func Run(opts RunOptions, version string) error {
 	// Create gateway
 	gw := ws.NewGateway(cfg.GetListenAddr(), cfg.Server.AuthToken, version)
 	gw.SetDispatcher(newWSDispatcherAdapter(dispatcher))
+	modelName := cfg.GetDefaultModel(settings.DefaultModel)
+	if dispatcher.model != nil {
+		if dispatcher.model.Name != "" {
+			modelName = dispatcher.model.Name
+		} else if dispatcher.model.ID != "" {
+			modelName = dispatcher.model.ID
+		}
+	}
+	gw.SetClientInfo(modelName, cfg.GetWorkDir())
 
 	// Set memory store for /api/memory
 	memStore := memory.NewStore(cfg.Memory.Path, cfg.GetWorkDir())
@@ -495,20 +504,48 @@ func agentEventToWSEvent(ev agent.Event) ws.WSEvent {
 		return result
 	case agent.EventContextPressure, agent.EventBudgetPressure:
 		return ws.WSEvent{
-			Type:    "status",
-			Message: ev.PressureMessage,
+			Type:          "status",
+			StatusMessage: ev.PressureMessage,
 		}
 	case agent.EventToolApprovalRequest:
 		return ws.WSEvent{
-			Type:       "approval_request",
-			ApprovalID: ev.ApprovalID,
-			Tool:       ev.ApprovalTool,
-			Args:       ev.ApprovalArgs,
+			Type:         "approval_request",
+			ApprovalID:   ev.ApprovalID,
+			ApprovalTool: ev.ApprovalTool,
+			ApprovalArgs: ev.ApprovalArgs,
 		}
+	case agent.EventQuestionRequest:
+		return ws.WSEvent{
+			Type:            "question_request",
+			QuestionID:      ev.QuestionID,
+			Question:        ev.QuestionText,
+			QuestionOptions: ev.QuestionOptions,
+			QuestionContext: ev.QuestionContext,
+		}
+	case agent.EventPlanUpdate:
+		var plan *ws.PlanData
+		if ev.Plan != nil {
+			steps := make([]ws.PlanStep, len(ev.Plan.Steps))
+			for i, s := range ev.Plan.Steps {
+				steps[i] = ws.PlanStep{Title: s.Title, Status: s.Status}
+			}
+			plan = &ws.PlanData{Title: ev.Plan.Title, Steps: steps}
+		}
+		return ws.WSEvent{Type: "plan_update", Plan: plan}
 	case agent.EventDone:
 		return ws.WSEvent{Type: "done", StopReason: ev.StopReason}
 	case agent.EventStatus:
-		return ws.WSEvent{Type: "status", Message: ev.StatusMessage}
+		return ws.WSEvent{Type: "status", StatusMessage: ev.StatusMessage}
+	case agent.EventCompactionStart:
+		return ws.WSEvent{Type: "compaction_start", StatusMessage: "Compacting context..."}
+	case agent.EventCompactionEnd:
+		msg := "Context compacted"
+		if ev.Error != nil {
+			msg = "Compaction failed: " + ev.Error.Error()
+		} else if ev.StatusMessage != "" {
+			msg = ev.StatusMessage
+		}
+		return ws.WSEvent{Type: "compaction_end", StatusMessage: msg}
 	case agent.EventError:
 		msg := ""
 		if ev.Error != nil {
@@ -525,8 +562,12 @@ func agentEventToWSEvent(ev agent.Event) ws.WSEvent {
 			evWS.CacheWriteTokens = ev.Usage.CacheWrite
 		}
 		return evWS
+	case agent.EventMessageStart:
+		if ev.Message.Role == "user" && ev.Message.Content != "" {
+			return ws.WSEvent{Type: "message_start", Content: ev.Message.Content}
+		}
+		return ws.WSEvent{}
 	default:
-		// Skip lifecycle events (AgentStart, AgentEnd, TurnStart, TurnEnd, etc.)
 		return ws.WSEvent{}
 	}
 }
@@ -566,4 +607,17 @@ func (a *wsDispatcherAdapter) RemoveSession(key string) {
 
 func (a *wsDispatcherAdapter) ResolveApproval(approvalID string, approved bool) bool {
 	return a.d.ResolveApproval(approvalID, approved)
+}
+
+func (a *wsDispatcherAdapter) ResolveQuestion(questionID, answer string) bool {
+	// Try to find the agent that has this question pending
+	var found bool
+	activeAgents.Range(func(key, value any) bool {
+		ag := value.(*agent.Agent)
+		// Try to resolve — HandleQuestionResponse is safe to call even if ID doesn't match
+		ag.HandleQuestionResponse(questionID, answer)
+		found = true
+		return false // stop iterating
+	})
+	return found
 }

@@ -22,6 +22,8 @@ type Gateway struct {
 	version     string
 	authToken   string
 	startTime   time.Time
+	model       string
+	workDir     string
 
 	// Active WebSocket connections
 	connMu sync.RWMutex
@@ -34,6 +36,7 @@ type Dispatcher interface {
 	ListSessions() []SessionInfo
 	RemoveSession(key string)
 	ResolveApproval(approvalID string, approved bool) bool
+	ResolveQuestion(questionID, answer string) bool
 }
 
 // SessionInfo is a simplified session view for API responses.
@@ -111,6 +114,14 @@ func (gw *Gateway) SetPlatformStatusProvider(p PlatformStatusProvider) {
 	gw.mu.Lock()
 	defer gw.mu.Unlock()
 	gw.platforms = p
+}
+
+// SetClientInfo sets metadata sent to WebSocket clients when they connect.
+func (gw *Gateway) SetClientInfo(model, workDir string) {
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
+	gw.model = model
+	gw.workDir = workDir
 }
 
 // MemoryStore provides read/write access to memory.md.

@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time"
 
 	"golang.org/x/net/websocket"
 )
@@ -36,9 +35,21 @@ type WSEvent struct {
 	Diff string `json:"diff,omitempty"`
 
 	// Approval fields
-	ApprovalID string `json:"approval_id,omitempty"`
-	RiskLevel  string `json:"risk_level,omitempty"`
-	Approved   bool   `json:"approved,omitempty"`
+	ApprovalID   string         `json:"approval_id,omitempty"`
+	ApprovalTool string         `json:"approval_tool,omitempty"`
+	ApprovalArgs map[string]any `json:"approval_args,omitempty"`
+	RiskLevel    string         `json:"risk_level,omitempty"`
+	Approved     bool           `json:"approved,omitempty"`
+
+	// Question fields
+	QuestionID      string   `json:"question_id,omitempty"`
+	Question        string   `json:"question,omitempty"`
+	QuestionOptions []string `json:"question_options,omitempty"`
+	QuestionContext string   `json:"question_context,omitempty"`
+	Answer          string   `json:"answer,omitempty"`
+
+	// Compaction fields
+	StatusMessage string `json:"status_message,omitempty"`
 
 	// Plan fields
 	Plan *PlanData `json:"plan,omitempty"`
@@ -76,6 +87,8 @@ type ClientMessage struct {
 	Content    string `json:"content,omitempty"`
 	ApprovalID string `json:"approval_id,omitempty"`
 	Approved   bool   `json:"approved,omitempty"`
+	QuestionID string `json:"question_id,omitempty"`
+	Answer     string `json:"answer,omitempty"`
 }
 
 // WSConn wraps a WebSocket connection with metadata.
@@ -121,6 +134,9 @@ func (gw *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handler := websocket.Handler(func(ws *websocket.Conn) {
+		connCtx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+
 		connID := generateConnID()
 		conn := &WSConn{
 			ID: connID,
@@ -139,11 +155,18 @@ func (gw *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			gw.connMu.Unlock()
 		}()
 
+		gw.mu.RLock()
+		model := gw.model
+		workDir := gw.workDir
+		gw.mu.RUnlock()
+
 		// Send connected event
 		conn.Send(WSEvent{
 			Type:      "connected",
 			SessionID: "hermes/ws/" + connID,
 			Version:   gw.version,
+			Model:     model,
+			WorkDir:   workDir,
 		})
 
 		log.Printf("WebSocket client connected: %s", connID)
@@ -165,13 +188,23 @@ func (gw *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				if msg.Type == "command" && text != "" && text[0] != '/' {
 					text = "/" + text
 				}
-				gw.handleWSChat(r.Context(), conn, connID, text)
+				go gw.handleWSChat(connCtx, conn, connID, text)
 
 			case "approval":
 				if msg.ApprovalID != "" && gw.dispatcher != nil {
 					gw.dispatcher.ResolveApproval(msg.ApprovalID, msg.Approved)
 				}
-				conn.Send(WSEvent{Type: "status", Message: fmt.Sprintf("Approval %s: %v", msg.ApprovalID, msg.Approved)})
+				conn.Send(WSEvent{Type: "status", StatusMessage: fmt.Sprintf("Approval %s: %v", msg.ApprovalID, msg.Approved)})
+
+			case "question":
+				if msg.QuestionID != "" && msg.Answer != "" && gw.dispatcher != nil {
+					resolved := gw.dispatcher.ResolveQuestion(msg.QuestionID, msg.Answer)
+					if resolved {
+						conn.Send(WSEvent{Type: "status", StatusMessage: fmt.Sprintf("Answer sent for %s", msg.QuestionID)})
+					} else {
+						conn.Send(WSEvent{Type: "error", Message: fmt.Sprintf("Question %s not found", msg.QuestionID)})
+					}
+				}
 
 			default:
 				conn.Send(WSEvent{
@@ -217,19 +250,4 @@ func generateConnID() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// keepAlive sends periodic pings to keep the connection alive.
-func (c *WSConn) keepAlive(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for range ticker.C {
-		c.mu.Lock()
-		closed := c.closed
-		c.mu.Unlock()
-		if closed {
-			return
-		}
-		c.Send(WSEvent{Type: "pong"})
-	}
 }

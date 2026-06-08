@@ -1,11 +1,15 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/net/websocket"
 )
 
 func TestNewGateway(t *testing.T) {
@@ -321,6 +325,104 @@ func TestClientMessageSerialization(t *testing.T) {
 	if !got.Approved {
 		t.Error("expected approved=true")
 	}
+}
+
+type blockingWSDispatcher struct {
+	started          chan struct{}
+	release          chan struct{}
+	approvalResolved chan bool
+}
+
+func newBlockingWSDispatcher() *blockingWSDispatcher {
+	return &blockingWSDispatcher{
+		started:          make(chan struct{}),
+		release:          make(chan struct{}),
+		approvalResolved: make(chan bool, 1),
+	}
+}
+
+func (d *blockingWSDispatcher) HandleWSMessage(ctx context.Context, connID, text string, eventCh chan<- WSEvent) error {
+	eventCh <- WSEvent{Type: "approval_request", ApprovalID: "ap_test", ApprovalTool: "bash"}
+	close(d.started)
+	select {
+	case <-d.release:
+		eventCh <- WSEvent{Type: "done", StopReason: "end_turn"}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
+
+func (d *blockingWSDispatcher) ListSessions() []SessionInfo { return nil }
+
+func (d *blockingWSDispatcher) RemoveSession(key string) {}
+
+func (d *blockingWSDispatcher) ResolveApproval(approvalID string, approved bool) bool {
+	if approvalID == "ap_test" {
+		d.approvalResolved <- approved
+		return true
+	}
+	return false
+}
+
+func (d *blockingWSDispatcher) ResolveQuestion(questionID, answer string) bool { return false }
+
+func TestWebSocketReadsApprovalWhileChatIsRunning(t *testing.T) {
+	gw := NewGateway("localhost:0", "", "0.1.27")
+	dispatcher := newBlockingWSDispatcher()
+	gw.SetDispatcher(dispatcher)
+	gw.SetClientInfo("test-model", "/tmp/test-workdir")
+
+	srv := httptest.NewServer(gw.mux)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws"
+	conn, err := websocket.Dial(wsURL, "", "http://localhost/")
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	var connected WSEvent
+	if err := websocket.JSON.Receive(conn, &connected); err != nil {
+		t.Fatalf("receive connected: %v", err)
+	}
+	if connected.Type != "connected" {
+		t.Fatalf("first event = %q, want connected", connected.Type)
+	}
+	if connected.Model != "test-model" {
+		t.Fatalf("connected model = %q, want test-model", connected.Model)
+	}
+	if connected.WorkDir != "/tmp/test-workdir" {
+		t.Fatalf("connected work dir = %q, want /tmp/test-workdir", connected.WorkDir)
+	}
+
+	if err := websocket.JSON.Send(conn, ClientMessage{Type: "message", Content: "run something"}); err != nil {
+		t.Fatalf("send message: %v", err)
+	}
+
+	var approval WSEvent
+	if err := websocket.JSON.Receive(conn, &approval); err != nil {
+		t.Fatalf("receive approval request: %v", err)
+	}
+	if approval.Type != "approval_request" || approval.ApprovalID != "ap_test" {
+		t.Fatalf("approval event = %#v", approval)
+	}
+
+	if err := websocket.JSON.Send(conn, ClientMessage{Type: "approval", ApprovalID: "ap_test", Approved: true}); err != nil {
+		t.Fatalf("send approval: %v", err)
+	}
+
+	select {
+	case approved := <-dispatcher.approvalResolved:
+		if !approved {
+			t.Fatal("approval resolved as false, want true")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("approval was not processed while chat handler was running")
+	}
+
+	close(dispatcher.release)
 }
 
 func TestPlanDataSerialization(t *testing.T) {

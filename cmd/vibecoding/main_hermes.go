@@ -200,20 +200,26 @@ func newHermesCommand() *cobra.Command {
 
 	// --- client ---
 
-	var flagURL, flagSession string
+	var flagClientURL, flagClientSession, flagClientModel, flagClientWorkDir, flagClientToken string
 
 	clientCmd := &cobra.Command{
 		Use:   "client",
 		Short: "Connect to a running Hermes instance via WebSocket",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return hermes.RunClient(hermes.ClientOptions{
-				URL:       flagURL,
-				SessionID: flagSession,
+				URL:       flagClientURL,
+				SessionID: flagClientSession,
+				AuthToken: flagClientToken,
+				Model:     flagClientModel,
+				WorkDir:   flagClientWorkDir,
 			})
 		},
 	}
-	clientCmd.Flags().StringVar(&flagURL, "url", "ws://localhost:8090/ws", "WebSocket URL to connect to")
-	clientCmd.Flags().StringVar(&flagSession, "session", "", "Session ID to resume")
+	clientCmd.Flags().StringVar(&flagClientURL, "url", "ws://localhost:8090/ws", "WebSocket URL to connect to")
+	clientCmd.Flags().StringVar(&flagClientSession, "session", "", "Session ID to resume")
+	clientCmd.Flags().StringVar(&flagClientToken, "token", "", "Auth token")
+	clientCmd.Flags().StringVar(&flagClientModel, "model", "", "Model name (for display)")
+	clientCmd.Flags().StringVar(&flagClientWorkDir, "work-dir", "", "Working directory (for display)")
 
 	// --- wechat ---
 

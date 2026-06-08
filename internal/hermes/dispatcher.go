@@ -29,6 +29,9 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
+// agentApprovalHandler is the callback signature for tool approval decisions.
+type agentApprovalHandler func(toolCallID, toolName string, args map[string]any) bool
+
 // Dispatcher routes messages to per-user agent sessions.
 type Dispatcher struct {
 	mu         sync.RWMutex
@@ -384,14 +387,12 @@ func (d *Dispatcher) RemoveSession(key string) {
 	}
 }
 
-// runAgent executes the agent loop synchronously (for messaging platforms).
-func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInput string, progress func(string)) (string, error) {
+// buildAgent creates and configures an agent for a session.
+// Returns the agent and a cleanup function to call with the run error.
+func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approvalHandler agentApprovalHandler) (*agent.Agent, func(error)) {
 	workDir := sess.WorkDir
-
-	// Load context files + skills
 	extraContext := d.buildExtraContext(workDir)
 
-	// Build agent
 	agentCfg := agent.Config{
 		Provider:      d.provider,
 		Model:         d.model,
@@ -404,43 +405,8 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 		CompactionSettings: ctxpkg.CompactionSettings{
 			Enabled: d.settings.Compaction.Enabled,
 		},
-		MultiAgent: d.multiAgent,
-		ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
-			// Smart approvals: tiered strategy (方案 D)
-			if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
-				return true
-			}
-
-			// Not auto-approved — check risk level
-			risk := "medium"
-			if toolName == "bash" {
-				if cmd, ok := args["command"]; ok {
-					risk = CommandRiskLevel(fmt.Sprintf("%v", cmd))
-				}
-			}
-
-			// Pre-tool hook check
-			if d.hooksMgr.HasPreHook() {
-				allowed, _, _ := d.hooksMgr.PreToolCall(ctx, toolName, args, sess.Platform, sess.UserID)
-				if allowed {
-					return true
-				}
-			}
-
-			// Messaging platform: medium risk → auto-approve + notify, high risk → auto-reject + notify
-			if risk == "medium" {
-				if progress != nil {
-					progress(FormatApprovalNotification(toolName, args, risk, true))
-				}
-				return true
-			}
-
-			// High risk: auto-reject on messaging platforms
-			if progress != nil {
-				progress(FormatApprovalNotification(toolName, args, risk, false))
-			}
-			return false
-		},
+		MultiAgent:      d.multiAgent,
+		ApprovalHandler: approvalHandler,
 	}
 
 	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
@@ -449,7 +415,6 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 		ContextPressureThreshold: d.cfg.Agent.ContextPressureThreshold,
 		BudgetPressureThreshold:  d.cfg.Agent.BudgetPressureThreshold,
 		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
-			// Post-tool hook (fire-and-forget)
 			if d.hooksMgr.HasPostHook() {
 				argsMap, _ := ctx2.Args.(map[string]any)
 				errMsg := ""
@@ -461,24 +426,135 @@ func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInpu
 			return nil
 		},
 	}, sess.Registry)
+
 	var runErr error
 	if d.agentMgr != nil {
 		d.agentMgr.Register(agent.NewAgentAdapter(a))
-		defer func() {
+	}
+	cleanup := func(err error) {
+		runErr = err
+		if d.agentMgr != nil {
 			d.agentMgr.Finish(a.ID(), runErr)
-		}()
+		}
 	}
 
-	// Apply force compact flag from /compact command
 	if sess.ForceCompact {
 		a.SetForceCompact()
 		sess.ForceCompact = false
 	}
 
-	// Load session history so the agent has conversation context
 	if history := sess.Manager.GetMessages(); len(history) > 0 {
 		a.LoadHistoryMessages(history)
 	}
+
+	return a, cleanup
+}
+
+// messagingApprovalHandler returns an ApprovalHandler for messaging platforms.
+// Medium risk → auto-approve + notify; high risk → auto-reject + notify.
+func (d *Dispatcher) messagingApprovalHandler(ctx context.Context, sess *HermesSession, progress func(string)) agentApprovalHandler {
+	return func(toolCallID, toolName string, args map[string]any) bool {
+		if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
+			return true
+		}
+
+		risk := "medium"
+		if toolName == "bash" {
+			if cmd, ok := args["command"]; ok {
+				risk = CommandRiskLevel(fmt.Sprintf("%v", cmd))
+			}
+		}
+
+		if d.hooksMgr.HasPreHook() {
+			allowed, _, _ := d.hooksMgr.PreToolCall(ctx, toolName, args, sess.Platform, sess.UserID)
+			if allowed {
+				return true
+			}
+		}
+
+		if risk == "medium" {
+			if progress != nil {
+				progress(FormatApprovalNotification(toolName, args, risk, true))
+			}
+			return true
+		}
+
+		if progress != nil {
+			progress(FormatApprovalNotification(toolName, args, risk, false))
+		}
+		return false
+	}
+}
+
+// wsApprovalHandler returns an ApprovalHandler for WebSocket clients.
+// Medium risk → auto-approve; high risk → send approval request and wait.
+func (d *Dispatcher) wsApprovalHandler(ctx context.Context, sess *HermesSession, eventCh chan<- agent.Event) agentApprovalHandler {
+	return func(toolCallID, toolName string, args map[string]any) bool {
+		if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
+			return true
+		}
+
+		risk := "medium"
+		if toolName == "bash" {
+			if cmd, ok := args["command"]; ok {
+				risk = CommandRiskLevel(fmt.Sprintf("%v", cmd))
+			}
+		}
+
+		if d.hooksMgr.HasPreHook() {
+			allowed, _, _ := d.hooksMgr.PreToolCall(ctx, toolName, args, sess.Platform, sess.UserID)
+			if allowed {
+				return true
+			}
+		}
+
+		if risk == "medium" {
+			eventCh <- agent.Event{
+				Type:          agent.EventStatus,
+				StatusMessage: FormatApprovalNotification(toolName, args, risk, true),
+			}
+			return true
+		}
+
+		approvalID := fmt.Sprintf("ap_%s_%d", toolCallID, time.Now().UnixNano())
+		respCh := d.RegisterApproval(approvalID)
+
+		eventCh <- agent.Event{
+			Type:         agent.EventToolApprovalRequest,
+			ApprovalID:   approvalID,
+			ApprovalTool: toolName,
+			ApprovalArgs: args,
+		}
+
+		select {
+		case approved := <-respCh:
+			if approved {
+				eventCh <- agent.Event{
+					Type:          agent.EventStatus,
+					StatusMessage: fmt.Sprintf("✅ [%s] approved by user", toolName),
+				}
+			}
+			return approved
+		case <-time.After(5 * time.Minute):
+			d.approvalMu.Lock()
+			delete(d.pendingApprovals, approvalID)
+			d.approvalMu.Unlock()
+			eventCh <- agent.Event{
+				Type:          agent.EventStatus,
+				StatusMessage: fmt.Sprintf("⏰ [%s] approval timed out — blocked", toolName),
+			}
+			return false
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
+// runAgent executes the agent loop synchronously (for messaging platforms).
+func (d *Dispatcher) runAgent(ctx context.Context, sess *HermesSession, userInput string, progress func(string)) (string, error) {
+	a, cleanup := d.buildAgent(ctx, sess, d.messagingApprovalHandler(ctx, sess, progress))
+	var runErr error
+	defer cleanup(runErr)
 
 	eventCh := a.Run(ctx, userInput)
 
@@ -599,124 +675,15 @@ func formatToolProgress(ev agent.Event, args map[string]any) string {
 func (d *Dispatcher) runAgentStreaming(ctx context.Context, sess *HermesSession, userInput string, eventCh chan<- agent.Event) error {
 	defer close(eventCh)
 
-	workDir := sess.WorkDir
-	extraContext := d.buildExtraContext(workDir)
-
-	agentCfg := agent.Config{
-		Provider:      d.provider,
-		Model:         d.model,
-		Mode:          sess.Mode,
-		ThinkingLevel: provider.ThinkingLevel(d.settings.DefaultThinkingLevel),
-		SandboxMgr:    sandbox.NewManager(workDir),
-		Settings:      d.settings,
-		Session:       sess.Manager,
-		ExtraContext:  extraContext,
-		CompactionSettings: ctxpkg.CompactionSettings{
-			Enabled: d.settings.Compaction.Enabled,
-		},
-		MultiAgent: d.multiAgent,
-		ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
-			// Smart approvals: tiered strategy (方案 D)
-			if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
-				return true
-			}
-
-			risk := "medium"
-			if toolName == "bash" {
-				if cmd, ok := args["command"]; ok {
-					risk = CommandRiskLevel(fmt.Sprintf("%v", cmd))
-				}
-			}
-
-			// Pre-tool hook check
-			if d.hooksMgr.HasPreHook() {
-				allowed, _, _ := d.hooksMgr.PreToolCall(ctx, toolName, args, sess.Platform, sess.UserID)
-				if allowed {
-					return true
-				}
-			}
-
-			// Medium risk: auto-approve + notify
-			if risk == "medium" {
-				eventCh <- agent.Event{
-					Type:          agent.EventStatus,
-					StatusMessage: FormatApprovalNotification(toolName, args, risk, true),
-				}
-				return true
-			}
-
-			// High risk on WebSocket: send approval_request, wait for response
-			approvalID := fmt.Sprintf("ap_%s_%d", toolCallID, time.Now().UnixNano())
-			respCh := d.RegisterApproval(approvalID)
-
-			eventCh <- agent.Event{
-				Type:         agent.EventToolApprovalRequest,
-				ApprovalID:   approvalID,
-				ApprovalTool: toolName,
-				ApprovalArgs: args,
-			}
-
-			// Wait for response or timeout
-			select {
-			case approved := <-respCh:
-				if approved {
-					eventCh <- agent.Event{
-						Type:          agent.EventStatus,
-						StatusMessage: fmt.Sprintf("✅ [%s] approved by user", toolName),
-					}
-				}
-				return approved
-			case <-time.After(5 * time.Minute):
-				// Timeout: auto-reject
-				d.approvalMu.Lock()
-				delete(d.pendingApprovals, approvalID)
-				d.approvalMu.Unlock()
-				eventCh <- agent.Event{
-					Type:          agent.EventStatus,
-					StatusMessage: fmt.Sprintf("⏰ [%s] approval timed out — blocked", toolName),
-				}
-				return false
-			case <-ctx.Done():
-				return false
-			}
-		},
-	}
-
-	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
-		Config:                   agentCfg,
-		MaxIterations:            d.cfg.Agent.MaxTurns,
-		ContextPressureThreshold: d.cfg.Agent.ContextPressureThreshold,
-		BudgetPressureThreshold:  d.cfg.Agent.BudgetPressureThreshold,
-		AfterToolCall: func(ctx2 agent.AfterToolCallContext) *agent.ToolCallResult {
-			if d.hooksMgr.HasPostHook() {
-				argsMap, _ := ctx2.Args.(map[string]any)
-				errMsg := ""
-				if ctx2.IsError {
-					errMsg = ctx2.Result.Content
-				}
-				d.hooksMgr.PostToolCall(ctx, ctx2.ToolCall.Name, argsMap, ctx2.Result.Content, errMsg, sess.Platform, sess.UserID)
-			}
-			return nil
-		},
-	}, sess.Registry)
+	a, cleanup := d.buildAgent(ctx, sess, d.wsApprovalHandler(ctx, sess, eventCh))
 	var runErr error
-	if d.agentMgr != nil {
-		d.agentMgr.Register(agent.NewAgentAdapter(a))
-		defer func() {
-			d.agentMgr.Finish(a.ID(), runErr)
-		}()
-	}
+	defer func() {
+		UnregisterActiveAgent(string(a.ID()))
+		cleanup(runErr)
+	}()
 
-	// Apply force compact flag from /compact command
-	if sess.ForceCompact {
-		a.SetForceCompact()
-		sess.ForceCompact = false
-	}
-
-	// Load session history so the agent has conversation context
-	if history := sess.Manager.GetMessages(); len(history) > 0 {
-		a.LoadHistoryMessages(history)
-	}
+	// Register agent for question resolution via WebSocket
+	RegisterActiveAgent(string(a.ID()), a)
 
 	agentCh := a.Run(ctx, userInput)
 
@@ -761,38 +728,9 @@ func (d *Dispatcher) handleCommand(msg messaging.InboundMessage) (string, error)
 		}
 		return "✅ New session created.", nil
 	case "/clear":
-		sess, err := d.resolveSession(msg.Platform, msg.UserID)
-		if err != nil {
-			return "❌ No active session.", nil
+		if err := d.RotateSession(msg.Platform, msg.UserID); err != nil {
+			return "❌ Failed to clear session: " + err.Error(), nil
 		}
-		sess.Lock()
-		defer sess.Unlock()
-		// Archive old session before clearing (same as /new)
-		dir := d.hermesSessionDir(msg.Platform, msg.UserID)
-		activePath := filepath.Join(dir, "active.jsonl")
-		if _, statErr := os.Stat(activePath); statErr == nil {
-			mgr, openErr := session.Open(activePath)
-			if openErr == nil {
-				hdr := mgr.GetHeader()
-				idPrefix := "unknown"
-				if hdr != nil && len(hdr.ID) >= 8 {
-					idPrefix = hdr.ID[:8]
-				}
-				archived := filepath.Join(dir, fmt.Sprintf("%s_%s.jsonl",
-					time.Now().Format("20060102-150405"), idPrefix))
-				os.Rename(activePath, archived)
-			} else {
-				archived := filepath.Join(dir, fmt.Sprintf("%s_corrupt.jsonl",
-					time.Now().Format("20060102-150405")))
-				os.Rename(activePath, archived)
-			}
-		}
-		// Close MCP clients before replacing session
-		key := sessionKey(msg.Platform, msg.UserID)
-		if len(sess.MCPClients) > 0 {
-			mcp.CloseClients(sess.MCPClients)
-		}
-		delete(d.sessions, key)
 		return "✅ Session cleared.", nil
 	case "/status":
 		sess := d.GetSession(sessionKey(msg.Platform, msg.UserID))
@@ -858,7 +796,10 @@ func (d *Dispatcher) handleCommandForWS(connID, text string) string {
 		UserID:   connID,
 		Text:     text,
 	}
-	result, _ := d.handleCommand(msg)
+	result, err := d.handleCommand(msg)
+	if err != nil {
+		return "❌ " + err.Error()
+	}
 	return result
 }
 
@@ -926,6 +867,20 @@ func (d *Dispatcher) ResolveApproval(approvalID string, approved bool) bool {
 		return true
 	}
 	return false
+}
+
+// activeAgents tracks running agents by ID for question resolution.
+// Key: agent ID (string), Value: *agent.Agent
+var activeAgents sync.Map
+
+// RegisterActiveAgent registers a running agent for question resolution.
+func RegisterActiveAgent(id string, a *agent.Agent) {
+	activeAgents.Store(id, a)
+}
+
+// UnregisterActiveAgent removes an agent from the registry.
+func UnregisterActiveAgent(id string) {
+	activeAgents.Delete(id)
 }
 
 func truncate(s string, maxLen int) string {
