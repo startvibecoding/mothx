@@ -739,7 +739,7 @@ func (d *Dispatcher) buildExtraContext(workDir string) string {
 		}
 	}
 
-	skillsMgr := skills.NewManager(d.settings.GetGlobalSkillsDir(), filepath.Join(workDir, ".skills"))
+	skillsMgr := skills.NewManagerWithProjectDirs(d.settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(workDir))
 	_ = skillsMgr.Load()
 	extra += skillsMgr.BuildAllSkillsContext()
 

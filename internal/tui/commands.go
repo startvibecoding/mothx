@@ -243,6 +243,20 @@ func (a *App) handleCronCommand(parts []string) {
 
 func (a *App) handleCommand(cmd string) tea.Cmd {
 	parts := strings.Fields(cmd)
+	if len(parts) == 0 {
+		return nil
+	}
+
+	if strings.HasPrefix(parts[0], "/skill:") {
+		skillName := strings.TrimPrefix(parts[0], "/skill:")
+		if skillName != "" {
+			a.activateSkill(skillName)
+		} else {
+			a.listSkills()
+		}
+		return nil
+	}
+
 	command := parts[0]
 
 	switch command {
@@ -412,17 +426,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.addMessage(statusStyle.Render("  PgUp/PgDn - Page tool details when open"))
 		a.addMessage(statusStyle.Render("  Mouse wheel - Scroll terminal history"))
 	default:
-		// Handle /skill:<name> syntax (colon-separated)
-		if strings.HasPrefix(command, "/skill:") {
-			skillName := strings.TrimPrefix(command, "/skill:")
-			if skillName != "" {
-				a.activateSkill(skillName)
-			} else {
-				a.listSkills()
-			}
-		} else {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown: %s", command)))
-		}
+		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown: %s", command)))
 	}
 
 	return nil

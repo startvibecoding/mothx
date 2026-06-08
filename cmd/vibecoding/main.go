@@ -300,7 +300,7 @@ func run(args []string, opts runOptions) error {
 	}
 
 	// Load skills
-	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), filepath.Join(cwd, ".skills"))
+	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	if err := skillsMgr.Load(); err != nil && opts.verbose {
 		fmt.Fprintf(os.Stderr, "Warning: load skills: %v\n", err)
 	}

@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer-linux-arm64",
-  "version": "0.1.32",
+  "version": "0.1.32-1-ge809272",
   "description": "VibeCoding native binary for linux-arm64",
   "os": ["linux"],
   "cpu": ["arm64"],

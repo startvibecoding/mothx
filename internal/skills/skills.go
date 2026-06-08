@@ -32,17 +32,47 @@ type Skill struct {
 
 // Manager manages skill discovery and loading.
 type Manager struct {
-	globalDir  string // ~/.vibecoding/skills
-	projectDir string // .skills/ in project root
-	skills     map[string]*Skill
+	globalDir   string   // ~/.vibecoding/skills
+	projectDir  string   // highest-priority project skills dir
+	projectDirs []string // project skills dirs, highest priority first
+	skills      map[string]*Skill
 }
 
 // NewManager creates a new skills manager.
-func NewManager(globalDir, projectDir string) *Manager {
+func NewManager(globalDir, projectDir string, additionalProjectDirs ...string) *Manager {
+	projectDirs := dedupeDirs(append([]string{projectDir}, additionalProjectDirs...))
 	return &Manager{
-		globalDir:  globalDir,
-		projectDir: projectDir,
-		skills:     make(map[string]*Skill),
+		globalDir:   globalDir,
+		projectDir:  projectDir,
+		projectDirs: projectDirs,
+		skills:      make(map[string]*Skill),
+	}
+}
+
+// NewManagerWithProjectDirs creates a new skills manager with explicit project
+// directories in priority order.
+func NewManagerWithProjectDirs(globalDir string, projectDirs []string) *Manager {
+	projectDirs = dedupeDirs(projectDirs)
+	projectDir := ""
+	if len(projectDirs) > 0 {
+		projectDir = projectDirs[0]
+	}
+	return &Manager{
+		globalDir:   globalDir,
+		projectDir:  projectDir,
+		projectDirs: projectDirs,
+		skills:      make(map[string]*Skill),
+	}
+}
+
+// ProjectSkillDirs returns project-local skill directories in priority order.
+func ProjectSkillDirs(projectRoot string) []string {
+	if projectRoot == "" {
+		return nil
+	}
+	return []string{
+		filepath.Join(projectRoot, ".skills"),
+		filepath.Join(projectRoot, "skills"),
 	}
 }
 
@@ -57,14 +87,36 @@ func (m *Manager) Load() error {
 		}
 	}
 
-	// Load project skills (higher priority, overrides global)
-	if m.projectDir != "" {
-		if err := m.loadFromDir(m.projectDir, "project"); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not load project skills: %v\n", err)
+	// Load project skills from lowest to highest priority so later entries
+	// override earlier entries with the same name.
+	for i := len(m.projectDirs) - 1; i >= 0; i-- {
+		dir := m.projectDirs[i]
+		if dir == "" {
+			continue
+		}
+		if err := m.loadFromDir(dir, "project"); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not load project skills from %s: %v\n", dir, err)
 		}
 	}
 
 	return nil
+}
+
+func dedupeDirs(dirs []string) []string {
+	result := make([]string, 0, len(dirs))
+	seen := make(map[string]bool, len(dirs))
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		clean := filepath.Clean(dir)
+		if seen[clean] {
+			continue
+		}
+		seen[clean] = true
+		result = append(result, dir)
+	}
+	return result
 }
 
 // loadFromDir loads all skills from a directory.

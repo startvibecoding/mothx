@@ -294,7 +294,7 @@ func Run(opts RunOptions) error {
 	}
 	srv.sbMgr = sbMgr
 
-	skillsMgr := skills.NewManager(settings.GetGlobalSkillsDir(), filepath.Join(cwd, ".skills"))
+	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	_ = skillsMgr.Load()
 	srv.skillsMgr = skillsMgr
 

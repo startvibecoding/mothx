@@ -84,6 +84,61 @@ func TestLoadOverride(t *testing.T) {
 	}
 }
 
+func TestLoadProjectDirsPriority(t *testing.T) {
+	tmpDir := t.TempDir()
+	globalDir := filepath.Join(tmpDir, "global")
+	projectSkillsDir := filepath.Join(tmpDir, "repo", ".skills")
+	projectPlainSkillsDir := filepath.Join(tmpDir, "repo", "skills")
+
+	globalSkillDir := filepath.Join(globalDir, "test-skill")
+	os.MkdirAll(globalSkillDir, 0755)
+	os.WriteFile(filepath.Join(globalSkillDir, "SKILL.md"), []byte("# Global Skill"), 0644)
+
+	plainSkillDir := filepath.Join(projectPlainSkillsDir, "test-skill")
+	os.MkdirAll(plainSkillDir, 0755)
+	os.WriteFile(filepath.Join(plainSkillDir, "SKILL.md"), []byte("# Plain Project Skill"), 0644)
+
+	dotSkillDir := filepath.Join(projectSkillsDir, "test-skill")
+	os.MkdirAll(dotSkillDir, 0755)
+	os.WriteFile(filepath.Join(dotSkillDir, "SKILL.md"), []byte("# Dot Project Skill"), 0644)
+
+	m := NewManagerWithProjectDirs(globalDir, []string{projectSkillsDir, projectPlainSkillsDir})
+	m.Load()
+
+	skill := m.Get("test-skill")
+	if skill == nil {
+		t.Fatal("expected test-skill to load")
+	}
+	if skill.Content != "# Dot Project Skill" {
+		t.Errorf("expected .skills to override skills and global, got '%s'", skill.Content)
+	}
+	if skill.Source != "project" {
+		t.Errorf("expected source 'project', got '%s'", skill.Source)
+	}
+}
+
+func TestLoadProjectPlainSkillsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	globalDir := filepath.Join(tmpDir, "global")
+	projectRoot := filepath.Join(tmpDir, "repo")
+	projectPlainSkillsDir := filepath.Join(projectRoot, "skills")
+
+	plainSkillDir := filepath.Join(projectPlainSkillsDir, "plain-skill")
+	os.MkdirAll(plainSkillDir, 0755)
+	os.WriteFile(filepath.Join(plainSkillDir, "SKILL.md"), []byte("# Plain Project Skill"), 0644)
+
+	m := NewManagerWithProjectDirs(globalDir, ProjectSkillDirs(projectRoot))
+	m.Load()
+
+	skill := m.Get("plain-skill")
+	if skill == nil {
+		t.Fatal("expected plain-skill to load from project skills directory")
+	}
+	if skill.Content != "# Plain Project Skill" {
+		t.Errorf("expected project skills content, got '%s'", skill.Content)
+	}
+}
+
 func TestLoadNonExistentDir(t *testing.T) {
 	m := NewManager("/nonexistent", "/nonexistent")
 	err := m.Load()
