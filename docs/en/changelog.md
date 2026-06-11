@@ -1,6 +1,26 @@
 # Changelog
 
 
+## v0.1.35
+
+### 🐛 Bug Fixes
+
+- **TUI Print Ordering**
+  - Replaced ad-hoc `go program.Println(...)` goroutines with a single drain goroutine (`printCh`) to prevent message interleaving on Bubble Tea's unbuffered channel
+  - `flushPendingPrints` now uses `tea.Sequence` instead of `tea.Batch` to preserve print order
+
+- **Display Width Accuracy**
+  - `truncate()` now uses `lipgloss.Width` instead of byte length, so CJK characters (2 cells) and ANSI escape sequences (0 cells) align correctly in the TUI grid
+  - Tool modal title separator uses `lipgloss.Width` for correct line width
+
+- **Tool Output Improvements**
+  - `ls` tool result now shows a compact summary (blank-line removal) in collapsed view, matching `bash` output behavior
+  - Tool result rendering handles multiline summaries with a newline separator instead of forcing everything onto one line
+
+### 🧪 Tests
+
+- Added `formatters_test.go` with display-width-aware truncation tests for ASCII, CJK, and mixed content
+
 ## v0.1.34
 
 ### ✨ Features

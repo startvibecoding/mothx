@@ -1,6 +1,26 @@
 # 更新日志
 
 
+## v0.1.35
+
+### 🐛 Bug 修复
+
+- **TUI 打印顺序修复**
+  - 将分散的 `go program.Println(...)` 协程替换为单一 drain 协程（`printCh`），防止在 Bubble Tea 无缓冲 channel 上发生消息交错
+  - `flushPendingPrints` 改用 `tea.Sequence` 替代 `tea.Batch`，保持打印顺序
+
+- **显示宽度准确性**
+  - `truncate()` 改用 `lipgloss.Width` 替代字节长度计算，CJK 字符（2 格）和 ANSI 转义序列（0 格）在 TUI 网格中正确对齐
+  - 工具详情 Modal 标题分隔线使用 `lipgloss.Width` 计算正确行宽
+
+- **工具输出改进**
+  - `ls` 工具结果在折叠视图中显示 compact 摘要（去除空行），与 `bash` 输出行为一致
+  - 工具结果渲染对多行摘要使用换行分隔符，不再强制压缩到单行
+
+### 🧪 测试
+
+- 新增 `formatters_test.go`，覆盖 ASCII、CJK 及混合内容的显示宽度截断测试
+
 ## v0.1.34
 
 ### ✨ 新功能
