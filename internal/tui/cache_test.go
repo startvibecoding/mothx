@@ -110,7 +110,34 @@ func TestWindowResizeMarksAssistantMarkdownDirty(t *testing.T) {
 	}
 }
 
-func TestLiveAssistantMessageDoesNotRenderMarkdown(t *testing.T) {
+func TestLiveAssistantMessageRendersCodeBlocks(t *testing.T) {
+	app := &App{
+		width:               80,
+		assistantRaw:        map[int]string{0: "Here is code:\n\n```go\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n```\n\nDone"},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	app.updateViewportContent()
+	plain := stripANSI(app.liveContent)
+	if !strings.Contains(plain, "Assistant:") {
+		t.Fatalf("live content missing assistant prefix: %q", plain)
+	}
+	if !strings.Contains(plain, "func main") {
+		t.Fatalf("live code block content missing 'func main': %q", plain)
+	}
+	if !strings.Contains(plain, "Done") {
+		t.Fatalf("live content missing trailing text 'Done': %q", plain)
+	}
+	if strings.Contains(plain, "```") {
+		t.Fatalf("live content must not contain raw backtick fences (glamour should strip them): %q", plain)
+	}
+}
+
+func TestLiveAssistantMessageRendersMarkdown(t *testing.T) {
 	app := &App{
 		width:               50,
 		assistantRaw:        map[int]string{0: strings.Repeat("https://example.com/path/", 8)},
@@ -122,8 +149,9 @@ func TestLiveAssistantMessageDoesNotRenderMarkdown(t *testing.T) {
 	app.configureMarkdownRenderer()
 
 	app.updateViewportContent()
-	if len(app.assistantRendered) != 0 {
-		t.Fatalf("assistantRendered len = %d, want 0 while streaming", len(app.assistantRendered))
+	// Live rendering now uses glamour, so assistantRendered should be populated
+	if len(app.assistantRendered) == 0 {
+		t.Fatal("assistantRendered empty, want glamour-rendered content during streaming")
 	}
 	if !strings.Contains(stripANSI(app.liveContent), "Assistant: ") {
 		t.Fatalf("liveContent missing assistant prefix: %q", app.liveContent)
@@ -507,6 +535,8 @@ func TestHandleAgentEventStatusAndWarningMessage(t *testing.T) {
 		Type:    agent.EventMessageStart,
 		Message: provider.NewUserMessage("[System] explain what you are doing"),
 	})
+	a.handleAgentEvent(agent.Event{Type: agent.EventContextPressure, PressureMessage: "context high"})
+	a.handleAgentEvent(agent.Event{Type: agent.EventBudgetPressure, PressureMessage: "budget low"})
 
 	joined := stripANSI(strings.Join(a.messages, "\n"))
 	if !strings.Contains(joined, "stream warning") {
@@ -514,6 +544,9 @@ func TestHandleAgentEventStatusAndWarningMessage(t *testing.T) {
 	}
 	if !strings.Contains(joined, "[System] explain what you are doing") {
 		t.Fatalf("messages = %q, want warning user message", joined)
+	}
+	if !strings.Contains(joined, "context high") || !strings.Contains(joined, "budget low") {
+		t.Fatalf("messages = %q, want pressure warnings", joined)
 	}
 }
 
@@ -635,6 +668,63 @@ func TestEscAbortClearsApprovalState(t *testing.T) {
 	}
 	if len(a.approvalQueue) != 0 {
 		t.Fatalf("len(approvalQueue) = %d, want 0", len(a.approvalQueue))
+	}
+}
+
+func TestClearCommandResetsTranscriptState(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "base", nil, "agent", false, nil, nil, nil)
+	a.messages = []string{"old"}
+	a.toolResults = []toolResult{{toolCallID: "tool-1", msgIndex: 0}}
+	a.liveContent = "live"
+	a.pendingPrints = []string{"old print"}
+	a.currentPlan = &tools.TaskPlan{Title: "old plan", Steps: []tools.PlanStep{{Title: "step", Status: "running"}}}
+	a.assistantRaw[0] = "raw"
+	a.assistantRendered[0] = "rendered"
+	a.assistantDirty[0] = true
+	a.printedMessageIdx[0] = true
+	a.currentAssistantIdx = 0
+	a.currentThinkIdx = 1
+	a.toolModalOpen = true
+	a.activeSkills["x"] = "skill"
+	a.extraContext = "base skill"
+
+	a.handleCommand("/clear")
+
+	if len(a.toolResults) != 0 || len(a.assistantRaw) != 0 || len(a.assistantRendered) != 0 || len(a.assistantDirty) != 0 || len(a.printedMessageIdx) != 0 {
+		t.Fatalf("transcript state not reset: tools=%d raw=%d rendered=%d dirty=%d printed=%d", len(a.toolResults), len(a.assistantRaw), len(a.assistantRendered), len(a.assistantDirty), len(a.printedMessageIdx))
+	}
+	if a.currentAssistantIdx != -1 || a.currentThinkIdx != -1 || a.toolModalOpen || a.currentPlan != nil {
+		t.Fatalf("active state not reset: assistant=%d think=%d modal=%v plan=%v", a.currentAssistantIdx, a.currentThinkIdx, a.toolModalOpen, a.currentPlan)
+	}
+	if a.extraContext != "base" || len(a.activeSkills) != 0 {
+		t.Fatalf("skill context not reset: extra=%q active=%d", a.extraContext, len(a.activeSkills))
+	}
+	joined := stripANSI(strings.Join(a.messages, "\n"))
+	if !strings.Contains(joined, "Conversation cleared") || strings.Contains(joined, "old") {
+		t.Fatalf("messages after clear = %q, want only clear confirmation", joined)
+	}
+}
+
+func TestOpenLatestToolModalRequiresContent(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	if a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal on empty app = true, want false")
+	}
+	a.messages = []string{"hello"}
+	if !a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal with content = false, want true")
+	}
+}
+
+func TestShowNextQuestionTracksCurrentQuestionAndClearResetsIt(t *testing.T) {
+	a := &App{questionQueue: []pendingQuestion{{questionID: "q1", question: "Pick?", options: []string{"A", "B"}}}}
+	a.showNextQuestion()
+	if !a.waitingForQuestion || a.pendingQuestionID != "q1" || len(a.currentQuestion.options) != 2 {
+		t.Fatalf("question state = waiting %v id %q options %v", a.waitingForQuestion, a.pendingQuestionID, a.currentQuestion.options)
+	}
+	a.clearQuestionState()
+	if a.waitingForQuestion || a.pendingQuestionID != "" || len(a.currentQuestion.options) != 0 {
+		t.Fatalf("question state after clear = waiting %v id %q options %v", a.waitingForQuestion, a.pendingQuestionID, a.currentQuestion.options)
 	}
 }
 

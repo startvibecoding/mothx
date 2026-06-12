@@ -1,6 +1,32 @@
 # Changelog
 
 
+## v0.1.36
+
+### 🐛 Bug Fixes
+
+- **TUI Session State**
+  - `/clear` now resets transcript rendering state, tool results, assistant markdown caches, active stream indices, plan panel, and tool modal state consistently with session switching
+  - Extracted shared transcript/input reset helpers to reduce divergent cleanup paths
+
+- **TUI Mode Switching**
+  - Pressing Tab to cycle mode now aborts an active request before changing mode, matching `/mode` behavior and preventing approval/question responses from targeting a stale agent
+
+- **TUI Question Tool**
+  - Numbered question selections now resolve to the selected option text instead of sending raw numbers back to the model
+  - Clearing question state now also clears the current question metadata
+
+- **TUI Warnings and Details Modal**
+  - Context-pressure and budget-pressure agent events are now displayed in the TUI
+  - Ctrl+O now reports when there is no conversation detail to show instead of opening an empty modal
+
+- **Live Markdown Rendering**
+  - TUI and Hermes remote TUI live assistant messages now use the same Markdown renderer as completed messages, including code block rendering
+
+### 🧪 Tests
+
+- Added regression coverage for `/clear` transcript cleanup, question state tracking, empty details modal handling, pressure warnings, and live Markdown code blocks
+
 ## v0.1.35
 
 ### 🐛 Bug Fixes

@@ -228,6 +228,15 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		}
 		return a.listenAgentEvents()
 
+	case agent.EventContextPressure, agent.EventBudgetPressure:
+		if event.ContextUsage != nil {
+			a.contextUsage = event.ContextUsage
+		}
+		if event.PressureMessage != "" {
+			a.addMessage(warningStyle.Render(event.PressureMessage))
+		}
+		return a.listenAgentEvents()
+
 	case agent.EventStatus:
 		if event.StatusMessage != "" {
 			a.addMessage(statusStyle.Render(event.StatusMessage))

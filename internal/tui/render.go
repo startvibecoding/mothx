@@ -3,8 +3,6 @@ package tui
 import (
 	"fmt"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 func (a *App) renderMessageAt(idx int) string {
@@ -60,43 +58,7 @@ func (a *App) renderAssistantMessage(idx int) string {
 }
 
 func (a *App) renderLiveAssistantMessage(idx int) string {
-	raw := a.assistantRaw[idx]
-	if raw == "" {
-		return ""
-	}
-	return assistantStyle.Render("Assistant: ") + wrapPlainText(raw, a.assistantMarkdownWidth())
-}
-
-func wrapPlainText(s string, width int) string {
-	if width <= 0 {
-		return s
-	}
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		out = append(out, wrapPlainLine(line, width)...)
-	}
-	return strings.Join(out, "\n")
-}
-
-func wrapPlainLine(line string, width int) []string {
-	if lipgloss.Width(line) <= width {
-		return []string{line}
-	}
-	var lines []string
-	var current strings.Builder
-	currentWidth := 0
-	for _, r := range line {
-		rw := lipgloss.Width(string(r))
-		if currentWidth > 0 && currentWidth+rw > width {
-			lines = append(lines, current.String())
-			current.Reset()
-			currentWidth = 0
-		}
-		current.WriteRune(r)
-		currentWidth += rw
-	}
-	lines = append(lines, current.String())
-	return lines
+	return a.renderAssistantMessage(idx)
 }
 
 func (a *App) renderPlanPanel() string {

@@ -109,7 +109,15 @@ func (a *App) cycleMode() {
 		a.mode = "agent"
 	}
 
-	if a.agent != nil {
+	if a.isThinking && a.agent != nil {
+		a.agent.Abort()
+		a.agent = nil
+		a.agentHistoryLoaded = false
+		a.clearQueuedInput()
+		a.isThinking = false
+		a.finishRequestTimer()
+		a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
+	} else if a.agent != nil {
 		// Rebuild agent with new mode
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          a.settings.Compaction.Enabled,

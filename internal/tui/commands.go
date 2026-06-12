@@ -270,10 +270,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 					a.agent.Abort()
 					a.agent = nil
 					a.agentHistoryLoaded = false
-					a.inputQueueMu.Lock()
-					a.inputQueue = a.inputQueue[:0]
-					a.lastInputTime = time.Time{}
-					a.inputQueueMu.Unlock()
+					a.clearQueuedInput()
 					a.isThinking = false
 					a.finishRequestTimer()
 					a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
@@ -366,7 +363,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			}
 		}
 	case "/clear":
-		a.messages = nil
+		a.resetTranscriptState()
 		a.agent = nil
 		a.agentHistoryLoaded = false
 		a.contextUsage = nil
@@ -379,6 +376,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.extraContext = a.baseExtraContext
 		a.updateViewportContent()
 		a.addMessage(statusStyle.Render("✅ Conversation cleared"))
+
 	case "/quit":
 		return tea.Quit
 	case "/sessions":
@@ -658,18 +656,11 @@ func (a *App) sessionsSet(id string) {
 
 	// Reset agent and UI state
 	a.agent = nil
-	a.messages = nil
-	a.toolResults = nil
+	a.resetTranscriptState()
 	a.contextUsage = nil
 	a.totalInputTokens = 0
 	a.totalCacheRead = 0
 	a.totalCacheWrite = 0
-	a.assistantRaw = make(map[int]string)
-	a.assistantRendered = make(map[int]string)
-	a.assistantDirty = make(map[int]bool)
-	a.printedMessageIdx = make(map[int]bool)
-	a.currentAssistantIdx = -1
-	a.currentThinkIdx = -1
 
 	// Load history messages from the new session
 	a.LoadHistoryMessages()
@@ -799,18 +790,11 @@ func (a *App) sessionsClear() {
 
 	// Reset agent and UI state
 	a.agent = nil
-	a.messages = nil
-	a.toolResults = nil
+	a.resetTranscriptState()
 	a.contextUsage = nil
 	a.totalInputTokens = 0
 	a.totalCacheRead = 0
 	a.totalCacheWrite = 0
-	a.assistantRaw = make(map[int]string)
-	a.assistantRendered = make(map[int]string)
-	a.assistantDirty = make(map[int]bool)
-	a.printedMessageIdx = make(map[int]bool)
-	a.currentAssistantIdx = -1
-	a.currentThinkIdx = -1
 	a.updateViewportContent()
 
 	a.addMessage(statusStyle.Render("✅ New session created."))

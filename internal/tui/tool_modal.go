@@ -7,10 +7,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-func (a *App) openLatestToolModal() {
+func (a *App) openLatestToolModal() bool {
+	if len(a.messages) == 0 && len(a.toolResults) == 0 && len(a.assistantRaw) == 0 {
+		return false
+	}
 	a.toolModalOpen = true
 	a.toolModalPinnedBottom = true
 	a.toolModalOffset = a.maxToolModalOffset()
+	return true
 }
 
 func (a *App) closeToolModal() {

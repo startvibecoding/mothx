@@ -51,6 +51,7 @@ func (a *App) showNextQuestion() {
 	}
 	next := a.questionQueue[0]
 	a.questionQueue = a.questionQueue[1:]
+	a.currentQuestion = next
 	a.pendingQuestionID = next.questionID
 	a.waitingForQuestion = true
 
@@ -76,6 +77,7 @@ func (a *App) showNextQuestion() {
 func (a *App) clearQuestionState() {
 	a.waitingForQuestion = false
 	a.pendingQuestionID = ""
+	a.currentQuestion = pendingQuestion{}
 	a.questionQueue = a.questionQueue[:0]
 }
 

@@ -176,6 +176,7 @@ type App struct {
 	// Question state
 	waitingForQuestion bool
 	pendingQuestionID  string
+	currentQuestion    pendingQuestion
 	questionQueue      []pendingQuestion
 
 	// Multi-agent state (Decision 8: default off)
@@ -471,10 +472,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				a.clearApprovalState()
 				a.clearQuestionState()
-				a.inputQueueMu.Lock()
-				a.inputQueue = a.inputQueue[:0]
-				a.lastInputTime = time.Time{}
-				a.inputQueueMu.Unlock()
+				a.clearQueuedInput()
 				a.input.Reset()
 				a.resetInputHistoryNavigation()
 				a.isThinking = false
@@ -519,23 +517,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.waitingForQuestion {
 				if a.agent != nil {
 					answer := strings.TrimSpace(input)
-					// Check if it's a number selection
-					var num int
-					if _, err := fmt.Sscanf(answer, "%d", &num); err == nil && num > 0 {
-						// Find the question to resolve options
-						// Options are already shown; just pass the number as the answer
-						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
-						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Selected: [%s]", answer)))
-					} else if answer != "" {
-						// Custom text input
-						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
-						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Answer: %s", answer)))
-					} else {
+					if answer == "" {
 						// Empty input — re-prompt
 						a.input.Reset()
 						a.resetInputHistoryNavigation()
 						a.scheduleRender()
 						return a, nil
+					}
+
+					// Resolve numbered selections to the actual option text so the
+					// question tool result is meaningful to the model.
+					var num int
+					if _, err := fmt.Sscanf(answer, "%d", &num); err == nil && num > 0 && num <= len(a.currentQuestion.options) {
+						answer = a.currentQuestion.options[num-1]
+						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
+						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Selected: %s", answer)))
+					} else {
+						// Custom text input, including out-of-range numbers.
+						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
+						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Answer: %s", answer)))
 					}
 				}
 				// Show next queued question or clear waiting state
@@ -544,6 +544,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					a.waitingForQuestion = false
 					a.pendingQuestionID = ""
+					a.currentQuestion = pendingQuestion{}
 				}
 				a.input.Reset()
 				a.resetInputHistoryNavigation()
@@ -576,7 +577,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 		case tea.KeyCtrlO:
-			a.openLatestToolModal()
+			if a.openLatestToolModal() {
+				return a, nil
+			}
+			a.addMessage(statusStyle.Render("No conversation details yet."))
 			return a, nil
 		case tea.KeyCtrlP:
 			a.toggleMultiAgent()
