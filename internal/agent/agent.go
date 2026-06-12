@@ -719,6 +719,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			MaxTokens:     a.config.MaxTokens,
 			Temperature:   a.config.Model.Temperature,
 			TopP:          a.config.Model.TopP,
+			ModelID:       a.config.Model.ID,
 			Abort:         a.abort,
 		}
 

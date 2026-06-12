@@ -84,7 +84,7 @@ func (s *Server) cmdModel(parts []string) *CommandResult {
 		modelID := parts[1]
 		newModel := s.provider.GetModel(modelID)
 		if newModel == nil {
-			return &CommandResult{Message: fmt.Sprintf("Model not found: %s. Use /models to list available models.", modelID), Error: true}
+			return &CommandResult{Message: fmt.Sprintf("Model %q not found — available: %s", modelID, modelIDs(s.provider.Models())), Error: true}
 		}
 		s.mu.Lock()
 		s.model = newModel

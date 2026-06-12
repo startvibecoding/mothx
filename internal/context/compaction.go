@@ -275,6 +275,7 @@ func GenerateSummaryInsertThenCompress(
 	ctx context.Context,
 	messages []provider.Message,
 	p provider.Provider,
+	model *provider.Model,
 	systemPrompt string,
 	tools []provider.ToolDefinition,
 	previousSummary string,
@@ -303,6 +304,9 @@ func GenerateSummaryInsertThenCompress(
 		Tools:        tools,
 		SystemPrompt: systemPrompt,
 		MaxTokens:    maxTokens,
+	}
+	if model != nil {
+		params.ModelID = model.ID
 	}
 
 	// Call LLM to generate summary
@@ -346,7 +350,7 @@ func GenerateSummary(
 
 	// Use empty system prompt and tools - this is the legacy path
 	// The caller should migrate to GenerateSummaryInsertThenCompress
-	return GenerateSummaryInsertThenCompress(ctx, messages, p, "", nil, previousSummary, maxTokens)
+	return GenerateSummaryInsertThenCompress(ctx, messages, p, model, "", nil, previousSummary, maxTokens)
 }
 
 // Compact performs context compaction on the messages using Insert-then-Compress pattern.
@@ -391,7 +395,7 @@ func Compact(
 
 	// Generate summary using Insert-then-Compress (R4.1-R4.2)
 	summary, err := GenerateSummaryInsertThenCompress(
-		ctx, messagesToSummarize, p,
+		ctx, messagesToSummarize, p, model,
 		systemPrompt, tools,
 		previousSummary, maxTokens,
 	)

@@ -299,21 +299,12 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			modelID := parts[1]
 			newModel := a.provider.GetModel(modelID)
 			if newModel == nil {
-				a.addMessage(errorStyle.Render(fmt.Sprintf("Model not found: %s", modelID)))
-				// List available models
 				models := a.provider.Models()
-				if len(models) > 0 {
-					var sb strings.Builder
-					sb.WriteString("Available models:\n")
-					for _, m := range models {
-						marker := " "
-						if m.ID == a.model.ID {
-							marker = "*"
-						}
-						sb.WriteString(fmt.Sprintf("  [%s] %s (%s)\n", marker, m.Name, m.ID))
-					}
-					a.addMessage(statusStyle.Render(sb.String()))
+				ids := make([]string, len(models))
+				for i, m := range models {
+					ids[i] = m.ID
 				}
+				a.addMessage(errorStyle.Render(fmt.Sprintf("Model %q not found — available: %s", modelID, strings.Join(ids, ", "))))
 				return nil
 			}
 			a.model = newModel

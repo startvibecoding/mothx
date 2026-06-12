@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -58,6 +59,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if req.Model != "" {
 		if m := currentProvider.GetModel(req.Model); m != nil {
 			currentModel = m
+		} else {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("model %q not found — available: %s", req.Model, modelIDs(currentProvider.Models())), "invalid_request_error")
+			return
 		}
 	}
 	currentModel = cloneModel(currentModel)
@@ -556,4 +560,13 @@ func resolveToolEvent(ev agent.Event) (name string, callID string) {
 		}
 	}
 	return name, callID
+}
+
+// modelIDs returns a comma-separated list of model IDs for error messages.
+func modelIDs(models []*provider.Model) string {
+	ids := make([]string, len(models))
+	for i, m := range models {
+		ids[i] = m.ID
+	}
+	return strings.Join(ids, ", ")
 }

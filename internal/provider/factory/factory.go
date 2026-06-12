@@ -86,11 +86,7 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 		ConfigureHeaders(p, settings, providerName)
 		model := p.GetModel(modelID)
 		if model == nil {
-			if len(models) > 0 {
-				model = models[0]
-			} else {
-				return nil, nil, fmt.Errorf("no models configured for provider %s", providerName)
-			}
+			return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
 		}
 		return p, model, nil
 	}
@@ -116,14 +112,18 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 
 	model := p.GetModel(modelID)
 	if model == nil {
-		models := p.Models()
-		if len(models) > 0 {
-			model = models[0]
-		} else {
-			return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
-		}
+		return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
 	}
 	return p, model, nil
+}
+
+// modelIDs returns a comma-separated list of model IDs for error messages.
+func modelIDs(models []*provider.Model) string {
+	ids := make([]string, len(models))
+	for i, m := range models {
+		ids[i] = m.ID
+	}
+	return strings.Join(ids, ", ")
 }
 
 type retryConfigurable interface {
