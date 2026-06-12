@@ -149,12 +149,35 @@ func TestLiveAssistantMessageRendersMarkdown(t *testing.T) {
 	app.configureMarkdownRenderer()
 
 	app.updateViewportContent()
-	// Live rendering now uses glamour, so assistantRendered should be populated
-	if len(app.assistantRendered) == 0 {
-		t.Fatal("assistantRendered empty, want glamour-rendered content during streaming")
+	if len(app.assistantRendered) != 0 {
+		t.Fatalf("assistantRendered len = %d, want 0 for prose without fenced code blocks", len(app.assistantRendered))
 	}
 	if !strings.Contains(stripANSI(app.liveContent), "Assistant: ") {
 		t.Fatalf("liveContent missing assistant prefix: %q", app.liveContent)
+	}
+}
+
+func TestPlainAssistantMessageWrapsWithoutMarkdownWordSplitting(t *testing.T) {
+	app := &App{
+		width:               40,
+		assistantRaw:        map[int]string{0: "修复 /clear 未清理 transcript rendering state"},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	app.updateViewportContent()
+	plain := stripANSI(app.liveContent)
+	if strings.Contains(plain, "修  /复clear") || strings.Contains(plain, "v.01\n36") {
+		t.Fatalf("plain assistant text was awkwardly split: %q", plain)
+	}
+	if !strings.Contains(plain, "修复 /clear") {
+		t.Fatalf("plain assistant text missing expected phrase: %q", plain)
+	}
+	if len(app.assistantRendered) != 0 {
+		t.Fatalf("assistantRendered len = %d, want 0 for plain prose", len(app.assistantRendered))
 	}
 }
 

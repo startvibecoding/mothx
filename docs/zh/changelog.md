@@ -6,7 +6,7 @@
 ### 🐛 Bug 修复
 
 - **TUI 会话状态**
-  - `/clear` 现在会重置 transcript 渲染状态、工具结果、助手 Markdown 缓存、活动流索引、Plan 面板和工具详情 Modal 状态，与会话切换保持一致
+  - 修复 `/clear` 未清理 transcript 渲染状态、工具结果、助手 Markdown 缓存、活动流索引、Plan 面板和工具详情 Modal 状态的问题，与会话切换保持一致
   - 抽取共享的 transcript/input 重置辅助函数，减少不同清理路径的行为差异
 
 - **TUI 模式切换**
@@ -20,12 +20,12 @@
   - TUI 现在会显示 Context 压力和预算压力事件
   - Ctrl+O 在没有可展示的会话详情时会提示用户，而不是打开空 Modal
 
-- **实时 Markdown 渲染**
-  - TUI 与 Hermes 远程 TUI 的实时助手消息现在复用已完成消息的 Markdown 渲染器，支持代码块渲染
+- **实时消息渲染**
+  - 实时助手消息会将 fenced code block 按 Markdown 渲染，同时普通文本保留 plain-text wrapping 路径，避免中英文被异常拆词换行
 
 ### 🧪 测试
 
-- 新增 `/clear` transcript 清理、提问状态跟踪、空详情 Modal、压力警告和实时 Markdown 代码块的回归测试
+- 新增 `/clear` transcript 清理、提问状态跟踪、空详情 Modal、压力警告、实时代码块渲染和普通文本换行的回归测试
 
 ## v0.1.35
 
