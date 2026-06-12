@@ -347,6 +347,16 @@ A:
 
 A: MIT License
 
+### Q: How to diagnose environment issues?
+
+A: Use the `doctor` subcommand to check your environment:
+
+```bash
+vibecoding doctor
+```
+
+This checks OS info, config files, providers, models, sandbox, MCP servers, sessions, skills, and context files. It reports any issues with masked API keys and validates that your default provider can be initialized.
+
 ### Q: What is the current version?
 
-A: The current version is v0.1.25. See the [Changelog](changelog.md) for version history.
+A: The current version is v0.1.36. See the [Changelog](changelog.md) for version history.

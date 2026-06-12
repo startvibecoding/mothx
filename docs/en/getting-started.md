@@ -275,6 +275,16 @@ Navigate to `Settings → Tools → ACP Agents` and add:
 
 See the [ACP Protocol](acp.md) documentation for details.
 
+## Troubleshooting
+
+If something doesn't work, run the built-in diagnostics:
+
+```bash
+vibecoding doctor
+```
+
+This checks your environment, config files, providers, sandbox, MCP, sessions, skills, and context files, and reports any issues.
+
 ## Next Steps
 
 - Read the [Configuration Guide](configuration.md) to customize settings

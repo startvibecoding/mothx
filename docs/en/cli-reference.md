@@ -100,6 +100,94 @@ vibecoding a2a [command]
 
 See [A2A Protocol](a2a.md) documentation for details.
 
+### `gateway` - OpenAI-Compatible HTTP Gateway
+
+Start VibeCoding as an HTTP server exposing a standard OpenAI Chat Completions API.
+
+```
+vibecoding gateway [flags]
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--port` | - | `8080` | Listen port (overrides gateway.json) |
+| `--config` | - | - | Path to gateway.json |
+| `--work-dir` | - | Current directory | Default working directory |
+| `--provider` | `-p` | From config | LLM provider |
+| `--model` | `-m` | From config | Model ID |
+| `--sandbox` | - | false | Enable sandbox (bwrap) |
+| `--multi-agent` | - | false | Enable multi-agent tools |
+| `--verbose` | - | false | Verbose output |
+| `--debug` | - | false | Debug logging |
+
+See [Gateway Mode](gateway.md) documentation for details.
+
+### `hermes` - Messaging Gateway
+
+Run the Hermes messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
+
+```
+vibecoding hermes [command]
+```
+
+| Subcommand | Description |
+|------------|-------------|
+| `start` | Start Hermes server |
+| `client` | Connect as a remote TUI client via WebSocket |
+| `--init-hermes-config` | Create `hermes.json` config template |
+| `--force` | Force overwrite existing config file |
+
+See [Hermes Mode](hermes.md) documentation for details.
+
+### `doctor` - Environment Diagnostics
+
+Diagnose your VibeCoding environment: OS info, config files, providers, models, sandbox, MCP, and more.
+
+```
+vibecoding doctor
+```
+
+Checks performed:
+- **Environment**: OS/arch, Go version, shell, home/working directory
+- **Configuration Files**: Validates settings, gateway, and MCP config files with parse checks
+- **Providers & Models**: Lists configured providers with masked API keys, models with context window/max tokens/reasoning flags; verifies default provider initialization
+- **Sandbox**: Checks bubblewrap availability and version
+- **MCP Servers**: Lists configured MCP servers
+- **Sessions**: Shows session directory and entry count
+- **Skills**: Shows global and project skills directories
+- **Context Files**: Discovers AGENTS.md, CLAUDE.md, CURSOR.md, .cursorrules, CONVENTIONS.md
+
+```bash
+vibecoding doctor
+```
+
+Sample output:
+```
+  VibeCoding Doctor
+  ─────────────────
+
+  Environment
+    ✅ OS / Arch — linux/amd64
+    ✅ Go version — go1.24.4
+    ✅ Shell — /bin/bash
+    ✅ Home directory — /home/user
+    ✅ Working directory — /home/user/project
+
+  Configuration Files
+    ✅ Global settings — /home/user/.vibecoding/settings.json (1.2 KB)
+    ⏭️  Project settings — .vibe/settings.json (not found)
+    ...
+
+  Providers & Models
+    ✅ Default provider — deepseek-openai
+    ✅ Default model — deepseek-v4-flash
+    ✅ Provider: deepseek-openai — api=openai-chat, base=https://api.deepseek.com, key=sk-a****xyz
+    ✅   └─ deepseek-v4-flash — ctx=1M, max=384K ★ default
+    ✅ Provider init — deepseek-openai/deepseek-v4-flash created successfully
+
+  Result: All 15 checks passed
+```
+
 ## Usage Examples
 
 ### Basic Usage
@@ -273,6 +361,7 @@ Default settings can be overridden via environment variables:
 | `VIBECODING_MODEL` | Override default model |
 | `VIBECODING_MODE` | Override default mode |
 | `VIBECODING_THINKING` | Override default thinking level |
+| `VIBECODING_USER_AGENT` | Custom User-Agent string |
 
 ## Exit Codes
 

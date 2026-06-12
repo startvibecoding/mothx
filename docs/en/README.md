@@ -34,6 +34,7 @@ Welcome to the VibeCoding Documentation Center!
 - Safer approval handling: `bashBlacklist` now overrides whitelist entries, including in YOLO mode, and `--print` exits early when approval would be required
 - Unified cache metrics across TUI and print mode for cache hit rate and token totals
 - Consistent provider debug output via `--debug`, including ACP mode
+- `doctor` subcommand for environment diagnostics: config, providers, sandbox, MCP, sessions, skills, and context files
 
 ## Table of Contents
 

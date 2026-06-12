@@ -6,7 +6,8 @@
 vibecoding/
 ├── agent/                       # Public Agent/Provider interfaces and Builder
 ├── cmd/vibecoding/              # CLI entry point
-│   └── main.go                  # Main program
+│   ├── main.go                  # Main program
+│   └── main_doctor.go           # `doctor` subcommand (env diagnostics)
 ├── internal/
 │   ├── a2a/                     # A2A protocol server and master mode
 │   │   ├── config.go            # A2A configuration and initialization
@@ -39,9 +40,11 @@ vibecoding/
 │   ├── platform/                # Cross-platform compatibility utilities
 │   ├── provider/                # LLM Provider abstraction
 │   │   ├── anthropic/           # Anthropic Messages API
+│   │   ├── google/              # Google Gemini/Vertex API
+│   │   ├── openai/              # OpenAI Chat Completions API
 │   │   ├── factory/             # Shared provider/model construction
-│   │   ├── vendor*.go           # Vendor adapter registry and defaults
-│   │   └── openai/              # OpenAI Chat Completions API
+│   │   ├── http_client.go       # Shared HTTP client with proxy/headers support
+│   │   └── vendor*.go           # Vendor adapter registry and defaults
 │   ├── sandbox/                 # Sandbox abstraction (bwrap, none)
 │   ├── session/                 # Session management (JSONL)
 │   ├── skills/                  # Skills system
@@ -54,6 +57,7 @@ vibecoding/
 │   │   ├── find.go              # File finding
 │   │   ├── ls.go                # Directory listing
 │   │   ├── plan.go              # Task planning
+│   │   ├── question.go          # User clarification (plan mode, TUI only)
 │   │   ├── skill_ref.go         # Skill reference loading
 │   │   └── a2a_dispatch.go      # A2A remote agent dispatch
 │   ├── tui/                     # Terminal UI (BubbleTea)

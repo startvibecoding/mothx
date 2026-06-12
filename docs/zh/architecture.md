@@ -6,7 +6,8 @@
 vibecoding/
 ├── agent/                       # 公共 Agent/Provider 接口与 Builder
 ├── cmd/vibecoding/              # CLI 入口点
-│   └── main.go                  # 主程序
+│   ├── main.go                  # 主程序
+│   └── main_doctor.go           # `doctor` 子命令（环境诊断）
 ├── internal/
 │   ├── a2a/                     # A2A 协议服务器与 Master 模式
 │   │   ├── config.go            # A2A 配置与初始化
@@ -39,9 +40,11 @@ vibecoding/
 │   ├── platform/                # 跨平台兼容工具
 │   ├── provider/                # LLM Provider 抽象
 │   │   ├── anthropic/           # Anthropic Messages API
+│   │   ├── google/              # Google Gemini/Vertex API
+│   │   ├── openai/              # OpenAI Chat Completions API
 │   │   ├── factory/             # 共享 provider/model 创建逻辑
-│   │   ├── vendor*.go           # 厂商适配注册和默认值
-│   │   └── openai/              # OpenAI Chat Completions API
+│   │   ├── http_client.go       # 共享 HTTP 客户端，支持代理和自定义 header
+│   │   └── vendor*.go           # 厂商适配注册和默认值
 │   ├── sandbox/                 # 沙箱抽象 (bwrap, none)
 │   ├── session/                 # 会话管理 (JSONL)
 │   ├── skills/                  # 技能系统
@@ -54,6 +57,7 @@ vibecoding/
 │   │   ├── find.go              # 文件查找
 │   │   ├── ls.go                # 目录列表
 │   │   ├── plan.go              # 任务规划
+│   │   ├── question.go          # 用户提问澄清（Plan 模式，仅 TUI）
 │   │   ├── skill_ref.go         # 技能引用加载
 │   │   └── a2a_dispatch.go      # A2A 远程 agent 调度
 │   ├── tui/                     # 终端 UI (BubbleTea)

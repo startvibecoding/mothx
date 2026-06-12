@@ -3,6 +3,17 @@
 
 ## v0.1.36
 
+### ✨ Features
+
+- **Doctor Subcommand** (`vibecoding doctor`)
+  - New diagnostic command that checks environment, configuration, providers, sandbox, MCP servers, sessions, skills, and context files
+  - Reports OS/arch, Go version, shell, home/working directory
+  - Validates settings, gateway, and MCP config files with parse checks
+  - Lists configured providers with masked API keys, models with context window/max tokens/reasoning flags
+  - Checks bwrap sandbox availability and version
+  - Shows MCP servers, session counts, skills directories, and discovered context files
+  - Unconfigured providers (no API key) are silently skipped
+
 ### 🐛 Bug Fixes
 
 - **TUI Session State**
@@ -27,9 +38,22 @@
 - **Live Message Rendering**
   - Live assistant messages render fenced code blocks as Markdown while keeping normal prose on the plain-text wrapping path to avoid awkward word splitting
 
+- **Model Validation and Compaction**
+  - Pass `ModelID` in `ChatParams` so providers know the active model
+  - Forward model to compaction/summary generation, preventing silent fallback to default model
+  - Return errors with available model list when model is not found instead of silently falling back
+  - Consistent model error messages across factory, gateway, and TUI
+
+- **Google/OpenAI Tool Result Text Extraction**
+  - Fixed Google and OpenAI providers sending empty content when tool results use rich `Contents` blocks instead of plain `Content` string
+  - Added `googleToolResultText()` to extract text from `Contents` blocks in Google provider
+  - Fixed `responseToolOutput()` usage in OpenAI rich tool result branch
+
 ### 🧪 Tests
 
 - Added regression coverage for `/clear` transcript cleanup, question state tracking, empty details modal handling, pressure warnings, live code-block rendering, and prose wrapping
+- Added agent-level integration test (`TestToolResultIsIncludedInNextProviderTurn`) verifying tool results with rich `Contents` blocks reach the next provider turn
+- Added provider-level unit tests for Google and OpenAI tool result text extraction from `Contents` blocks
 
 ## v0.1.35
 

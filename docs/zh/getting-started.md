@@ -275,6 +275,16 @@ VibeCoding 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
 
 详见 [ACP 协议](acp.md) 文档。
 
+## 故障排查
+
+如果遇到问题，可以运行内置诊断命令：
+
+```bash
+vibecoding doctor
+```
+
+这会检查你的环境、配置文件、Provider、沙箱、MCP、会话、技能和上下文文件，并报告任何问题。
+
 ## 下一步
 
 - 阅读 [配置详解](configuration.md) 自定义设置

@@ -3,6 +3,17 @@
 
 ## v0.1.36
 
+### ✨ 新功能
+
+- **Doctor 子命令** (`vibecoding doctor`)
+  - 新增诊断命令，检查环境、配置、Provider、沙箱、MCP 服务器、Session、技能和上下文文件
+  - 报告 OS/架构、Go 版本、Shell、Home/工作目录
+  - 校验 settings、gateway 和 MCP 配置文件，带解析检查
+  - 列出已配置的 Provider（API key 脱敏显示）、模型及其上下文窗口/最大 token/推理标志
+  - 检查 bwrap 沙箱可用性和版本
+  - 展示 MCP 服务器、Session 数量、技能目录和已发现的上下文文件
+  - 未配置的 Provider（无 API key）静默跳过
+
 ### 🐛 Bug 修复
 
 - **TUI 会话状态**
@@ -27,9 +38,22 @@
 - **实时消息渲染**
   - 实时助手消息会将 fenced code block 按 Markdown 渲染，同时普通文本保留 plain-text wrapping 路径，避免中英文被异常拆词换行
 
+- **模型校验与 Compaction 修复**
+  - 在 `ChatParams` 中传递 `ModelID`，让 Provider 知晓当前活跃模型
+  - 将模型信息透传到 compaction/summary 生成，避免静默回退到默认模型
+  - 模型未找到时返回错误并列出可用模型列表，不再静默回退
+  - 统一 factory、gateway 和 TUI 的模型错误提示
+
+- **Google/OpenAI 工具结果文本提取**
+  - 修复 Google 和 OpenAI Provider 在工具结果使用富 `Contents` 块而非纯 `Content` 字符串时发送空内容的问题
+  - Google Provider 新增 `googleToolResultText()` 从 `Contents` 块提取文本
+  - 修复 OpenAI 富工具结果分支中 `responseToolOutput()` 的使用
+
 ### 🧪 测试
 
 - 新增 `/clear` transcript 清理、提问状态跟踪、空详情 Modal、压力警告、实时代码块渲染和普通文本换行的回归测试
+- 新增 agent 级集成测试（`TestToolResultIsIncludedInNextProviderTurn`），验证含富 `Contents` 块的工具结果能正确传递到下一轮 provider 调用
+- 新增 Google 和 OpenAI Provider 从 `Contents` 块提取工具结果文本的单元测试
 
 ## v0.1.35
 

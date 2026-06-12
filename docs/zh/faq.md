@@ -347,6 +347,16 @@ A:
 
 A: MIT License
 
+### Q: 如何诊断环境问题?
+
+A: 使用 `doctor` 子命令检查你的环境：
+
+```bash
+vibecoding doctor
+```
+
+这会检查系统信息、配置文件、Provider、模型、沙箱、MCP 服务器、会话、技能和上下文文件。报告中会对 API key 进行脱敏显示，并验证默认 Provider 是否可以正常初始化。
+
 ### Q: 当前版本是什么?
 
-A: 当前版本是 v0.1.25。详见 [更新日志](changelog.md) 了解版本历史。
+A: 当前版本是 v0.1.36。详见 [更新日志](changelog.md) 了解版本历史。
