@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,77 @@ import (
 type loopingToolProvider struct {
 	models    []*provider.Model
 	callCount int
+}
+
+type recordingToolProvider struct {
+	models []*provider.Model
+	calls  []provider.ChatParams
+}
+
+func newRecordingToolProvider() *recordingToolProvider {
+	return &recordingToolProvider{
+		models: []*provider.Model{{ID: "model1", Name: "Model 1"}},
+	}
+}
+
+func (p *recordingToolProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.calls = append(p.calls, provider.ChatParams{
+		Messages: cloneMessages(params.Messages),
+		Tools:    append([]provider.ToolDefinition(nil), params.Tools...),
+	})
+
+	ch := make(chan provider.StreamEvent, 3)
+	callNumber := len(p.calls)
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamStart}
+		if callNumber == 1 {
+			ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: &provider.ToolCallBlock{
+				ID:        "call_1",
+				Name:      "bash",
+				Arguments: []byte(`{"command":"echo visible"}`),
+			}}
+		} else {
+			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "done"}
+		}
+		ch <- provider.StreamEvent{Type: provider.StreamDone}
+	}()
+	return ch
+}
+
+func (p *recordingToolProvider) Name() string {
+	return "recording"
+}
+
+func (p *recordingToolProvider) Models() []*provider.Model {
+	return p.models
+}
+
+func (p *recordingToolProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.models {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
+type fixedBashTool struct{}
+
+func (fixedBashTool) Name() string { return "bash" }
+
+func (fixedBashTool) Description() string { return "fake bash for tests" }
+
+func (fixedBashTool) PromptSnippet() string { return "fake bash" }
+
+func (fixedBashTool) PromptGuidelines() []string { return nil }
+
+func (fixedBashTool) Parameters() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"command":{"type":"string"}}}`)
+}
+
+func (fixedBashTool) Execute(ctx context.Context, params map[string]any) (tools.ToolResult, error) {
+	return tools.NewTextToolResult("bash output visible to the next model turn"), nil
 }
 
 func newLoopingToolProvider() *loopingToolProvider {
@@ -349,6 +421,56 @@ func TestAgentRunWithToolCall(t *testing.T) {
 	if !hasToolExecution {
 		t.Error("expected tool execution event")
 	}
+}
+
+func TestToolResultIsIncludedInNextProviderTurn(t *testing.T) {
+	recorder := newRecordingToolProvider()
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+	registry.Register(fixedBashTool{})
+
+	cfg := AgentLoopConfig{
+		Config: Config{
+			Provider: recorder,
+			Model:    recorder.Models()[0],
+			Mode:     "yolo",
+		},
+		ToolExecutionMode: "sequential",
+		MaxIterations:     2,
+	}
+
+	a := NewWithLoopConfig(cfg, registry)
+	for range a.Run(context.Background(), "run bash") {
+	}
+
+	if len(recorder.calls) != 2 {
+		t.Fatalf("expected 2 provider calls, got %d", len(recorder.calls))
+	}
+
+	var foundToolResult bool
+	for _, msg := range recorder.calls[1].Messages {
+		if msg.Role == "toolResult" && msg.ToolName == "bash" && strings.Contains(messageTextForTest(msg), "bash output visible") {
+			foundToolResult = true
+			break
+		}
+	}
+	if !foundToolResult {
+		t.Fatalf("second provider call did not include bash tool result: %#v", recorder.calls[1].Messages)
+	}
+}
+
+func messageTextForTest(msg provider.Message) string {
+	if msg.Content != "" || len(msg.Contents) == 0 {
+		return msg.Content
+	}
+	var parts []string
+	for _, block := range msg.Contents {
+		if block.Type == "text" && block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func TestToolOnlyWarningAppendedAfterToolResults(t *testing.T) {

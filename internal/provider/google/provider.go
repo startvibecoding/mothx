@@ -387,7 +387,7 @@ func (p *Provider) convertMessages(params provider.ChatParams) []googleContent {
 	for _, msg := range params.Messages {
 		content := googleContent{Role: googleRole(msg.Role)}
 		if msg.Role == "toolResult" {
-			response := map[string]any{"content": msg.Content}
+			response := map[string]any{"content": googleToolResultText(msg)}
 			if msg.IsError {
 				response["error"] = true
 			}
@@ -427,6 +427,19 @@ func (p *Provider) convertMessages(params provider.ChatParams) []googleContent {
 		}
 	}
 	return contents
+}
+
+func googleToolResultText(msg provider.Message) string {
+	if msg.Content != "" || len(msg.Contents) == 0 {
+		return msg.Content
+	}
+	var parts []string
+	for _, block := range msg.Contents {
+		if block.Type == "text" && block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func googleRole(role string) string {

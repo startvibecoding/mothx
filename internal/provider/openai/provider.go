@@ -636,7 +636,7 @@ func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantRea
 			om.Role = "tool"
 			if len(msg.Contents) > 0 {
 				// Rich tool result: send text as tool message, images as supplementary user message
-				om.Content = msg.Content
+				om.Content = responseToolOutput(msg)
 				messages = append(messages, om)
 				// Collect image blocks for a supplementary user message
 				var imageBlocks []openAIContentBlock

@@ -72,6 +72,30 @@ func TestGoogleProviderHTTPProxy(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesToolResultUsesTextContents(t *testing.T) {
+	p := &Provider{}
+	contents := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			{
+				Role:       "toolResult",
+				ToolCallID: "call_1",
+				ToolName:   "bash",
+				Contents: []provider.ContentBlock{
+					{Type: "text", Text: "bash output from content block", CacheControl: &provider.CacheControl{Type: "ephemeral"}},
+				},
+			},
+		},
+	})
+
+	if len(contents) != 1 || len(contents[0].Parts) != 1 || contents[0].Parts[0].FunctionResponse == nil {
+		t.Fatalf("contents = %#v, want one function response", contents)
+	}
+	got := contents[0].Parts[0].FunctionResponse.Response["content"]
+	if got != "bash output from content block" {
+		t.Fatalf("function response content = %#v, want text content from content block", got)
+	}
+}
+
 func TestGoogleCustomHeaders(t *testing.T) {
 	p := newMockGoogleProvider(t,
 		NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}}),

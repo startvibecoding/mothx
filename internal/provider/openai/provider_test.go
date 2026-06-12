@@ -84,6 +84,29 @@ func TestOpenAIProviderHTTPProxy(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesToolResultUsesTextContents(t *testing.T) {
+	p := &Provider{}
+	messages := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			{
+				Role:       "toolResult",
+				ToolCallID: "call_1",
+				ToolName:   "bash",
+				Contents: []provider.ContentBlock{
+					{Type: "text", Text: "bash output from content block", CacheControl: &provider.CacheControl{Type: "ephemeral"}},
+				},
+			},
+		},
+	}, false)
+
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1", len(messages))
+	}
+	if messages[0].Role != "tool" || messages[0].Content != "bash output from content block" {
+		t.Fatalf("tool message = %#v, want text content from content block", messages[0])
+	}
+}
+
 func TestOpenAICustomHeaders(t *testing.T) {
 	p := newMockOpenAIProvider(t, []*provider.Model{{ID: "gpt-test"}}, "data: [DONE]\n", nil, func(r *http.Request) {
 		if r.Header.Get("X-Custom-Header") != "custom-value" {
