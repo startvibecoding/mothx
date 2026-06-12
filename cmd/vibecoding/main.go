@@ -190,6 +190,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	rootCmd.AddCommand(gatewayCmd)
 	rootCmd.AddCommand(newHermesCommand())
 	rootCmd.AddCommand(newA2ACommand())
+	rootCmd.AddCommand(newDoctorCommand())
 	return rootCmd
 }
 
