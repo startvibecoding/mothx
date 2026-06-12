@@ -407,6 +407,8 @@ Authorization: Bearer <auth_token>
 
 两者都是一次性事件：每个阈值越界只触发一次，非每轮触发。
 
+> **注意：** `context_pressure_threshold` 和 `budget_pressure_threshold` 的值范围为 0-1（0.55 表示 55%），而非 0-100。内部比较时会自动转换为百分比。`InitHermesConfig` 生成的项目模板已包含这些默认值，确保即使不手动配置也能正常工作。
+
 ## Memory
 
 持久化记忆存储为 `memory.md`（Markdown 格式，人类可读）。

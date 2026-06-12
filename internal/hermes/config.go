@@ -265,9 +265,11 @@ func InitHermesConfig(project, force bool) (string, error) {
 		cfg = &HermesConfig{
 			Memory: MemoryConfig{Enabled: true},
 			Agent: AgentConfig{
-				MaxTurns:        90,
-				BudgetPressure:  true,
-				ContextPressure: true,
+				MaxTurns:                 90,
+				BudgetPressure:           true,
+				ContextPressure:          true,
+				BudgetPressureThreshold:  0.20,
+				ContextPressureThreshold: 0.55,
 			},
 			WorkDir: ".",
 		}

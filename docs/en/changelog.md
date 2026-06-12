@@ -20,6 +20,10 @@
   - Context-pressure and budget-pressure agent events are now displayed in the TUI
   - Ctrl+O now reports when there is no conversation detail to show instead of opening an empty modal
 
+- **Context Pressure Threshold Comparison**
+  - Fixed Context Pressure threshold unit mismatch: `Percent` (0-100) was compared directly against `threshold` (0-1), causing the warning to fire at ~0.5% usage instead of the intended 55%
+  - Fixed `InitHermesConfig` project template to include explicit `context_pressure_threshold` and `budget_pressure_threshold` defaults, preventing them from being serialized as 0 (disabled)
+
 - **Live Message Rendering**
   - Live assistant messages render fenced code blocks as Markdown while keeping normal prose on the plain-text wrapping path to avoid awkward word splitting
 

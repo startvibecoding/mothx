@@ -20,6 +20,10 @@
   - TUI 现在会显示 Context 压力和预算压力事件
   - Ctrl+O 在没有可展示的会话详情时会提示用户，而不是打开空 Modal
 
+- **Context Pressure 阈值比较**
+  - 修复 Context Pressure 阈值比较时单位不一致的 bug：`Percent`（0-100）与 `threshold`（0-1）直接比较，导致仅 ~0.5% 使用率就触发警告而非预期的 55%
+  - 修复 `InitHermesConfig` 项目模板，显式写入 `context_pressure_threshold` 和 `budget_pressure_threshold` 默认值，避免序列化为 0 导致禁用
+
 - **实时消息渲染**
   - 实时助手消息会将 fenced code block 按 Markdown 渲染，同时普通文本保留 plain-text wrapping 路径，避免中英文被异常拆词换行
 
