@@ -12,6 +12,12 @@
 - **Hermes Configuration Default Resolution**
   - Updated Hermes default model resolution so that when `DefaultProvider` is specified in `hermes.json` but `DefaultModel` is left blank, the system correctly falls back to the custom provider's first available model instead of propagating the global `DefaultModel` from `settings.json`.
 
+- **Refined Exposed Agent SDK Package & Examples**
+  - Completed the mapping for all missing events and fields inside the top-level `agent` bridge (including `Messages`, `TurnMessage`, `TurnToolResults`, `Message`, `ToolCall`, `ToolDiff`, `ToolError`, `PartialResult`, `Plan`, `Usage`, and `ContextUsage`).
+  - Fixed a critical enum misalignment on `StreamEventType` caused by internal-only types (like `StreamThinkSignature`), implementing explicit, robust mapping helpers.
+  - Implemented `PublicProviderAdapter` to seamlessly bridge internal providers back to the public `agent.Provider` interface, and wired them up automatically to avoid package import cycles.
+  - Added two rich top-level examples in the `example/` directory (`simple_agent` and `custom_provider`) with dual-language READMEs, showing custom provider and tool loop execution.
+
 ### 🧪 Tests
 
 - Added `TestCreateFallbackToFirstModel` in `internal/provider/factory_test.go` to cover fallback behavior for both custom and built-in providers when the model ID is blank.

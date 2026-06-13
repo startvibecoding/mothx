@@ -12,6 +12,12 @@
 - **Hermes 默认配置解析优化**
   - 优化了 Hermes 的 `GetDefaultModel` 逻辑：当 `hermes.json` 中配置了 `DefaultProvider` 但 `DefaultModel` 留空时，系统现在能正确返回空字符串，从而触发上述自定义 Provider 首选模型的回退逻辑，不再强行透传 `settings.json` 中的全局默认模型。
 
+- **完善公开的 Agent SDK 包与示例代码**
+  - 完整补全了公开 `agent` 包与底层实现之间的流事件字段桥接映射（支持 `Messages`、`TurnMessage`、`TurnToolResults`、`Message`、`ToolCall`、`ToolDiff`、`ToolError`、`PartialResult`、`Plan`、`Usage` 和 `ContextUsage`）。
+  - 修复了因内部流事件特有类型（如 `StreamThinkSignature`）导致的公开 `StreamEventType` 枚举下标错位问题，实现了健壮的显式双向转换。
+  - 实现了 `PublicProviderAdapter` 适配器，将内部 Provider 无缝桥接到公开 `agent.Provider` 接口，并在初始化时自动关联，完美规避了 Go 包循环导入问题。
+  - 在顶层新增了 `example/` 目录，设计并编写了两个极具代表性的高阶演示程序（`simple_agent` 和 `custom_provider`）以及详尽的中英文双语 `README` 文档，直观演示了如何自定义 LLM 后端、挂载内置工具框架并启动流式 Agent。
+
 ### 🧪 测试
 
 - 在 `internal/provider/factory_test.go` 中新增 `TestCreateFallbackToFirstModel` 测试，覆盖当模型 ID 为空时，自定义 Provider 和内置 Provider 自动回退到其首选模型的行为。
