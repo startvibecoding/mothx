@@ -96,6 +96,56 @@ func TestConvertMessagesToolResultUsesTextContents(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesGroupsConsecutiveToolResults(t *testing.T) {
+	p := &Provider{}
+	contents := p.convertMessages(provider.ChatParams{
+		Messages: []provider.Message{
+			provider.NewAssistantMessage([]provider.ContentBlock{
+				{
+					Type: "toolCall",
+					ToolCall: &provider.ToolCallBlock{
+						ID:        "call_1",
+						Name:      "read",
+						Arguments: json.RawMessage(`{"path":"main.go"}`),
+					},
+				},
+				{
+					Type: "toolCall",
+					ToolCall: &provider.ToolCallBlock{
+						ID:        "call_2",
+						Name:      "bash",
+						Arguments: json.RawMessage(`{"cmd":"pwd"}`),
+					},
+				},
+			}),
+			provider.NewToolResultMessage("call_1", "read", "file content", false),
+			provider.NewToolResultMessage("call_2", "bash", "workdir", false),
+			provider.NewUserMessage("next"),
+		},
+	})
+
+	if len(contents) != 3 {
+		t.Fatalf("len(contents) = %d, want 3: %#v", len(contents), contents)
+	}
+	if contents[1].Role != "user" {
+		t.Fatalf("tool result role = %q, want user", contents[1].Role)
+	}
+	if len(contents[1].Parts) != 2 {
+		t.Fatalf("tool result parts = %d, want 2: %#v", len(contents[1].Parts), contents[1].Parts)
+	}
+	first := contents[1].Parts[0].FunctionResponse
+	second := contents[1].Parts[1].FunctionResponse
+	if first == nil || first.Name != "read" || first.Response["content"] != "file content" {
+		t.Fatalf("first function response = %#v, want read file content", first)
+	}
+	if second == nil || second.Name != "bash" || second.Response["content"] != "workdir" {
+		t.Fatalf("second function response = %#v, want bash workdir", second)
+	}
+	if contents[2].Parts[0].Text != "next" {
+		t.Fatalf("message after tool results = %#v, want next user message", contents[2])
+	}
+}
+
 func TestGoogleCustomHeaders(t *testing.T) {
 	p := newMockGoogleProvider(t,
 		NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}}),

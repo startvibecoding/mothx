@@ -412,15 +412,15 @@ func googleThinkingBudget(level provider.ThinkingLevel) int {
 
 func (p *Provider) convertMessages(params provider.ChatParams) []googleContent {
 	var contents []googleContent
-	for _, msg := range params.Messages {
+	for i := 0; i < len(params.Messages); i++ {
+		msg := params.Messages[i]
 		content := googleContent{Role: googleRole(msg.Role)}
 		if msg.Role == "toolResult" {
-			response := map[string]any{"content": googleToolResultText(msg)}
-			if msg.IsError {
-				response["error"] = true
-			}
-			content.Parts = append(content.Parts, googlePart{FunctionResponse: &googleFunctionResponse{Name: msg.ToolName, Response: response}})
-			contents = append(contents, content)
+			// Google requires all functionResponse parts for the preceding
+			// model functionCall parts to be in one user turn.
+			toolResultContent, next := p.convertToolResultRun(params.Messages, i)
+			contents = append(contents, toolResultContent)
+			i = next - 1
 			continue
 		}
 
@@ -462,6 +462,21 @@ func (p *Provider) convertMessages(params provider.ChatParams) []googleContent {
 		}
 	}
 	return contents
+}
+
+func (p *Provider) convertToolResultRun(messages []provider.Message, start int) (googleContent, int) {
+	content := googleContent{Role: googleRole("toolResult")}
+	i := start
+	for i < len(messages) && messages[i].Role == "toolResult" {
+		msg := messages[i]
+		response := map[string]any{"content": googleToolResultText(msg)}
+		if msg.IsError {
+			response["error"] = true
+		}
+		content.Parts = append(content.Parts, googlePart{FunctionResponse: &googleFunctionResponse{Name: msg.ToolName, Response: response}})
+		i++
+	}
+	return content, i
 }
 
 func googleToolResultText(msg provider.Message) string {
