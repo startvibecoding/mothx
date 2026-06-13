@@ -4,8 +4,10 @@ import (
 	"context"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
+	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
 // --- Type conversion helpers ---
@@ -21,13 +23,7 @@ func MessageToPublic(m provider.Message) agentpkg.Message {
 		ToolName:       m.ToolName,
 	}
 	if m.Usage != nil {
-		msg.Usage = &agentpkg.Usage{
-			InputTokens:  m.Usage.Input,
-			OutputTokens: m.Usage.Output,
-			CacheRead:    m.Usage.CacheRead,
-			CacheWrite:   m.Usage.CacheWrite,
-			TotalTokens:  m.Usage.TotalTokens,
-		}
+		msg.Usage = UsageToPublic(m.Usage)
 	}
 	for _, cb := range m.Contents {
 		msg.Contents = append(msg.Contents, ContentBlockToPublic(cb))
@@ -151,12 +147,21 @@ func EventToPublic(e Event) agentpkg.Event {
 	return agentpkg.Event{
 		AgentID:         agentpkg.AgentID(e.AgentID),
 		Type:            agentpkg.EventType(e.Type),
+		Messages:        MessagesToPublic(e.Messages),
+		TurnMessage:     MessageToPublic(e.TurnMessage),
+		TurnToolResults: MessagesToPublic(e.TurnToolResults),
+		Message:         MessageToPublic(e.Message),
 		TextDelta:       e.TextDelta,
 		ThinkDelta:      e.ThinkDelta,
+		ToolCall:        ToolCallBlockToPublic(e.ToolCall),
 		ToolCallID:      e.ToolCallID,
 		ToolName:        e.ToolName,
 		ToolArgs:        e.ToolArgs,
 		ToolResult:      e.ToolResult,
+		ToolDiff:        FileDiffToPublic(e.ToolDiff),
+		ToolError:       e.ToolError,
+		PartialResult:   e.PartialResult,
+		Plan:            TaskPlanToPublic(e.Plan),
 		StatusMessage:   e.StatusMessage,
 		Done:            e.Done,
 		StopReason:      e.StopReason,
@@ -170,6 +175,256 @@ func EventToPublic(e Event) agentpkg.Event {
 		QuestionOptions: e.QuestionOptions,
 		QuestionContext: e.QuestionContext,
 		QuestionAnswer:  e.QuestionAnswer,
+		Usage:           UsageToPublic(e.Usage),
+		ContextUsage:    ContextUsageToPublic(e.ContextUsage),
+	}
+}
+
+// ToolCallBlockToPublic converts an internal provider.ToolCallBlock to public.
+func ToolCallBlockToPublic(tc *provider.ToolCallBlock) *agentpkg.ToolCallBlock {
+	if tc == nil {
+		return nil
+	}
+	return &agentpkg.ToolCallBlock{
+		ID:               tc.ID,
+		Name:             tc.Name,
+		Arguments:        tc.Arguments,
+		ThoughtSignature: tc.ThoughtSignature,
+	}
+}
+
+// FileDiffToPublic converts an internal tools.FileDiff to public agent.FileDiff.
+func FileDiffToPublic(d *tools.FileDiff) *agentpkg.FileDiff {
+	if d == nil {
+		return nil
+	}
+	return &agentpkg.FileDiff{
+		Path:         d.Path,
+		Added:        d.Added,
+		Deleted:      d.Deleted,
+		AddedLines:   d.AddedLines,
+		DeletedLines: d.DeletedLines,
+		Unified:      d.Unified,
+		Truncated:    d.Truncated,
+	}
+}
+
+// TaskPlanToPublic converts an internal tools.TaskPlan to public agent.TaskPlan.
+func TaskPlanToPublic(p *tools.TaskPlan) *agentpkg.TaskPlan {
+	if p == nil {
+		return nil
+	}
+	steps := make([]agentpkg.PlanStep, len(p.Steps))
+	for i, s := range p.Steps {
+		steps[i] = agentpkg.PlanStep{
+			Title:  s.Title,
+			Status: s.Status,
+		}
+	}
+	return &agentpkg.TaskPlan{
+		Title: p.Title,
+		Steps: steps,
+		Note:  p.Note,
+	}
+}
+
+// UsageToPublic converts an internal provider.Usage to public agent.Usage.
+func UsageToPublic(u *provider.Usage) *agentpkg.Usage {
+	if u == nil {
+		return nil
+	}
+	return &agentpkg.Usage{
+		InputTokens:  u.Input,
+		OutputTokens: u.Output,
+		CacheRead:    u.CacheRead,
+		CacheWrite:   u.CacheWrite,
+		TotalTokens:  u.TotalTokens,
+	}
+}
+
+// ChatParamsFromPublic converts public ChatParams to internal.
+func ChatParamsFromPublic(p agentpkg.ChatParams) provider.ChatParams {
+	msgs := make([]provider.Message, len(p.Messages))
+	for i, m := range p.Messages {
+		msgs[i] = MessageFromPublic(m)
+	}
+	toolsList := make([]provider.ToolDefinition, len(p.Tools))
+	for i, t := range p.Tools {
+		toolsList[i] = provider.ToolDefinition{
+			Name:         t.Name,
+			Description:  t.Description,
+			Parameters:   t.Parameters,
+			Kind:         t.Kind,
+			Provider:     t.Provider,
+			ProviderType: t.ProviderType,
+			Model:        t.Model,
+		}
+	}
+	var abort chan struct{}
+	if p.Abort != nil {
+		abort = make(chan struct{})
+		go func() {
+			<-p.Abort
+			close(abort)
+		}()
+	}
+	return provider.ChatParams{
+		Messages:      msgs,
+		Tools:         toolsList,
+		SystemPrompt:  p.SystemPrompt,
+		ThinkingLevel: provider.ThinkingLevel(p.ThinkingLevel),
+		MaxTokens:     p.MaxTokens,
+		Abort:         abort,
+	}
+}
+
+// StreamEventToPublic converts internal StreamEvent to public.
+func StreamEventToPublic(e provider.StreamEvent) agentpkg.StreamEvent {
+	ev := agentpkg.StreamEvent{
+		Type:       StreamEventTypeToPublic(e.Type),
+		TextDelta:  e.TextDelta,
+		ThinkDelta: e.ThinkDelta,
+		StopReason: e.StopReason,
+		Error:      e.Error,
+	}
+	if e.ToolCall != nil {
+		ev.ToolCall = &agentpkg.ToolCallBlock{
+			ID:               e.ToolCall.ID,
+			Name:             e.ToolCall.Name,
+			Arguments:        e.ToolCall.Arguments,
+			ThoughtSignature: e.ToolCall.ThoughtSignature,
+		}
+	}
+	if e.Usage != nil {
+		ev.Usage = &agentpkg.Usage{
+			InputTokens:  e.Usage.Input,
+			OutputTokens: e.Usage.Output,
+			CacheRead:    e.Usage.CacheRead,
+			CacheWrite:   e.Usage.CacheWrite,
+			TotalTokens:  e.Usage.TotalTokens,
+		}
+	}
+	return ev
+}
+
+// ModelToPublic converts an internal *provider.Model to a public agent.ModelInfo.
+func ModelToPublic(m *provider.Model) agentpkg.ModelInfo {
+	if m == nil {
+		return agentpkg.ModelInfo{}
+	}
+	info := agentpkg.ModelInfo{
+		ID:            m.ID,
+		Name:          m.Name,
+		Provider:      m.Provider,
+		Reasoning:     m.Reasoning,
+		Input:         m.Input,
+		ContextWindow: m.ContextWindow,
+		MaxTokens:     m.MaxTokens,
+	}
+	if m.Compat != nil {
+		info.Compat = &agentpkg.ModelCompat{
+			ThinkingFormat:                      m.Compat.ThinkingFormat,
+			RequiresReasoningContentOnAssistant: m.Compat.RequiresReasoningContentOnAssistant,
+			ForceAdaptiveThinking:               m.Compat.ForceAdaptiveThinking,
+			SupportsDeveloperRole:               m.Compat.SupportsDeveloperRole,
+			SupportsStore:                       m.Compat.SupportsStore,
+			SupportsReasoningEffort:             m.Compat.SupportsReasoningEffort,
+			SupportsStrictMode:                  m.Compat.SupportsStrictMode,
+			MaxTokensField:                      m.Compat.MaxTokensField,
+			SupportsCacheControlOnTools:         m.Compat.SupportsCacheControlOnTools,
+			SupportsLongCacheRetention:          m.Compat.SupportsLongCacheRetention,
+			SendSessionAffinityHeaders:          m.Compat.SendSessionAffinityHeaders,
+			SupportsEagerToolInputStreaming:     m.Compat.SupportsEagerToolInputStreaming,
+		}
+	}
+	return info
+}
+
+// PublicProviderAdapter wraps an internal provider.Provider to satisfy the public agentpkg.Provider interface.
+type PublicProviderAdapter struct {
+	inner provider.Provider
+}
+
+// NewPublicProviderAdapter creates a public Provider from an internal one.
+func NewPublicProviderAdapter(inner provider.Provider) *PublicProviderAdapter {
+	return &PublicProviderAdapter{inner: inner}
+}
+
+func (pa *PublicProviderAdapter) Name() string {
+	return pa.inner.Name()
+}
+
+func (pa *PublicProviderAdapter) Models() []agentpkg.ModelInfo {
+	innerModels := pa.inner.Models()
+	models := make([]agentpkg.ModelInfo, len(innerModels))
+	for i, m := range innerModels {
+		models[i] = ModelToPublic(m)
+	}
+	return models
+}
+
+func (pa *PublicProviderAdapter) GetModel(id string) *agentpkg.ModelInfo {
+	m := pa.inner.GetModel(id)
+	if m == nil {
+		return nil
+	}
+	pub := ModelToPublic(m)
+	return &pub
+}
+
+func (pa *PublicProviderAdapter) Chat(ctx context.Context, params agentpkg.ChatParams) <-chan agentpkg.StreamEvent {
+	internalParams := ChatParamsFromPublic(params)
+	internalCh := pa.inner.Chat(ctx, internalParams)
+
+	ch := make(chan agentpkg.StreamEvent, 100)
+	go func() {
+		defer close(ch)
+		for e := range internalCh {
+			ch <- StreamEventToPublic(e)
+		}
+	}()
+	return ch
+}
+
+func StreamEventTypeFromPublic(t agentpkg.StreamEventType) provider.StreamEventType {
+	switch t {
+	case agentpkg.StreamStart:
+		return provider.StreamStart
+	case agentpkg.StreamTextDelta:
+		return provider.StreamTextDelta
+	case agentpkg.StreamThinkDelta:
+		return provider.StreamThinkDelta
+	case agentpkg.StreamToolCall:
+		return provider.StreamToolCall
+	case agentpkg.StreamUsage:
+		return provider.StreamUsage
+	case agentpkg.StreamDone:
+		return provider.StreamDone
+	case agentpkg.StreamError:
+		return provider.StreamError
+	default:
+		return provider.StreamStart
+	}
+}
+
+func StreamEventTypeToPublic(t provider.StreamEventType) agentpkg.StreamEventType {
+	switch t {
+	case provider.StreamStart:
+		return agentpkg.StreamStart
+	case provider.StreamTextDelta:
+		return agentpkg.StreamTextDelta
+	case provider.StreamThinkDelta:
+		return agentpkg.StreamThinkDelta
+	case provider.StreamToolCall:
+		return agentpkg.StreamToolCall
+	case provider.StreamUsage:
+		return agentpkg.StreamUsage
+	case provider.StreamDone:
+		return agentpkg.StreamDone
+	case provider.StreamError:
+		return agentpkg.StreamError
+	default:
+		return agentpkg.StreamStart
 	}
 }
 
@@ -293,7 +548,7 @@ func ChatParamsToPublic(p provider.ChatParams) agentpkg.ChatParams {
 // StreamEventFromPublic converts a public StreamEvent to internal.
 func StreamEventFromPublic(e agentpkg.StreamEvent) provider.StreamEvent {
 	ev := provider.StreamEvent{
-		Type:       provider.StreamEventType(e.Type),
+		Type:       StreamEventTypeFromPublic(e.Type),
 		TextDelta:  e.TextDelta,
 		ThinkDelta: e.ThinkDelta,
 		StopReason: e.StopReason,
@@ -375,5 +630,21 @@ func (a *AgentAdapter) SetContext(ctx *agentpkg.AgentContext) {
 	a.inner.SetContext(&AgentContext{
 		SystemPrompt: ctx.SystemPrompt,
 		Messages:     MessagesFromPublic(ctx.Messages),
+	})
+}
+
+func init() {
+	agentpkg.SetResolveProviderFunc(func(vendor, baseURL, api, apiKey string) (agentpkg.Provider, error) {
+		cfg := &config.ProviderConfig{
+			Vendor:  vendor,
+			BaseURL: baseURL,
+			API:     api,
+			APIKey:  apiKey,
+		}
+		p, err := provider.ResolveProvider(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return NewPublicProviderAdapter(p), nil
 	})
 }
