@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -605,6 +606,42 @@ func TestGrepToolExecute(t *testing.T) {
 
 	if result.Text == "" {
 		t.Error("expected non-empty result")
+	}
+}
+
+func TestGrepToolExecuteLimitsTotalResults(t *testing.T) {
+	tmpDir := t.TempDir()
+	for i := 0; i < 5; i++ {
+		path := filepath.Join(tmpDir, fmt.Sprintf("file%d.txt", i))
+		if err := os.WriteFile(path, []byte("match one\nmatch two\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewGrepTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"pattern":    "match",
+		"path":       ".",
+		"maxResults": float64(3),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	matches := 0
+	for _, line := range strings.Split(result.Text, "\n") {
+		if strings.Contains(line, "match") {
+			matches++
+		}
+	}
+	if matches != 3 {
+		t.Fatalf("matches = %d, want 3; output:\n%s", matches, result.Text)
+	}
+	if !strings.Contains(result.Text, "truncated") {
+		t.Fatalf("expected truncation notice, got:\n%s", result.Text)
 	}
 }
 

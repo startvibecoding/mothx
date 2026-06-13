@@ -1,16 +1,20 @@
 package tools
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/vendored"
 )
+
+const maxGrepOutputBytes = 200000
 
 // GrepTool searches file contents using ripgrep (rg).
 type GrepTool struct {
@@ -107,18 +111,14 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	// 执行 rg
 	cmd := exec.CommandContext(ctx, rgPath, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
+	output, stderr, err := runLimitedLineCommand(cmd, maxResults)
 	if err != nil {
 		// rg 返回 1 表示没有匹配，这不是错误
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			return NewTextToolResult("(no matches found)"), nil
 		}
 		// 其他错误
-		errMsg := strings.TrimSpace(stderr.String())
+		errMsg := strings.TrimSpace(stderr)
 		if errMsg != "" {
 			return ToolResult{}, fmt.Errorf("rg 执行失败: %s", errMsg)
 		}
@@ -128,7 +128,6 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		return ToolResult{}, fmt.Errorf("rg 执行失败: %w", err)
 	}
 
-	output := strings.TrimSpace(stdout.String())
 	if output == "" {
 		return NewTextToolResult("(no matches found)"), nil
 	}
@@ -169,23 +168,19 @@ func executeNativeGrep(ctx context.Context, pattern, searchPath, include string,
 	args = append(args, "--", pattern, searchPath)
 
 	cmd := exec.CommandContext(ctx, grepPath, args...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	output, stderr, err := runLimitedLineCommand(cmd, maxResults)
 
-	err = cmd.Run()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			return NewTextToolResult("(no matches found)"), nil
 		}
-		errMsg := strings.TrimSpace(stderr.String())
+		errMsg := strings.TrimSpace(stderr)
 		if errMsg != "" {
 			return ToolResult{}, fmt.Errorf("grep execution failed: %s", errMsg)
 		}
 		return ToolResult{}, fmt.Errorf("grep execution failed: %w", err)
 	}
 
-	output := limitOutputLines(stdout.String(), maxResults)
 	if output == "" {
 		return NewTextToolResult("(no matches found)"), nil
 	}
@@ -196,17 +191,68 @@ func isExecFormatError(err error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "exec format error")
 }
 
-func limitOutputLines(output string, maxResults int) string {
-	output = strings.TrimSpace(output)
-	if output == "" {
-		return ""
+func runLimitedLineCommand(cmd *exec.Cmd, maxResults int) (string, string, error) {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", "", err
 	}
-	if maxResults <= 0 {
-		return output
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return "", stderr.String(), err
 	}
-	lines := strings.Split(output, "\n")
-	if len(lines) > maxResults {
-		lines = lines[:maxResults]
+
+	var lines []string
+	reader := bufio.NewReader(stdout)
+	bytesUsed := 0
+	limited := false
+
+	for {
+		line, readErr := reader.ReadString('\n')
+		if len(line) > 0 {
+			if maxResults <= 0 || len(lines) < maxResults {
+				if bytesUsed+len(line) > maxGrepOutputBytes {
+					remaining := maxGrepOutputBytes - bytesUsed
+					if remaining > 0 {
+						lines = append(lines, line[:remaining])
+						bytesUsed += remaining
+					}
+					limited = true
+				} else {
+					lines = append(lines, line)
+					bytesUsed += len(line)
+				}
+			} else {
+				limited = true
+			}
+		}
+
+		if limited {
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			break
+		}
+		if readErr != nil {
+			if !errors.Is(readErr, io.EOF) {
+				_ = cmd.Wait()
+				return "", stderr.String(), readErr
+			}
+			break
+		}
 	}
-	return strings.Join(lines, "\n")
+
+	err = cmd.Wait()
+	output := strings.TrimSpace(strings.Join(lines, ""))
+	if limited {
+		if maxResults > 0 && len(lines) >= maxResults {
+			output += fmt.Sprintf("\n... (truncated, showing first %d results)", maxResults)
+		} else {
+			output += fmt.Sprintf("\n... (truncated at %d bytes)", maxGrepOutputBytes)
+		}
+		return output, stderr.String(), nil
+	}
+	return output, stderr.String(), err
 }
