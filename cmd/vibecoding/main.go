@@ -276,7 +276,11 @@ func run(args []string, opts runOptions) error {
 	// Determine model
 	modelID := opts.model
 	if modelID == "" {
-		modelID = settings.DefaultModel
+		if opts.provider != "" {
+			modelID = ""
+		} else {
+			modelID = settings.DefaultModel
+		}
 	}
 
 	// Create provider from config

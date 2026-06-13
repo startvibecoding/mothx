@@ -1,6 +1,24 @@
 # 更新日志
 
 
+## v0.1.38
+
+### ✨ 新功能
+
+- **自定义 Provider 模型自动回退（Fallback）**
+  - 当显式指定了自定义 Provider（通过 CLI、Gateway 或 Hermes）但没有指定 Model ID 时，Factory 现在会自动回退并使用该 Provider 下的**首个可用模型**，而不是错误地采用 `settings.DefaultModel`（默认模型通常属于默认 Provider）。
+  - 避免了在使用非默认 Provider 且未指定具体模型时，因加载了不匹配的全局默认模型而导致“未找到模型”的错误。
+
+- **Hermes 默认配置解析优化**
+  - 优化了 Hermes 的 `GetDefaultModel` 逻辑：当 `hermes.json` 中配置了 `DefaultProvider` 但 `DefaultModel` 留空时，系统现在能正确返回空字符串，从而触发上述自定义 Provider 首选模型的回退逻辑，不再强行透传 `settings.json` 中的全局默认模型。
+
+### 🧪 测试
+
+- 在 `internal/provider/factory_test.go` 中新增 `TestCreateFallbackToFirstModel` 测试，覆盖当模型 ID 为空时，自定义 Provider 和内置 Provider 自动回退到其首选模型的行为。
+- 在 `internal/hermes/config_test.go` 中新增针对 `GetDefaultModel` 方法的测试用例，覆盖 Hermes 配置中仅指定 `DefaultProvider` 时的行为。
+
+---
+
 ## v0.1.37
 
 ### ✨ 新功能

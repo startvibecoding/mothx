@@ -104,7 +104,11 @@ func Run(opts RunOptions, version string) error {
 		modelID = opts.Model
 	}
 	if modelID == "" {
-		modelID = settings.DefaultModel
+		if opts.Provider != "" || gCfg.Provider != "" {
+			modelID = ""
+		} else {
+			modelID = settings.DefaultModel
+		}
 	}
 
 	p, model, err := providerfactory.Create(settings, providerName, modelID)

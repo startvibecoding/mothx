@@ -48,6 +48,11 @@ func TestGetDefaultModel(t *testing.T) {
 	if got := cfg2.GetDefaultModel("deepseek-chat"); got != "deepseek-chat" {
 		t.Errorf("expected deepseek-chat fallback, got %s", got)
 	}
+
+	cfg3 := &HermesConfig{DefaultProvider: "openai"}
+	if got := cfg3.GetDefaultModel("deepseek-chat"); got != "" {
+		t.Errorf("expected empty string (to fall back to provider's first model) when DefaultProvider is specified, got %s", got)
+	}
 }
 
 func TestGetListenAddr(t *testing.T) {

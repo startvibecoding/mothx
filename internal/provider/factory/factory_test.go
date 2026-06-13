@@ -184,3 +184,43 @@ func TestConvertModelConfigsSupportsReferenceReasoningAlias(t *testing.T) {
 		t.Fatalf("RequiresReasoningContentOnAssistant = %#v, want true", compat)
 	}
 }
+
+func TestCreateFallbackToFirstModel(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"custom-provider": {
+				APIKey:  "fake-key",
+				BaseURL: "https://api.openai.com/v1",
+				API:     "openai",
+				Models: []config.ModelConfig{
+					{ID: "model-one", Name: "Model One"},
+					{ID: "model-two", Name: "Model Two"},
+				},
+			},
+		},
+		DefaultProvider: "custom-provider",
+		DefaultModel:    "model-two",
+	}
+
+	// When provider is specified but modelID is "", it should fall back to the first model under the provider (model-one).
+	_, model, err := Create(settings, "custom-provider", "")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if model == nil || model.ID != "model-one" {
+		t.Fatalf("model = %#v, want model-one", model)
+	}
+
+	// When built-in provider is specified but modelID is "", it should fall back to the first model of that built-in provider.
+	p2, model2, err := Create(settings, "openai", "")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	available := p2.Models()
+	if len(available) == 0 {
+		t.Fatal("expected built-in openai to have models")
+	}
+	if model2 == nil || model2.ID != available[0].ID {
+		t.Fatalf("model = %#v, want first model %s", model2, available[0].ID)
+	}
+}

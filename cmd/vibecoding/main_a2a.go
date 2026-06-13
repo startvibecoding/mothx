@@ -92,7 +92,11 @@ func newA2ACommand() *cobra.Command {
 			}
 			modelID := flagModel
 			if modelID == "" {
-				modelID = settings.DefaultModel
+				if flagProvider != "" {
+					modelID = ""
+				} else {
+					modelID = settings.DefaultModel
+				}
 			}
 
 			// Create provider (lazy import to avoid circular deps)

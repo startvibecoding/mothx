@@ -1,6 +1,24 @@
 # Changelog
 
 
+## v0.1.38
+
+### ✨ Features
+
+- **Custom Provider Model Fallback**
+  - When a provider is explicitly requested (via CLI, Gateway, or Hermes) but no model ID is specified, the factory now automatically falls back to the provider's **first available model** instead of using `settings.DefaultModel` (which belongs to the default provider).
+  - This prevents configuration mismatches and "model not found" errors when using non-default providers without a specified model.
+
+- **Hermes Configuration Default Resolution**
+  - Updated Hermes default model resolution so that when `DefaultProvider` is specified in `hermes.json` but `DefaultModel` is left blank, the system correctly falls back to the custom provider's first available model instead of propagating the global `DefaultModel` from `settings.json`.
+
+### 🧪 Tests
+
+- Added `TestCreateFallbackToFirstModel` in `internal/provider/factory_test.go` to cover fallback behavior for both custom and built-in providers when the model ID is blank.
+- Added test coverage in `internal/hermes/config_test.go` for `GetDefaultModel` when `DefaultProvider` is specified in Hermes config but `DefaultModel` is empty.
+
+---
+
 ## v0.1.37
 
 ### ✨ Features

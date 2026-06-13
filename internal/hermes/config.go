@@ -379,6 +379,9 @@ func (c *HermesConfig) GetDefaultModel(settingsModel string) string {
 	if c.DefaultModel != "" {
 		return c.DefaultModel
 	}
+	if c.DefaultProvider != "" {
+		return ""
+	}
 	return settingsModel
 }
 

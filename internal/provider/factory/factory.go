@@ -25,9 +25,9 @@ type Options struct {
 func CreateWithOptions(settings *config.Settings, providerName, modelID string, opts Options) (provider.Provider, *provider.Model, error) {
 	if providerName == "" {
 		providerName = settings.DefaultProvider
-	}
-	if modelID == "" {
-		modelID = settings.DefaultModel
+		if modelID == "" {
+			modelID = settings.DefaultModel
+		}
 	}
 
 	pc := settings.GetProviderConfig(providerName)
@@ -84,8 +84,19 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 		}
 
 		ConfigureHeaders(p, settings, providerName)
-		model := p.GetModel(modelID)
+		var model *provider.Model
+		if modelID == "" {
+			availableModels := p.Models()
+			if len(availableModels) > 0 {
+				model = availableModels[0]
+			}
+		} else {
+			model = p.GetModel(modelID)
+		}
 		if model == nil {
+			if modelID == "" {
+				return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
+			}
 			return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
 		}
 		return p, model, nil
@@ -110,8 +121,19 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 	}
 	ConfigureRetry(p, settings)
 
-	model := p.GetModel(modelID)
+	var model *provider.Model
+	if modelID == "" {
+		availableModels := p.Models()
+		if len(availableModels) > 0 {
+			model = availableModels[0]
+		}
+	} else {
+		model = p.GetModel(modelID)
+	}
 	if model == nil {
+		if modelID == "" {
+			return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
+		}
 		return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
 	}
 	return p, model, nil
