@@ -1,6 +1,25 @@
 # 更新日志
 
 
+## v0.1.37
+
+### ✨ 新功能
+
+- **Vertex AI API Key 认证支持**
+  - 新增对 Google Vertex AI 使用 API key（通过 `x-goog-api-key` 请求头）直接认证的支持，无需强制要求使用 gcloud OAuth 凭证（`ya29.`）。
+  - 当配置了 API key 时，默认 baseUrl 会自动路由到 `https://aiplatform.googleapis.com/v1/publishers/google/models`（无需传入 project/location 参数）。
+  - 完美保持对现有 OAuth bearer token 的向下兼容。
+
+### 🐛 Bug 修复
+
+- **Google 工具思维签名（Thought Signatures）**
+  - 正确提取并在工具调用中传递 Gemini 的思维/推理签名，避免签名丢失或不匹配的问题。
+
+- **TUI 原始 Bash 输出保留**
+  - 在 Bubble Tea TUI 中渲染 `bash` 工具执行结果时，完美保留 ANSI 转义着色和原始的空格/换行符，避免被 TUI 框架误附加斜体等全局样式。
+
+---
+
 ## v0.1.36
 
 ### ✨ 新功能

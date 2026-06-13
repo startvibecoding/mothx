@@ -1,630 +1,474 @@
-# 工具系统
+# 工具系统参考指南
 
-VibeCoding 提供了一组内置工具，用于文件操作、代码搜索和命令执行。
+VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件操作、代码库探索、Shell 执行、多 Agent 协同以及工作区交互。
 
-## 工具概览
+---
 
-| 工具 | 描述 | 沙箱限制 |
-|------|------|----------|
-| `read` | 读取文件内容 | 只读目录可访问 |
-| `write` | 创建/覆盖文件 | 仅 standard/yolo |
-| `edit` | 精确文本替换 | 仅 standard/yolo |
-| `bash` | 执行 shell 命令 | 受沙箱限制 |
-| `grep` | 正则表达式搜索 | 只读 |
-| `find` | 文件名搜索 | 只读 |
-| `ls` | 列出目录内容 | 只读 |
-| `plan` | 发布任务计划/状态 | 只读 |
-| `jobs` | 列出和管理后台任务 | 只读 |
-| `kill` | 终止正在运行的后台任务 | 仅 standard/yolo |
-| `question` | 向用户提出多选问题 | 仅 Plan 模式 (TUI) |
-| `memory` | 读写持久记忆 | 仅 Hermes 模式 |
-| `cron` | 管理定时后台任务 | 仅 Hermes/多 Agent 模式 |
-| `subagent_spawn` | 启动委托子 Agent 任务 | 仅多 Agent 模式 |
-| `subagent_status` | 查询子 Agent 状态/结果 | 仅多 Agent 模式 |
-| `subagent_send` | 向子 Agent 发送后续指令 | 仅多 Agent 模式 |
-| `subagent_destroy` | 停止并移除子 Agent | 仅多 Agent 模式 |
-| `a2a_dispatch` | 向远程 A2A Agent 发送任务 | 仅 A2A Master 模式 |
-| `skill_ref` | 加载技能引用文件 | 技能可用时 |
+## 1. 工具执行安全性与沙箱机制
 
-## 工具详解
+在探索各个工具之前，首先需要了解 VibeCoding 执行工具时的三种安全级别：
+
+| 安全级别 | 工具修改权限 | 网络访问 | 沙箱实现 |
+|----------|--------------|----------|----------|
+| **none** | 允许在任何地方读取、写入并执行 Shell 命令。 | 完全允许 | 直接在宿主机执行 |
+| **standard** | 允许对项目目录进行读写；对系统目录仅只读。 | 完全禁止 | 如果可用，通过 `bwrap` (Bubblewrap) 进行宿主机隔离。 |
+| **strict** | 对项目和系统目录均只读，禁止任何写入/修改。 | 完全禁止 | 如果可用，通过 `bwrap` (Bubblewrap) 进行宿主机隔离。 |
+
+### 沙箱工作原理 (`bwrap`)
+当 `settings.json` 中的 `sandbox.enabled` 设置为 `true` 时，VibeCoding 会隔离通过 `bash`（或任何外部进程）运行的命令：
+* **允许的路径**：沙箱将系统文件夹（`/usr`, `/lib`, `/bin` 等）挂载为只读，并将当前工作空间目录挂载为读写（`standard` 模式）或只读（`strict` 模式）。
+* **拒绝的路径**：敏感目录（如 `~/.ssh`, `/etc/shadow` 等）会被完全隐藏或禁止访问。
+* **网络隔离**：通过创建独立的网络命名空间（`--unshare-net`）来完全切断外部网络连接。
+
+---
+
+## 2. 完整工具目录
+
+| 工具名 | 分类 | 行为 | 执行安全性 | 可用范围 |
+|--------|------|------|------------|----------|
+| [`read`](#read---文件读取) | 文件系统 | 读取文件内容（支持图像和分页） | 允许只读访问 | 所有模式 |
+| [`write`](#write---文件写入) | 文件系统 | 创建或覆盖文件 | 需要 Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`edit`](#edit---精确文件修改) | 文件系统 | 原子文本替换修改 | 需要 Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`ls`](#ls---列出目录内容) | 代码探索 | 列出目录下的文件和子目录 | 允许只读访问 | 所有模式 |
+| [`find`](#find---文件搜索) | 代码探索 | 根据通配符匹配搜索文件 | 允许只读访问 | 所有模式 |
+| [`grep`](#grep---文本内容搜索) | 代码探索 | 正则表达式搜索文件内容 | 允许只读访问 | 所有模式 |
+| [`bash`](#bash---命令执行) | 进程执行 | 执行 Shell 命令（支持同步与异步） | 受沙箱级别限制 | CLI, ACP, Gateway, Hermes |
+| [`jobs`](#jobs---后台任务管理) | 进程执行 | 列出或检查后台运行任务的状态 | 允许只读访问 | 所有模式 |
+| [`kill`](#kill---终止后台任务) | 进程执行 | 终止正在运行的后台任务 | 需要 Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`plan`](#plan---任务计划) | 会话交互 | 更新并展示可见的阶段性任务计划 | 允许只读访问 | 所有模式 |
+| [`question`](#question---用户问题澄清) | 会话交互 | 提示用户并等待多选问题输入 | 仅 Plan 模式 | 仅限 TUI |
+| [`memory`](#memory---持久记忆) | 工作流 | 读写持久化记忆文件 `memory.md` | 会话级读写 | 仅限 Hermes 模式 |
+| [`cron`](#cron---定时后台任务) | 工作流 | 通过子 Agent 调度定时后台任务 | 会话级调度 | Hermes 与多 Agent 模式 |
+| [`subagent_spawn`](#subagent_---子-agent-委托) | 多 Agent | 派生出完全隔离的子 Agent | 子 Agent 级权限限制 | 仅多 Agent 模式 |
+| [`subagent_status`](#subagent_---子-agent-委托) | 多 Agent | 查询子 Agent 执行状态与结果 | 只读 | 仅多 Agent 模式 |
+| [`subagent_send`](#subagent_---子-agent-委托) | 多 Agent | 向子 Agent 发送后续追问或指令 | 发送消息 | 仅多 Agent 模式 |
+| [`subagent_destroy`](#subagent_---子-agent-委托) | 多 Agent | 销毁子 Agent 释放其上下文资源 | 销毁释放 | 仅多 Agent 模式 |
+| [`a2a_dispatch`](#a2a_dispatch---远程-agent-分发) | 多 Agent | 向配置的远程 A2A Agent 节点发送任务 | 发起网络请求 | 仅 A2A Master 模式 |
+| [`skill_ref`](#skill_ref---加载技能引用) | 技能系统 | 动态加载外部技能定义的参考文档 | 只读 | 所有模式 |
+
+---
+
+## 3. 工具详细说明与参数
 
 ### read - 文件读取
 
-读取文件内容，支持分页。支持文本文件和图像文件。
+读取指定路径的文件内容，内置分页功能（非常适合在不撑爆大模型上下文窗口的前提下读取超大文件），并提供对图像多模态读取的支持。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `path` | string | ✓ | 文件路径 |
-| `offset` | int | - | 起始行号 (从 1 开始) |
-| `limit` | int | - | 最大读取行数 |
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `path` | string | ✓ | 目标文件路径。 |
+| `offset` | integer | - | 起始行号（从 1 开始）。 |
+| `limit` | integer | - | 最大读取的行数。 |
 
-**示例:**
+#### 图像文件支持：
+若读取的文件路径具有常见的图像后缀名（如 `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`），该工具会自动将图像转为 Base64 编码，并返回包含对应 MIME 类型的富文本块，以便支持多模态的大模型直接进行视觉分析。
 
+#### 示例载荷：
 ```json
 {
-  "path": "/home/user/project/main.go",
-  "offset": 10,
+  "path": "src/main.go",
+  "offset": 120,
   "limit": 50
 }
 ```
-
-**返回:** 
-- 文本文件：文件内容文本
-- 图像文件（PNG、JPEG、GIF、WebP）：Base64 编码的图像数据及 MIME 类型信息
-
-**图像支持：**
-
-读取图像文件时，工具返回富内容，包含：
-- 文件路径、大小和类型的文本描述
-- Base64 编码的图像数据
-
-支持的图像格式：`.png`、`.jpg`、`.jpeg`、`.gif`、`.webp`
-
----
-
-### plan - 任务计划
-
-发布或更新可见的任务计划。步骤支持 `pending`、`running`、`done` 和 `failed` 状态。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `title` | string | - | 简短计划标题 |
-| `steps` | array | ✓ | 有序计划步骤 |
-| `note` | string | - | 可选简短说明 |
-
-**示例:**
-
-```json
-{
-  "title": "实现结构化 diff",
-  "steps": [
-    {"title": "阅读工具结果流程", "status": "done"},
-    {"title": "更新 write/edit 结果", "status": "running"},
-    {"title": "运行 focused tests", "status": "pending"}
-  ]
-}
-```
-
-**返回:** 提供给 TUI、print 模式和 ACP 客户端的结构化计划元数据。
-
----
-
-### subagent_* - 委托工作
-
-`subagent_*` 工具仅在使用 `--multi-agent` 启动时注册。主 Agent 可通过它们将边界清晰的任务委托给子 Agent；子 Agent 拥有独立的 messages、context、session、registry 和 job manager 状态。
-
-子 Agent 不能继续派生子 Agent。
-
-#### subagent_spawn
-
-异步启动子 Agent，并返回 handle。
-
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `task` | string | ✓ | 聚焦的委托任务 |
-| `mode` | string | - | `plan`、`agent` 或 `yolo`；默认 `agent` |
-| `work_dir` | string | - | 子 Agent 工作目录 |
-| `tools` | array | - | 可选工具白名单 |
-| `max_iterations` | integer | - | 迭代上限 |
-| `system_prompt_extra` | string | - | 附加子 Agent 上下文 |
-
-#### subagent_status
-
-查询某个 handle 的状态和最后结果：
-
-```json
-{ "handle": "agent-1" }
-```
-
-#### subagent_send
-
-向已有子 Agent 发送后续消息：
-
-```json
-{ "handle": "agent-1", "message": "接下来关注 provider 测试。" }
-```
-
-#### subagent_destroy
-
-销毁子 Agent 并释放资源：
-
-```json
-{ "handle": "agent-1" }
-```
-
----
-
-### a2a_dispatch - A2A 远程 Agent 调度
-
-向 `a2a-list.json` 中注册的远程 A2A Agent 发送任务。仅在使用 `--enable-a2a-master` 启动时注册。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `agent_name` | string | ✓ | 目标 agent 名称（从配置自动枚举） |
-| `message` | string | ✓ | 任务消息 |
-
-**示例:**
-
-```json
-{
-  "agent_name": "code-reviewer",
-  "message": "审查 internal/handler.go 的代码质量"
-}
-```
-
-**返回:** 远程 agent 的文本响应
-
-详见 [A2A 协议 - A2A Master 模式](a2a.md#a2a-master-模式)。
-
----
-
-### skill_ref - 技能引用加载
-
-加载技能目录中的引用文件。仅在有可用技能时注册。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `skill` | string | ✓ | 技能名称（目录名） |
-| `ref` | string | ✓ | 引用文件路径（相对于技能目录） |
-
-**示例:**
-
-```json
-{
-  "skill": "my-conventions",
-  "ref": "references/api-style.md"
-}
-```
-
-**返回:** 引用文件内容
 
 ---
 
 ### write - 文件写入
 
-创建新文件或覆盖现有文件。
+创建一个新文件，或者完全覆盖一个已有的文件。此操作是原子性的（即先写入临时文件，成功后再重命名覆盖），能有效防止因进程突然中断导致的文件损坏。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `path` | string | ✓ | 文件路径 |
-| `content` | string | ✓ | 文件内容 |
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `path` | string | ✓ | 写入的文件路径。 |
+| `content` | string | ✓ | 写入的完整文本内容。 |
 
-**示例:**
-
+#### 示例载荷：
 ```json
 {
-  "path": "/home/user/project/README.md",
-  "content": "# My Project\n\nThis is a new project."
+  "path": "config.json",
+  "content": "{\n  \"port\": 8080,\n  \"debug\": true\n}"
 }
 ```
 
-**返回:** 成功/失败消息；内容变更时附带结构化 diff 元数据。
-
 ---
 
-### edit - 文件编辑
+### edit - 精确文件修改
 
-精确文本替换，用于修改现有文件。
+`edit` 工具在目标文件上执行极其精准的 **原子化批量文本替换**。深刻理解该工具底层的执行机制对正确使用它非常重要：
 
-**参数:**
+#### 修改生命周期与安全校验规则：
+1. **预检校验**：在进行任何修改前，VibeCoding 首先读取文件，并在文件中查找 `edits[]` 中定义的每一个 `oldText` 文本块。
+2. **唯一性检查**：每一个 `oldText` 匹配模式在目标文件中 **必须且仅出现一次**。如果发现某个匹配模式不存在，或者匹配到了多处（非唯一），**整批修改会立即被全部中止并报错**，文件保持完全不变。
+3. **冲突重叠检查**：VibeCoding 会按照原文件中的索引位置对修改进行排序，检查多个修改之间是否发生交叉或重叠。一旦发现重叠，立刻报错拦截，防止生成混乱的修改。
+4. **原子应用**：所有校验通过后，按顺序在内存中替换完毕，最终通过原子写入机制更新到宿主机文件。没有半完成的中间状态。
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `path` | string | ✓ | 文件路径 |
-| `edits` | array | ✓ | 编辑操作列表 |
+#### 参数：
 
-**edits 数组元素:**
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `path` | string | ✓ | 要修改的文件路径。 |
+| `edits` | array of objects | ✓ | 替换操作块列表。 |
 
-| 字段 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `oldText` | string | ✓ | 要查找的精确文本 |
-| `newText` | string | ✓ | 替换文本 |
+**Edit 对象结构：**
 
-**示例:**
+| 属性名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `oldText` | string | ✓ | 文件中等待被替换的精准原文内容。 |
+| `newText` | string | ✓ | 替换后的新文本内容。 |
 
+#### 示例载荷：
 ```json
 {
-  "path": "/home/user/project/main.go",
+  "path": "server.go",
   "edits": [
     {
-      "oldText": "func main() {\n\tfmt.Println(\"old\")\n}",
-      "newText": "func main() {\n\tfmt.Println(\"new\")\n}"
+      "oldText": "func Start() {\n\tlog.Println(\"Starting server...\")",
+      "newText": "func Start() {\n\tlog.Println(\"Booting microservice...\")"
     }
   ]
 }
 ```
 
-**最佳实践:**
-
-1. `oldText` 必须精确匹配文件中的文本，包括空格和换行
-2. 先使用 `read` 获取文件内容，确保 `oldText` 正确
-3. 尽量使用足够长的 `oldText` 以确保唯一匹配
-4. 单次调用可以包含多个编辑操作
-
-**返回:** 成功/失败消息；内容变更时附带结构化 diff 元数据。
-
 ---
 
 ### bash - 命令执行
 
-执行 shell 命令。
+执行指定的 Shell 命令（如 Linux 上的 `/bin/bash` 或 Windows 上的 `PowerShell`）。该工具完美支持同步（阻塞）和异步（后台运行）两种模式。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 默认值 | 描述 |
-|------|------|------|--------|------|
-| `command` | string | ✓ | - | 要执行的命令 |
-| `timeout` | int | - | 120 | 超时时间 (秒) |
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| `command` | string | ✓ | - | 要执行的完整 Shell 命令。 |
+| `timeout` | integer | - | 120 | 最大执行超时时间，单位秒（最大 600 秒）。 |
+| `async` | boolean | - | false | 如果设为 `true`（或者命令以 `&` 结尾），进程将进入后台异步执行，并立即返回一个 `jobId`。 |
 
-**示例:**
-
+#### 同步调用示例：
 ```json
 {
-  "command": "go test ./...",
-  "timeout": 300
+  "command": "go test -v ./internal/provider/...",
+  "timeout": 60
 }
 ```
 
-**返回:** stdout 和 stderr 输出
-
-**沙箱行为:**
-
-| 沙箱级别 | 文件系统 | 网络 | 说明 |
-|----------|---------|------|------|
-| none | 完全访问 | 允许 | 无限制 |
-| standard | 项目读写 | 禁止 | 只能修改项目文件 |
-| strict | 项目只读 | 禁止 | 只能读取项目文件 |
-
----
-
-### grep - 内容搜索
-
-使用正则表达式搜索文件内容。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 默认值 | 描述 |
-|------|------|------|--------|------|
-| `pattern` | string | ✓ | - | 正则表达式 |
-| `path` | string | - | 当前目录 | 搜索路径 |
-| `include` | string | - | - | 文件匹配模式 (如 `*.go`) |
-| `maxResults` | int | - | 100 | 最大结果数 |
-
-**示例:**
-
+#### 异步调用示例（例如启动长驻服务）：
 ```json
 {
-  "pattern": "func\\s+\\w+\\(",
-  "path": "/home/user/project",
-  "include": "*.go",
-  "maxResults": 50
+  "command": "npm run dev",
+  "async": true
 }
 ```
-
-**返回:** 匹配的行，包含文件路径和行号
-
----
-
-### find - 文件搜索
-
-按文件名模式搜索文件。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 默认值 | 描述 |
-|------|------|------|--------|------|
-| `pattern` | string | ✓ | - | Glob 模式 |
-| `path` | string | - | 当前目录 | 搜索路径 |
-| `maxDepth` | int | - | 无限 | 最大目录深度 |
-| `maxResults` | int | - | 100 | 最大结果数 |
-
-**示例:**
-
-```json
-{
-  "pattern": "*.go",
-  "path": "/home/user/project",
-  "maxDepth": 3
-}
-```
-
-**返回:** 匹配的文件路径列表
-
----
-
-### ls - 目录列表
-
-列出目录内容。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 默认值 | 描述 |
-|------|------|------|--------|------|
-| `path` | string | - | 当前目录 | 目录路径 |
-
-**示例:**
-
-```json
-{
-  "path": "/home/user/project"
-}
-```
-
-**返回:** 目录内容列表，包含文件类型和大小
 
 ---
 
 ### jobs - 后台任务管理
 
-列出并查看通过 `bash async=true` 启动的后台任务。
+列出、查询或清理通过 `bash` (开启 `async=true`) 启动的后台异步进程。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `jobId` | int | - | 按 ID 获取特定任务的详细状态 |
-| `cleanup` | bool | - | 清理已完成的任务 |
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `jobId` | integer | - | 可选：查询特定任务的详细输出日志、启动时间、CPU 运行耗时及实时状态。 |
+| `cleanup` | boolean | - | 清理所有已执行完毕的任务记录。 |
 
-**示例:**
-
+#### 示例载荷（列出所有任务）：
 ```json
 {}
 ```
 
-**返回:** 后台任务列表及状态（运行中/已完成），或特定任务的详细信息（PID、运行时间、stdout、stderr）。
+#### 示例载荷（查询具体任务）：
+```json
+{
+  "jobId": 1
+}
+```
 
 ---
 
 ### kill - 终止后台任务
 
-终止通过 `bash async=true` 启动的正在运行的后台任务。
+强行终止（发送 SIGTERM 甚至 SIGKILL）通过 `bash` 启动的特定后台运行进程。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `jobId` | int | ✓ | 要终止的任务 ID |
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `jobId` | integer | ✓ | 需要被强制终止的目标任务 ID。 |
 
-**示例:**
-
-```json
-{ "jobId": 3 }
-```
-
-**返回:** 确认消息，包含任务 ID 和 PID。
-
----
-
-### question - 用户澄清（Plan 模式）
-
-在 Plan 模式下向用户提出多选问题以澄清需求。仅在 TUI + plan 模式下注册。通过 `QuestionHandler` 可选接口（类型断言）暴露；不在 Gateway/Hermes/ACP 中注册。
-
-**参数:**
-
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `question` | string | ✓ | 问题文本 |
-| `options` | array | ✓ | 选项列表 |
-
-**示例:**
-
+#### 示例载荷：
 ```json
 {
-  "question": "我们应该使用哪个数据库？",
-  "options": ["PostgreSQL", "SQLite", "MongoDB"]
+  "jobId": 1
 }
 ```
 
-**返回:** 用户选择的选项或自定义答案。
+---
+
+### ls - 列出目录内容
+
+列出目标目录下的子文件与目录，提供精准的文件大小、修改状态及类型区分。
+
+#### 参数：
+
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| `path` | string | - | `.` | 待列出的目录路径。 |
+
+#### 示例载荷：
+```json
+{
+  "path": "./internal"
+}
+```
 
 ---
 
-### memory - 持久记忆（Hermes）
+### find - 文件搜索
 
-读写存储在 `memory.md` 中的持久记忆。记忆跨会话持久保存。仅在 Hermes 模式下可用。
+根据通配符模式搜索匹配的文件。该工具底层集成了极速的 `fd` 独立二进制程序（在不支持的架构上会自动降级回系统的 `find`），拥有无与伦比的性能。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `action` | string | ✓ | 操作：`read`、`add`、`update`、`delete` |
-| `section` | string | - | 节名称（如 `User Profile`、`Working Memory`、`Lessons Learned`）。add/update/delete 必填；read 时可选。 |
-| `content` | string | - | add/delete 操作的内容 |
-| `old` | string | - | update 操作的旧文本 |
-| `new` | string | - | update 操作的新替换文本 |
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| `pattern` | string | ✓ | - | 文件名匹配通配符（如 `*.go`, `*test*`）。 |
+| `path` | string | - | `.` | 搜索的根目录起点。 |
+| `maxDepth` | integer | - | - | 搜索的最大目录深度限制。 |
+| `maxResults`| integer | - | 100 | 返回的最大结果数量。 |
 
-**示例:**
+#### 示例载荷：
+```json
+{
+  "pattern": "*_test.go",
+  "path": "internal/provider",
+  "maxDepth": 3
+}
+```
 
+---
+
+### grep - 文本内容搜索
+
+使用正则表达式对代码库的文件内容进行闪电般的模糊匹配搜索。底层完美集成 ripgrep (`rg`) 引擎，检索庞大项目只需毫秒级响应。
+
+#### 参数：
+
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| `pattern` | string | ✓ | - | 正则表达式匹配模式。 |
+| `path` | string | - | `.` | 搜索的目录或文件路径。 |
+| `include` | string | - | - | 限制匹配的文件后缀通配符（如 `*.go`）。 |
+| `maxResults`| integer | - | 100 | 返回的匹配行数限制。 |
+
+#### 示例载荷：
+```json
+{
+  "pattern": "type ProviderConfig struct",
+  "include": "*.go"
+}
+```
+
+---
+
+### plan - 任务计划
+
+在 TUI 界面左侧或顶层渲染出一个优雅的多步骤任务清单面板。帮助用户和开发者清晰地看到助手当前正在做什么，哪些步骤已经完成，以及未来计划执行什么步骤。
+
+#### 参数：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `steps` | array of objects | ✓ | 有序任务步骤。 |
+| `title` | string | - | 计划任务的标题。 |
+| `note` | string | - | 可选：当前的风险提示、阻塞条件或备注。 |
+
+**Step 对象的具体属性：**
+
+| 属性名 | 类型 | 必填 | 允许的值 | 描述 |
+|--------|------|------|----------|------|
+| `title` | string | ✓ | - | 简洁的步骤描述。 |
+| `status` | string | ✓ | `pending`, `running`, `done`, `failed` | 执行状态。 |
+
+#### 示例载荷：
+```json
+{
+  "title": "数据库迁移校验",
+  "steps": [
+    { "title": "检查当前数据库 Schema", "status": "done" },
+    { "title": "执行数据结构变更脚本", "status": "running" },
+    { "title": "校验数据一致性与回滚验证", "status": "pending" }
+  ]
+}
+```
+
+---
+
+### question - 用户问题澄清
+
+在 TUI 的 `plan` 模式中，助手可能会暂停工作，并弹出一个多选交互菜单向用户提出提问，以便精确澄清需求细节。用户可以直接在 TUI 终端中使用上下键导航并选中特定选项，极其便捷。
+
+#### 参数：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `question` | string | ✓ | 具体的提问问题文本。 |
+| `options` | array of strings | ✓ | 呈现给用户选择的候选项列表。 |
+
+#### 示例载荷：
+```json
+{
+  "question": "您希望为前端组件使用哪种样式方案？",
+  "options": [
+    "Tailwind CSS",
+    "Styled Components",
+    "原生 CSS / CSS Modules"
+  ]
+}
+```
+
+---
+
+### memory - 持久记忆
+
+在 Hermes 聊天机器人模式下，助手可以在 `.vibe/memory.md` 中记录用户的个人偏好、专属工程实践规定或通用教训。该文件在每次新会话启动时都会被自动读入作为前置提示。
+
+#### 参数：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `action` | string | ✓ | 执行的操作：`read`（读取）, `add`（新增）, `update`（更新）, `delete`（删除）。 |
+| `section` | string | - | 标题分组（如 `User Profile`, `Project Rules`）。 |
+| `content` | string | - | 写入或匹配的文本内容。 |
+| `old` | string | - | 供更新替换的原文（在 `update` 时使用）。 |
+| `new` | string | - | 新替换的新内容（在 `update` 时使用）。 |
+
+#### 示例载荷：
 ```json
 {
   "action": "add",
-  "section": "User Profile",
-  "content": "后端开发偏好 Go 而非 Python。"
+  "section": "Project Rules",
+  "content": "所有的 API 接口都必须提供 OpenAPI 3.0 格式的文档描述。"
 }
 ```
 
-**返回:** 操作确认或节内容。
-
 ---
 
-### cron - 定时任务（Hermes / 多 Agent）
+### cron - 定时后台任务
 
-管理通过子 Agent 执行的定时后台任务。在 Hermes 模式和 CLI 多 Agent 模式下可用。
+允许主会话创建并配置一类定时任务。这类任务将在后台由子 Agent 在特定的时刻定时触发并自动运行。
 
-**参数:**
+#### 参数：
 
-| 参数 | 类型 | 必填 | 描述 |
-|------|------|------|------|
-| `action` | string | ✓ | 操作：`list`、`create`、`enable`、`disable`、`remove`、`run` |
-| `id` | string | - | 任务 ID（enable/disable/remove/run 必填） |
-| `name` | string | - | 任务简短名称（create 必填） |
-| `prompt` | string | - | 子 Agent 任务提示（create 必填） |
-| `schedule` | string | - | 调度：`@daily`、`@weekly`、`@monthly`、`@hourly`、`@every 30m`、`@every 2h`，或为空表示单次执行 |
-| `oneshot` | bool | - | 为 true 时执行一次后自动禁用 |
-| `mode` | string | - | Agent 模式：`agent` 或 `yolo`（默认 `yolo`） |
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| `action` | string | ✓ | - | 任务操作：`list`, `create`, `enable`, `disable`, `remove`, `run`。 |
+| `id` | string | - | - | 任务 ID（对编辑/启用/禁用/移除等行为必填）。 |
+| `name` | string | - | - | 定时任务的简短代号。 |
+| `prompt` | string | - | - | 定时触发后，发送给子 Agent 调度的提示词。 |
+| `schedule` | string | - | - | Cron 标准表达式或定期间隔（如 `@daily`, `@every 15m`）。 |
+| `oneshot` | boolean | - | false | 若设为 `true`，触发并成功执行一次后该任务会自动禁用。 |
+| `mode` | string | - | `yolo` | 子 Agent 运行的模式选择（`agent` 或 `yolo`）。 |
 
-**示例:**
-
+#### 示例载荷：
 ```json
 {
   "action": "create",
-  "name": "daily-check",
-  "prompt": "检查过时的依赖并报告。",
-  "schedule": "@daily"
+  "name": "daily-git-pull",
+  "prompt": "同步拉取最新的上游主分支代码，并验证整个项目能否成功编译编译。",
+  "schedule": "@daily",
+  "mode": "yolo"
 }
 ```
 
-**返回:** 任务列表、创建确认或操作结果。
+---
+
+### subagent_* - 子 Agent 委托
+
+当 VibeCoding 启用多 Agent 运行模式（使用 `--multi-agent` 参数启动）时，主 Agent 可以动态派生出完全隔离的子 Agent 来并行承担不同的开发或审查工作。子 Agent 拥有完全独立的消息上下行、临时环境、独立日志和 Session。
+
+#### `subagent_spawn`
+异步派生一个全新的子 Agent，并接收一个独立的作业 ID：
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `task` | string | ✓ | 描述让子 Agent 具体去完成的任务。 |
+| `mode` | string | - | 运行模式选择（`plan`, `agent` 或 `yolo`，默认为 `agent`）。 |
+| `work_dir` | string | - | 限定子 Agent 的运行工作子目录。 |
+| `tools` | array of strings | - | 允许子 Agent 调用的工具白名单。 |
+| `max_iterations` | integer | - | 大模型循环周期的最大限制次数。 |
+
+#### `subagent_status`
+查询子任务的执行进度并返回最终成果报告。
+```json
+{ "handle": "subagent-job-1" }
+```
+
+#### `subagent_send`
+向运行中的子 Agent 注入追加信息或补充指令。
+```json
+{ "handle": "subagent-job-1", "message": "同时请把 helper_test.go 里的包引入路径修复一下。" }
+```
+
+#### `subagent_destroy`
+销毁该子 Agent 的运行时上下文并彻底回收一切临时资源。
+```json
+{ "handle": "subagent-job-1" }
+```
 
 ---
 
-### MCP 动态工具
+### a2a_dispatch - 远程 Agent 分发
 
-来自 MCP（Model Context Protocol）服务器的工具、资源和提示在每个会话中自动发现和注册。工具名称和参数由 MCP 服务器定义，而非 VibeCoding。MCP 工具会与内置工具一起出现在工具列表中。
+此工具仅在 A2A Master Mode 模式下注册生效。它用于通过标准 HTTP A2A 协议向远程注册列表中的协同 Agent 分发并接收特定指令成果。
 
-详见 [技能](skills.md) 和 [配置](configuration.md) 了解 MCP 服务器设置。
+#### 参数：
 
----
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `agent_name` | string | ✓ | 注册于配置文件中的远程 Agent 别名。 |
+| `message` | string | ✓ | 发送给目标 Agent 运行处理的详尽提示词或任务。 |
 
-## 工具使用模式
-
-### 读取-修改-写入模式
-
-这是最常见的代码编辑模式：
-
-```
-1. read   → 获取文件内容
-2. edit   → 精确修改
-3. bash   → 验证修改 (如 go build)
-```
-
-**示例对话:**
-
-```
-用户: 修复 main.go 中的 bug
-
-助手:
-  1. read("main.go")           # 读取文件
-  2. 分析代码，找到 bug
-  3. edit("main.go", edits)    # 修复 bug
-  4. bash("go build ./...")    # 验证编译
-```
-
-### 搜索-定位-修改模式
-
-当不确定文件位置时：
-
-```
-1. grep   → 搜索相关代码
-2. read   → 查看上下文
-3. edit   → 修改代码
-```
-
-### 项目探索模式
-
-了解项目结构：
-
-```
-1. ls     → 列出根目录
-2. find   → 查找特定文件
-3. read   → 读取关键文件
-```
-
-## 工具错误处理
-
-工具执行失败时会返回错误信息：
-
+#### 示例载荷：
 ```json
 {
-  "error": "open /path/to/file: no such file or directory"
+  "agent_name": "kubernetes-deployer",
+  "message": "Deploy image tag v1.2.3 to development namespace."
 }
 ```
 
-常见错误类型：
+---
 
-| 错误 | 原因 | 解决方案 |
-|------|------|----------|
-| 文件不存在 | 路径错误或文件已删除 | 检查路径，使用 `find` 查找 |
-| 权限拒绝 | 沙箱限制或文件权限 | 检查沙箱级别，确认文件权限 |
-| 超时 | 命令执行时间过长 | 增加 timeout 或优化命令 |
-| 编辑失败 | `oldText` 不匹配 | 重新 `read` 获取最新内容 |
+### skill_ref - 加载技能引用
 
-## 工具限制
+从加载的特定本地技能（Skill）中提取其静态说明、公共契约或 API 原型参考。这能有效保证大量的开发规范和多行的格式模式不会在前置提示词中常驻，而是直到 Agent 具体需要时才被精准加载检索。
 
-### 沙箱限制
+#### 参数：
 
-在沙箱模式下：
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `skill` | string | ✓ | 本地加载的技能名（技能对应的目录名称）。 |
+| `ref` | string | ✓ | 技能目录下的具体参考规范文件相对路径。 |
 
-- **standard**: 项目目录可读写，系统目录只读，无网络
-- **strict**: 所有目录只读，无网络
-
-### 超时限制
-
-- 默认超时: 120 秒
-- 最大超时: 600 秒
-- 长时间运行的命令需要设置更大的 timeout
-
-### 输出限制
-
-- 单次输出有大小限制
-- 超出部分会被截断
-- 使用 `offset` 和 `limit` 分页读取大文件
-
-## 工具结果
-
-工具返回支持纯文本和富内容的 `ToolResult` 结构体：
-
-```go
-type ToolResult struct {
-    Text     string                  // 纯文本结果（始终填充）
-    Contents []provider.ContentBlock // 富内容块（文本 + 图像）
+#### 示例载荷：
+```json
+{
+  "skill": "kubernetes-skill",
+  "ref": "references/helm-deployment.md"
 }
 ```
 
-### 创建工具结果
+---
 
-```go
-// 纯文本结果
-return tools.NewTextToolResult("文件写入成功"), nil
+## 4. 最佳开发实践与原则
 
-// 包含图像的结果（用于返回图像的工具）
-return tools.NewImageToolResult("图像已加载", "image/png", base64Data), nil
-```
+为了使 VibeCoding 在自动化开发生命周期中发挥出最完美的威力，请确保遵守以下工程指导：
 
-## 扩展工具
-
-### 自定义工具接口
-
-```go
-type Tool interface {
-    Name() string
-    Description() string
-    Parameters() json.RawMessage
-    Execute(ctx context.Context, params map[string]any) (ToolResult, error)
-}
-```
-
-### 注册自定义工具
-
-```go
-registry := tools.NewRegistry(workdir, sandbox)
-registry.Register(&MyCustomTool{})
-```
-
-## 最佳实践
-
-1. **先读后改**: 使用 `read` 查看文件内容，再用 `edit` 修改
-2. **精确匹配**: `edit` 的 `oldText` 必须精确匹配
-3. **验证修改**: 仅在需要 shell 的验证步骤中使用 `bash` (如编译、测试)
-4. **分页读取**: 大文件使用 `offset` 和 `limit`
-5. **限制搜索**: 使用 `include` 和 `maxResults` 限制搜索范围
+1. **先读后改（Read-Before-Modify）原则**：在指挥或让模型使用 `edit` 修改目标文件前，务必保证之前运行过 `read` 读入该文件。只有完全掌握原文件的准确文本排版与格式，`edit` 工具的 `oldText` 唯一匹配逻辑才能够百分之百吻合，防止任何因格式或换行差异导致的修改报错。
+2. **减少用 Bash 工具来进行静态信息检索**：绝大多数静态查询指令（如使用 Bash 运行 `cat`, `grep`, `find`, `ls`）均可用 VibeCoding 内置的高性能工具直接完成。内置的 `read` / `grep` / `find` 会对结果进行专门的内存分页、截断优化，具有极高的处理速度和极低的模型上下文开销，且不受系统沙箱的外部隔离限制。
+3. **妥善打理长驻进程**：若通过 `bash` 的 `async=true` 启动了编译服务器、实时监控器或开发后台，请定时在会话中指示执行 `jobs` 工具（并开启 `cleanup=true` 参数）来关闭并打理那些已经崩溃或执行完毕的子任务记录，以释放系统内存开销；若对应长驻服务已不再有用，直接使用 `kill` 任务彻底终止它们。

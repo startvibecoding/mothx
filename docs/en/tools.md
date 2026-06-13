@@ -1,633 +1,474 @@
-# Tool System
+# Tool System Reference Guide
 
-VibeCoding provides a set of built-in tools for file operations, code search, and command execution.
+VibeCoding provides a powerful and extensible set of built-in tools for file operations, codebase exploration, shell execution, multi-agent coordination, and workspace interaction.
 
-## Tool Overview
+---
 
-| Tool | Description | Sandbox Restriction |
-|------|-------------|-------------------|
-| `read` | Read file content | Read-only directories accessible |
-| `write` | Create/overwrite files | Only standard/yolo |
-| `edit` | Precise text replacement | Only standard/yolo |
-| `bash` | Execute shell commands | Subject to sandbox restrictions |
-| `grep` | Regex content search | Read-only |
-| `find` | Filename search | Read-only |
-| `ls` | List directory contents | Read-only |
-| `plan` | Publish task plan/status | Read-only |
-| `jobs` | List and manage background jobs | Read-only |
-| `kill` | Stop a running background job | Only standard/yolo |
-| `question` | Ask user multiple-choice questions | Plan mode (TUI only) |
-| `memory` | Read/write persistent memory | Hermes mode |
-| `cron` | Manage scheduled background tasks | Hermes/multi-agent mode |
-| `subagent_spawn` | Start a delegated sub-agent task | Multi-agent mode only |
-| `subagent_status` | Query a sub-agent's status/result | Multi-agent mode only |
-| `subagent_send` | Send follow-up instructions to a sub-agent | Multi-agent mode only |
-| `subagent_destroy` | Stop and remove a sub-agent | Multi-agent mode only |
-| `a2a_dispatch` | Send task to remote A2A agent | A2A Master mode only |
-| `skill_ref` | Load skill reference file | When skills available |
+## 1. Tool Execution Safety and Sandboxing
 
-## Tool Details
+Before exploring individual tools, it is crucial to understand the three safety levels under which VibeCoding can execute tools:
+
+| Safety Level | Tool Modification Privileges | Network Access | Sandbox Implementation |
+|--------------|------------------------------|----------------|------------------------|
+| **none** | Can read, write, and execute shell commands anywhere. | Fully enabled. | Direct host execution. |
+| **standard** | Read/write in project directory; read-only in system directories. | Fully disabled. | Restricts host access via `bwrap` (Bubblewrap) if available. |
+| **strict** | Read-only in project and system directories. No writes/edits allowed. | Fully disabled. | Restricts host access via `bwrap` (Bubblewrap) if available. |
+
+### Sandbox Mechanics (`bwrap`)
+When `sandbox.enabled` is `true` in `settings.json`, VibeCoding isolates commands run via `bash` (or any external process):
+* **Allowed Paths**: The sandbox mounts system folders (`/usr`, `/lib`, `/bin`, etc.) as read-only, and mounts the active workspace directory as read-write (`standard`) or read-only (`strict`).
+* **Denied Paths**: Sensitive directories (like `~/.ssh`, `/etc/shadow`, etc.) are completely hidden or blocked.
+* **Network Isolation**: Direct networking is blocked by creating a separate network namespace (`--unshare-net`).
+
+---
+
+## 2. Comprehensive Tool Directory
+
+| Tool | Category | Action | Execution Security | Availability |
+|------|----------|--------|-------------------|--------------|
+| [`read`](#read---file-reading) | File System | Read file content (supports images and pagination) | Read-only access allowed | All modes |
+| [`write`](#write---file-writing) | File System | Create or overwrite files | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`edit`](#edit---precise-file-modification) | File System | Atomic text replacements | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`ls`](#ls---directory-listing) | Exploration | List directory contents | Read-only access allowed | All modes |
+| [`find`](#find---file-search) | Exploration | Search for files by pattern | Read-only access allowed | All modes |
+| [`grep`](#grep---text-content-search) | Exploration | Regex search within files | Read-only access allowed | All modes |
+| [`bash`](#bash---command-execution) | Execution | Run shell commands (supports sync & async) | Subject to Sandbox Level | CLI, ACP, Gateway, Hermes |
+| [`jobs`](#jobs---background-job-management) | Execution | List or check status of background jobs | Read-only access allowed | All modes |
+| [`kill`](#kill---stop-background-job) | Execution | Stop a running background job | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`plan`](#plan---task-planning) | Session | Update a visible progress/task plan | Read-only access allowed | All modes |
+| [`question`](#question---user-clarification) | Session | Prompt user for multiple-choice input | Plan mode only | TUI Only |
+| [`memory`](#memory---persistent-memory) | Workflow | Read/write to persistent `memory.md` | Session-scoped read/write | Hermes Mode |
+| [`cron`](#cron---scheduled-background-tasks) | Workflow | Schedule background tasks via sub-agents | Session-scoped scheduling | Hermes & Multi-Agent |
+| [`subagent_spawn`](#subagent_---delegated-work) | Multi-Agent | Spawn isolated sub-agents | Sub-agent scoped limits | Multi-Agent Mode |
+| [`subagent_status`](#subagent_---delegated-work) | Multi-Agent | Query sub-agent status | Read-only | Multi-Agent Mode |
+| [`subagent_send`](#subagent_---delegated-work) | Multi-Agent | Send commands to sub-agents | Send message | Multi-Agent Mode |
+| [`subagent_destroy`](#subagent_---delegated-work) | Multi-Agent | Remove sub-agents & clean up | Destroy | Multi-Agent Mode |
+| [`a2a_dispatch`](#a2a_dispatch---remote-agent-dispatch) | Multi-Agent | Dispatch tasks to a remote A2A agent | Network request | A2A Master Mode |
+| [`skill_ref`](#skill_ref---skill-reference-loading) | Skills | Load external skill documentation | Read-only | All modes |
+
+---
+
+## 3. Tool Details & Parameters
 
 ### read - File Reading
 
-Read file content with pagination support. Supports both text files and images.
+Read file contents with support for pagination (vital for handling large source files without blowing up the context window) and image rendering.
 
-**Parameters:**
+#### Parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `path` | string | ✓ | File path |
-| `offset` | int | - | Starting line number (from 1) |
-| `limit` | int | - | Maximum lines to read |
+| `path` | string | ✓ | Path to the file. |
+| `offset` | integer | - | Starting line number (1-indexed). |
+| `limit` | integer | - | Maximum number of lines to read. |
 
-**Example:**
+#### Image File Support:
+If the file path ends with a supported image extension (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`), the tool automatically encodes the image content in Base64 and returns a rich content block with its MIME type, which enables multimodal models to "see" the image.
 
+#### Example Payload:
 ```json
 {
-  "path": "/home/user/project/main.go",
-  "offset": 10,
+  "path": "src/main.go",
+  "offset": 120,
   "limit": 50
 }
 ```
-
-**Returns:** 
-- For text files: File content as text
-- For images (PNG, JPEG, GIF, WebP): Base64-encoded image data with MIME type information
-
-**Image Support:**
-
-When reading image files, the tool returns rich content containing:
-- A text description with file path, size, and type
-- The image data encoded in base64 format
-
-Supported image formats: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
-
----
-
-### plan - Task Planning
-
-Publish or update a visible task plan. Steps support `pending`, `running`, `done`, and `failed` statuses.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `title` | string | - | Short plan title |
-| `steps` | array | ✓ | Ordered plan steps |
-| `note` | string | - | Optional short note |
-
-**Example:**
-
-```json
-{
-  "title": "Implement structured diffs",
-  "steps": [
-    {"title": "Read tool result flow", "status": "done"},
-    {"title": "Update write/edit results", "status": "running"},
-    {"title": "Run focused tests", "status": "pending"}
-  ]
-}
-```
-
-**Returns:** Structured plan metadata for TUI, print mode, and ACP clients.
-
----
-
-### subagent_* - Delegated Work
-
-The `subagent_*` tools are registered only when VibeCoding runs with
-`--multi-agent`. They let the main agent delegate bounded work to child agents
-that have isolated messages, context, session, registry, and job-manager state.
-
-Child agents cannot spawn further sub-agents.
-
-#### subagent_spawn
-
-Starts a child agent asynchronously and returns a handle.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `task` | string | ✓ | Focused delegated task |
-| `mode` | string | - | `plan`, `agent`, or `yolo`; defaults to `agent` |
-| `work_dir` | string | - | Child working directory |
-| `tools` | array | - | Optional allowed tool names |
-| `max_iterations` | integer | - | Iteration cap |
-| `system_prompt_extra` | string | - | Additional child-agent context |
-
-#### subagent_status
-
-Queries status and last result for a handle:
-
-```json
-{ "handle": "agent-1" }
-```
-
-#### subagent_send
-
-Sends a follow-up message to an existing sub-agent:
-
-```json
-{ "handle": "agent-1", "message": "Focus on provider tests next." }
-```
-
-#### subagent_destroy
-
-Destroys a sub-agent and releases its resources:
-
-```json
-{ "handle": "agent-1" }
-```
-
----
-
-### a2a_dispatch - A2A Remote Agent Dispatch
-
-Send tasks to remote A2A agents registered in `a2a-list.json`. Only registered when launched with `--enable-a2a-master`.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `agent_name` | string | ✓ | Target agent name (auto-enumerated from config) |
-| `message` | string | ✓ | Task message |
-
-**Example:**
-
-```json
-{
-  "agent_name": "code-reviewer",
-  "message": "Review internal/handler.go for code quality"
-}
-```
-
-**Returns:** Text response from the remote agent
-
-See [A2A Protocol - A2A Master Mode](a2a.md#a2a-master-mode) for details.
-
----
-
-### skill_ref - Skill Reference Loading
-
-Load reference files from skill directories. Only registered when skills are available.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `skill` | string | ✓ | Skill name (directory name) |
-| `ref` | string | ✓ | Reference file path (relative to skill directory) |
-
-**Example:**
-
-```json
-{
-  "skill": "my-conventions",
-  "ref": "references/api-style.md"
-}
-```
-
-**Returns:** Reference file content
 
 ---
 
 ### write - File Writing
 
-Create new files or overwrite existing files.
+Create a new file or completely overwrite an existing file. This operation is atomic (uses a temporary file first, then renames it) to prevent corruption.
 
-**Parameters:**
+#### Parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `path` | string | ✓ | File path |
-| `content` | string | ✓ | File content |
+| `path` | string | ✓ | Path to write. |
+| `content` | string | ✓ | Full text content of the file. |
 
-**Example:**
-
+#### Example Payload:
 ```json
 {
-  "path": "/home/user/project/README.md",
-  "content": "# My Project\n\nThis is a new project."
+  "path": "config.json",
+  "content": "{\n  \"port\": 8080,\n  \"debug\": true\n}"
 }
 ```
 
-**Returns:** Success/failure message with structured diff metadata when content changes.
-
 ---
 
-### edit - File Editing
+### edit - Precise File Modification
 
-Precise text replacement for modifying existing files.
+The `edit` tool performs highly precise, **atomic multi-replacement operations** on a single file. Understanding how this tool operates under the hood is critical:
 
-**Parameters:**
+#### Edit Lifecycle & Safety Rules:
+1. **Pre-Flight Validation**: Before any modification is made, VibeCoding reads the file and searches for each `oldText` block in `edits[]`.
+2. **Uniqueness Check**: Every `oldText` pattern **must match exactly once** in the target file. If a pattern matches 0 times or matches multiple times, the **entire** batch of edits fails immediately with an error, and the file is untouched.
+3. **Overlap Resolution**: VibeCoding sorts the matches by their start index and checks if any edit overlaps with another. If an overlap is detected, the operation aborts to prevent corrupt edits.
+4. **Atomic Application**: Edits are applied in sorted order based on their indices in the original file. No partial edits are written. The file is modified atomically via a temporary file write.
+
+#### Parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `path` | string | ✓ | File path |
-| `edits` | array | ✓ | List of edit operations |
+| `path` | string | ✓ | File to edit. |
+| `edits` | array of objects | ✓ | List of replacement blocks. |
 
-**edits array elements:**
+**Edit Object Structure:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `oldText` | string | ✓ | Exact text to find |
-| `newText` | string | ✓ | Replacement text |
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `oldText` | string | ✓ | Exact block of text to replace. |
+| `newText` | string | ✓ | The replacement text. |
 
-**Example:**
-
+#### Example Payload:
 ```json
 {
-  "path": "/home/user/project/main.go",
+  "path": "server.go",
   "edits": [
     {
-      "oldText": "func main() {\n\tfmt.Println(\"old\")\n}",
-      "newText": "func main() {\n\tfmt.Println(\"new\")\n}"
+      "oldText": "func Start() {\n\tlog.Println(\"Starting server...\")",
+      "newText": "func Start() {\n\tlog.Println(\"Booting microservice...\")"
     }
   ]
 }
 ```
 
-**Best Practices:**
-
-1. `oldText` must exactly match the text in the file, including spaces and newlines
-2. Use `read` first to get file content and ensure `oldText` is correct
-3. Use sufficiently long `oldText` to ensure unique matching
-4. A single call can contain multiple edit operations
-
-**Returns:** Success/failure message with structured diff metadata when content changes.
-
 ---
 
 ### bash - Command Execution
 
-Execute shell commands.
+Executes a command using the shell (e.g., `/bin/bash` or `PowerShell`). It supports both synchronous (blocking) and asynchronous (background) execution modes.
 
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `command` | string | ✓ | - | Command to execute |
-| `timeout` | int | - | 120 | Timeout in seconds |
-
-**Example:**
-
-```json
-{
-  "command": "go test ./...",
-  "timeout": 300
-}
-```
-
-**Returns:** stdout and stderr output
-
-**Sandbox Behavior:**
-
-| Sandbox Level | File System | Network | Description |
-|---------------|------------|---------|-------------|
-| none | Full access | Allowed | No restrictions |
-| standard | Project read/write | Disabled | Can only modify project files |
-| strict | Project read-only | Disabled | Can only read project files |
-
----
-
-### grep - Content Search
-
-Search file content using regular expressions.
-
-**Parameters:**
+#### Parameters:
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `pattern` | string | ✓ | - | Regular expression |
-| `path` | string | - | Current directory | Search path |
-| `include` | string | - | - | File matching pattern (e.g., `*.go`) |
-| `maxResults` | int | - | 100 | Maximum number of results |
+| `command` | string | ✓ | - | Shell command string to execute. |
+| `timeout` | integer | - | 120 | Maximum execution time in seconds (max 600). |
+| `async` | boolean | - | false | If `true` (or if command ends with `&`), the process starts in the background and returns a `jobId` immediately. |
 
-**Example:**
-
+#### Example Payload (Synchronous):
 ```json
 {
-  "pattern": "func\\s+\\w+\\(",
-  "path": "/home/user/project",
-  "include": "*.go",
-  "maxResults": 50
+  "command": "go test -v ./internal/provider/...",
+  "timeout": 60
 }
 ```
 
-**Returns:** Matching lines with file paths and line numbers
-
----
-
-### find - File Search
-
-Search files by filename pattern.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `pattern` | string | ✓ | - | Glob pattern |
-| `path` | string | - | Current directory | Search path |
-| `maxDepth` | int | - | Unlimited | Maximum directory depth |
-| `maxResults` | int | - | 100 | Maximum number of results |
-
-**Example:**
-
+#### Example Payload (Asynchronous):
 ```json
 {
-  "pattern": "*.go",
-  "path": "/home/user/project",
-  "maxDepth": 3
+  "command": "npm run dev",
+  "async": true
 }
 ```
-
-**Returns:** List of matching file paths
-
----
-
-### ls - Directory Listing
-
-List directory contents.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `path` | string | - | Current directory | Directory path |
-
-**Example:**
-
-```json
-{
-  "path": "/home/user/project"
-}
-```
-
-**Returns:** Directory contents list with file types and sizes
 
 ---
 
 ### jobs - Background Job Management
 
-List and check status of background jobs started with `bash async=true`.
+List, query, or clean up asynchronous shell processes spawned with `bash` (`async=true`).
 
-**Parameters:**
+#### Parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `jobId` | int | - | Get detailed status of a specific job by ID |
-| `cleanup` | bool | - | Remove finished jobs from the list |
+| `jobId` | integer | - | Query detailed logs, start time, CPU elapsed time, and status for a specific job. |
+| `cleanup` | boolean | - | Remove finished jobs from the manager list. |
 
-**Example:**
-
+#### Example Payload (List All):
 ```json
 {}
 ```
 
-**Returns:** List of background jobs with status (running/finished), or detailed info for a specific job including PID, elapsed time, stdout, and stderr.
+#### Example Payload (Query Specific Job):
+```json
+{
+  "jobId": 1
+}
+```
 
 ---
 
 ### kill - Stop Background Job
 
-Stop a running background job started with `bash async=true`.
+Forcefully stop (send SIGTERM / SIGKILL) an asynchronous background job started via the `bash` tool.
 
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `jobId` | int | ✓ | The job ID to kill |
-
-**Example:**
-
-```json
-{ "jobId": 3 }
-```
-
-**Returns:** Confirmation message with job ID and PID.
-
----
-
-### question - User Clarification (Plan Mode)
-
-Ask the user a multiple-choice question during plan mode to clarify requirements.
-Only registered in TUI + plan mode. Uses `QuestionHandler` optional interface (type assertion); not exposed in Gateway/Hermes/ACP.
-
-**Parameters:**
+#### Parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `question` | string | ✓ | The question text |
-| `options` | array | ✓ | List of option strings |
+| `jobId` | integer | ✓ | ID of the job to terminate. |
 
-**Example:**
-
+#### Example Payload:
 ```json
 {
-  "question": "Which database should we use?",
-  "options": ["PostgreSQL", "SQLite", "MongoDB"]
+  "jobId": 1
 }
 ```
 
-**Returns:** User's selected option or custom answer.
+---
+
+### ls - Directory Listing
+
+List files and directories inside a target path, giving exact file sizes, modification statuses, and types.
+
+#### Parameters:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `path` | string | - | `.` | Directory to list. |
+
+#### Example Payload:
+```json
+{
+  "path": "./internal"
+}
+```
 
 ---
 
-### memory - Persistent Memory (Hermes)
+### find - File Search
 
-Read and write persistent memory stored in `memory.md`. Memory persists across sessions. Only available in Hermes mode.
+Find file paths matching glob patterns. This tool uses an embedded `fd` binary (falls back to system `find` if unsupported) and is extremely fast.
 
-**Parameters:**
+#### Parameters:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `pattern` | string | ✓ | - | Glob pattern to search (e.g. `*.go`, `*test*`). |
+| `path` | string | - | `.` | Root directory for search. |
+| `maxDepth` | integer | - | - | Maximum search depth. |
+| `maxResults`| integer | - | 100 | Limit on number of results. |
+
+#### Example Payload:
+```json
+{
+  "pattern": "*_test.go",
+  "path": "internal/provider",
+  "maxDepth": 3
+}
+```
+
+---
+
+### grep - Text Content Search
+
+Perform fast regex-based searches across codebase files. Uses embedded `rg` (ripgrep) for near-instant results.
+
+#### Parameters:
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `pattern` | string | ✓ | - | Regular expression pattern. |
+| `path` | string | - | `.` | Directory or file path to search. |
+| `include` | string | - | - | Glob pattern for files to include (e.g., `*.go`). |
+| `maxResults`| integer | - | 100 | Limit on returned matches. |
+
+#### Example Payload:
+```json
+{
+  "pattern": "type ProviderConfig struct",
+  "include": "*.go"
+}
+```
+
+---
+
+### plan - Task Planning
+
+Renders a beautiful multi-step checklist panel in the TUI, helping users and developers monitor exactly what steps the assistant intends to execute and which ones have succeeded or failed.
+
+#### Parameters:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `action` | string | ✓ | Action: `read`, `add`, `update`, `delete` |
-| `section` | string | - | Section name (e.g., `User Profile`, `Working Memory`, `Lessons Learned`). Required for add/update/delete; optional for read. |
-| `content` | string | - | Content for add/delete actions |
-| `old` | string | - | Old text for update action |
-| `new` | string | - | New replacement text for update action |
+| `steps` | array of objects | ✓ | Ordered steps of the task. |
+| `title` | string | - | Short descriptive title of the plan. |
+| `note` | string | - | Current risk warning, blocker, or status note. |
 
-**Example:**
+**Step Object Structure:**
 
+| Property | Type | Required | Allowed Values | Description |
+|----------|------|----------|----------------|-------------|
+| `title` | string | ✓ | - | Concise description of the step. |
+| `status` | string | ✓ | `pending`, `running`, `done`, `failed` | Execution state. |
+
+#### Example Payload:
+```json
+{
+  "title": "Database Migration",
+  "steps": [
+    { "title": "Check current schema", "status": "done" },
+    { "title": "Run migration script", "status": "running" },
+    { "title": "Verify data consistency", "status": "pending" }
+  ]
+}
+```
+
+---
+
+### question - User Clarification
+
+In `plan` mode inside the TUI, the assistant can halt execution and ask the user a multiple-choice question to clarify requirements. The interactive TUI lets the user navigate options and select the correct path.
+
+#### Parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `question` | string | ✓ | The question being asked. |
+| `options` | array of strings | ✓ | List of choices for the user. |
+
+#### Example Payload:
+```json
+{
+  "question": "Which styling library would you prefer for the frontend components?",
+  "options": [
+    "Tailwind CSS",
+    "Styled Components",
+    "Vanilla CSS / CSS Modules"
+  ]
+}
+```
+
+---
+
+### memory - Persistent Memory
+
+In Hermes messaging mode, the assistant can record user preferences, decisions, and system rules in `.vibe/memory.md`. This memory is loaded at the beginning of each session.
+
+#### Parameters:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | ✓ | Action to take: `read`, `add`, `update`, `delete`. |
+| `section` | string | - | Heading section (e.g. `Lessons Learned`, `Project Rules`). |
+| `content` | string | - | Text block to write or match. |
+| `old` | string | - | Target text to replace (used in `update`). |
+| `new` | string | - | New replacement text (used in `update`). |
+
+#### Example Payload (Add Memory):
 ```json
 {
   "action": "add",
-  "section": "User Profile",
-  "content": "Prefers Go over Python for backend work."
+  "section": "Project Rules",
+  "content": "All API endpoints must be documented in OpenAPI 3.0 format."
 }
 ```
 
-**Returns:** Action confirmation or section content.
-
 ---
 
-### cron - Scheduled Tasks (Hermes / Multi-Agent)
+### cron - Scheduled Background Tasks
 
-Manage scheduled background tasks that run via sub-agents. Available in Hermes mode and CLI multi-agent mode.
+Enables creating and managing cron-like scheduled tasks that execute in the background via sub-agents. 
 
-**Parameters:**
+#### Parameters:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `action` | string | ✓ | Action: `list`, `create`, `enable`, `disable`, `remove`, `run` |
-| `id` | string | - | Job ID (required for enable/disable/remove/run) |
-| `name` | string | - | Short task name (required for create) |
-| `prompt` | string | - | Task prompt for the sub-agent (required for create) |
-| `schedule` | string | - | Schedule: `@daily`, `@weekly`, `@monthly`, `@hourly`, `@every 30m`, `@every 2h`, or empty for one-shot |
-| `oneshot` | bool | - | If true, run once then auto-disable |
-| `mode` | string | - | Agent mode: `agent` or `yolo` (default: `yolo`) |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `action` | string | ✓ | - | Action: `list`, `create`, `enable`, `disable`, `remove`, `run`. |
+| `id` | string | - | - | Job ID (required for edit/remove actions). |
+| `name` | string | - | - | Short mnemonic name. |
+| `prompt` | string | - | - | The prompt instruction sent to the sub-agent. |
+| `schedule` | string | - | - | Cron notation or interval (e.g. `@daily`, `@every 15m`). |
+| `oneshot` | boolean | - | false | Run only once and then disable itself. |
+| `mode` | string | - | `yolo` | Sub-agent execution mode (`agent` or `yolo`). |
 
-**Example:**
-
+#### Example Payload:
 ```json
 {
   "action": "create",
-  "name": "daily-check",
-  "prompt": "Check for outdated dependencies and report.",
-  "schedule": "@daily"
+  "name": "daily-git-pull",
+  "prompt": "Pull the latest upstream branch and verify compilation.",
+  "schedule": "@daily",
+  "mode": "yolo"
 }
 ```
 
-**Returns:** Job list, creation confirmation, or action result.
+---
+
+### subagent_* - Delegated Work
+
+When VibeCoding is launched in multi-agent mode (`--multi-agent`), the main agent can spin up completely separate sub-agents to parallelize work. Sub-agents run in their own session contexts, have separate memories, separate temporary files, and isolated logs.
+
+#### `subagent_spawn`
+Launches a sub-agent to handle a focused prompt task asynchronously.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `task` | string | ✓ | Prompt describing the precise task to fulfill. |
+| `mode` | string | - | Run mode (`plan`, `agent`, or `yolo`; defaults to `agent`). |
+| `work_dir` | string | - | Specific subdirectory to run the sub-agent in. |
+| `tools` | array of strings | - | Whitelist of allowed tool names (empty for all). |
+| `max_iterations` | integer | - | Maximum agent loop cycles. |
+
+#### `subagent_status`
+Queries progress and returns the result once complete.
+```json
+{ "handle": "subagent-job-1" }
+```
+
+#### `subagent_send`
+Appends additional guidance or questions to an active sub-agent.
+```json
+{ "handle": "subagent-job-1", "message": "Also fix imports in helper_test.go." }
+```
+
+#### `subagent_destroy`
+Cleans up logs and releases the sub-agent container/process context.
+```json
+{ "handle": "subagent-job-1" }
+```
 
 ---
 
-### MCP Dynamic Tools
+### a2a_dispatch - Remote Agent Dispatch
 
-Tools, resources, and prompts from MCP (Model Context Protocol) servers are auto-discovered and registered per session. Tool names and parameters are defined by the MCP server, not VibeCoding. MCP tools appear in the tool list alongside built-in tools.
+Only available in A2A Master Mode. Dispatches a task request over network to a remote agent endpoint registered in the local configuration files.
 
-See [Skills](skills.md) and [Configuration](configuration.md) for MCP server setup.
+#### Parameters:
 
----
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `agent_name` | string | ✓ | Remote agent alias registered in `a2a-list.json`. |
+| `message` | string | ✓ | Full instruction to send to the remote agent. |
 
-## Tool Usage Patterns
-
-### Read-Modify-Write Pattern
-
-This is the most common code editing pattern:
-
-```
-1. read   → Get file content
-2. edit   → Make precise modifications
-3. bash   → Verify changes (e.g., go build)
-```
-
-**Example Conversation:**
-
-```
-User: Fix the bug in main.go
-
-Assistant:
-  1. read("main.go")           # Read file
-  2. Analyze code, find bug
-  3. edit("main.go", edits)    # Fix bug
-  4. bash("go build ./...")    # Verify compilation
-```
-
-### Search-Locate-Modify Pattern
-
-When file location is unknown:
-
-```
-1. grep   → Search for relevant code
-2. read   → View context
-3. edit   → Modify code
-```
-
-### Project Exploration Pattern
-
-Understanding project structure:
-
-```
-1. ls     → List root directory
-2. find   → Find specific files
-3. read   → Read key files
-```
-
-## Tool Error Handling
-
-Tool execution failures return error messages:
-
+#### Example Payload:
 ```json
 {
-  "error": "open /path/to/file: no such file or directory"
+  "agent_name": "kubernetes-deployer",
+  "message": "Deploy image tag v1.2.3 to development namespace."
 }
 ```
 
-Common error types:
+---
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| File not found | Wrong path or file deleted | Check path, use `find` to locate |
-| Permission denied | Sandbox restriction or file permissions | Check sandbox level, verify file permissions |
-| Timeout | Command execution too long | Increase timeout or optimize command |
-| Edit failed | `oldText` doesn't match | Re-`read` to get latest content |
+### skill_ref - Skill Reference Loading
 
-## Tool Limitations
+Load reference context from a localized skill. This keeps large reference schemas, api endpoints, and documentation out of the main agent prompt until specifically requested.
 
-### Sandbox Restrictions
+#### Parameters:
 
-In sandbox mode:
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `skill` | string | ✓ | Skill directory name. |
+| `ref` | string | ✓ | Path of the reference file inside the skill folder. |
 
-- **standard**: Project directory read/write, system directory read-only, no network
-- **strict**: All directories read-only, no network
-
-### Timeout Limits
-
-- Default timeout: 120 seconds
-- Maximum timeout: 600 seconds
-- Long-running commands need larger timeout setting
-
-### Output Limits
-
-- Single output has size limit
-- Excess content is truncated
-- Use `offset` and `limit` for paginated reading of large files
-
-## Tool Results
-
-Tools return a `ToolResult` struct that supports both plain text and rich content:
-
-```go
-type ToolResult struct {
-    Text     string                  // Plain text result (always populated)
-    Contents []provider.ContentBlock // Rich content blocks (text + images)
+#### Example Payload:
+```json
+{
+  "skill": "kubernetes-skill",
+  "ref": "references/helm-deployment.md"
 }
 ```
 
-### Creating Tool Results
+---
 
-```go
-// Plain text result
-return tools.NewTextToolResult("File written successfully"), nil
+## 4. Best Practices for Developers & Users
 
-// Result with image (for tools that return images)
-return tools.NewImageToolResult("Image loaded", "image/png", base64Data), nil
-```
+To get the absolute best out of VibeCoding's tool loop, keep the following principles in mind:
 
-## Extending Tools
-
-### Custom Tool Interface
-
-```go
-type Tool interface {
-    Name() string
-    Description() string
-    Parameters() json.RawMessage
-    Execute(ctx context.Context, params map[string]any) (ToolResult, error)
-}
-```
-
-### Register Custom Tool
-
-```go
-registry := tools.NewRegistry(workdir, sandbox)
-registry.Register(&MyCustomTool{})
-```
-
-## Best Practices
-
-1. **Read before modifying**: Use `read` to view file content, then use `edit` to modify
-2. **Precise matching**: `edit`'s `oldText` must match exactly
-3. **Verify changes**: Use `bash` only for validation steps that need a shell (e.g., compile, test)
-4. **Paginated reading**: Use `offset` and `limit` for large files
-5. **Limit searches**: Use `include` and `maxResults` to limit search scope
+1. **The Read-Before-Modify Standard**: Always ensure you (or the model) call `read` on files before attempting to modify them with `edit`. Having the exact, complete block in context ensures the `oldText` parameter matches perfectly and prevents atomic editing failures.
+2. **Minimize `bash` usage for exploration**: Avoid running shell commands like `grep`, `find`, or `cat` inside a bash tool. VibeCoding's dedicated `grep`, `find`, and `read` tools are heavily optimized, parsed directly into structured data, and do not suffer from sub-shell spawn latencies or sandbox restrictions.
+3. **Handle Long-Running Jobs with Care**: When spinning up servers or continuous builders using `bash` in async mode (`async=true`), regularly call `jobs` to clean up exited jobs (`cleanup=true`) to keep the system overhead down, and use `kill` to shut down background servers once they are no longer required.

@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.1.37
+
+### ✨ Features
+
+- **Vertex AI API Key Authentication**
+  - Added support for authenticating directly with Google Vertex AI using API keys (`x-goog-api-key`) instead of requiring gcloud OAuth tokens (`ya29.`).
+  - When an API key is used, the default base URL automatically routes to `https://aiplatform.googleapis.com/v1/publishers/google/models` (which doesn't require project/location parameters).
+  - Keeps backward compatibility with existing OAuth bearer tokens.
+
+### 🐛 Bug Fixes
+
+- **Google Tool Thought Signatures**
+  - Correctly extract and forward Gemini reasoning/thought signatures in tool calls, preventing any misalignment or signature mismatches.
+
+- **TUI Raw Bash Output Preservation**
+  - Preserved ANSI escape codes and raw spacing/newlines in Bubble Tea TUI rendering for `bash` tool results, avoiding accidental italic style inheritance from the TUI framework.
+
+---
+
 ## v0.1.36
 
 ### ✨ Features
