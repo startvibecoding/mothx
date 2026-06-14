@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"GoStreamingMarkdown/gsm"
 	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
 	"golang.org/x/net/websocket"
 
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"

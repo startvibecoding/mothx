@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/term"
 
-	"GoStreamingMarkdown/gsm"
+	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"

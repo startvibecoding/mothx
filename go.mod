@@ -3,19 +3,17 @@ module github.com/startvibecoding/vibecoding
 go 1.24.0
 
 require (
-	GoStreamingMarkdown v0.0.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.10.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.3
 	github.com/spf13/cobra v1.10.2
+	github.com/startvibecoding/GoStreamingMarkdown v0.0.2
 	golang.org/x/net v0.38.0
 	golang.org/x/sys v0.37.0
 	golang.org/x/term v0.36.0
 )
-
-replace GoStreamingMarkdown => /home/free/src/GoStreamingMarkdown
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
