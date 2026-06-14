@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
@@ -525,6 +527,111 @@ func TestToolOnlyWarningAppendedAfterToolResults(t *testing.T) {
 	}
 	if messages[warningIndex-2].Role != "assistant" {
 		t.Fatalf("message before tool result role = %q, want assistant", messages[warningIndex-2].Role)
+	}
+}
+
+func TestShouldStopAfterTurnDoneIncludesFinalMetadata(t *testing.T) {
+	toolCall := &provider.ToolCallBlock{
+		ID:        "call_1",
+		Name:      "unknown_tool",
+		Arguments: []byte(`{}`),
+	}
+	responses := []provider.StreamEvent{
+		{Type: provider.StreamStart},
+		{Type: provider.StreamToolCall, ToolCall: toolCall},
+		{Type: provider.StreamUsage, Usage: &provider.Usage{Input: 10, Output: 3}},
+		{Type: provider.StreamDone, StopReason: "tool_use"},
+	}
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1", ContextWindow: 1000},
+	}, responses)
+
+	cfg := AgentLoopConfig{
+		Config: Config{
+			Provider: mockProvider,
+			Model:    mockProvider.Models()[0],
+			Mode:     "agent",
+		},
+		ToolExecutionMode: "sequential",
+		MaxIterations:     2,
+		ShouldStopAfterTurn: func(ctx ShouldStopAfterTurnContext) bool {
+			return true
+		},
+	}
+	a := NewWithLoopConfig(cfg, tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox()))
+
+	var done *Event
+	for event := range a.Run(context.Background(), "use a tool") {
+		if event.Type == EventDone {
+			ev := event
+			done = &ev
+		}
+	}
+
+	if done == nil {
+		t.Fatal("expected EventDone")
+	}
+	if done.StopReason != "should_stop" {
+		t.Fatalf("stop reason = %q, want should_stop", done.StopReason)
+	}
+	if done.Usage == nil {
+		t.Fatal("expected EventDone to include usage")
+	}
+	if done.ContextUsage == nil {
+		t.Fatal("expected EventDone to include context usage")
+	}
+}
+
+func TestSessionSaveErrorEmitsAgentEnd(t *testing.T) {
+	responses := []provider.StreamEvent{
+		{Type: provider.StreamStart},
+		{Type: provider.StreamTextDelta, TextDelta: "hello"},
+		{Type: provider.StreamDone},
+	}
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, responses)
+
+	sess := session.New(t.TempDir(), t.TempDir())
+	if err := sess.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	sessionFile := sess.GetFile()
+	if err := os.Chmod(sessionFile, 0400); err != nil {
+		t.Fatalf("chmod session file read-only: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(sessionFile, 0600)
+	})
+
+	cfg := Config{
+		Provider: mockProvider,
+		Model:    mockProvider.Models()[0],
+		Mode:     "agent",
+		Session:  sess,
+	}
+	a := New(cfg, tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox()))
+
+	var events []Event
+	for event := range a.RunWithMessages(context.Background(), []provider.Message{provider.NewUserMessage("test")}) {
+		events = append(events, event)
+	}
+
+	if len(events) == 0 {
+		t.Fatal("expected events")
+	}
+	if events[len(events)-1].Type != EventAgentEnd {
+		t.Fatalf("last event = %v, want EventAgentEnd", events[len(events)-1].Type)
+	}
+	var sawError bool
+	for _, event := range events {
+		if event.Type == EventError && event.Error != nil && strings.Contains(event.Error.Error(), "save assistant message to session") {
+			sawError = true
+			break
+		}
+	}
+	if !sawError {
+		t.Fatal("expected save assistant message error")
 	}
 }
 
