@@ -50,5 +50,5 @@ func enableVirtualTerminal(fd uintptr, flags uint32) error {
 // path reads directly from the console via coninput; TTY mode is a Unix
 // concept and can break IME input.
 func teaProgramOptions() []tea.ProgramOption {
-	return []tea.ProgramOption{tea.WithReportFocus()}
+	return []tea.ProgramOption{tea.WithReportFocus(), tea.WithMouseCellMotion()}
 }

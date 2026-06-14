@@ -359,6 +359,7 @@ type spinnerTickMsg time.Time
 var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 const spinnerInterval = 100 * time.Millisecond
+const mouseWheelScrollLines = 3
 
 // tickSpinner returns a command that updates the spinner
 func (a *App) tickSpinner() tea.Cmd {
@@ -415,6 +416,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case renderRequestMsg:
 		a.updateViewportContent()
 		return a, nil
+
+	case tea.MouseMsg:
+		return a, a.handleMouse(msg)
 
 	case tea.KeyMsg:
 		if a.toolModalOpen {
@@ -722,7 +726,7 @@ func (a *App) View() string {
 
 	footer := a.renderFooter()
 	if a.toolModalOpen {
-		return lipgloss.JoinVertical(lipgloss.Left, a.renderToolModal(), footer)
+		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderToolModal(), footer))
 	}
 
 	a.resizeViewport()
@@ -730,7 +734,7 @@ func (a *App) View() string {
 	if planPanel := a.renderPlanPanel(); planPanel != "" {
 		parts = append([]string{planPanel}, parts...)
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
 // handlePaste handles large pastes by creating markers
@@ -876,6 +880,37 @@ func (a *App) transcriptViewportHeight(footer string) int {
 		return 1
 	}
 	return available
+}
+
+func (a *App) renderFixedHeight(view string) string {
+	if a.height <= 0 {
+		return view
+	}
+	view = strings.TrimRight(view, "\n")
+	lines := strings.Split(view, "\n")
+	if len(lines) > a.height {
+		lines = lines[len(lines)-a.height:]
+	}
+	for len(lines) < a.height {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (a *App) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	if a.toolModalOpen {
+		switch {
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp:
+			a.scrollToolModal(-mouseWheelScrollLines)
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown:
+			a.scrollToolModal(mouseWheelScrollLines)
+		}
+		return nil
+	}
+
+	var cmd tea.Cmd
+	a.viewport, cmd = a.viewport.Update(msg)
+	return cmd
 }
 
 func (a *App) markAssistantRenderedDirty() {

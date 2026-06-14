@@ -9,5 +9,5 @@ func initConsole() error {
 }
 
 func teaProgramOptions() []tea.ProgramOption {
-	return []tea.ProgramOption{tea.WithInputTTY(), tea.WithReportFocus()}
+	return []tea.ProgramOption{tea.WithInputTTY(), tea.WithReportFocus(), tea.WithMouseCellMotion()}
 }

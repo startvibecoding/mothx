@@ -18,11 +18,11 @@ import (
 // handleAgentCommand handles /agent subcommands (multi-agent mode).
 func (a *App) handleAgentCommand(parts []string) {
 	if !a.multiAgent {
-		a.addMessage(errorStyle.Render("Multi-agent mode is not enabled. Use Ctrl+P to toggle."))
+		a.addCommandError("Multi-agent mode is not enabled. Use Ctrl+P to toggle.")
 		return
 	}
 	if len(parts) < 2 {
-		a.addMessage(statusStyle.Render("Usage: /agent list|switch|destroy"))
+		a.addCommandStatus("Usage: /agent list|switch|destroy")
 		return
 	}
 	switch parts[1] {
@@ -30,31 +30,31 @@ func (a *App) handleAgentCommand(parts []string) {
 		a.listAgents()
 	case "switch":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /agent switch <id>"))
+			a.addCommandStatus("Usage: /agent switch <id>")
 			return
 		}
 		a.switchAgent(agentpkg.AgentID(parts[2]))
 	case "destroy":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /agent destroy <id>"))
+			a.addCommandStatus("Usage: /agent destroy <id>")
 			return
 		}
 		a.destroyAgent(agentpkg.AgentID(parts[2]))
 	default:
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown agent command: %s", parts[1])))
+		a.addCommandError(fmt.Sprintf("Unknown agent command: %s", parts[1]))
 	}
 }
 
 func (a *App) listAgents() {
-	a.addMessage(statusStyle.Render(fmt.Sprintf("Multi-agent mode: ON (active: %s)", a.activeAgent)))
+	a.addCommandStatus(fmt.Sprintf("Multi-agent mode: ON (active: %s)", a.activeAgent))
 	if a.agentMgr == nil {
-		a.addMessage(statusStyle.Render("  (AgentManager not initialized)"))
+		a.addCommandStatus("  (AgentManager not initialized)")
 		return
 	}
 
 	ids := a.agentMgr.List()
 	if len(ids) == 0 {
-		a.addMessage(statusStyle.Render("  No agents running"))
+		a.addCommandStatus("  No agents running")
 		return
 	}
 
@@ -73,39 +73,39 @@ func (a *App) listAgents() {
 		if len(children) > 0 {
 			info += fmt.Sprintf(" children=%d", len(children))
 		}
-		a.addMessage(statusStyle.Render(info))
+		a.addCommandStatus(info)
 	}
 }
 
 func (a *App) switchAgent(id agentpkg.AgentID) {
 	if a.agentMgr == nil {
-		a.addMessage(errorStyle.Render("AgentManager not initialized"))
+		a.addCommandError("AgentManager not initialized")
 		return
 	}
 
 	_, ok := a.agentMgr.Get(id)
 	if !ok {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Agent %s not found", id)))
+		a.addCommandError(fmt.Sprintf("Agent %s not found", id))
 		return
 	}
 
 	a.activeAgent = id
-	a.addMessage(statusStyle.Render(fmt.Sprintf("Switched to agent: %s", id)))
+	a.addCommandStatus(fmt.Sprintf("Switched to agent: %s", id))
 }
 
 func (a *App) destroyAgent(id agentpkg.AgentID) {
 	if id == "main" {
-		a.addMessage(errorStyle.Render("Cannot destroy the main agent"))
+		a.addCommandError("Cannot destroy the main agent")
 		return
 	}
 
 	if a.agentMgr == nil {
-		a.addMessage(errorStyle.Render("AgentManager not initialized"))
+		a.addCommandError("AgentManager not initialized")
 		return
 	}
 
 	if err := a.agentMgr.Destroy(id); err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Failed to destroy agent %s: %v", id, err)))
+		a.addCommandError(fmt.Sprintf("Failed to destroy agent %s: %v", id, err))
 		return
 	}
 
@@ -114,37 +114,37 @@ func (a *App) destroyAgent(id agentpkg.AgentID) {
 		a.activeAgent = "main"
 	}
 
-	a.addMessage(statusStyle.Render(fmt.Sprintf("Agent %s destroyed", id)))
+	a.addCommandStatus(fmt.Sprintf("Agent %s destroyed", id))
 }
 
 // toggleMultiAgent toggles multi-agent mode on/off.
 func (a *App) toggleMultiAgent() {
 	a.multiAgent = !a.multiAgent
 	if a.multiAgent {
-		a.addMessage(statusStyle.Render("✅ Multi-agent mode ON (Ctrl+P to toggle)"))
+		a.addCommandStatus("✅ Multi-agent mode ON (Ctrl+P to toggle)")
 	} else {
-		a.addMessage(statusStyle.Render("❌ Multi-agent mode OFF"))
+		a.addCommandStatus("❌ Multi-agent mode OFF")
 	}
 }
 
 // handleCronCommand handles /cron subcommands (multi-agent mode).
 func (a *App) handleCronCommand(parts []string) {
 	if !a.multiAgent {
-		a.addMessage(errorStyle.Render("Cron commands require multi-agent mode. Use Ctrl+P to toggle."))
+		a.addCommandError("Cron commands require multi-agent mode. Use Ctrl+P to toggle.")
 		return
 	}
 	if a.cronStore == nil {
-		a.addMessage(errorStyle.Render("Cron store not initialized."))
+		a.addCommandError("Cron store not initialized.")
 		return
 	}
 	if len(parts) < 2 {
-		a.addMessage(statusStyle.Render("Usage: /cron add|list|enable|disable|remove|run"))
+		a.addCommandStatus("Usage: /cron add|list|enable|disable|remove|run")
 		return
 	}
 	switch parts[1] {
 	case "add":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /cron add <description>"))
+			a.addCommandStatus("Usage: /cron add <description>")
 			return
 		}
 		desc := strings.Join(parts[2:], " ")
@@ -155,18 +155,18 @@ func (a *App) handleCronCommand(parts []string) {
 			Mode:    a.mode,
 		})
 		if err != nil {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("Failed to create cron task: %v", err)))
+			a.addCommandError(fmt.Sprintf("Failed to create cron task: %v", err))
 			return
 		}
-		a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Cron task created: %s (id: %s)", job.Name, job.ID)))
+		a.addCommandStatus(fmt.Sprintf("✅ Cron task created: %s (id: %s)", job.Name, job.ID))
 	case "list":
 		jobs, err := a.cronStore.List()
 		if err != nil {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("Failed to list cron tasks: %v", err)))
+			a.addCommandError(fmt.Sprintf("Failed to list cron tasks: %v", err))
 			return
 		}
 		if len(jobs) == 0 {
-			a.addMessage(statusStyle.Render("Cron tasks: (none configured)"))
+			a.addCommandStatus("Cron tasks: (none configured)")
 			return
 		}
 		var sb strings.Builder
@@ -181,63 +181,63 @@ func (a *App) handleCronCommand(parts []string) {
 			}
 			sb.WriteString(fmt.Sprintf("  %s [%s] %s (runs: %d)\n", status, j.ID, j.Name, j.RunCount))
 		}
-		a.addMessage(statusStyle.Render(sb.String()))
+		a.addCommandStatus(sb.String())
 	case "enable":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /cron enable <id>"))
+			a.addCommandStatus("Usage: /cron enable <id>")
 			return
 		}
 		job, err := a.cronStore.Get(parts[2])
 		if err != nil {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			a.addCommandError(fmt.Sprintf("%v", err))
 			return
 		}
 		job.Enabled = true
 		a.cronStore.Update(*job)
-		a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Cron task %s enabled", job.ID)))
+		a.addCommandStatus(fmt.Sprintf("✅ Cron task %s enabled", job.ID))
 	case "disable":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /cron disable <id>"))
+			a.addCommandStatus("Usage: /cron disable <id>")
 			return
 		}
 		job, err := a.cronStore.Get(parts[2])
 		if err != nil {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			a.addCommandError(fmt.Sprintf("%v", err))
 			return
 		}
 		job.Enabled = false
 		a.cronStore.Update(*job)
-		a.addMessage(statusStyle.Render(fmt.Sprintf("⏸ Cron task %s disabled", job.ID)))
+		a.addCommandStatus(fmt.Sprintf("⏸ Cron task %s disabled", job.ID))
 	case "remove":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /cron remove <id>"))
+			a.addCommandStatus("Usage: /cron remove <id>")
 			return
 		}
 		if err := a.cronStore.Delete(parts[2]); err != nil {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			a.addCommandError(fmt.Sprintf("%v", err))
 			return
 		}
-		a.addMessage(statusStyle.Render(fmt.Sprintf("🗑 Cron task %s removed", parts[2])))
+		a.addCommandStatus(fmt.Sprintf("🗑 Cron task %s removed", parts[2]))
 	case "run":
 		if len(parts) < 3 {
-			a.addMessage(statusStyle.Render("Usage: /cron run <id>"))
+			a.addCommandStatus("Usage: /cron run <id>")
 			return
 		}
 		job, err := a.cronStore.Get(parts[2])
 		if err != nil {
-			a.addMessage(errorStyle.Render(fmt.Sprintf("%v", err)))
+			a.addCommandError(fmt.Sprintf("%v", err))
 			return
 		}
 		if a.scheduler == nil {
-			a.addMessage(errorStyle.Render("Scheduler not running."))
+			a.addCommandError("Scheduler not running.")
 			return
 		}
 		// Trigger immediate run by resetting LastRun
 		job.LastRun = time.Time{}
 		a.cronStore.Update(*job)
-		a.addMessage(statusStyle.Render(fmt.Sprintf("▶ Cron task %s triggered (will run on next scheduler tick)", job.ID)))
+		a.addCommandStatus(fmt.Sprintf("▶ Cron task %s triggered (will run on next scheduler tick)", job.ID))
 	default:
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown cron command: %s", parts[1])))
+		a.addCommandError(fmt.Sprintf("Unknown cron command: %s", parts[1]))
 	}
 }
 
@@ -273,24 +273,24 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 					a.clearQueuedInput()
 					a.isThinking = false
 					a.finishRequestTimer()
-					a.addMessage(statusStyle.Render("⏹ Aborted (mode change)"))
+					a.addCommandStatus("⏹ Aborted (mode change)")
 				} else {
 					a.agent = nil
 					a.agentHistoryLoaded = false
 				}
-				a.addMessage(statusStyle.Render(fmt.Sprintf("Mode: %s", strings.ToUpper(a.mode))))
+				a.addCommandStatus(fmt.Sprintf("Mode: %s", strings.ToUpper(a.mode)))
 			default:
-				a.addMessage(errorStyle.Render("Invalid mode"))
+				a.addCommandError("Invalid mode")
 			}
 		} else {
-			a.addMessage(statusStyle.Render(fmt.Sprintf("Current mode: %s", strings.ToUpper(a.mode))))
+			a.addCommandStatus(fmt.Sprintf("Current mode: %s", strings.ToUpper(a.mode)))
 			switch a.mode {
 			case "plan":
-				a.addMessage(statusStyle.Render("  Permissions: READ only (no modifications)"))
+				a.addCommandStatus("  Permissions: READ only (no modifications)")
 			case "agent":
-				a.addMessage(statusStyle.Render("  Permissions: READ/WRITE/EDIT auto | BASH requires approval"))
+				a.addCommandStatus("  Permissions: READ/WRITE/EDIT auto | BASH requires approval")
 			case "yolo":
-				a.addMessage(statusStyle.Render("  Permissions: ALL tools auto-execute"))
+				a.addCommandStatus("  Permissions: ALL tools auto-execute")
 			}
 		}
 	case "/model":
@@ -304,17 +304,17 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				for i, m := range models {
 					ids[i] = m.ID
 				}
-				a.addMessage(errorStyle.Render(fmt.Sprintf("Model %q not found — available: %s", modelID, strings.Join(ids, ", "))))
+				a.addCommandError(fmt.Sprintf("Model %q not found — available: %s", modelID, strings.Join(ids, ", ")))
 				return nil
 			}
 			a.model = newModel
 			// Reset agent so next message uses the new model
 			a.agent = nil
 			a.agentHistoryLoaded = false
-			a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID)))
+			a.addCommandStatus(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID))
 		} else {
 			// Show current model and available models
-			a.addMessage(statusStyle.Render(fmt.Sprintf("Current model: %s (%s)", a.model.Name, a.model.ID)))
+			a.addCommandStatus(fmt.Sprintf("Current model: %s (%s)", a.model.Name, a.model.ID))
 			models := a.provider.Models()
 			if len(models) > 0 {
 				var sb strings.Builder
@@ -326,7 +326,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 					}
 					sb.WriteString(fmt.Sprintf("  [%s] %s (%s)\n", marker, m.Name, m.ID))
 				}
-				a.addMessage(statusStyle.Render(sb.String()))
+				a.addCommandStatus(sb.String())
 			}
 		}
 	case "/skills":
@@ -339,13 +339,13 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		}
 	case "/compact":
 		if a.isThinking {
-			a.addMessage(errorStyle.Render("Cannot compact while the agent is running."))
+			a.addCommandError("Cannot compact while the agent is running.")
 		} else if a.agent == nil {
-			a.addMessage(errorStyle.Render("Nothing to compact: no active conversation."))
+			a.addCommandError("Nothing to compact: no active conversation.")
 		} else {
 			msgs := a.agent.GetMessages()
 			if len(msgs) < 2 {
-				a.addMessage(errorStyle.Render("Nothing to compact: conversation is too short."))
+				a.addCommandError("Nothing to compact: conversation is too short.")
 			} else {
 				return a.startManualCompaction()
 			}
@@ -363,7 +363,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.activeSkills = make(map[string]string)
 		a.extraContext = a.baseExtraContext
 		a.updateViewportContent()
-		a.addMessage(statusStyle.Render("✅ Conversation cleared"))
+		a.addCommandStatus("✅ Conversation cleared")
 
 	case "/quit":
 		return tea.Quit
@@ -378,41 +378,9 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 	case "/cron":
 		a.handleCronCommand(parts)
 	case "/help":
-		a.addMessage(statusStyle.Render("Commands:"))
-		a.addMessage(statusStyle.Render("  /mode [plan|agent|yolo] - Switch or show mode"))
-		a.addMessage(statusStyle.Render("  /model [model_id]       - Switch or show model"))
-		a.addMessage(statusStyle.Render("  /skills                 - List available skills"))
-		a.addMessage(statusStyle.Render("  /skill <name>           - Activate a skill"))
-		a.addMessage(statusStyle.Render("  /clear                  - Clear conversation"))
-		a.addMessage(statusStyle.Render("  /compact                - Trigger context compaction"))
-		a.addMessage(statusStyle.Render("  /sessions               - List sessions for this project"))
-		a.addMessage(statusStyle.Render("  /sessions ls            - List sessions"))
-		a.addMessage(statusStyle.Render("  /sessions set <id>      - Switch to session"))
-		a.addMessage(statusStyle.Render("  /sessions clear         - Create a new session"))
-		a.addMessage(statusStyle.Render("  /sessions del <id>      - Delete a session"))
-		a.addMessage(statusStyle.Render("  /init_mcp [target] [template] [--force]"))
-		a.addMessage(statusStyle.Render("                         - Init mcp.json (target: project|global, template: basic|full)"))
-		a.addMessage(statusStyle.Render("  /mcps                   - List MCP servers (global/project mcp.json)"))
-		a.addMessage(statusStyle.Render("  /agent list              - List all agents (multi-agent mode)"))
-		a.addMessage(statusStyle.Render("  /agent switch <id>       - Switch active agent"))
-		a.addMessage(statusStyle.Render("  /agent destroy <id>      - Destroy a sub-agent"))
-		a.addMessage(statusStyle.Render("  /cron add <description>  - Add scheduled task (multi-agent mode)"))
-		a.addMessage(statusStyle.Render("  /cron list               - List scheduled tasks"))
-		a.addMessage(statusStyle.Render("  /cron enable <id>        - Enable a task"))
-		a.addMessage(statusStyle.Render("  /cron disable <id>       - Disable a task"))
-		a.addMessage(statusStyle.Render("  /cron remove <id>        - Remove a task"))
-		a.addMessage(statusStyle.Render("  /cron run <id>           - Run a task now"))
-		a.addMessage(statusStyle.Render("  /quit                   - Exit"))
-		a.addMessage(statusStyle.Render("  /help                   - Show this help"))
-		a.addMessage(statusStyle.Render(""))
-		a.addMessage(statusStyle.Render("Keyboard shortcuts:"))
-		a.addMessage(statusStyle.Render("  Tab       - Cycle mode (plan/agent/yolo)"))
-		a.addMessage(statusStyle.Render("  Esc       - Abort current operation"))
-		a.addMessage(statusStyle.Render("  Ctrl+O    - Open latest tool details"))
-		a.addMessage(statusStyle.Render("  PgUp/PgDn - Page tool details when open"))
-		a.addMessage(statusStyle.Render("  Mouse wheel - Scroll terminal history"))
+		a.addCommandStatus(commandHelpText())
 	default:
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown: %s", command)))
+		a.addCommandError(fmt.Sprintf("Unknown: %s", command))
 	}
 
 	return nil
@@ -421,12 +389,12 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 // listSkills displays all available skills.
 func (a *App) listSkills() {
 	if a.skillsMgr == nil {
-		a.addMessage(statusStyle.Render("No skills manager available."))
+		a.addCommandStatus("No skills manager available.")
 		return
 	}
 	skillList := a.skillsMgr.List()
 	if len(skillList) == 0 {
-		a.addMessage(statusStyle.Render("No skills found."))
+		a.addCommandStatus("No skills found.")
 		return
 	}
 
@@ -440,24 +408,24 @@ func (a *App) listSkills() {
 		sb.WriteString(fmt.Sprintf("  [%s] %s (%s): %s\n", marker, s.Name, s.Source, s.Description))
 	}
 	sb.WriteString("\nUse /skill <name> or /skill:<name> to activate a skill.")
-	a.addMessage(statusStyle.Render(sb.String()))
+	a.addCommandStatus(sb.String())
 }
 
 // activateSkill loads a skill's content into the extra context.
 func (a *App) activateSkill(name string) {
 	if a.skillsMgr == nil {
-		a.addMessage(errorStyle.Render("No skills manager available."))
+		a.addCommandError("No skills manager available.")
 		return
 	}
 	skill := a.skillsMgr.Get(name)
 	if skill == nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Skill not found: %s", name)))
+		a.addCommandError(fmt.Sprintf("Skill not found: %s", name))
 		return
 	}
 
 	// Check if already active
 	if _, ok := a.activeSkills[name]; ok {
-		a.addMessage(statusStyle.Render(fmt.Sprintf("Skill '%s' is already active.", name)))
+		a.addCommandStatus(fmt.Sprintf("Skill '%s' is already active.", name))
 		return
 	}
 
@@ -472,7 +440,7 @@ func (a *App) activateSkill(name string) {
 	a.agent = nil
 	a.agentHistoryLoaded = false
 
-	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Skill '%s' activated (%s): %s", name, skill.Source, skill.Description)))
+	a.addCommandStatus(fmt.Sprintf("✅ Skill '%s' activated (%s): %s", name, skill.Source, skill.Description))
 }
 
 // rebuildExtraContext rebuilds extraContext from base context + all active skills.
@@ -526,7 +494,7 @@ func (a *App) handleSessionsCommand(parts []string) {
 		a.sessionsList()
 	case "set", "switch", "use":
 		if len(parts) < 3 {
-			a.addMessage(errorStyle.Render("Usage: /sessions set <id>"))
+			a.addCommandError("Usage: /sessions set <id>")
 			return
 		}
 		a.sessionsSet(parts[2])
@@ -534,12 +502,12 @@ func (a *App) handleSessionsCommand(parts []string) {
 		a.sessionsClear()
 	case "del", "delete", "rm":
 		if len(parts) < 3 {
-			a.addMessage(errorStyle.Render("Usage: /sessions del <id>"))
+			a.addCommandError("Usage: /sessions del <id>")
 			return
 		}
 		a.sessionsDel(parts[2])
 	default:
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Unknown subcommand: %s. Use ls, set, clear, del.", sub)))
+		a.addCommandError(fmt.Sprintf("Unknown subcommand: %s. Use ls, set, clear, del.", sub))
 	}
 }
 
@@ -558,12 +526,12 @@ func (a *App) sessionsList() {
 	sessionDir := a.getSessionDir()
 	details, err := session.ListForDirDetailed(cwd, sessionDir)
 	if err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Error listing sessions: %v", err)))
+		a.addCommandError(fmt.Sprintf("Error listing sessions: %v", err))
 		return
 	}
 
 	if len(details) == 0 {
-		a.addMessage(statusStyle.Render("No sessions found for this project."))
+		a.addCommandStatus("No sessions found for this project.")
 		return
 	}
 
@@ -585,7 +553,7 @@ func (a *App) sessionsList() {
 			marker, d.ID, d.MessageCount, age, preview))
 	}
 	sb.WriteString("\nUse /sessions set <id> to switch. * = current session.")
-	a.addMessage(statusStyle.Render(sb.String()))
+	a.addCommandStatus(sb.String())
 }
 
 // sessionsSet switches to a different session by ID prefix.
@@ -602,14 +570,14 @@ func (a *App) sessionsSet(id string) {
 
 	// Don't switch to the same session
 	if id == a.getCurrentSessionID() {
-		a.addMessage(statusStyle.Render("Already on this session."))
+		a.addCommandStatus("Already on this session.")
 		return
 	}
 
 	sessionDir := a.getSessionDir()
 	details, err := session.ListForDirDetailed(cwd, sessionDir)
 	if err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Error: %v", err)))
+		a.addCommandError(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
@@ -618,7 +586,7 @@ func (a *App) sessionsSet(id string) {
 	for i, d := range details {
 		if strings.HasPrefix(d.ID, id) {
 			if match != nil {
-				a.addMessage(errorStyle.Render(fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id)))
+				a.addCommandError(fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id))
 				return
 			}
 			match = &details[i]
@@ -626,14 +594,14 @@ func (a *App) sessionsSet(id string) {
 	}
 
 	if match == nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("No session found matching '%s'.", id)))
+		a.addCommandError(fmt.Sprintf("No session found matching '%s'.", id))
 		return
 	}
 
 	// Open the session
 	newSess, err := session.Open(match.Path)
 	if err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Error opening session: %v", err)))
+		a.addCommandError(fmt.Sprintf("Error opening session: %v", err))
 		return
 	}
 
@@ -654,8 +622,8 @@ func (a *App) sessionsSet(id string) {
 	a.LoadHistoryMessages()
 	a.updateViewportContent()
 
-	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
-		match.ID, match.MessageCount)))
+	a.addCommandStatus(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
+		match.ID, match.MessageCount))
 }
 
 func (a *App) handleInitMCPCommand(parts []string) {
@@ -672,7 +640,7 @@ func (a *App) handleInitMCPCommand(parts []string) {
 		case "--force":
 			force = true
 		default:
-			a.addMessage(errorStyle.Render("Usage: /init_mcp [project|global] [basic|full] [--force]"))
+			a.addCommandError("Usage: /init_mcp [project|global] [basic|full] [--force]")
 			return
 		}
 	}
@@ -684,7 +652,7 @@ func (a *App) handleInitMCPCommand(parts []string) {
 
 	if !force {
 		if _, err := os.Stat(path); err == nil {
-			a.addMessage(statusStyle.Render(fmt.Sprintf("MCP config already exists: %s (use --force to overwrite)", path)))
+			a.addCommandStatus(fmt.Sprintf("MCP config already exists: %s (use --force to overwrite)", path))
 			return
 		}
 	}
@@ -697,11 +665,11 @@ func (a *App) handleInitMCPCommand(parts []string) {
 	}
 
 	if err := config.SaveMCPConfig(path, cfg); err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Init MCP config failed: %v", err)))
+		a.addCommandError(fmt.Sprintf("Init MCP config failed: %v", err))
 		return
 	}
-	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Created MCP config: %s", path)))
-	a.addMessage(statusStyle.Render(fmt.Sprintf("Template: %s | Target: %s", template, target)))
+	a.addCommandStatus(fmt.Sprintf("✅ Created MCP config: %s", path))
+	a.addCommandStatus(fmt.Sprintf("Template: %s | Target: %s", template, target))
 }
 
 func (a *App) handleMCPsCommand() {
@@ -750,7 +718,7 @@ func (a *App) handleMCPsCommand() {
 	if !foundAny {
 		sb.WriteString("\nUse /init_mcp to create project mcp.json.")
 	}
-	a.addMessage(statusStyle.Render(sb.String()))
+	a.addCommandStatus(sb.String())
 }
 
 // sessionsClear creates a new session, starting fresh.
@@ -768,7 +736,7 @@ func (a *App) sessionsClear() {
 	sessionDir := a.getSessionDir()
 	newSess := session.New(cwd, sessionDir)
 	if err := newSess.Init(); err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Error creating session: %v", err)))
+		a.addCommandError(fmt.Sprintf("Error creating session: %v", err))
 		return
 	}
 
@@ -785,7 +753,7 @@ func (a *App) sessionsClear() {
 	a.totalCacheWrite = 0
 	a.updateViewportContent()
 
-	a.addMessage(statusStyle.Render("✅ New session created."))
+	a.addCommandStatus("✅ New session created.")
 }
 
 // sessionsDel deletes a session by ID prefix.
@@ -802,14 +770,14 @@ func (a *App) sessionsDel(id string) {
 
 	// Don't delete the current session
 	if id == a.getCurrentSessionID() {
-		a.addMessage(errorStyle.Render("Cannot delete the current session. Switch to another session first, or use /sessions clear to start fresh."))
+		a.addCommandError("Cannot delete the current session. Switch to another session first, or use /sessions clear to start fresh.")
 		return
 	}
 
 	sessionDir := a.getSessionDir()
 	details, err := session.ListForDirDetailed(cwd, sessionDir)
 	if err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Error: %v", err)))
+		a.addCommandError(fmt.Sprintf("Error: %v", err))
 		return
 	}
 
@@ -818,7 +786,7 @@ func (a *App) sessionsDel(id string) {
 	for i, d := range details {
 		if strings.HasPrefix(d.ID, id) {
 			if match != nil {
-				a.addMessage(errorStyle.Render(fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id)))
+				a.addCommandError(fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id))
 				return
 			}
 			match = &details[i]
@@ -826,16 +794,16 @@ func (a *App) sessionsDel(id string) {
 	}
 
 	if match == nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("No session found matching '%s'.", id)))
+		a.addCommandError(fmt.Sprintf("No session found matching '%s'.", id))
 		return
 	}
 
 	if err := session.DeleteSession(match.Path, a.settings.GetSessionDir()); err != nil {
-		a.addMessage(errorStyle.Render(fmt.Sprintf("Error deleting session: %v", err)))
+		a.addCommandError(fmt.Sprintf("Error deleting session: %v", err))
 		return
 	}
 
-	a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Deleted session %s.", match.ID)))
+	a.addCommandStatus(fmt.Sprintf("✅ Deleted session %s.", match.ID))
 }
 
 // formatAge returns a human-readable age string for a time.

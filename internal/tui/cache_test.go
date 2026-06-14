@@ -546,6 +546,54 @@ func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
 	}
 }
 
+func TestViewUsesFixedOuterHeight(t *testing.T) {
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	app.ready = true
+	app.width = 80
+	app.height = 8
+	app.input.Width = 76
+	app.messages = []string{"hello"}
+	app.updateViewportContent()
+
+	if got := lipgloss.Height(app.View()); got != app.height {
+		t.Fatalf("View() height = %d, want %d", got, app.height)
+	}
+}
+
+func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	app.ready = true
+	app.width = 80
+	app.height = 8
+	app.input.Width = 76
+	app.messages = []string{strings.Join([]string{
+		"line 1",
+		"line 2",
+		"line 3",
+		"line 4",
+		"line 5",
+		"line 6",
+		"line 7",
+		"line 8",
+	}, "\n")}
+	app.updateViewportContent()
+
+	before := stripANSI(app.View())
+	if strings.Contains(before, "line 1") {
+		t.Fatalf("precondition failed: expected initial view at bottom:\n%s", before)
+	}
+
+	app.Update(tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonWheelUp,
+	})
+
+	after := stripANSI(app.View())
+	if !strings.Contains(after, "line 1") {
+		t.Fatalf("mouse wheel did not scroll transcript upward:\n%s", after)
+	}
+}
+
 // ─── formatCachePercent ───────────────────────────────────────────────────────
 
 func TestFormatCachePercent(t *testing.T) {
@@ -1035,6 +1083,22 @@ func TestCompactCommandStartsImmediateCompaction(t *testing.T) {
 	}
 	if !msgs[0].SystemInjected || !strings.Contains(msgs[0].Content, "Compacted summary") {
 		t.Fatalf("first compacted message = %#v, want system-injected summary", msgs[0])
+	}
+}
+
+func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+
+	a.handleCommand("/help")
+
+	if len(a.messages) != 1 {
+		t.Fatalf("/help messages len = %d, want 1", len(a.messages))
+	}
+	plain := stripANSI(a.messages[0])
+	for _, want := range []string{"Commands:", "/mode [plan|agent|yolo]", "/help", "Keyboard shortcuts:"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("/help output = %q, want substring %q", plain, want)
+		}
 	}
 }
 
