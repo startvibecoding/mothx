@@ -1,11 +1,45 @@
 package context
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
 )
+
+type compactRecordingProvider struct {
+	models   []*provider.Model
+	lastChat provider.ChatParams
+}
+
+func (p *compactRecordingProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.lastChat = params
+	ch := make(chan provider.StreamEvent, 2)
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "updated summary"}
+		ch <- provider.StreamEvent{Type: provider.StreamDone}
+	}()
+	return ch
+}
+
+func (p *compactRecordingProvider) Name() string {
+	return "compact-recording"
+}
+
+func (p *compactRecordingProvider) Models() []*provider.Model {
+	return p.models
+}
+
+func (p *compactRecordingProvider) GetModel(id string) *provider.Model {
+	for _, model := range p.models {
+		if model.ID == id {
+			return model
+		}
+	}
+	return nil
+}
 
 func TestEstimateTokens(t *testing.T) {
 	tests := []struct {
@@ -219,6 +253,46 @@ func TestEstimateTokensThinking(t *testing.T) {
 	expected := (len("Let me think about this...") + 3) / 4
 	if result != expected {
 		t.Errorf("EstimateTokens(thinking) = %d, want %d", result, expected)
+	}
+}
+
+func TestCompactDoesNotResendPreviousSummaryAsConversationMessage(t *testing.T) {
+	summary := "## Goal\ncarry forward state"
+	messages := []provider.Message{
+		provider.NewSystemInjectedUserMessage(summary),
+		provider.NewUserMessage(strings.Repeat("old context ", 20)),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: strings.Repeat("assistant context ", 20)}}),
+		provider.NewUserMessage(strings.Repeat("recent question ", 16)),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: strings.Repeat("recent answer ", 16)}}),
+	}
+
+	p := &compactRecordingProvider{
+		models: []*provider.Model{{ID: "model1", Name: "Model 1", MaxTokens: 1024}},
+	}
+
+	_, err := Compact(
+		context.Background(),
+		messages,
+		p,
+		p.models[0],
+		"",
+		nil,
+		CompactionSettings{ReserveTokens: 1024, KeepRecentTokens: 48},
+		summary,
+	)
+	if err != nil {
+		t.Fatalf("Compact() error = %v", err)
+	}
+
+	if len(p.lastChat.Messages) == 0 {
+		t.Fatal("provider received no messages")
+	}
+	if p.lastChat.Messages[0].Content == summary {
+		t.Fatalf("previous summary was resent as a conversation message: %+v", p.lastChat.Messages[0])
+	}
+	last := p.lastChat.Messages[len(p.lastChat.Messages)-1]
+	if !strings.Contains(last.Content, "<existing-summary>") {
+		t.Fatalf("expected update instruction with embedded existing summary, got %q", last.Content)
 	}
 }
 

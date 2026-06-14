@@ -187,8 +187,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		sess.ForceCompact = false
 	}
 
-	// Load history if this is a new session with client-provided history
-	if len(historyMsgs) > 0 && len(sess.Manager.GetMessages()) == 0 {
+	replayState := sess.Manager.GetReplayState()
+	if len(replayState.Messages) > 0 {
+		a.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
+	} else if len(historyMsgs) > 0 {
+		// Seed brand-new sessions from client-provided history.
 		internalMsgs := convertHistoryMessages(historyMsgs)
 		a.LoadHistoryMessages(internalMsgs)
 	}

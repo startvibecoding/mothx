@@ -248,6 +248,7 @@ type Agent struct {
 	abort       chan struct{}
 	abortOnce   sync.Once
 	messages    []provider.Message
+	messageIDs  []string
 	isStreaming bool
 
 	// Frozen system prompt and tools (built once, never change during session)
@@ -560,8 +561,24 @@ func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 func (a *Agent) LoadHistoryMessages(messages []provider.Message) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.loadHistoryStateLocked(messages, nil)
+}
+
+// LoadHistoryState loads historical messages plus their session entry IDs.
+func (a *Agent) LoadHistoryState(messages []provider.Message, entryIDs []string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.loadHistoryStateLocked(messages, entryIDs)
+}
+
+func (a *Agent) loadHistoryStateLocked(messages []provider.Message, entryIDs []string) {
 	a.messages = append(a.messages, messages...)
 	a.context.Messages = append(a.context.Messages, messages...)
+	if len(entryIDs) == len(messages) {
+		a.messageIDs = append(a.messageIDs, append([]string(nil), entryIDs...)...)
+		return
+	}
+	a.messageIDs = append(a.messageIDs, make([]string, len(messages))...)
 }
 
 // Abort signals the agent to stop processing.
@@ -610,16 +627,20 @@ func (a *Agent) Run(ctx context.Context, userMsg string) <-chan Event {
 		// Add user message to conversation
 		msg := provider.NewUserMessage(userMsg)
 		a.mu.Lock()
+		msgIndex := len(a.messages)
 		a.messages = append(a.messages, msg)
+		a.messageIDs = append(a.messageIDs, "")
 		a.context.Messages = append(a.context.Messages, msg)
 		a.mu.Unlock()
 
 		// Save to session
 		if a.config.Session != nil {
-			if _, err := a.config.Session.AppendMessage(msg); err != nil {
+			msgID, err := a.config.Session.AppendMessage(msg)
+			if err != nil {
 				ch <- Event{Type: EventError, Error: fmt.Errorf("save user message to session: %w", err)}
 				return
 			}
+			a.setMessageID(msgIndex, msgID)
 		}
 
 		// Run agent loop
@@ -637,6 +658,7 @@ func (a *Agent) RunWithMessages(ctx context.Context, messages []provider.Message
 		defer close(ch)
 		a.mu.Lock()
 		a.messages = messages
+		a.messageIDs = make([]string, len(messages))
 		a.context.Messages = messages
 		a.mu.Unlock()
 		a.loop(ctx, ch)
@@ -682,6 +704,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 					ch <- Event{Type: EventMessageStart, Message: msg}
 					ch <- Event{Type: EventMessageEnd, Message: msg}
 					a.messages = append(a.messages, msg)
+					a.messageIDs = append(a.messageIDs, "")
 					a.context.Messages = append(a.context.Messages, msg)
 				}
 				a.mu.Unlock()
@@ -816,17 +839,21 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			assistantMsg.Usage = usage
 		}
 		a.mu.Lock()
+		assistantIndex := len(a.messages)
 		a.messages = append(a.messages, assistantMsg)
+		a.messageIDs = append(a.messageIDs, "")
 		a.context.Messages = append(a.context.Messages, assistantMsg)
 		a.mu.Unlock()
 
 		// Save to session
 		if a.config.Session != nil {
-			if _, err := a.config.Session.AppendMessage(assistantMsg); err != nil {
+			msgID, err := a.config.Session.AppendMessage(assistantMsg)
+			if err != nil {
 				ch <- Event{Type: EventError, Error: fmt.Errorf("save assistant message to session: %w", err)}
 				ch <- a.agentEndEvent()
 				return
 			}
+			a.setMessageID(assistantIndex, msgID)
 		}
 
 		// Calculate cost
@@ -862,16 +889,20 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		a.mu.Lock()
 		for _, result := range toolResults {
 			a.messages = append(a.messages, result)
+			a.messageIDs = append(a.messageIDs, "")
 			a.context.Messages = append(a.context.Messages, result)
 		}
+		baseIndex := len(a.messages) - len(toolResults)
 		a.mu.Unlock()
-		for _, result := range toolResults {
+		for i, result := range toolResults {
 			if a.config.Session != nil {
-				if _, err := a.config.Session.AppendMessage(result); err != nil {
+				msgID, err := a.config.Session.AppendMessage(result)
+				if err != nil {
 					ch <- Event{Type: EventError, Error: fmt.Errorf("save tool result to session: %w", err)}
 					ch <- a.agentEndEvent()
 					return
 				}
+				a.setMessageID(baseIndex+i, msgID)
 			}
 		}
 
@@ -888,15 +919,19 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 					ch <- Event{Type: EventMessageStart, Message: warningMsg}
 					ch <- Event{Type: EventMessageEnd, Message: warningMsg}
 					a.mu.Lock()
+					warningIndex := len(a.messages)
 					a.messages = append(a.messages, warningMsg)
+					a.messageIDs = append(a.messageIDs, "")
 					a.context.Messages = append(a.context.Messages, warningMsg)
 					a.mu.Unlock()
 					if a.config.Session != nil {
-						if _, err := a.config.Session.AppendMessage(warningMsg); err != nil {
+						msgID, err := a.config.Session.AppendMessage(warningMsg)
+						if err != nil {
 							ch <- Event{Type: EventError, Error: fmt.Errorf("save warning message to session: %w", err)}
 							ch <- a.agentEndEvent()
 							return
 						}
+						a.setMessageID(warningIndex, msgID)
 					}
 					warningIssued = true
 					consecutiveNoText = 0 // Reset counter for post-warning phase
@@ -1020,6 +1055,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 					ch <- Event{Type: EventMessageEnd, Message: msg}
 					a.mu.Lock()
 					a.messages = append(a.messages, msg)
+					a.messageIDs = append(a.messageIDs, "")
 					a.context.Messages = append(a.context.Messages, msg)
 					a.mu.Unlock()
 				}
@@ -1248,11 +1284,23 @@ func (a *Agent) GetMessages() []provider.Message {
 	return result
 }
 
+// GetHistoryState returns a copy of message history plus aligned session entry IDs.
+func (a *Agent) GetHistoryState() ([]provider.Message, []string) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	msgs := make([]provider.Message, len(a.messages))
+	copy(msgs, a.messages)
+	ids := append([]string(nil), a.messageIDs...)
+	return msgs, ids
+}
+
 // SetMessages replaces the message history.
 func (a *Agent) SetMessages(msgs []provider.Message) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.messages = msgs
+	a.messageIDs = make([]string, len(msgs))
 	a.context.Messages = msgs
 }
 
@@ -1360,6 +1408,7 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	a.mu.RLock()
 	msgs := make([]provider.Message, len(a.messages))
 	copy(msgs, a.messages)
+	msgIDs := append([]string(nil), a.messageIDs...)
 	a.mu.RUnlock()
 
 	// Get previous summary if exists
@@ -1382,15 +1431,20 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 
 	// Replace messages with summary + kept messages
 	// Mark summary as system_injected so cache markers skip it
+	firstKeptEntryID := ""
+	if result.FirstKeptIndex >= 0 && result.FirstKeptIndex < len(msgIDs) {
+		firstKeptEntryID = msgIDs[result.FirstKeptIndex]
+	}
 	a.mu.Lock()
 	summaryMsg := provider.NewSystemInjectedUserMessage(result.Summary)
-	a.messages = append([]provider.Message{summaryMsg}, a.messages[result.FirstKeptIndex:]...)
+	a.messages = append([]provider.Message{summaryMsg}, msgs[result.FirstKeptIndex:]...)
+	a.messageIDs = append([]string{""}, msgIDs[result.FirstKeptIndex:]...)
 	a.context.Messages = a.messages
 	a.mu.Unlock()
 
 	// Save compaction to session
 	if a.config.Session != nil {
-		if _, err := a.config.Session.AppendCompaction(result.Summary, "", result.TokensBefore); err != nil {
+		if _, err := a.config.Session.AppendCompaction(result.Summary, firstKeptEntryID, result.TokensBefore); err != nil {
 			ch <- Event{Type: EventCompactionEnd, Error: fmt.Errorf("save compaction to session: %w", err)}
 			return fmt.Errorf("save compaction to session: %w", err)
 		}
@@ -1408,6 +1462,14 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	}
 
 	return nil
+}
+
+func (a *Agent) setMessageID(index int, id string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if index >= 0 && index < len(a.messageIDs) {
+		a.messageIDs[index] = id
+	}
 }
 
 // NeedsApproval checks if a tool call needs user approval based on the current mode.

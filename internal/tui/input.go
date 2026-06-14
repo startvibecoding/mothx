@@ -16,7 +16,7 @@ import (
 
 func (a *App) addMessage(msg string) {
 	a.messages = append(a.messages, msg)
-	a.updateViewportContent()
+	a.updateViewportContentWithFollow(true)
 }
 
 func normalizeHistoryLineEndings(msg string) string {
@@ -28,7 +28,7 @@ func (a *App) printMessageOnce(idx int) {
 		return
 	}
 	a.printedMessageIdx[idx] = true
-	a.updateViewportContent()
+	a.updateViewportContentWithFollow(true)
 }
 
 func (a *App) commitActiveStream() {
@@ -42,7 +42,7 @@ func (a *App) commitActiveStream() {
 	if hadActive {
 		a.currentThinkIdx = -1
 		a.currentAssistantIdx = -1
-		a.updateViewportContent()
+		a.updateViewportContentWithFollow(true)
 	}
 }
 
@@ -91,7 +91,7 @@ func (a *App) cycleMode() {
 			compactionSettings.KeepRecentTokens = 20000
 		}
 
-		oldMessages := a.agent.GetMessages()
+		oldMessages, oldMessageIDs := a.agent.GetHistoryState()
 		agentCfg := agent.Config{
 			Provider:           a.provider,
 			Model:              a.model,
@@ -105,7 +105,7 @@ func (a *App) cycleMode() {
 			MultiAgent:         a.multiAgent,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
-		a.agent.LoadHistoryMessages(oldMessages)
+		a.agent.LoadHistoryState(oldMessages, oldMessageIDs)
 	}
 
 	var modeLabel string
@@ -186,6 +186,11 @@ func (a *App) resetInputHistoryNavigation() {
 }
 
 func (a *App) processInput(input string) tea.Cmd {
+	if a.manualCompactionActive {
+		a.addCommandError("Cannot send input while context compaction is running.")
+		return nil
+	}
+
 	if strings.HasPrefix(input, "/") {
 		return a.handleCommand(input)
 	}
@@ -227,11 +232,11 @@ func (a *App) processInput(input string) tea.Cmd {
 		a.sessionMu.Unlock()
 		if a.session != nil && !agentHistoryLoaded {
 			a.sessionMu.Lock()
-			historyMessages := a.session.GetMessages()
+			replayState := a.session.GetReplayState()
 			a.sessionMu.Unlock()
 
-			if len(historyMessages) > 0 {
-				a.agent.LoadHistoryMessages(historyMessages)
+			if len(replayState.Messages) > 0 {
+				a.agent.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
 				a.sessionMu.Lock()
 				a.agentHistoryLoaded = true
 				a.sessionMu.Unlock()
@@ -240,23 +245,26 @@ func (a *App) processInput(input string) tea.Cmd {
 	}
 
 	ctx := context.Background()
-	a.eventCh = a.agent.Run(ctx, input)
-
-	return tea.Batch(
-		func() tea.Msg { return agentStartMsg{input: input} },
-		a.listenAgentEvents(),
-	)
+	return func() tea.Msg {
+		return agentStreamStartMsg{
+			input:      input,
+			eventCh:    a.agent.Run(ctx, input),
+			compacting: false,
+		}
+	}
 }
 
 func (a *App) startManualCompaction() tea.Cmd {
 	compactAgent := a.agent
-	eventCh := make(chan agent.Event, 100)
-	a.eventCh = eventCh
-
-	go func() {
-		defer close(eventCh)
-		_ = compactAgent.Compact(context.Background(), eventCh)
-	}()
-
-	return func() tea.Msg { return compactionStartMsg{} }
+	return func() tea.Msg {
+		eventCh := make(chan agent.Event, 100)
+		go func() {
+			defer close(eventCh)
+			_ = compactAgent.Compact(context.Background(), eventCh)
+		}()
+		return agentStreamStartMsg{
+			eventCh:    eventCh,
+			compacting: true,
+		}
+	}
 }

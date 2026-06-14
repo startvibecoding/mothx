@@ -443,8 +443,8 @@ func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approv
 		sess.ForceCompact = false
 	}
 
-	if history := sess.Manager.GetMessages(); len(history) > 0 {
-		a.LoadHistoryMessages(history)
+	if replayState := sess.Manager.GetReplayState(); len(replayState.Messages) > 0 {
+		a.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
 	}
 
 	return a, cleanup

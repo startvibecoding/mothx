@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
+	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -26,9 +28,25 @@ type recordingToolProvider struct {
 	calls  []provider.ChatParams
 }
 
+type compactionReplayProvider struct {
+	models []*provider.Model
+	calls  []provider.ChatParams
+}
+
 func newRecordingToolProvider() *recordingToolProvider {
 	return &recordingToolProvider{
 		models: []*provider.Model{{ID: "model1", Name: "Model 1"}},
+	}
+}
+
+func newCompactionReplayProvider() *compactionReplayProvider {
+	return &compactionReplayProvider{
+		models: []*provider.Model{{
+			ID:            "model1",
+			Name:          "Model 1",
+			ContextWindow: 4096,
+			MaxTokens:     1024,
+		}},
 	}
 }
 
@@ -66,6 +84,45 @@ func (p *recordingToolProvider) Models() []*provider.Model {
 }
 
 func (p *recordingToolProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.models {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
+func (p *compactionReplayProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.calls = append(p.calls, provider.ChatParams{
+		Messages: cloneMessages(params.Messages),
+		Tools:    append([]provider.ToolDefinition(nil), params.Tools...),
+	})
+
+	ch := make(chan provider.StreamEvent, 3)
+	callNumber := len(p.calls)
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamStart}
+		switch callNumber {
+		case 1:
+			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "## Goal\ncheckpoint"}
+		default:
+			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "continued"}
+		}
+		ch <- provider.StreamEvent{Type: provider.StreamDone}
+	}()
+	return ch
+}
+
+func (p *compactionReplayProvider) Name() string {
+	return "compaction-replay"
+}
+
+func (p *compactionReplayProvider) Models() []*provider.Model {
+	return p.models
+}
+
+func (p *compactionReplayProvider) GetModel(id string) *provider.Model {
 	for _, m := range p.models {
 		if m.ID == id {
 			return m
@@ -1263,6 +1320,109 @@ func TestSetForceCompact_NoModelDoesNotForce(t *testing.T) {
 	a.SetForceCompact()
 	if a.ShouldCompact() {
 		t.Fatal("ShouldCompact should be false with force but no model")
+	}
+}
+
+func TestCompactionReplayPersistsAcrossSessionReload(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+	sess := session.New(tmpDir, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	p := newCompactionReplayProvider()
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(tmpDir, sb)
+	a := New(Config{
+		Provider: p,
+		Model:    p.models[0],
+		Mode:     "agent",
+		Session:  sess,
+		CompactionSettings: ctxpkg.CompactionSettings{
+			Enabled:          true,
+			ReserveTokens:    256,
+			KeepRecentTokens: 48,
+		},
+	}, registry)
+
+	oldUser := provider.NewUserMessage(strings.Repeat("old user ", 24))
+	oldAssistant := provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: strings.Repeat("old assistant ", 24)}})
+	recentUser := provider.NewUserMessage(strings.Repeat("recent user ", 20))
+	recentAssistant := provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: strings.Repeat("recent assistant ", 20)}})
+	history := []provider.Message{oldUser, oldAssistant, recentUser, recentAssistant}
+	for _, msg := range history {
+		if _, err := sess.AppendMessage(msg); err != nil {
+			t.Fatalf("AppendMessage() error = %v", err)
+		}
+	}
+	a.LoadHistoryState(sess.GetReplayState().Messages, sess.GetReplayState().EntryIDs)
+
+	eventCh := make(chan Event, 32)
+	go func() {
+		defer close(eventCh)
+		if err := a.Compact(context.Background(), eventCh); err != nil {
+			t.Errorf("Compact() error = %v", err)
+		}
+	}()
+	for range eventCh {
+	}
+
+	reopened, err := session.Open(sess.GetFile())
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	replay := reopened.GetReplayState()
+
+	a2 := New(Config{
+		Provider: p,
+		Model:    p.models[0],
+		Mode:     "agent",
+		Session:  reopened,
+		CompactionSettings: ctxpkg.CompactionSettings{
+			Enabled:          true,
+			ReserveTokens:    256,
+			KeepRecentTokens: 48,
+		},
+	}, registry)
+	a2.LoadHistoryState(replay.Messages, replay.EntryIDs)
+
+	runCh := a2.Run(context.Background(), "next step")
+	for range runCh {
+	}
+
+	if len(p.calls) != 2 {
+		t.Fatalf("provider call count = %d, want 2", len(p.calls))
+	}
+
+	continued := p.calls[1].Messages
+	if len(continued) < 4 {
+		t.Fatalf("continued call messages = %d, want at least 4", len(continued))
+	}
+
+	foundSummary := false
+	foundOldUser := false
+	foundRecentUser := false
+	for _, msg := range continued {
+		if msg.SystemInjected && msg.Content == "## Goal\ncheckpoint" {
+			foundSummary = true
+		}
+		if msg.Content == oldUser.Content {
+			foundOldUser = true
+		}
+		if msg.Content == recentUser.Content {
+			foundRecentUser = true
+		}
+	}
+
+	if !foundSummary {
+		t.Fatal("continued run did not include compacted summary")
+	}
+	if foundOldUser {
+		t.Fatal("continued run still included pre-compaction old user message")
+	}
+	if !foundRecentUser {
+		t.Fatal("continued run lost recent user message after compaction replay")
 	}
 }
 

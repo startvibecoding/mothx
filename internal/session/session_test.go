@@ -274,6 +274,45 @@ func TestGetMessages(t *testing.T) {
 	}
 }
 
+func TestGetMessagesAppliesCompaction(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	m.Init()
+
+	id1, _ := m.AppendMessage(provider.NewUserMessage("old user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}}))
+	_, _ = m.AppendMessage(provider.NewUserMessage("recent user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant"}}))
+	_, _ = m.AppendCompaction("## Goal\ncompacted", id1, 100)
+
+	messages := m.GetMessages()
+	if len(messages) != 5 {
+		t.Fatalf("expected 5 replayed messages, got %d", len(messages))
+	}
+	if !messages[0].SystemInjected || messages[0].Content != "## Goal\ncompacted" {
+		t.Fatalf("expected leading injected summary, got %+v", messages[0])
+	}
+	if messages[1].Content != "old user" {
+		t.Fatalf("expected first kept message to remain after summary, got %+v", messages[1])
+	}
+	if messages[3].Content != "recent user" {
+		t.Fatalf("expected recent user message in replay, got %+v", messages[3])
+	}
+
+	replay := m.GetReplayState()
+	if len(replay.EntryIDs) != len(messages) {
+		t.Fatalf("entry ID count = %d, want %d", len(replay.EntryIDs), len(messages))
+	}
+	if replay.EntryIDs[0] != "" {
+		t.Fatalf("summary entry ID = %q, want empty", replay.EntryIDs[0])
+	}
+	if replay.EntryIDs[1] != id1 {
+		t.Fatalf("first kept entry ID = %q, want %q", replay.EntryIDs[1], id1)
+	}
+}
+
 func TestOpen(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")

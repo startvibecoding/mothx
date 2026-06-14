@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/vibecoding/internal/agent"
@@ -295,6 +296,24 @@ func TestAssistantMarkdownPreservesFilenameOrder(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestProcessInputBlocksWhileManualCompactionRuns(t *testing.T) {
+	app := &App{
+		input:                  textinput.New(),
+		manualCompactionActive: true,
+	}
+
+	cmd := app.processInput("continue work")
+	if cmd != nil {
+		t.Fatal("processInput returned command while manual compaction was active")
+	}
+	if len(app.messages) != 1 {
+		t.Fatalf("message count = %d, want 1", len(app.messages))
+	}
+	if !strings.Contains(stripANSI(app.messages[0]), "Cannot send input while context compaction is running.") {
+		t.Fatalf("unexpected status message: %q", stripANSI(app.messages[0]))
 	}
 }
 
@@ -1062,9 +1081,14 @@ func TestCompactCommandStartsImmediateCompaction(t *testing.T) {
 		t.Fatal("/compact returned nil command, want immediate compaction command")
 	}
 	startMsg := cmd()
-	if _, ok := startMsg.(compactionStartMsg); !ok {
-		t.Fatalf("/compact command message = %#v, want compactionStartMsg", startMsg)
+	streamMsg, ok := startMsg.(agentStreamStartMsg)
+	if !ok {
+		t.Fatalf("/compact command message = %#v, want agentStreamStartMsg", startMsg)
 	}
+	if !streamMsg.compacting {
+		t.Fatalf("/compact command message compacting = false, want true")
+	}
+	app.eventCh = streamMsg.eventCh
 
 	msg := app.listenAgentEvents()()
 	if ev, ok := msg.(agentEventMsg); !ok || ev.event.Type != agent.EventCompactionStart {
@@ -1099,6 +1123,25 @@ func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
 		if !strings.Contains(plain, want) {
 			t.Fatalf("/help output = %q, want substring %q", plain, want)
 		}
+	}
+}
+
+func TestHelpCommandAutoScrollsToBottom(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a.width = 80
+	a.height = 10
+	for i := 0; i < 8; i++ {
+		a.addMessage(fmt.Sprintf("line %d", i))
+	}
+	a.viewport.GotoTop()
+	if a.viewport.AtBottom() {
+		t.Fatal("viewport unexpectedly at bottom before /help")
+	}
+
+	a.handleCommand("/help")
+
+	if !a.viewport.AtBottom() {
+		t.Fatal("viewport not at bottom after /help")
 	}
 }
 
@@ -1399,7 +1442,11 @@ func TestProcessInputLoadsSessionHistoryIntoAgentEvenWhenUIHistoryAlreadyLoaded(
 		currentThinkIdx:     -1,
 	}
 
-	a.processInput("new question")
+	cmd := a.processInput("new question")
+	if cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	_ = cmd()
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {
@@ -1465,7 +1512,11 @@ func TestInitThenProcessInputStillInjectsSessionHistory(t *testing.T) {
 		t.Fatalf("historyLoaded = false, want true after Init")
 	}
 
-	app.processInput("follow-up")
+	cmd := app.processInput("follow-up")
+	if cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	_ = cmd()
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {

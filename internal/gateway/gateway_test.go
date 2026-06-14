@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -19,6 +20,42 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
+
+type recordingGatewayProvider struct {
+	models []*provider.Model
+	calls  []provider.ChatParams
+}
+
+func newRecordingGatewayProvider() *recordingGatewayProvider {
+	return &recordingGatewayProvider{
+		models: []*provider.Model{{ID: "m1", Name: "Model 1", ContextWindow: 4096, MaxTokens: 1024}},
+	}
+}
+
+func (p *recordingGatewayProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.calls = append(p.calls, provider.ChatParams{
+		Messages: append([]provider.Message(nil), params.Messages...),
+	})
+	ch := make(chan provider.StreamEvent, 3)
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamStart}
+		ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "ok"}
+		ch <- provider.StreamEvent{Type: provider.StreamDone}
+	}()
+	return ch
+}
+
+func (p *recordingGatewayProvider) Name() string              { return "recording-gateway" }
+func (p *recordingGatewayProvider) Models() []*provider.Model { return p.models }
+func (p *recordingGatewayProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.models {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
 
 // --- Config tests ---
 
@@ -501,6 +538,15 @@ func newTestServer(t *testing.T) *Server {
 	}
 }
 
+func newRecordingGatewayServer(t *testing.T) (*Server, *recordingGatewayProvider) {
+	t.Helper()
+	srv := newTestServer(t)
+	p := newRecordingGatewayProvider()
+	srv.provider = p
+	srv.model = p.models[0]
+	return srv, p
+}
+
 func TestCloneModelCopiesMutableFields(t *testing.T) {
 	model := &provider.Model{
 		ID:     "m1",
@@ -742,6 +788,76 @@ func TestChatHandler_SlashCompact(t *testing.T) {
 	json.NewDecoder(w.Body).Decode(&resp)
 	if resp.XCommand != "/compact" {
 		t.Errorf("x_command = %q, want /compact", resp.XCommand)
+	}
+}
+
+func TestChatHandler_LoadsReplayStateFromSession(t *testing.T) {
+	srv, p := newRecordingGatewayServer(t)
+	defer srv.pool.Stop()
+
+	workDir := t.TempDir()
+	mgr := session.New(workDir, srv.settings.SessionDir)
+	if err := mgr.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	oldUser := provider.NewUserMessage("old user context")
+	oldAssistant := provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant context"}})
+	recentUser := provider.NewUserMessage("recent user context")
+	recentAssistant := provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant context"}})
+	_, _ = mgr.AppendMessage(oldUser)
+	_, _ = mgr.AppendMessage(oldAssistant)
+	recentUserID, _ := mgr.AppendMessage(recentUser)
+	_, _ = mgr.AppendMessage(recentAssistant)
+	_, _ = mgr.AppendCompaction("## Goal\ncompacted checkpoint", recentUserID, 100)
+
+	registry := tools.NewRegistry(workDir, sandbox.NewNoneSandbox())
+	sess := &GatewaySession{
+		ID:       "replay-sess",
+		WorkDir:  workDir,
+		Manager:  mgr,
+		Registry: registry,
+		LastUsed: time.Now(),
+	}
+	if err := srv.pool.Put(sess); err != nil {
+		t.Fatalf("pool put: %v", err)
+	}
+
+	body := `{"messages":[{"role":"user","content":"continue"}],"stream":false,"x_session_id":"replay-sess"}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if len(p.calls) != 1 {
+		t.Fatalf("provider call count = %d, want 1", len(p.calls))
+	}
+
+	foundSummary := false
+	foundOldUser := false
+	foundRecentUser := false
+	for _, msg := range p.calls[0].Messages {
+		if msg.SystemInjected && msg.Content == "## Goal\ncompacted checkpoint" {
+			foundSummary = true
+		}
+		if msg.Content == oldUser.Content {
+			foundOldUser = true
+		}
+		if msg.Content == recentUser.Content {
+			foundRecentUser = true
+		}
+	}
+
+	if !foundSummary {
+		t.Fatal("gateway run did not replay compacted summary")
+	}
+	if foundOldUser {
+		t.Fatal("gateway run still included pre-compaction old user message")
+	}
+	if !foundRecentUser {
+		t.Fatal("gateway run lost recent user message from replay state")
 	}
 }
 

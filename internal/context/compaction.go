@@ -382,6 +382,7 @@ func Compact(
 	if cutPoint.IsSplitTurn && cutPoint.TurnStartIndex >= 0 {
 		messagesToSummarize = messages[:cutPoint.TurnStartIndex]
 	}
+	messagesToSummarize = stripLeadingPreviousSummary(messagesToSummarize, previousSummary)
 
 	if len(messagesToSummarize) == 0 {
 		return nil, fmt.Errorf("nothing to compact")
@@ -415,6 +416,17 @@ func Compact(
 		FirstKeptIndex: firstKept,
 		TokensBefore:   tokensBefore,
 	}, nil
+}
+
+func stripLeadingPreviousSummary(messages []provider.Message, previousSummary string) []provider.Message {
+	if previousSummary == "" || len(messages) == 0 {
+		return messages
+	}
+	first := messages[0]
+	if first.SystemInjected && first.Role == "user" && first.Content == previousSummary {
+		return messages[1:]
+	}
+	return messages
 }
 
 // CompactWithLegacyInterface is a compatibility wrapper that calls the old Compact signature.

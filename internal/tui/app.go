@@ -105,14 +105,15 @@ type App struct {
 	timer stopwatch.Model
 
 	// State
-	messages    []string
-	toolResults []toolResult // Store tool results for expansion
-	isThinking  bool
-	agent       *agent.Agent
-	eventCh     <-chan agent.Event
-	width       int
-	height      int
-	ready       bool
+	messages               []string
+	toolResults            []toolResult // Store tool results for expansion
+	isThinking             bool
+	manualCompactionActive bool
+	agent                  *agent.Agent
+	eventCh                <-chan agent.Event
+	width                  int
+	height                 int
+	ready                  bool
 
 	// Paste markers storage
 	pasteCounter int
@@ -467,6 +468,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.input.Reset()
 				a.resetInputHistoryNavigation()
 				a.isThinking = false
+				a.manualCompactionActive = false
 				a.finishRequestTimer()
 				a.addMessage(statusStyle.Render("⏹ Aborted"))
 				return a, a.timer.Stop()
@@ -544,6 +546,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			if input != "" {
+				if a.manualCompactionActive {
+					a.addCommandError("Cannot send input while context compaction is running.")
+					return a, nil
+				}
 				a.input.Reset()
 				a.recordInputHistory(input)
 				expandedInput := a.expandPasteMarkers(input)
@@ -593,19 +599,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.resetInputHistoryNavigation()
 		return a, nil
 
-	case agentStartMsg:
+	case agentStreamStartMsg:
+		a.eventCh = msg.eventCh
 		a.isThinking = true
+		a.manualCompactionActive = msg.compacting
 		a.spinnerIndex = 0
 		a.requestStart = time.Now()
 		a.lastDuration = 0
-		a.addMessage(userStyle.Render("You: ") + msg.input)
-		return a, tea.Batch(a.listenAgentEvents(), a.tickSpinner(), a.timer.Reset(), a.timer.Start())
-
-	case compactionStartMsg:
-		a.isThinking = true
-		a.spinnerIndex = 0
-		a.requestStart = time.Now()
-		a.lastDuration = 0
+		if !msg.compacting && msg.input != "" {
+			a.addMessage(userStyle.Render("You: ") + msg.input)
+		}
 		return a, tea.Batch(a.listenAgentEvents(), a.tickSpinner(), a.timer.Reset(), a.timer.Start())
 
 	case agentEventMsg:
@@ -613,6 +616,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentDoneMsg:
 		a.isThinking = false
+		a.manualCompactionActive = false
 		a.finishRequestTimer()
 		if msg.err != nil {
 			a.addMessage(errorStyle.Render("Error: ") + msg.err.Error())
@@ -806,12 +810,16 @@ func (a *App) expandPasteMarkers(text string) string {
 }
 
 func (a *App) updateViewportContent() {
+	a.updateViewportContentWithFollow(false)
+}
+
+func (a *App) updateViewportContentWithFollow(forceBottom bool) {
 	a.resizeViewport()
 	wasAtBottom := a.viewport.AtBottom()
 	content := a.renderTranscriptContent()
 	a.liveContent = content
 	a.viewport.SetContent(content)
-	if wasAtBottom {
+	if forceBottom || wasAtBottom || a.currentAssistantIdx >= 0 || a.currentThinkIdx >= 0 {
 		a.viewport.GotoBottom()
 	}
 }
@@ -923,6 +931,9 @@ func (a *App) markAssistantRenderedDirty() {
 }
 
 // Message types
-type agentStartMsg struct{ input string }
-type compactionStartMsg struct{}
+type agentStreamStartMsg struct {
+	input      string
+	eventCh    <-chan agent.Event
+	compacting bool
+}
 type renderRequestMsg struct{}

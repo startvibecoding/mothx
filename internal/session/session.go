@@ -29,6 +29,11 @@ type Manager struct {
 	sessionDir string
 }
 
+type replayState struct {
+	messages []provider.Message
+	entryIDs []string
+}
+
 // encodePath encodes a directory path for use in a session directory name.
 // Uses base64 URL encoding to avoid collisions from different characters mapping
 // to the same replacement (e.g. "/" and ":" both mapped to "-").
@@ -390,18 +395,28 @@ func (m *Manager) AppendSessionInfo(name string) (string, error) {
 	return id, nil
 }
 
+// ReplayState is the reconstructed conversation state after applying compactions.
+type ReplayState struct {
+	Messages []provider.Message
+	EntryIDs []string
+}
+
 // GetMessages extracts all messages from the current branch.
 func (m *Manager) GetMessages() []provider.Message {
+	state := m.GetReplayState()
+	return state.Messages
+}
+
+// GetReplayState returns the current branch after applying compaction entries.
+func (m *Manager) GetReplayState() ReplayState {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var messages []provider.Message
-	for _, e := range m.entries {
-		if msg, ok := e.(MessageEntry); ok {
-			messages = append(messages, msg.Message)
-		}
+	state := buildReplayState(m.entries)
+	return ReplayState{
+		Messages: state.messages,
+		EntryIDs: state.entryIDs,
 	}
-	return messages
 }
 
 // GetLeafID returns the current leaf entry ID.
@@ -423,6 +438,84 @@ func (m *Manager) GetHeader() *Header {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.header
+}
+
+func buildReplayState(entries []interface{}) replayState {
+	state := replayState{}
+	for _, entry := range entries {
+		switch e := entry.(type) {
+		case MessageEntry:
+			state.messages = append(state.messages, cloneMessage(e.Message))
+			state.entryIDs = append(state.entryIDs, e.ID)
+		case CompactionEntry:
+			applyCompactionEntry(&state, e)
+		}
+	}
+	return state
+}
+
+func applyCompactionEntry(state *replayState, entry CompactionEntry) {
+	if entry.FirstKeptEntry == "" {
+		return
+	}
+
+	firstKept := -1
+	for i, id := range state.entryIDs {
+		if id == entry.FirstKeptEntry {
+			firstKept = i
+			break
+		}
+	}
+	if firstKept < 0 {
+		return
+	}
+
+	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
+	nextMessages := make([]provider.Message, 0, 1+len(state.messages[firstKept:]))
+	nextMessages = append(nextMessages, summary)
+	for _, msg := range state.messages[firstKept:] {
+		nextMessages = append(nextMessages, cloneMessage(msg))
+	}
+
+	nextEntryIDs := make([]string, 0, 1+len(state.entryIDs[firstKept:]))
+	nextEntryIDs = append(nextEntryIDs, "")
+	nextEntryIDs = append(nextEntryIDs, append([]string(nil), state.entryIDs[firstKept:]...)...)
+
+	state.messages = nextMessages
+	state.entryIDs = nextEntryIDs
+}
+
+func cloneMessage(msg provider.Message) provider.Message {
+	cloned := msg
+	if len(msg.Contents) > 0 {
+		cloned.Contents = make([]provider.ContentBlock, len(msg.Contents))
+		for i, block := range msg.Contents {
+			cloned.Contents[i] = cloneContentBlock(block)
+		}
+	}
+	if msg.Usage != nil {
+		usage := *msg.Usage
+		cloned.Usage = &usage
+	}
+	return cloned
+}
+
+func cloneContentBlock(block provider.ContentBlock) provider.ContentBlock {
+	cloned := block
+	if block.Image != nil {
+		image := *block.Image
+		cloned.Image = &image
+	}
+	if block.ToolCall != nil {
+		toolCall := *block.ToolCall
+		toolCall.Arguments = append([]byte(nil), block.ToolCall.Arguments...)
+		cloned.ToolCall = &toolCall
+	}
+	if block.CacheControl != nil {
+		cacheControl := *block.CacheControl
+		cloned.CacheControl = &cacheControl
+	}
+	return cloned
 }
 
 // load reads a session file into memory.
