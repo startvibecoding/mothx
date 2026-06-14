@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
 )
 
 func (a *App) renderMessageAt(idx int) string {
@@ -15,6 +17,9 @@ func (a *App) renderMessageAt(idx int) string {
 	}
 	if _, ok := a.assistantRaw[idx]; ok {
 		return a.renderAssistantMessage(idx)
+	}
+	if _, ok := a.thinkRaw[idx]; ok {
+		return a.renderThinkMessage(idx)
 	}
 	if idx >= 0 && idx < len(a.messages) {
 		return a.messages[idx]
@@ -61,59 +66,49 @@ func (a *App) renderAssistantMessage(idx int) string {
 		return ""
 	}
 	prefix := assistantStyle.Render("Assistant: ")
-	if shouldRenderAssistantMarkdown(raw) {
+	width := a.assistantMarkdownWidth()
+	if renderutil.LooksLikeMarkdown(raw) {
 		if a.assistantDirty[idx] && a.mdRenderer != nil {
 			rendered, err := a.mdRenderer.Render(raw)
 			if err == nil {
-				a.assistantRendered[idx] = rendered
+				a.assistantRendered[idx] = renderutil.TrimANSIBlankLines(rendered)
 			}
 			a.assistantDirty[idx] = false
 		}
 		if rendered, ok := a.assistantRendered[idx]; ok && rendered != "" {
-			return prefix + rendered
+			return prefix + renderutil.WrapANSI(rendered, width)
 		}
 	}
-	return prefix + wrapPlainText(raw, a.assistantMarkdownWidth())
+	return prefix + wrapPlainText(raw, width)
 }
 
 func (a *App) renderLiveAssistantMessage(idx int) string {
 	return a.renderAssistantMessage(idx)
 }
 
-func shouldRenderAssistantMarkdown(s string) bool {
-	return strings.Contains(s, "```") || strings.Contains(s, "~~~")
+func (a *App) renderThinkMessage(idx int) string {
+	raw := a.thinkRaw[idx]
+	if raw == "" {
+		return ""
+	}
+	prefix := thinkStyle.Render("think: ")
+	return prefix + renderutil.WrapPlainText(raw, a.thinkMessageWidth())
+}
+
+func (a *App) thinkMessageWidth() int {
+	width := a.width
+	if width <= 0 {
+		width = 80
+	}
+	width -= lipgloss.Width("think: ")
+	if width < 1 {
+		return 1
+	}
+	return width
 }
 
 func wrapPlainText(s string, width int) string {
-	if width <= 0 {
-		return s
-	}
-	var out []string
-	for _, line := range strings.Split(s, "\n") {
-		out = append(out, wrapPlainLine(line, width)...)
-	}
-	return strings.Join(out, "\n")
-}
-
-func wrapPlainLine(line string, width int) []string {
-	if lipgloss.Width(line) <= width {
-		return []string{line}
-	}
-	var lines []string
-	var current strings.Builder
-	currentWidth := 0
-	for _, r := range line {
-		rw := lipgloss.Width(string(r))
-		if currentWidth > 0 && currentWidth+rw > width {
-			lines = append(lines, current.String())
-			current.Reset()
-			currentWidth = 0
-		}
-		current.WriteRune(r)
-		currentWidth += rw
-	}
-	lines = append(lines, current.String())
-	return lines
+	return renderutil.WrapANSI(s, width)
 }
 
 func (a *App) renderPlanPanel() string {

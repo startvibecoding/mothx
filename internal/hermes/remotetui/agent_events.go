@@ -25,11 +25,28 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventThinkDelta:
+		if a.thinkRaw == nil {
+			a.thinkRaw = make(map[int]string)
+		}
 		if a.currentThinkIdx >= 0 && a.currentThinkIdx < len(a.messages) {
-			a.messages[a.currentThinkIdx] += event.ThinkDelta
+			a.thinkRaw[a.currentThinkIdx] += event.ThinkDelta
 		} else {
-			a.currentThinkIdx = len(a.messages)
-			a.messages = append(a.messages, thinkStyle.Render("think: ")+event.ThinkDelta)
+			if a.currentAssistantIdx >= 0 &&
+				a.currentAssistantIdx == len(a.messages)-1 &&
+				a.assistantRaw[a.currentAssistantIdx] == "" {
+				a.currentThinkIdx = a.currentAssistantIdx
+				delete(a.assistantRaw, a.currentAssistantIdx)
+				delete(a.assistantRendered, a.currentAssistantIdx)
+				delete(a.assistantDirty, a.currentAssistantIdx)
+				a.currentAssistantIdx = len(a.messages)
+				a.assistantRaw[a.currentAssistantIdx] = ""
+				a.assistantDirty[a.currentAssistantIdx] = true
+				a.messages = append(a.messages, "")
+			} else {
+				a.currentThinkIdx = len(a.messages)
+				a.messages = append(a.messages, "")
+			}
+			a.thinkRaw[a.currentThinkIdx] = event.ThinkDelta
 		}
 		a.scheduleRender()
 		return a.listenAgentEvents()
@@ -54,7 +71,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				msgIndex:   msgIdx,
 			})
 			a.messages = append(a.messages, "")
-			a.printHistory(a.renderMessageAt(msgIdx))
+			a.updateViewportContent()
 		}
 		return a.listenAgentEvents()
 
@@ -100,7 +117,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			idx := a.toolResults[foundIdx].msgIndex
 			if idx >= 0 && idx < len(a.messages) {
 				a.messages[idx] = ""
-				a.printHistory(a.renderMessageAt(idx))
+				a.updateViewportContent()
 			}
 		}
 		a.scheduleRender()

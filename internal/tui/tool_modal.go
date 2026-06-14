@@ -65,6 +65,9 @@ func (a *App) renderExpandedMessageAt(idx int) string {
 	if _, ok := a.assistantRaw[idx]; ok {
 		return a.renderAssistantMessage(idx)
 	}
+	if _, ok := a.thinkRaw[idx]; ok {
+		return a.renderThinkMessage(idx)
+	}
 	if idx >= 0 && idx < len(a.messages) {
 		return a.messages[idx]
 	}

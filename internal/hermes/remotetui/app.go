@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
@@ -15,6 +16,7 @@ import (
 
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
 )
 
 var (
@@ -117,11 +119,11 @@ type App struct {
 	inputBatchSize int
 	inputDelay     time.Duration
 
-	// Live content stays in the managed Bubble Tea view while it is streaming.
-	// Completed transcript entries are printed through Bubble Tea's unmanaged
-	// print path so the terminal's native scrollback owns history.
-	liveContent   string
-	pendingPrints []string
+	// Transcript content is rendered through a managed viewport. Keeping both
+	// completed history and streaming deltas in one render tree avoids stale
+	// unmanaged terminal output mixing with live frames.
+	viewport    viewport.Model
+	liveContent string
 
 	// Initial message to display
 	initialMessage string
@@ -174,6 +176,7 @@ type App struct {
 	currentAssistantIdx int
 	currentThinkIdx     int
 	printedMessageIdx   map[int]bool
+	thinkRaw            map[int]string // message index -> raw thinking content
 
 	// Markdown rendering for assistant messages
 	mdRenderer        *glamour.TermRenderer
@@ -183,12 +186,6 @@ type App struct {
 
 	// Bubble Tea program used to marshal deferred renders back onto the UI goroutine.
 	program *tea.Program
-	// printCh feeds a single drain goroutine that calls program.Println in FIFO
-	// order. Using one goroutine instead of `go program.Println(...)` per call
-	// prevents racing sends on Bubble Tea's unbuffered message channel, which
-	// would reorder messages and visually drop newlines between them.
-	printCh   chan string
-	printOnce sync.Once
 }
 
 // pendingApproval holds a queued approval request.
@@ -232,6 +229,7 @@ func NewApp(opts Options) *App {
 		modelName:           opts.Model,
 		workDir:             opts.WorkDir,
 		input:               input,
+		viewport:            viewport.New(0, 0),
 		timer:               stopwatch.NewWithInterval(time.Second),
 		pastes:              make(map[int]string),
 		inputQueue:          make([]InputEvent, 0, 100),
@@ -241,6 +239,7 @@ func NewApp(opts Options) *App {
 		currentAssistantIdx: -1,
 		currentThinkIdx:     -1,
 		printedMessageIdx:   make(map[int]bool),
+		thinkRaw:            make(map[int]string),
 		assistantRaw:        make(map[int]string),
 		assistantRendered:   make(map[int]string),
 		assistantDirty:      make(map[int]bool),
@@ -256,21 +255,9 @@ func (a *App) SetInitialMessage(msg string) {
 	a.initialMessage = msg
 }
 
-// SetProgram stores the Bubble Tea program used for deferred UI updates and
-// starts the single drain goroutine that serializes program.Println calls.
+// SetProgram stores the Bubble Tea program used for deferred UI updates.
 func (a *App) SetProgram(p *tea.Program) {
 	a.program = p
-	if p == nil {
-		return
-	}
-	a.printOnce.Do(func() {
-		a.printCh = make(chan string, 1024)
-		go func(ch <-chan string, prog *tea.Program) {
-			for msg := range ch {
-				prog.Println(msg)
-			}
-		}(a.printCh, p)
-	})
 }
 
 // LoadHistoryMessages loads messages from session history into TUI display.
@@ -285,14 +272,13 @@ func (a *App) Init() tea.Cmd {
 	// Show initial message if set
 	if a.initialMessage != "" {
 		a.messages = append(a.messages, statusStyle.Render(a.initialMessage))
-		a.printHistory(a.messages[len(a.messages)-1])
 	}
 
 	// Load history messages from session
 	a.LoadHistoryMessages()
 	a.updateViewportContent()
 
-	cmds = append(cmds, a.connectWS(), a.flushPendingPrints(), textinput.Blink, a.processInputQueue())
+	cmds = append(cmds, a.connectWS(), textinput.Blink, a.processInputQueue())
 	return tea.Batch(cmds...)
 }
 
@@ -333,6 +319,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ready = true
 
 		a.input.Width = msg.Width - 4
+		a.resizeViewport()
 		if oldWidth != a.width {
 			a.configureMarkdownRenderer()
 			a.markAssistantRenderedDirty()
@@ -490,8 +477,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.cycleMode()
 			return a, nil
 		case tea.KeyPgUp:
+			a.viewport.PageUp()
 			return a, nil
 		case tea.KeyPgDown:
+			a.viewport.PageDown()
 			return a, nil
 		case tea.KeyUp:
 			a.flushInputQueue()
@@ -561,6 +550,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if inputCmd != nil {
 		cmds = append(cmds, inputCmd)
+	}
+	var viewportCmd tea.Cmd
+	a.viewport, viewportCmd = a.viewport.Update(msg)
+	if viewportCmd != nil {
+		cmds = append(cmds, viewportCmd)
 	}
 
 	return a, tea.Batch(cmds...)
@@ -659,10 +653,8 @@ func (a *App) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, a.renderToolModal(), footer)
 	}
 
-	parts := []string{a.input.View(), footer}
-	if a.liveContent != "" {
-		parts = append([]string{a.clampedLiveContent(footer)}, parts...)
-	}
+	a.resizeViewport()
+	parts := []string{a.viewport.View(), a.input.View(), footer}
 	if planPanel := a.renderPlanPanel(); planPanel != "" {
 		parts = append([]string{planPanel}, parts...)
 	}
@@ -738,23 +730,37 @@ func (a *App) expandPasteMarkers(text string) string {
 }
 
 func (a *App) updateViewportContent() {
-	a.liveContent = ""
-	if a.currentThinkIdx >= 0 && a.currentThinkIdx < len(a.messages) {
-		a.liveContent = a.messages[a.currentThinkIdx]
-	}
-	if a.currentAssistantIdx >= 0 {
-		assistant := a.renderLiveAssistantMessage(a.currentAssistantIdx)
-		if assistant != "" {
-			if a.liveContent != "" {
-				a.liveContent += "\n\n"
-			}
-			a.liveContent += assistant
-		}
+	a.resizeViewport()
+	wasAtBottom := a.viewport.AtBottom()
+	content := a.renderTranscriptContent()
+	a.liveContent = content
+	a.viewport.SetContent(content)
+	if wasAtBottom {
+		a.viewport.GotoBottom()
 	}
 }
 
+func (a *App) renderTranscriptContent() string {
+	count := len(a.messages)
+	if a.currentThinkIdx >= count {
+		count = a.currentThinkIdx + 1
+	}
+	if a.currentAssistantIdx >= count {
+		count = a.currentAssistantIdx + 1
+	}
+	blocks := make([]string, 0, count)
+	for idx := 0; idx < count; idx++ {
+		rendered := strings.TrimRight(a.renderMessageAt(idx), "\n")
+		if strings.TrimSpace(rendered) == "" {
+			continue
+		}
+		blocks = append(blocks, rendered)
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
 func (a *App) configureMarkdownRenderer() {
-	width := a.assistantMarkdownWidth()
+	width := renderutil.MarkdownStyleWrapWidth(a.assistantMarkdownWidth())
 	if r, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("dark"),
 		glamour.WithWordWrap(width),
@@ -769,16 +775,25 @@ func (a *App) assistantMarkdownWidth() int {
 		width = 80
 	}
 	width -= lipgloss.Width("Assistant: ")
-	if width < 20 {
-		return 20
+	if width < 1 {
+		return 1
 	}
 	return width
 }
 
-func (a *App) liveContentHeight(footer string) int {
+func (a *App) resizeViewport() {
+	if a.width <= 0 {
+		return
+	}
+	footer := a.renderFooter()
+	a.viewport.Width = a.width
+	a.viewport.Height = a.transcriptViewportHeight(footer)
+}
+
+func (a *App) transcriptViewportHeight(footer string) int {
 	height := a.height
 	if height <= 0 {
-		return 0
+		return 1
 	}
 	used := lipgloss.Height(a.input.View()) + lipgloss.Height(footer)
 	if panel := a.renderPlanPanel(); panel != "" {
@@ -789,18 +804,6 @@ func (a *App) liveContentHeight(footer string) int {
 		return 1
 	}
 	return available
-}
-
-func (a *App) clampedLiveContent(footer string) string {
-	maxLines := a.liveContentHeight(footer)
-	if maxLines <= 0 {
-		return a.liveContent
-	}
-	lines := strings.Split(strings.TrimRight(a.liveContent, "\n"), "\n")
-	if len(lines) <= maxLines {
-		return a.liveContent
-	}
-	return strings.Join(lines[len(lines)-maxLines:], "\n")
 }
 
 func (a *App) markAssistantRenderedDirty() {

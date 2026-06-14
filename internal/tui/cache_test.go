@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -183,6 +184,226 @@ func TestLiveAssistantMessageRendersCodeBlocks(t *testing.T) {
 	}
 }
 
+func TestAssistantMarkdownRenderedLinesStayWithinViewport(t *testing.T) {
+	app := &App{
+		width: 42,
+		assistantRaw: map[int]string{0: strings.Join([]string{
+			"```text",
+			"this-is-a-very-long-token-that-must-wrap-without-splitting-ansi",
+			"```",
+		}, "\n")},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	rendered := app.renderAssistantMessage(0)
+	if !strings.Contains(stripANSI(rendered), "this-is-a-very-long-token") {
+		t.Fatalf("rendered markdown missing code content: %q", rendered)
+	}
+	for _, line := range strings.Split(rendered, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("rendered line width = %d, want <= %d: %q", width, app.width, line)
+		}
+	}
+}
+
+func TestAssistantCommonMarkdownUsesRenderer(t *testing.T) {
+	app := &App{
+		width:               60,
+		assistantRaw:        map[int]string{0: "# Summary\n\n- first item\n- second item"},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	app.updateViewportContent()
+	if len(app.assistantRendered) == 0 {
+		t.Fatal("assistantRendered is empty, want common markdown rendered through Glamour")
+	}
+	plain := stripANSI(app.liveContent)
+	if !strings.Contains(plain, "Summary") || !strings.Contains(plain, "first item") {
+		t.Fatalf("rendered markdown missing expected content: %q", plain)
+	}
+	if strings.Contains(plain, "# Summary") {
+		t.Fatalf("markdown heading marker should not render as plain text: %q", plain)
+	}
+}
+
+func TestAssistantMarkdownPreservesFilenameOrder(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "plain prose",
+			raw:  "用户读取要求 AGENTS.md 文件",
+		},
+		{
+			name: "inline code",
+			raw:  "用户读取要求 `AGENTS.md` 文件",
+		},
+		{
+			name: "agents discovery phrase",
+			raw:  "- `internal/contextfiles/` — `AGENTS.md` / `CLAUDE.md` discovery",
+		},
+		{
+			name: "inline directory path",
+			raw:  "检查 `internal/agent/` 目录",
+		},
+	}
+	for _, width := range []int{16, 20, 24, 32, 48, 72} {
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("%s/%d", tt.name, width), func(t *testing.T) {
+				app := &App{
+					width:               width,
+					assistantRaw:        map[int]string{0: tt.raw},
+					assistantRendered:   make(map[int]string),
+					assistantDirty:      map[int]bool{0: true},
+					currentAssistantIdx: 0,
+					currentThinkIdx:     -1,
+				}
+				app.configureMarkdownRenderer()
+
+				plain := stripANSI(app.renderAssistantMessage(0))
+				flattened := removeWhitespace(plain)
+				if strings.Contains(flattened, "AG.mdENTS") {
+					t.Fatalf("rendered filename order is corrupted: %q", plain)
+				}
+				if strings.Contains(flattened, "/internalagent/") {
+					t.Fatalf("rendered directory path order is corrupted: %q", plain)
+				}
+				if !strings.Contains(flattened, "AGENTS.md") {
+					if strings.Contains(tt.raw, "AGENTS.md") {
+						t.Fatalf("rendered output lost AGENTS.md order:\nraw: %q\nrendered: %q\nflattened: %q", tt.raw, plain, flattened)
+					}
+				}
+				if strings.Contains(tt.raw, "internal/agent/") && !strings.Contains(flattened, "internal/agent/") {
+					t.Fatalf("rendered output lost internal/agent/ order:\nraw: %q\nrendered: %q\nflattened: %q", tt.raw, plain, flattened)
+				}
+				if strings.Contains(tt.raw, "CLAUDE.md") && !strings.Contains(flattened, "CLAUDE.md") {
+					t.Fatalf("rendered output lost CLAUDE.md order:\nraw: %q\nrendered: %q\nflattened: %q", tt.raw, plain, flattened)
+				}
+				for _, line := range strings.Split(app.renderAssistantMessage(0), "\n") {
+					if lineWidth := lipgloss.Width(line); lineWidth > app.width {
+						t.Fatalf("rendered line width = %d, want <= %d: %q", lineWidth, app.width, line)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestAssistantMarkdownDoesNotRenderBlankAfterPrefix(t *testing.T) {
+	app := &App{
+		width:               80,
+		assistantRaw:        map[int]string{0: "用户读取要求 `AGENTS.md` 文件"},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	rendered := stripANSI(app.renderAssistantMessage(0))
+	lines := strings.Split(rendered, "\n")
+	if len(lines) == 0 {
+		t.Fatal("rendered assistant message is empty")
+	}
+	if strings.TrimSpace(lines[0]) == "Assistant:" {
+		t.Fatalf("assistant prefix rendered on a blank line: %q", rendered)
+	}
+	if !strings.Contains(lines[0], "用户读取要求") || !strings.Contains(removeWhitespace(lines[0]), "AGENTS.md") {
+		t.Fatalf("first rendered line missing assistant content: %q", rendered)
+	}
+}
+
+func TestAssistantRendersAGENTSMarkdownFixture(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("..", "..", "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md fixture: %v", err)
+	}
+	if strings.TrimSpace(string(content)) == "" {
+		t.Fatal("AGENTS.md fixture is empty")
+	}
+
+	app := &App{
+		width:               72,
+		assistantRaw:        map[int]string{0: string(content)},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	rendered := app.renderAssistantMessage(0)
+	plain := stripANSI(rendered)
+	if len(app.assistantRendered) == 0 {
+		t.Fatal("assistantRendered is empty, want AGENTS.md rendered through Glamour")
+	}
+	if renderedLen := len(app.assistantRendered[0]); renderedLen > len(content)*20 {
+		t.Fatalf("rendered AGENTS.md intermediate is too large: got %d bytes from %d input bytes", renderedLen, len(content))
+	}
+	for _, want := range []string{
+		"VibeCoding Agent Guide",
+		"Gateway Mode",
+		"Hermes Mode",
+		"AGENTS.md",
+		"CLAUDE.md",
+		"make build",
+		"make test",
+	} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("rendered AGENTS.md missing %q", want)
+		}
+	}
+	if strings.Contains(plain, "```") {
+		t.Fatalf("rendered AGENTS.md should not expose raw markdown fences")
+	}
+	flattened := removeWhitespace(plain)
+	for _, want := range []string{"AGENTS.md", "CLAUDE.md", ".vibe/memory.md", "docs/en/changelog.md", "docs/zh/changelog.md"} {
+		if !strings.Contains(flattened, want) {
+			t.Fatalf("rendered AGENTS.md lost filename order for %q", want)
+		}
+	}
+	if strings.Contains(flattened, "AG.mdENTS") {
+		t.Fatalf("rendered AGENTS.md contains corrupted AGENTS.md ordering")
+	}
+	if maxBlank := maxConsecutiveBlankLines(plain); maxBlank > 2 {
+		t.Fatalf("rendered AGENTS.md has %d consecutive blank lines", maxBlank)
+	}
+	for _, line := range strings.Split(rendered, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("rendered AGENTS.md line width = %d, want <= %d: %q", width, app.width, line)
+		}
+	}
+}
+
+func removeWhitespace(s string) string {
+	return strings.Join(strings.Fields(s), "")
+}
+
+func maxConsecutiveBlankLines(s string) int {
+	maxBlank := 0
+	current := 0
+	for _, line := range strings.Split(s, "\n") {
+		if strings.TrimSpace(line) == "" {
+			current++
+			if current > maxBlank {
+				maxBlank = current
+			}
+			continue
+		}
+		current = 0
+	}
+	return maxBlank
+}
+
 func TestLiveAssistantMessageRendersMarkdown(t *testing.T) {
 	app := &App{
 		width:               50,
@@ -227,13 +448,78 @@ func TestPlainAssistantMessageWrapsWithoutMarkdownWordSplitting(t *testing.T) {
 	}
 }
 
-func TestViewClampsLiveContentToKeepInputVisible(t *testing.T) {
+func TestThinkMessageWrapsAndPreservesContent(t *testing.T) {
+	a := &App{
+		width:               34,
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+		printedMessageIdx:   make(map[int]bool),
+		thinkRaw:            make(map[int]string),
+	}
+	first := "正在分析用户读取要求 AGENTS.md 文件的上下文，"
+	second := "then-checking-a-very-long-unspaced-token-for-wrapping"
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventThinkDelta, ThinkDelta: first})
+	a.handleAgentEvent(agent.Event{Type: agent.EventThinkDelta, ThinkDelta: second})
+	a.updateViewportContent()
+
+	rendered := a.renderThinkMessage(a.currentThinkIdx)
+	plain := stripANSI(rendered)
+	flattened := removeWhitespace(plain)
+	for _, want := range []string{"think:", "AGENTS.md", "then-checking-a-very-long-unspaced-token-for-wrapping"} {
+		if !strings.Contains(flattened, removeWhitespace(want)) {
+			t.Fatalf("rendered think message missing %q:\n%s", want, plain)
+		}
+	}
+	for _, line := range strings.Split(rendered, "\n") {
+		if width := lipgloss.Width(line); width > a.width {
+			t.Fatalf("think line width = %d, want <= %d: %q", width, a.width, line)
+		}
+	}
+
+	a.printMessageOnce(a.currentThinkIdx)
+	transcript := stripANSI(a.liveContent)
+	if !strings.Contains(removeWhitespace(transcript), "AGENTS.md") ||
+		!strings.Contains(removeWhitespace(transcript), "then-checking-a-very-long-unspaced-token-for-wrapping") {
+		t.Fatalf("managed transcript lost think content: %q", transcript)
+	}
+}
+
+func TestThinkMessageUsesPlainMixedCJKASCIIWrapping(t *testing.T) {
+	for _, width := range []int{18, 22, 26} {
+		t.Run(fmt.Sprintf("width-%d", width), func(t *testing.T) {
+			a := &App{
+				width:               width,
+				currentAssistantIdx: -1,
+				currentThinkIdx:     -1,
+				thinkRaw:            map[int]string{0: "用户查看想 AGENTS 文件内容"},
+			}
+
+			rendered := a.renderThinkMessage(0)
+			plain := stripANSI(rendered)
+			flattened := removeWhitespace(plain)
+			if !strings.Contains(flattened, "用户查看想AGENTS文件内容") {
+				t.Fatalf("rendered think message order changed:\nplain: %q\nflattened: %q", plain, flattened)
+			}
+			if strings.Contains(flattened, "AG文件ENTS") {
+				t.Fatalf("rendered think message interleaved CJK and ASCII token:\nplain: %q\nflattened: %q", plain, flattened)
+			}
+			for _, line := range strings.Split(rendered, "\n") {
+				if lineWidth := lipgloss.Width(line); lineWidth > a.width {
+					t.Fatalf("think line width = %d, want <= %d: %q", lineWidth, a.width, line)
+				}
+			}
+		})
+	}
+}
+
+func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
 	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
 	app.input.Width = 76
-	app.liveContent = strings.Join([]string{
+	app.messages = []string{strings.Join([]string{
 		"line 1",
 		"line 2",
 		"line 3",
@@ -242,11 +528,15 @@ func TestViewClampsLiveContentToKeepInputVisible(t *testing.T) {
 		"line 6",
 		"line 7",
 		"line 8",
-	}, "\n")
+	}, "\n")}
+	app.updateViewportContent()
 
 	got := stripANSI(app.View())
 	if strings.Contains(got, "line 1") {
-		t.Fatalf("View() kept oldest live line despite limited height:\n%s", got)
+		t.Fatalf("View() kept oldest transcript line despite limited height:\n%s", got)
+	}
+	if !strings.Contains(got, "line 8") {
+		t.Fatalf("View() missing newest transcript line:\n%s", got)
 	}
 	if !strings.Contains(got, app.input.Placeholder) {
 		t.Fatalf("View() missing input placeholder:\n%s", got)
@@ -554,15 +844,15 @@ func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
 		ApprovalArgs: map[string]any{"command": "go test ./internal/tui"},
 	})
 
-	joined := stripANSI(strings.Join(a.pendingPrints, "\n"))
+	joined := stripANSI(a.liveContent)
 	thinkAt := strings.Index(joined, "think: thinking")
 	assistantAt := strings.Index(joined, "Assistant: I need to run a command.")
 	approvalAt := strings.Index(joined, "Approval required: bash")
 	if thinkAt < 0 || assistantAt < 0 || approvalAt < 0 {
-		t.Fatalf("pending prints missing expected content: %q", joined)
+		t.Fatalf("managed transcript missing expected content: %q", joined)
 	}
 	if !(thinkAt < assistantAt && assistantAt < approvalAt) {
-		t.Fatalf("pending prints out of order: %q", joined)
+		t.Fatalf("managed transcript out of order: %q", joined)
 	}
 	if a.currentThinkIdx != -1 || a.currentAssistantIdx != -1 {
 		t.Fatalf("active stream indices = think %d assistant %d, want both reset", a.currentThinkIdx, a.currentAssistantIdx)
@@ -851,7 +1141,6 @@ func TestClearCommandResetsTranscriptState(t *testing.T) {
 	a.messages = []string{"old"}
 	a.toolResults = []toolResult{{toolCallID: "tool-1", msgIndex: 0}}
 	a.liveContent = "live"
-	a.pendingPrints = []string{"old print"}
 	a.currentPlan = &tools.TaskPlan{Title: "old plan", Steps: []tools.PlanStep{{Title: "step", Status: "running"}}}
 	a.assistantRaw[0] = "raw"
 	a.assistantRendered[0] = "rendered"

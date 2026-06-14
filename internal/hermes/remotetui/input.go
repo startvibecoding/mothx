@@ -10,30 +10,7 @@ import (
 
 func (a *App) addMessage(msg string) {
 	a.messages = append(a.messages, msg)
-	a.printHistory(msg)
-}
-
-func (a *App) printHistory(msg string) {
-	if strings.TrimSpace(msg) == "" {
-		return
-	}
-	// Route through the single drain goroutine set up in SetProgram so that
-	// program.Println calls reach Bubble Tea's message channel in the order
-	// printHistory was invoked. Sending from many ad-hoc goroutines races and
-	// can interleave messages — visually that looks like a missing line break
-	// between two log lines.
-	if a.printCh != nil {
-		select {
-		case a.printCh <- msg:
-			return
-		default:
-			if a.program != nil {
-				go a.program.Println(msg)
-				return
-			}
-		}
-	}
-	a.pendingPrints = append(a.pendingPrints, msg)
+	a.updateViewportContent()
 }
 
 func (a *App) printMessageOnce(idx int) {
@@ -41,8 +18,7 @@ func (a *App) printMessageOnce(idx int) {
 		return
 	}
 	a.printedMessageIdx[idx] = true
-	rendered := a.renderMessageAt(idx)
-	a.printHistory(rendered)
+	a.updateViewportContent()
 }
 
 func (a *App) commitActiveStream() {
@@ -58,23 +34,6 @@ func (a *App) commitActiveStream() {
 		a.currentAssistantIdx = -1
 		a.updateViewportContent()
 	}
-}
-
-func (a *App) flushPendingPrints() tea.Cmd {
-	if len(a.pendingPrints) == 0 {
-		return nil
-	}
-	prints := append([]string(nil), a.pendingPrints...)
-	a.pendingPrints = nil
-
-	cmds := make([]tea.Cmd, 0, len(prints))
-	for _, msg := range prints {
-		cmds = append(cmds, tea.Println(msg))
-	}
-	// Sequence (not Batch) keeps prints in their queued order — Batch runs each
-	// cmd in its own goroutine, which would re-introduce the very interleaving
-	// issue we're trying to avoid here.
-	return tea.Sequence(cmds...)
 }
 
 func (a *App) finishRequestTimer() {

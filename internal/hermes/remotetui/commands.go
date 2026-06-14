@@ -71,10 +71,13 @@ func (a *App) resetTranscript() {
 	a.assistantRaw = make(map[int]string)
 	a.assistantRendered = make(map[int]string)
 	a.assistantDirty = make(map[int]bool)
+	a.thinkRaw = make(map[int]string)
 	a.printedMessageIdx = make(map[int]bool)
 	a.currentAssistantIdx = -1
 	a.currentThinkIdx = -1
 	a.liveContent = ""
+	a.viewport.SetContent("")
+	a.viewport.GotoBottom()
 	a.addMessage(statusStyle.Render("✅ Conversation cleared"))
 }
 
