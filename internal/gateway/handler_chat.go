@@ -480,7 +480,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 			ReserveTokens:    s.settings.Compaction.ReserveTokens,
 			KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
 		}
-		factory := agent.NewAgentFactory(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, compactionSettings, nil)
+		factory := agent.NewAgentFactory(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil)
 		sess.AgentMgr = agent.NewAgentManager(factory)
 	}
 

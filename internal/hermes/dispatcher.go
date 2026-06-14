@@ -132,7 +132,7 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 		}
 
 		// Extra context will be loaded per-session in resolveSession; use empty here
-		factory := agent.NewAgentFactory(p, model, settings, sandbox.NewManager("."), "", compactionSettings, nil)
+		factory := agent.NewAgentFactory(p, model, settings, sandbox.NewManager("."), "", nil, compactionSettings, nil)
 		d.agentMgr = agent.NewAgentManager(factory)
 	}
 

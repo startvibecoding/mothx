@@ -442,7 +442,7 @@ func run(args []string, opts runOptions) error {
 			compactionSettings.KeepRecentTokens = 20000
 		}
 
-		factory := agent.NewAgentFactory(p, model, settings, sbMgr, extraContext, compactionSettings, nil)
+		factory := agent.NewAgentFactory(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettings, nil)
 		agentMgr = agent.NewAgentManager(factory)
 
 		// Register subagent tools

@@ -164,10 +164,11 @@ func NewRegistry(workDir string, sb sandbox.Sandbox) *Registry {
 
 // RegistryConfig configures a Registry instance.
 type RegistryConfig struct {
-	WorkDir    string
-	Sandbox    sandbox.Sandbox
-	ToolFilter []string        // optional: only register these tools (empty = all)
-	SkillsMgr  *skills.Manager // optional: skills manager for skill_ref tool
+	WorkDir        string
+	Sandbox        sandbox.Sandbox
+	ToolFilter     []string        // optional: only register these tools (empty = all)
+	SkillsMgr      *skills.Manager // optional: skills manager for skill_ref tool
+	EnablePlanTool *bool           // optional: defaults to true when nil
 }
 
 // NewRegistryWithConfig creates a Registry with the given config.
@@ -179,8 +180,12 @@ func NewRegistryWithConfig(cfg RegistryConfig) *Registry {
 		jobManager: NewJobManager(),
 		skillsMgr:  cfg.SkillsMgr,
 	}
+	enablePlanTool := true
+	if cfg.EnablePlanTool != nil {
+		enablePlanTool = *cfg.EnablePlanTool
+	}
 	if len(cfg.ToolFilter) == 0 {
-		r.RegisterDefaults()
+		r.RegisterDefaultsWithPlanTool(enablePlanTool)
 	} else {
 		r.RegisterFiltered(cfg.ToolFilter)
 	}

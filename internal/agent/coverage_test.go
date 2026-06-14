@@ -353,7 +353,7 @@ func TestEventHandlerFunc(t *testing.T) {
 func TestAgentFactoryProviderAndSettings(t *testing.T) {
 	mockProvider := newMockProvider()
 	settings := &config.Settings{}
-	factory := NewAgentFactory(mockProvider, nil, settings, nil, "", compactionSettings(), nil)
+	factory := NewAgentFactory(mockProvider, nil, settings, nil, "", nil, compactionSettings(), nil)
 
 	if factory.Provider() != mockProvider {
 		t.Error("expected same provider")

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
@@ -32,6 +35,7 @@ func newTestFactoryAndManager(t testing.TB) (*AgentFactory, *AgentManager) {
 		settings,
 		sandboxMgr,
 		"",
+		nil,
 		ctxpkg.CompactionSettings{},
 		nil,
 	)
@@ -342,6 +346,104 @@ func TestSubAgentPromptContractOnlyForChild(t *testing.T) {
 	}
 }
 
+func TestAgentFactorySubAgentsRespectPlanToolSetting(t *testing.T) {
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, nil)
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	disabled := false
+	settings := &config.Settings{
+		SessionDir:      t.TempDir(),
+		EnablePlanTool:  &disabled,
+		DefaultProvider: "mock",
+	}
+
+	factory := NewAgentFactory(
+		mockProvider,
+		mockProvider.Models()[0],
+		settings,
+		sandboxMgr,
+		"",
+		nil,
+		ctxpkg.CompactionSettings{},
+		nil,
+	)
+	mgr := NewAgentManager(factory)
+
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := mgr.Create(AgentOptions{ID: "sub-1", ParentID: parent.ID()})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	for _, a := range []agentpkg.Agent{parent, child} {
+		adapter, ok := a.(*AgentAdapter)
+		if !ok {
+			t.Fatalf("expected AgentAdapter, got %T", a)
+		}
+		if toolNamesContain(adapter.inner.GetContext().Tools, "plan") {
+			t.Fatalf("expected %s to omit plan tool when disabled", a.ID())
+		}
+	}
+}
+
+func TestAgentFactorySubAgentsRegisterSkillRef(t *testing.T) {
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, nil)
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
+
+	projectDir := t.TempDir()
+	skillsDir := filepath.Join(projectDir, ".skills", "demo")
+	if err := os.MkdirAll(skillsDir, 0755); err != nil {
+		t.Fatalf("mkdir skills dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Demo\n"), 0644); err != nil {
+		t.Fatalf("write SKILL.md: %v", err)
+	}
+	skillsMgr := skills.NewManager("", filepath.Join(projectDir, ".skills"))
+	if err := skillsMgr.Load(); err != nil {
+		t.Fatalf("load skills: %v", err)
+	}
+
+	factory := NewAgentFactory(
+		mockProvider,
+		mockProvider.Models()[0],
+		settings,
+		sandboxMgr,
+		"",
+		skillsMgr,
+		ctxpkg.CompactionSettings{},
+		nil,
+	)
+	mgr := NewAgentManager(factory)
+
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := mgr.Create(AgentOptions{ID: "sub-1", ParentID: parent.ID()})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	for _, a := range []agentpkg.Agent{parent, child} {
+		adapter, ok := a.(*AgentAdapter)
+		if !ok {
+			t.Fatalf("expected AgentAdapter, got %T", a)
+		}
+		if !toolNamesContain(adapter.inner.GetContext().Tools, "skill_ref") {
+			t.Fatalf("expected %s to include skill_ref", a.ID())
+		}
+	}
+}
+
 func TestAgentManagerEnforcesSubAgentPolicy(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	parent, err := mgr.Create(AgentOptions{ID: "main"})
@@ -371,6 +473,15 @@ func TestAgentManagerEnforcesSubAgentPolicy(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected disallowed mode error")
 	}
+}
+
+func toolNamesContain(tools []provider.ToolDefinition, name string) bool {
+	for _, tool := range tools {
+		if tool.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // --- Tool interface compliance ---

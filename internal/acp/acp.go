@@ -317,7 +317,7 @@ func Run(opts RunOptions) error {
 			compactionSettings.KeepRecentTokens = 20000
 		}
 
-		srv.factory = agent.NewAgentFactory(p, model, settings, sbMgr, srv.extraContext, compactionSettings, nil)
+		srv.factory = agent.NewAgentFactory(p, model, settings, sbMgr, srv.extraContext, nil, compactionSettings, nil)
 		srv.agentMgr = agent.NewAgentManager(srv.factory)
 	}
 

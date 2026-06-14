@@ -10,6 +10,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
+	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
@@ -19,7 +20,8 @@ type AgentFactory struct {
 	model              *provider.Model
 	settings           *config.Settings
 	sandboxMgr         *sandbox.Manager
-	extraContext        string
+	extraContext       string
+	skillsMgr          *skills.Manager
 	compactionSettings ctxpkg.CompactionSettings
 	approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
 }
@@ -31,6 +33,7 @@ func NewAgentFactory(
 	settings *config.Settings,
 	sandboxMgr *sandbox.Manager,
 	extraContext string,
+	skillsMgr *skills.Manager,
 	compactionSettings ctxpkg.CompactionSettings,
 	approvalHandler func(toolCallID, toolName string, args map[string]any) bool,
 ) *AgentFactory {
@@ -39,7 +42,8 @@ func NewAgentFactory(
 		model:              model,
 		settings:           settings,
 		sandboxMgr:         sandboxMgr,
-		extraContext:        extraContext,
+		extraContext:       extraContext,
+		skillsMgr:          skillsMgr,
 		compactionSettings: compactionSettings,
 		approvalHandler:    approvalHandler,
 	}
@@ -91,9 +95,11 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 	// Create per-agent Registry with isolated workDir/sandbox/JobManager
 	sb := f.sandboxForMode(mode)
 	registry := tools.NewRegistryWithConfig(tools.RegistryConfig{
-		WorkDir:    workDir,
-		Sandbox:    sb,
-		ToolFilter: opts.Tools,
+		WorkDir:        workDir,
+		Sandbox:        sb,
+		ToolFilter:     opts.Tools,
+		SkillsMgr:      f.skillsMgr,
+		EnablePlanTool: config.BoolPtr(f.settings == nil || f.settings.IsPlanToolEnabled()),
 	})
 
 	// Decision 5: Sub-agents cannot spawn sub-agents
@@ -141,7 +147,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		SandboxMgr:         f.sandboxMgr,
 		Settings:           f.settings,
 		Session:            sess,
-		ExtraContext:        extraContext,
+		ExtraContext:       extraContext,
 		CompactionSettings: f.compactionSettings,
 		ApprovalHandler: func() func(toolCallID, toolName string, args map[string]any) bool {
 			if opts.ApprovalHandler != nil {
@@ -275,7 +281,7 @@ func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
 		MaxTokens:          cfg.MaxTokens,
 		SandboxMgr:         sandboxMgr,
 		Session:            sess,
-		ExtraContext:        cfg.SystemPromptExtra,
+		ExtraContext:       cfg.SystemPromptExtra,
 		CompactionSettings: compactionSettings,
 		ApprovalHandler:    cfg.ApprovalHandler,
 		MultiAgent:         cfg.MultiAgent,
