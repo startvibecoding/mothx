@@ -39,6 +39,7 @@ type RunOptions struct {
 	Verbose    bool
 	Debug      bool
 	MultiAgent bool
+	Delegate   bool
 	WebSearch  bool
 }
 
@@ -60,6 +61,7 @@ type server struct {
 	contextFiles  string
 
 	multiAgent bool
+	delegate   bool
 	factory    *agent.AgentFactory
 	agentMgr   *agent.AgentManager
 
@@ -244,6 +246,7 @@ func Run(opts RunOptions) error {
 		settings:   settings,
 		cwd:        cwd,
 		multiAgent: opts.MultiAgent,
+		delegate:   opts.Delegate,
 		sessions:   make(map[string]*sessionRuntime),
 		pending:    make(map[string]chan json.RawMessage),
 		toolTitles: make(map[string]string),
@@ -303,8 +306,8 @@ func Run(opts RunOptions) error {
 		srv.extraContext = ctx + skillsMgr.BuildAllSkillsContext()
 	}
 
-	// Multi-agent mode: create AgentFactory and AgentManager
-	if opts.MultiAgent {
+	// Agent manager backs multi-agent and delegate workflows.
+	if opts.MultiAgent || opts.Delegate {
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          settings.Compaction.Enabled,
 			ReserveTokens:    settings.Compaction.ReserveTokens,
@@ -317,7 +320,10 @@ func Run(opts RunOptions) error {
 			compactionSettings.KeepRecentTokens = 20000
 		}
 
-		srv.factory = agent.NewAgentFactory(p, model, settings, sbMgr, srv.extraContext, nil, compactionSettings, nil)
+		srv.factory = agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, srv.extraContext, nil, compactionSettings, nil, agent.AgentFactoryOptions{
+			MultiAgentEnabled: true,
+			DelegateEnabled:   opts.Delegate,
+		})
 		srv.agentMgr = agent.NewAgentManager(srv.factory)
 	}
 
@@ -373,9 +379,13 @@ func (s *server) newToolRegistry() *tools.Registry {
 	if s.skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(s.skillsMgr))
 	}
-	// Register subagent tools when multi-agent mode is enabled
 	if s.agentMgr != nil {
-		agent.RegisterSubAgentTools(registry, s.agentMgr)
+		if s.multiAgent {
+			agent.RegisterSubAgentTools(registry, s.agentMgr)
+		}
+		if s.delegate {
+			agent.RegisterDelegateSubAgentTool(registry, s.agentMgr)
+		}
 	}
 	return registry
 }
@@ -539,6 +549,8 @@ func (s *server) handlePrompt(req rpcRequest) {
 			ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
 				return s.requestPermission(rt.id, toolCallID, toolName, args)
 			},
+			MultiAgent:   s.multiAgent,
+			DelegateMode: s.delegate,
 		}, rt.registry)
 		a = agent.NewAgentAdapter(inner)
 	}

@@ -51,6 +51,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 		flagVerbose         bool
 		flagDebug           bool
 		flagMultiAgent      bool
+		flagDelegate        bool
 		flagWebSearch       bool
 		flagInitGateway     bool
 		flagForce           bool
@@ -95,6 +96,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				verbose:         flagVerbose,
 				debug:           flagDebug,
 				multiAgent:      flagMultiAgent,
+				delegate:        flagDelegate,
 				webSearch:       flagWebSearch,
 				enableA2AMaster: flagEnableA2AMaster,
 			})
@@ -115,6 +117,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				Verbose:    flagVerbose,
 				Debug:      flagDebug,
 				MultiAgent: flagMultiAgent,
+				Delegate:   flagDelegate,
 				WebSearch:  flagWebSearch,
 			})
 		},
@@ -133,6 +136,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	flags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	flags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	flags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	flags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
 	flags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this run")
 	flags.BoolVar(&flagInitGateway, "init-gateway", false, "Create gateway.json config template")
 	flags.BoolVar(&flagForce, "force", false, "Force overwrite existing files (used with --init-*)")
@@ -148,6 +152,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	acpFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	acpFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	acpFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	acpFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
 	acpFlags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this ACP run")
 
 	var (
@@ -169,6 +174,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				WorkDir:    flagGatewayWorkDir,
 				Sandbox:    flagSandbox,
 				MultiAgent: flagMultiAgent,
+				Delegate:   flagDelegate,
 				Verbose:    flagVerbose,
 				Debug:      flagDebug,
 			}, version)
@@ -183,6 +189,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	gatewayFlags.StringVarP(&flagModel, "model", "m", "", "Model ID")
 	gatewayFlags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
 	gatewayFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	gatewayFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
 	gatewayFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	gatewayFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 
@@ -207,6 +214,7 @@ type runOptions struct {
 	verbose         bool
 	debug           bool
 	multiAgent      bool
+	delegate        bool
 	webSearch       bool
 	enableA2AMaster bool
 }
@@ -425,11 +433,11 @@ func run(args []string, opts runOptions) error {
 		}
 	}
 
-	// Multi-agent mode: create AgentFactory and AgentManager, register subagent tools
+	// Agent manager backs multi-agent and delegate workflows.
 	var agentMgr *agent.AgentManager
 	var cronStore cron.CronStore
 	var cronScheduler *cron.Scheduler
-	if opts.multiAgent {
+	{
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          settings.Compaction.Enabled,
 			ReserveTokens:    settings.Compaction.ReserveTokens,
@@ -442,35 +450,48 @@ func run(args []string, opts runOptions) error {
 			compactionSettings.KeepRecentTokens = 20000
 		}
 
-		factory := agent.NewAgentFactory(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettings, nil)
+		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+			MultiAgentEnabled: true,
+			DelegateEnabled:   opts.delegate,
+		})
 		agentMgr = agent.NewAgentManager(factory)
 
-		// Register subagent tools
-		agent.RegisterSubAgentTools(registry, agentMgr)
+		if opts.multiAgent {
+			// Register async subagent tools
+			agent.RegisterSubAgentTools(registry, agentMgr)
 
-		// Create cron store, scheduler, and tool
-		cronPath := filepath.Join(config.ConfigDir(), "cron.json")
-		cronStore = cron.NewFileCronStore(cronPath)
-		cronScheduler = cron.NewScheduler(cronStore, agentMgr, 30*time.Second)
-		cronScheduler.Start()
-		registry.Register(cron.NewCronTool(cronStore, cronScheduler))
-		defer cronScheduler.Stop()
+			// Create cron store, scheduler, and tool
+			cronPath := filepath.Join(config.ConfigDir(), "cron.json")
+			cronStore = cron.NewFileCronStore(cronPath)
+			cronScheduler = cron.NewScheduler(cronStore, agentMgr, 30*time.Second)
+			cronScheduler.Start()
+			registry.Register(cron.NewCronTool(cronStore, cronScheduler))
+			defer cronScheduler.Stop()
+		}
+		if opts.delegate {
+			agent.RegisterDelegateSubAgentTool(registry, agentMgr)
+		}
 
 		if opts.verbose {
-			fmt.Fprintf(os.Stderr, "Multi-agent mode enabled\n")
+			if opts.multiAgent {
+				fmt.Fprintf(os.Stderr, "Multi-agent mode enabled\n")
+			}
+			if opts.delegate {
+				fmt.Fprintf(os.Stderr, "Delegate mode enabled\n")
+			}
 		}
 	}
 
 	// Print mode: non-interactive
 	if opts.print {
-		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, agentMgr)
+		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, opts.delegate, agentMgr)
 	}
 
 	// Interactive mode
 	// Clear any pending stdin input (e.g., terminal color queries)
 	clearStdin()
 
-	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, agentMgr, cronStore, cronScheduler)
+	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, opts.delegate, agentMgr, cronStore, cronScheduler)
 	// Add context files info and session info as initial message
 	var initialMsg string
 	if contextFilesInfo != "" {

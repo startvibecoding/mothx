@@ -79,6 +79,7 @@ type Config struct {
 	CompactionSettings ctxpkg.CompactionSettings
 	ApprovalHandler    func(toolCallID, toolName string, args map[string]any) bool
 	MultiAgent         bool // Decision 8: multi-agent mode
+	DelegateMode       bool // blocking single sub-agent delegation mode
 }
 
 // AgentLoopConfig extends Config with loop-specific settings.
@@ -298,6 +299,7 @@ func (a *Agent) buildFrozenPrompt() {
 		toolSnippets,
 		toolGuidelines,
 		a.config.MultiAgent,
+		a.config.DelegateMode,
 	)
 	a.frozenToolDefs = toolDefs
 	a.frozenToolNames = toolNames

@@ -14,3 +14,12 @@ func RegisterSubAgentTools(registry *tools.Registry, manager *AgentManager) {
 	registry.Register(NewSubAgentSendTool(manager))
 	registry.Register(NewSubAgentDestroyTool(manager))
 }
+
+// RegisterDelegateSubAgentTool registers the blocking single sub-agent
+// delegation tool. It is independent from the async multi-agent toolset.
+func RegisterDelegateSubAgentTool(registry *tools.Registry, manager *AgentManager) {
+	if registry == nil || manager == nil {
+		return
+	}
+	registry.Register(NewDelegateSubAgentTool(manager))
+}

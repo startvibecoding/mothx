@@ -25,6 +25,7 @@ type AgentFactory struct {
 	compactionSettings ctxpkg.CompactionSettings
 	approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
 	multiAgentEnabled  bool
+	delegateEnabled    bool
 }
 
 // NewAgentFactory creates a factory with shared configuration.
@@ -46,6 +47,7 @@ func NewAgentFactory(
 // AgentFactoryOptions configures AgentFactory behavior.
 type AgentFactoryOptions struct {
 	MultiAgentEnabled bool
+	DelegateEnabled   bool
 }
 
 // NewAgentFactoryWithOptions creates a factory with explicit behavior flags.
@@ -70,6 +72,7 @@ func NewAgentFactoryWithOptions(
 		compactionSettings: compactionSettings,
 		approvalHandler:    approvalHandler,
 		multiAgentEnabled:  opts.MultiAgentEnabled,
+		delegateEnabled:    opts.DelegateEnabled,
 	}
 }
 
@@ -87,6 +90,7 @@ type AgentOptions struct {
 	Session           *session.Manager
 	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool // per-agent approval override
 	MultiAgent        *bool                                                       // optional prompt override
+	DelegateMode      *bool                                                       // optional prompt override
 }
 
 // Create creates a new Agent with per-agent Registry.
@@ -134,6 +138,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		registry.Remove("subagent_status")
 		registry.Remove("subagent_send")
 		registry.Remove("subagent_destroy")
+		registry.Remove("delegate_subagent")
 	}
 
 	// Build extra context: factory-level + per-agent
@@ -154,6 +159,13 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 	multiAgent := f.multiAgentEnabled && opts.ParentID == ""
 	if opts.MultiAgent != nil {
 		multiAgent = *opts.MultiAgent
+	}
+	delegateMode := f.delegateEnabled && opts.ParentID == ""
+	if opts.DelegateMode != nil {
+		delegateMode = *opts.DelegateMode
+	}
+	if opts.ParentID != "" {
+		delegateMode = false
 	}
 
 	cfg := Config{
@@ -185,7 +197,8 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 			}
 			return f.approvalHandler
 		}(),
-		MultiAgent: multiAgent,
+		MultiAgent:   multiAgent,
+		DelegateMode: delegateMode,
 	}
 
 	loopCfg := AgentLoopConfig{
@@ -315,6 +328,7 @@ func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
 		CompactionSettings: compactionSettings,
 		ApprovalHandler:    cfg.ApprovalHandler,
 		MultiAgent:         cfg.MultiAgent,
+		DelegateMode:       cfg.DelegateMode,
 	}
 
 	loopCfg := AgentLoopConfig{

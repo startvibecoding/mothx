@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
@@ -20,6 +21,154 @@ type SubAgentSpawnTool struct {
 // NewSubAgentSpawnTool creates a new subagent_spawn tool.
 func NewSubAgentSpawnTool(m *AgentManager) *SubAgentSpawnTool {
 	return &SubAgentSpawnTool{manager: m}
+}
+
+// DelegateSubAgentTool runs exactly one delegated sub-agent task synchronously.
+type DelegateSubAgentTool struct {
+	manager *AgentManager
+	busy    atomic.Bool
+}
+
+// NewDelegateSubAgentTool creates a blocking delegate_subagent tool.
+func NewDelegateSubAgentTool(m *AgentManager) *DelegateSubAgentTool {
+	return &DelegateSubAgentTool{manager: m}
+}
+
+func (t *DelegateSubAgentTool) Name() string { return "delegate_subagent" }
+func (t *DelegateSubAgentTool) Description() string {
+	return "Delegate one bounded independent subtask to a blocking sub-agent. Waits until completion and returns a summarized result."
+}
+func (t *DelegateSubAgentTool) PromptSnippet() string {
+	return "Delegate one bounded independent subtask to a blocking sub-agent"
+}
+func (t *DelegateSubAgentTool) PromptGuidelines() []string {
+	return []string{
+		"Use delegate_subagent for one independent, bounded subtask when isolating exploration will save main-agent context",
+		"Do not delegate tiny tasks, highly stateful work, or tasks that require ongoing user clarification",
+		"Only one delegated sub-agent can run at a time; review its summarized result before relying on it",
+	}
+}
+func (t *DelegateSubAgentTool) Parameters() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"task": {"type": "string", "description": "Focused delegated task, including scope, relevant paths/context, expected output, and stop conditions"},
+			"mode": {"type": "string", "enum": ["plan", "agent", "yolo"], "default": "agent", "description": "Sub-agent mode"},
+			"work_dir": {"type": "string", "description": "Working directory for the sub-agent (defaults to current)"},
+			"tools": {"type": "array", "items": {"type": "string"}, "description": "Allowed tools (empty = all except nested sub-agent/delegate tools)"},
+			"max_iterations": {"type": "integer", "default": 50, "description": "Maximum iterations"},
+			"system_prompt_extra": {"type": "string", "description": "Extra context for the delegated sub-agent"}
+		},
+		"required": ["task"]
+	}`)
+}
+
+func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]any) (tools.ToolResult, error) {
+	if t.manager == nil {
+		return tools.ToolResult{}, fmt.Errorf("agent manager is not initialized")
+	}
+	if !t.busy.CompareAndSwap(false, true) {
+		return tools.ToolResult{}, fmt.Errorf("a delegated sub-agent is already running")
+	}
+	defer t.busy.Store(false)
+
+	started := time.Now()
+	task, _ := params["task"].(string)
+	task = strings.TrimSpace(task)
+	if task == "" {
+		return tools.ToolResult{}, fmt.Errorf("task is required")
+	}
+
+	mode, _ := params["mode"].(string)
+	if mode == "" {
+		mode = "agent"
+	}
+	workDir, _ := params["work_dir"].(string)
+	maxIter := 50
+	if v, ok := params["max_iterations"].(float64); ok && v > 0 {
+		maxIter = int(v)
+	}
+	extra, _ := params["system_prompt_extra"].(string)
+
+	var toolFilter []string
+	if ts, ok := params["tools"].([]any); ok {
+		for _, tt := range ts {
+			if s, ok := tt.(string); ok {
+				toolFilter = append(toolFilter, s)
+			}
+		}
+	}
+
+	parentID, _ := AgentIDFromContext(ctx)
+	parentEventCh, _ := EventChanFromContext(ctx)
+	parentRunCtx, ok := ParentRunContextFromContext(ctx)
+	if !ok || parentRunCtx == nil {
+		parentRunCtx = ctx
+	}
+	policy := DefaultSubAgentPolicy()
+	runCtx, cancel := context.WithTimeout(parentRunCtx, policy.TimeoutPerAgent)
+	defer cancel()
+
+	a, err := t.manager.Create(AgentOptions{
+		ParentID:          parentID,
+		Mode:              mode,
+		WorkDir:           workDir,
+		Tools:             toolFilter,
+		SystemPromptExtra: extra,
+		MaxIterations:     maxIter,
+	})
+	if err != nil {
+		return tools.ToolResult{}, fmt.Errorf("create delegated sub-agent: %w", err)
+	}
+	defer func() { _ = t.manager.Destroy(a.ID()) }()
+
+	t.manager.MarkRunning(a.ID())
+	t.manager.SetCancel(a.ID(), cancel)
+	defer t.manager.SetCancel(a.ID(), nil)
+
+	var runErr error
+	completed := false
+	ch := a.Run(runCtx, buildSubAgentTask(task))
+	for e := range ch {
+		if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
+			_ = sendParentEvent(runCtx, parentEventCh, Event{
+				Type:         EventToolApprovalRequest,
+				AgentID:      a.ID(),
+				ApprovalID:   e.ApprovalID,
+				ApprovalTool: e.ApprovalTool,
+				ApprovalArgs: e.ApprovalArgs,
+			})
+		}
+		switch e.Type {
+		case agentpkg.EventDone:
+			completed = true
+			t.manager.MarkDone(a.ID(), lastAssistantResponse(a))
+		case agentpkg.EventError:
+			completed = true
+			runErr = e.Error
+			t.manager.MarkError(a.ID(), e.Error)
+		}
+	}
+	if !completed && runCtx.Err() != nil {
+		runErr = runCtx.Err()
+		t.manager.MarkError(a.ID(), runErr)
+	}
+
+	response := lastAssistantResponse(a)
+	result := map[string]any{
+		"status":   "done",
+		"result":   response,
+		"duration": time.Since(started).Round(time.Millisecond).String(),
+	}
+	if runErr != nil {
+		result["status"] = "error"
+		result["error"] = runErr.Error()
+		if response != "" {
+			result["partial_result"] = response
+		}
+	}
+	data, _ := json.Marshal(result)
+	return tools.NewTextToolResult(string(data)), nil
 }
 
 func (t *SubAgentSpawnTool) Name() string { return "subagent_spawn" }

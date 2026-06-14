@@ -533,7 +533,7 @@ func TestThinkMessageUsesPlainMixedCJKASCIIWrapping(t *testing.T) {
 }
 
 func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
@@ -566,7 +566,7 @@ func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
 }
 
 func TestViewUsesFixedOuterHeight(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
@@ -580,7 +580,7 @@ func TestViewUsesFixedOuterHeight(t *testing.T) {
 }
 
 func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
@@ -1070,7 +1070,7 @@ func TestCompactCommandStartsImmediateCompaction(t *testing.T) {
 	model := mockProvider.Models()[0]
 	settings := config.DefaultSettings()
 	registry := tools.NewRegistry(t.TempDir(), nil)
-	app := NewApp(mockProvider, model, settings, nil, registry, "", "", nil, "agent", false, nil, nil, nil)
+	app := NewApp(mockProvider, model, settings, nil, registry, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.agent = agent.New(agent.Config{
 		Provider: mockProvider,
 		Model:    model,
@@ -1124,7 +1124,7 @@ func TestCompactCommandStartsImmediateCompaction(t *testing.T) {
 }
 
 func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.handleCommand("/help")
 
@@ -1140,7 +1140,7 @@ func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
 }
 
 func TestHelpCommandAutoScrollsToBottom(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.width = 80
 	a.height = 10
 	for i := 0; i < 8; i++ {
@@ -1171,7 +1171,7 @@ func teaSpecialKeyMsgForTest(key tea.KeyType) tea.KeyMsg {
 }
 
 func TestInputHomeEndKeysReachTextInput(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input.SetValue("abc")
 
 	a.Update(teaSpecialKeyMsgForTest(tea.KeyHome))
@@ -1194,7 +1194,7 @@ func TestInputHomeEndKeysReachTextInput(t *testing.T) {
 }
 
 func TestInputHistoryNavigationPreservesDraft(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.recordInputHistory("first")
 	a.recordInputHistory("second")
 	a.input.SetValue("draft")
@@ -1220,7 +1220,7 @@ func TestInputHistoryNavigationPreservesDraft(t *testing.T) {
 }
 
 func TestInputHistoryNavigationFlushesQueuedDraft(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.recordInputHistory("previous")
 
 	a.Update(teaKeyMsgForTest("draft"))
@@ -1237,7 +1237,7 @@ func TestInputHistoryNavigationFlushesQueuedDraft(t *testing.T) {
 }
 
 func TestEscAbortClearsApprovalState(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.isThinking = true
 	a.waitingForApproval = true
 	a.pendingApprovalID = "approval-1"
@@ -1257,7 +1257,7 @@ func TestEscAbortClearsApprovalState(t *testing.T) {
 }
 
 func TestClearCommandResetsTranscriptState(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "base", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "base", nil, "agent", false, false, nil, nil, nil)
 	a.messages = []string{"old"}
 	a.toolResults = []toolResult{{toolCallID: "tool-1", msgIndex: 0}}
 	a.liveContent = "live"
@@ -1290,7 +1290,7 @@ func TestClearCommandResetsTranscriptState(t *testing.T) {
 }
 
 func TestOpenLatestToolModalRequiresContent(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	if a.openLatestToolModal() {
 		t.Fatal("openLatestToolModal on empty app = true, want false")
 	}
@@ -1313,7 +1313,7 @@ func TestShowNextQuestionTracksCurrentQuestionAndClearResetsIt(t *testing.T) {
 }
 
 func TestRuneInputTabDoesNotCycleMode(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input.SetValue("prefix ")
 
 	a.Update(teaKeyMsgForTest("tab"))
@@ -1328,7 +1328,7 @@ func TestRuneInputTabDoesNotCycleMode(t *testing.T) {
 }
 
 func TestRuneInputEscDoesNotAbortOrClearInput(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input.SetValue("prefix ")
 
 	a.Update(teaKeyMsgForTest("esc"))
@@ -1350,6 +1350,7 @@ func TestInitWithProgramDoesNotBlock(t *testing.T) {
 		"",
 		nil,
 		"agent",
+		false,
 		false,
 		nil,
 		nil,
@@ -1512,6 +1513,7 @@ func TestInitThenProcessInputStillInjectsSessionHistory(t *testing.T) {
 		"",
 		nil,
 		"agent",
+		false,
 		false,
 		nil,
 		nil,

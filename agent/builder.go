@@ -34,6 +34,7 @@ type Builder struct {
 	compactionEnabled bool
 	compactionReserve int
 	multiAgent        bool
+	delegateMode      bool
 	approvalHandler   func(toolCallID, toolName string, args map[string]any) bool
 }
 
@@ -135,6 +136,12 @@ func (b *Builder) WithMultiAgent(enabled bool) *Builder {
 	return b
 }
 
+// WithDelegateMode enables blocking single sub-agent delegation mode.
+func (b *Builder) WithDelegateMode(enabled bool) *Builder {
+	b.delegateMode = enabled
+	return b
+}
+
 // WithApprovalHandler sets a custom approval handler for tool calls.
 func (b *Builder) WithApprovalHandler(h func(toolCallID, toolName string, args map[string]any) bool) *Builder {
 	b.approvalHandler = h
@@ -202,6 +209,7 @@ type BuilderConfig struct {
 	CompactionEnabled bool
 	CompactionReserve int
 	MultiAgent        bool
+	DelegateMode      bool
 	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool
 }
 
@@ -225,6 +233,7 @@ func (b *Builder) Config() BuilderConfig {
 		CompactionEnabled: b.compactionEnabled,
 		CompactionReserve: b.compactionReserve,
 		MultiAgent:        b.multiAgent,
+		DelegateMode:      b.delegateMode,
 		ApprovalHandler:   b.approvalHandler,
 	}
 }

@@ -33,6 +33,7 @@ func TestRunPrintFailsWhenApprovalWouldBeRequired(t *testing.T) {
 		(*session.Manager)(nil),
 		"",
 		false,
+		false,
 		nil,
 	)
 	if err == nil {

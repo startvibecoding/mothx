@@ -157,9 +157,14 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		currentModel.TopP = req.TopP
 	}
 
-	// Register sub-agent tools before agent construction; the agent freezes tools at New().
+	// Register sub-agent/delegate tools before agent construction; the agent freezes tools at New().
 	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
 		agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
+	}
+	if sess.DelegateMode && sess.AgentMgr != nil {
+		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
+	} else {
+		sess.Registry.Remove("delegate_subagent")
 	}
 
 	agentCfg := agent.Config{
@@ -174,6 +179,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,
 		MultiAgent:         s.cfg.EnableSubAgents,
+		DelegateMode:       sess.DelegateMode,
 	}
 
 	a := agent.New(agentCfg, sess.Registry)
@@ -197,7 +203,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	timeout := time.Duration(s.cfg.RequestTimeoutSecs) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
+	if (s.cfg.EnableSubAgents || sess.DelegateMode) && sess.AgentMgr != nil {
 		sess.AgentMgr.Register(agent.NewAgentAdapter(a))
 		defer func() {
 			sess.AgentMgr.Finish(a.ID(), ctx.Err())
@@ -462,22 +468,26 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 	}
 
 	sess := &GatewaySession{
-		ID:       id,
-		WorkDir:  workDir,
-		Manager:  mgr,
-		Registry: registry,
-		Mode:     "",
-		LastUsed: time.Now(),
+		ID:           id,
+		WorkDir:      workDir,
+		Manager:      mgr,
+		Registry:     registry,
+		Mode:         "",
+		DelegateMode: s.cfg.EnableDelegate,
+		LastUsed:     time.Now(),
 	}
 
 	// Create sub-agent manager if enabled
-	if s.cfg.EnableSubAgents {
+	if s.cfg.EnableSubAgents || s.cfg.EnableDelegate {
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          s.settings.Compaction.Enabled,
 			ReserveTokens:    s.settings.Compaction.ReserveTokens,
 			KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
 		}
-		factory := agent.NewAgentFactory(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil)
+		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+			MultiAgentEnabled: true,
+			DelegateEnabled:   s.cfg.EnableDelegate,
+		})
 		sess.AgentMgr = agent.NewAgentManager(factory)
 	}
 

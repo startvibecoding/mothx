@@ -9,7 +9,7 @@ import (
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
-func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string, toolSnippets map[string]string, toolGuidelines []string, multiAgent bool) string {
+func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string, toolSnippets map[string]string, toolGuidelines []string, multiAgent bool, delegateMode bool) string {
 	var sb strings.Builder
 
 	// Get platform-specific shell
@@ -153,6 +153,26 @@ Act as the orchestrator:
 - Do not assume sub-agent output is correct; treat it as evidence to review
 
 Sub-agents run independently with isolated context and tools. They cannot create nested sub-agents.
+`)
+	}
+
+	if delegateMode {
+		sb.WriteString(`
+## Delegation Mode
+You may delegate one bounded independent subtask at a time using delegate_subagent.
+
+Use delegation when:
+- The task can be isolated from the main conversation
+- The subtask needs codebase inspection, focused research, or verification
+- The result can be summarized back to the main agent
+
+Do not delegate:
+- Tiny tasks where direct execution is cheaper
+- Tasks requiring continuous back-and-forth with the user
+- Highly stateful tasks that require the full main conversation
+
+The delegate_subagent tool blocks until completion and returns only a summarized result.
+Only one delegated sub-agent can run at a time. Review the returned result before making final decisions.
 `)
 	}
 

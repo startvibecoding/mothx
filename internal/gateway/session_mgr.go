@@ -11,21 +11,23 @@ import (
 
 // GatewaySession holds state for a single gateway session.
 type GatewaySession struct {
-	ID       string
-	WorkDir  string
-	Manager  *session.Manager
-	Registry *tools.Registry
-	AgentMgr *agent.AgentManager // nil unless sub-agents enabled
-	Mode     string             // session-level mode override
-	LastUsed time.Time
-	mu       sync.Mutex // serializes requests within this session
+	ID           string
+	WorkDir      string
+	Manager      *session.Manager
+	Registry     *tools.Registry
+	AgentMgr     *agent.AgentManager // nil unless sub-agents/delegate enabled
+	Mode         string              // session-level mode override
+	DelegateMode bool                // session-level delegation mode
+	LastUsed     time.Time
+	mu           sync.Mutex // serializes requests within this session
 
 	// ForceCompact is set by /compact command and consumed by the next agent run.
 	ForceCompact bool
 }
 
 // Lock acquires the session lock (one request at a time per session).
-func (s *GatewaySession) Lock()   { s.mu.Lock() }
+func (s *GatewaySession) Lock() { s.mu.Lock() }
+
 // Unlock releases the session lock.
 func (s *GatewaySession) Unlock() { s.mu.Unlock() }
 

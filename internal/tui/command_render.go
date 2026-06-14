@@ -49,6 +49,7 @@ func commandHelpText() string {
 		"  /init_mcp [target] [template] [--force]",
 		"                         - Init mcp.json (target: project|global, template: basic|full)",
 		"  /mcps                   - List MCP servers (global/project mcp.json)",
+		"  /delegate [on|off|status] - Toggle delegation mode",
 		"  /agent list              - List all agents (multi-agent mode)",
 		"  /agent switch <id>       - Switch active agent",
 		"  /agent destroy <id>      - Destroy a sub-agent",

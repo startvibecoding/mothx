@@ -104,6 +104,7 @@ func (a *App) cycleMode() {
 			ExtraContext:       a.extraContext,
 			CompactionSettings: compactionSettings,
 			MultiAgent:         a.multiAgent,
+			DelegateMode:       a.delegateMode,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
 		a.agent.LoadHistoryState(oldMessages, oldMessageIDs)
@@ -220,9 +221,10 @@ func (a *App) processInput(input string) tea.Cmd {
 			ExtraContext:       a.extraContext,
 			CompactionSettings: compactionSettings,
 			MultiAgent:         a.multiAgent,
+			DelegateMode:       a.delegateMode,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
-		if a.multiAgent && a.agentMgr != nil {
+		if (a.multiAgent || a.delegateMode) && a.agentMgr != nil {
 			a.agentMgr.Register(agent.NewAgentAdapter(a.agent))
 			a.activeAgent = agentpkg.AgentID(a.agent.ID())
 		}

@@ -87,6 +87,37 @@ func waitForManagedAgentToStop(t testing.TB, mgr *AgentManager, id agentpkg.Agen
 	t.Fatalf("timed out waiting for agent %s to stop", id)
 }
 
+func TestDelegateSubAgentTool(t *testing.T) {
+	_, mgr := newTestFactoryAndManager(t)
+	mgr.Create(AgentOptions{ID: "main"})
+	tool := NewDelegateSubAgentTool(mgr)
+	ctx := ContextWithAgentID(context.Background(), "main")
+
+	result, err := tool.Execute(ctx, map[string]any{"task": "summarize"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result.Text), &parsed); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+	if parsed["status"] != "done" {
+		t.Fatalf("expected done status, got %q", parsed["status"])
+	}
+	if children := mgr.Children("main"); len(children) != 0 {
+		t.Fatalf("expected delegated child cleanup, got %v", children)
+	}
+}
+
+func TestDelegateSubAgentToolMissingTask(t *testing.T) {
+	_, mgr := newTestFactoryAndManager(t)
+	tool := NewDelegateSubAgentTool(mgr)
+	_, err := tool.Execute(context.Background(), map[string]any{})
+	if err == nil {
+		t.Fatal("expected error for missing task")
+	}
+}
+
 func TestSubAgentSpawnToolMissingTask(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSpawnTool(mgr)

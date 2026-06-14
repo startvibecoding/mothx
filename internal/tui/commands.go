@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
+	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -91,6 +92,41 @@ func (a *App) switchAgent(id agentpkg.AgentID) {
 
 	a.activeAgent = id
 	a.addCommandStatus(fmt.Sprintf("Switched to agent: %s", id))
+}
+
+func (a *App) handleDelegateCommand(parts []string) {
+	if len(parts) < 2 || parts[1] == "status" {
+		state := "OFF"
+		if a.delegateMode {
+			state = "ON"
+		}
+		a.addCommandStatus(fmt.Sprintf("Delegation mode: %s", state))
+		return
+	}
+	if a.isThinking {
+		a.addCommandError("Cannot change delegation mode while the agent is running.")
+		return
+	}
+	switch parts[1] {
+	case "on":
+		if a.agentMgr == nil {
+			a.addCommandError("AgentManager not initialized")
+			return
+		}
+		agent.RegisterDelegateSubAgentTool(a.registry, a.agentMgr)
+		a.delegateMode = true
+		a.agent = nil
+		a.agentHistoryLoaded = false
+		a.addCommandStatus("Delegation mode: ON")
+	case "off":
+		a.registry.Remove("delegate_subagent")
+		a.delegateMode = false
+		a.agent = nil
+		a.agentHistoryLoaded = false
+		a.addCommandStatus("Delegation mode: OFF")
+	default:
+		a.addCommandError("Usage: /delegate [on|off|status]")
+	}
 }
 
 func (a *App) destroyAgent(id agentpkg.AgentID) {
@@ -366,6 +402,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleMCPsCommand()
 	case "/agent":
 		a.handleAgentCommand(parts)
+	case "/delegate":
+		a.handleDelegateCommand(parts)
 	case "/cron":
 		a.handleCronCommand(parts)
 	case "/help":

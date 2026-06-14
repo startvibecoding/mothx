@@ -13,22 +13,23 @@ import (
 // GatewayConfig holds all gateway-specific configuration.
 type GatewayConfig struct {
 	Listen               string               `json:"listen,omitempty"`
-	Auth                 AuthConfig            `json:"auth"`
-	DefaultMode          string                `json:"defaultMode,omitempty"`
-	DefaultThinkingLevel string                `json:"defaultThinkingLevel,omitempty"`
-	EnableSubAgents      bool                  `json:"enableSubAgents,omitempty"`
-	Sandbox              GatewaySandboxConfig  `json:"sandbox"`
-	AllowedWorkDirs      *[]string             `json:"allowedWorkDirs,omitempty"` // nil=no check, []=deny all overrides
-	Session              SessionConfig         `json:"session"`
-	WorkingDir           string                `json:"workingDir,omitempty"`
-	CORS                 CORSConfig            `json:"cors"`
-	Provider             string                `json:"provider,omitempty"`
-	Model                string                `json:"model,omitempty"`
-	ToolVisibility       ToolVisibilityConfig  `json:"toolVisibility"`
-	SystemPromptMode     string                `json:"systemPromptMode,omitempty"` // "append" (default), "ignore"
-	RequestTimeoutSecs   int                   `json:"requestTimeoutSeconds,omitempty"`
-	MaxConcurrentReqs    int                   `json:"maxConcurrentRequests,omitempty"`
-	LogLevel             string                `json:"logLevel,omitempty"`
+	Auth                 AuthConfig           `json:"auth"`
+	DefaultMode          string               `json:"defaultMode,omitempty"`
+	DefaultThinkingLevel string               `json:"defaultThinkingLevel,omitempty"`
+	EnableSubAgents      bool                 `json:"enableSubAgents,omitempty"`
+	EnableDelegate       bool                 `json:"enableDelegate,omitempty"`
+	Sandbox              GatewaySandboxConfig `json:"sandbox"`
+	AllowedWorkDirs      *[]string            `json:"allowedWorkDirs,omitempty"` // nil=no check, []=deny all overrides
+	Session              SessionConfig        `json:"session"`
+	WorkingDir           string               `json:"workingDir,omitempty"`
+	CORS                 CORSConfig           `json:"cors"`
+	Provider             string               `json:"provider,omitempty"`
+	Model                string               `json:"model,omitempty"`
+	ToolVisibility       ToolVisibilityConfig `json:"toolVisibility"`
+	SystemPromptMode     string               `json:"systemPromptMode,omitempty"` // "append" (default), "ignore"
+	RequestTimeoutSecs   int                  `json:"requestTimeoutSeconds,omitempty"`
+	MaxConcurrentReqs    int                  `json:"maxConcurrentRequests,omitempty"`
+	LogLevel             string               `json:"logLevel,omitempty"`
 }
 
 // AuthConfig controls bearer token authentication.
@@ -78,6 +79,7 @@ func DefaultGatewayConfig() *GatewayConfig {
 		DefaultMode:          "yolo",
 		DefaultThinkingLevel: "medium",
 		EnableSubAgents:      false,
+		EnableDelegate:       false,
 		Sandbox:              GatewaySandboxConfig{Enabled: false},
 		Session:              SessionConfig{IdleTimeoutSeconds: 1800},
 		CORS:                 CORSConfig{Enabled: false, AllowOrigins: []string{"*"}},

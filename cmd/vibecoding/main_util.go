@@ -54,7 +54,7 @@ func createProvider(settings *config.Settings, providerName, modelID string) (pr
 	return providerfactory.Create(settings, providerName, modelID)
 }
 
-func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager, extraContext string, multiAgent bool, agentMgr *agent.AgentManager) error {
+func runPrint(args []string, p provider.Provider, model *provider.Model, mode string, thinkingLevel provider.ThinkingLevel, settings *config.Settings, registry *tools.Registry, sess *session.Manager, extraContext string, multiAgent bool, delegateMode bool, agentMgr *agent.AgentManager) error {
 	input := strings.Join(args, " ")
 	if input == "" {
 		data, err := io.ReadAll(os.Stdin)
@@ -103,10 +103,11 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,
 		MultiAgent:         multiAgent,
+		DelegateMode:       delegateMode,
 	}
 
 	a := agent.New(agentCfg, registry)
-	if multiAgent && agentMgr != nil {
+	if (multiAgent || delegateMode) && agentMgr != nil {
 		agentMgr.Register(agent.NewAgentAdapter(a))
 	}
 

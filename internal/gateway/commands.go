@@ -3,6 +3,9 @@ package gateway
 import (
 	"fmt"
 	"strings"
+
+	"github.com/startvibecoding/vibecoding/internal/agent"
+	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 )
 
 // CommandResult holds the output of a slash command.
@@ -40,6 +43,8 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 		return s.cmdStatus(sess)
 	case "/compact":
 		return s.cmdCompact(sess)
+	case "/delegate":
+		return s.cmdDelegate(sess, parts)
 	case "/skill":
 		return s.cmdSkill(parts)
 	case "/skills":
@@ -171,6 +176,43 @@ func (s *Server) cmdStatus(sess *GatewaySession) *CommandResult {
 	return &CommandResult{Message: msg}
 }
 
+func (s *Server) cmdDelegate(sess *GatewaySession, parts []string) *CommandResult {
+	if sess == nil {
+		return &CommandResult{Message: "No active session.", Error: true}
+	}
+	if len(parts) < 2 || parts[1] == "status" {
+		state := "OFF"
+		if sess.DelegateMode {
+			state = "ON"
+		}
+		return &CommandResult{Message: fmt.Sprintf("Delegation mode: %s", state)}
+	}
+	switch parts[1] {
+	case "on":
+		if sess.AgentMgr == nil {
+			compactionSettings := ctxpkg.CompactionSettings{
+				Enabled:          s.settings.Compaction.Enabled,
+				ReserveTokens:    s.settings.Compaction.ReserveTokens,
+				KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+			}
+			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+				MultiAgentEnabled: true,
+				DelegateEnabled:   true,
+			})
+			sess.AgentMgr = agent.NewAgentManager(factory)
+		}
+		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
+		sess.DelegateMode = true
+		return &CommandResult{Message: "Delegation mode: ON"}
+	case "off":
+		sess.Registry.Remove("delegate_subagent")
+		sess.DelegateMode = false
+		return &CommandResult{Message: "Delegation mode: OFF"}
+	default:
+		return &CommandResult{Message: "Usage: /delegate [on|off|status]", Error: true}
+	}
+}
+
 func (s *Server) cmdCompact(sess *GatewaySession) *CommandResult {
 	if sess == nil {
 		return &CommandResult{Message: "No active session.", Error: true}
@@ -226,6 +268,7 @@ func (s *Server) cmdHelp() *CommandResult {
   /sessions               - List active sessions
   /sessions del <id>      - Delete a session
   /compact                - Trigger context compaction
+  /delegate [on|off|status] - Toggle delegation mode
   /status                 - Show session status
   /skill <name>           - Activate a skill
   /skills                 - List available skills
