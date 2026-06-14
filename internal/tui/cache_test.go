@@ -181,7 +181,7 @@ func TestLiveAssistantMessageRendersCodeBlocks(t *testing.T) {
 		t.Fatalf("live content missing trailing text 'Done': %q", plain)
 	}
 	if strings.Contains(plain, "```") {
-		t.Fatalf("live content must not contain raw backtick fences (glamour should strip them): %q", plain)
+		t.Fatalf("live content must not contain raw backtick fences: %q", plain)
 	}
 }
 
@@ -224,14 +224,18 @@ func TestAssistantCommonMarkdownUsesRenderer(t *testing.T) {
 
 	app.updateViewportContent()
 	if len(app.assistantRendered) == 0 {
-		t.Fatal("assistantRendered is empty, want common markdown rendered through Glamour")
+		t.Fatal("assistantRendered is empty, want common markdown rendered through gsm")
 	}
 	plain := stripANSI(app.liveContent)
-	if !strings.Contains(plain, "Summary") || !strings.Contains(plain, "first item") {
-		t.Fatalf("rendered markdown missing expected content: %q", plain)
+	for _, want := range []string{"Assistant:", "Summary", "first item", "second item"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("rendered markdown missing %q: %q", want, plain)
+		}
 	}
-	if strings.Contains(plain, "# Summary") {
-		t.Fatalf("markdown heading marker should not render as plain text: %q", plain)
+	for _, line := range strings.Split(app.liveContent, "\n") {
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("rendered line width = %d, want <= %d: %q", width, app.width, line)
+		}
 	}
 }
 
@@ -363,7 +367,7 @@ func TestAssistantRendersAGENTSMarkdownFixture(t *testing.T) {
 	rendered := app.renderAssistantMessage(0)
 	plain := stripANSI(rendered)
 	if len(app.assistantRendered) == 0 {
-		t.Fatal("assistantRendered is empty, want AGENTS.md rendered through Glamour")
+		t.Fatal("assistantRendered is empty, want AGENTS.md rendered through gsm")
 	}
 	if renderedLen := len(app.assistantRendered[0]); renderedLen > len(content)*20 {
 		t.Fatalf("rendered AGENTS.md intermediate is too large: got %d bytes from %d input bytes", renderedLen, len(content))
