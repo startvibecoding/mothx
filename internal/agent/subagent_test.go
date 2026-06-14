@@ -297,8 +297,8 @@ func TestSubAgentPolicyDefault(t *testing.T) {
 	if p.MaxChildren != 5 {
 		t.Errorf("expected MaxChildren=5, got %d", p.MaxChildren)
 	}
-	if len(p.AllowedModes) != 1 || p.AllowedModes[0] != "agent" {
-		t.Errorf("expected AllowedModes=[agent], got %v", p.AllowedModes)
+	if len(p.AllowedModes) != 3 || p.AllowedModes[0] != "plan" || p.AllowedModes[1] != "agent" || p.AllowedModes[2] != "yolo" {
+		t.Errorf("expected AllowedModes=[plan agent yolo], got %v", p.AllowedModes)
 	}
 }
 
@@ -327,7 +327,7 @@ func TestSubAgentPolicyValidateMaxChildren(t *testing.T) {
 
 func TestSubAgentPolicyValidateDisallowedMode(t *testing.T) {
 	p := DefaultSubAgentPolicy()
-	err := p.Validate("parent", "yolo", 0)
+	err := p.Validate("parent", "admin", 0)
 	if err == nil {
 		t.Fatal("expected error for disallowed mode")
 	}
@@ -498,11 +498,18 @@ func TestAgentManagerEnforcesSubAgentPolicy(t *testing.T) {
 		t.Fatal("expected max-children error")
 	}
 
+	// yolo mode is now allowed by default (inherited from parent)
 	_, mgr = newTestFactoryAndManager(t)
 	parent, _ = mgr.Create(AgentOptions{ID: "main"})
-	_, err = mgr.Create(AgentOptions{ID: "sub-yolo", ParentID: parent.ID(), Mode: "yolo"})
+	a, err := mgr.Create(AgentOptions{ID: "sub-yolo", ParentID: parent.ID(), Mode: "yolo"})
+	if err != nil {
+		t.Fatalf("expected yolo mode to be allowed, got error: %v", err)
+	}
+	_ = a
+	// Test a truly disallowed mode
+	_, err = mgr.Create(AgentOptions{ID: "sub-admin", ParentID: parent.ID(), Mode: "admin"})
 	if err == nil {
-		t.Fatal("expected disallowed mode error")
+		t.Fatal("expected disallowed mode error for admin")
 	}
 }
 

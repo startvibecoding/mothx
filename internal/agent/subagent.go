@@ -83,7 +83,12 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 
 	mode, _ := params["mode"].(string)
 	if mode == "" {
-		mode = "agent"
+		// Inherit parent agent's mode (yolo/agent/plan) instead of hardcoding "agent"
+		if parentMode, ok := ParentModeFromContext(ctx); ok && parentMode != "" {
+			mode = parentMode
+		} else {
+			mode = "agent"
+		}
 	}
 	workDir, _ := params["work_dir"].(string)
 	maxIter := 50
@@ -224,7 +229,12 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 
 	mode, _ := params["mode"].(string)
 	if mode == "" {
-		mode = "agent"
+		// Inherit parent agent's mode (yolo/agent/plan) instead of hardcoding "agent"
+		if parentMode, ok := ParentModeFromContext(ctx); ok && parentMode != "" {
+			mode = parentMode
+		} else {
+			mode = "agent"
+		}
 	}
 
 	workDir, _ := params["work_dir"].(string)
@@ -574,7 +584,7 @@ type SubAgentPolicy struct {
 func DefaultSubAgentPolicy() SubAgentPolicy {
 	return SubAgentPolicy{
 		MaxChildren:     5,
-		AllowedModes:    []string{"agent"},
+		AllowedModes:    []string{"plan", "agent", "yolo"},
 		InheritSandbox:  true,
 		TimeoutPerAgent: 10 * time.Minute,
 		TotalTimeout:    30 * time.Minute,

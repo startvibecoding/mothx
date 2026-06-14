@@ -28,6 +28,8 @@ const (
 	agentEventChanKey
 	// parentRunContextKey carries the parent agent run context through tool timeouts.
 	parentRunContextKey
+	// parentModeKey carries the parent agent's execution mode (plan/agent/yolo) for sub-agent inheritance.
+	parentModeKey
 )
 
 // ContextWithAgentID returns a new context with the agent ID attached.
@@ -61,6 +63,17 @@ func ContextWithParentRunContext(ctx context.Context, parent context.Context) co
 func ParentRunContextFromContext(ctx context.Context) (context.Context, bool) {
 	parent, ok := ctx.Value(parentRunContextKey).(context.Context)
 	return parent, ok
+}
+
+// ContextWithParentMode attaches the parent agent's execution mode to the context.
+func ContextWithParentMode(ctx context.Context, mode string) context.Context {
+	return context.WithValue(ctx, parentModeKey, mode)
+}
+
+// ParentModeFromContext extracts the parent agent's execution mode.
+func ParentModeFromContext(ctx context.Context) (string, bool) {
+	mode, ok := ctx.Value(parentModeKey).(string)
+	return mode, ok
 }
 
 // Config holds the agent configuration.
@@ -1207,10 +1220,11 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	// Inject agent ID and event channel into context for sub-agent tools
+	// Inject agent ID, event channel, and mode into context for sub-agent tools
 	toolCtx = ContextWithAgentID(toolCtx, a.id)
 	toolCtx = ContextWithEventChan(toolCtx, ch)
 	toolCtx = ContextWithParentRunContext(toolCtx, ctx)
+	toolCtx = ContextWithParentMode(toolCtx, a.config.Mode)
 	toolCtx = tools.ContextWithQuestionAsker(toolCtx, a)
 
 	result, err := tool.Execute(toolCtx, params)
