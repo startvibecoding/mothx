@@ -1024,6 +1024,19 @@ func TestHandleAgentEventStatusAndWarningMessage(t *testing.T) {
 	}
 }
 
+func TestAgentErrorIncludesAbortReason(t *testing.T) {
+	app := &App{pendingAbortReason: "user pressed Esc"}
+	app.handleAgentEvent(agent.Event{Type: agent.EventError, Error: assertErr("aborted"), StopReason: "aborted"})
+
+	joined := stripANSI(strings.Join(app.messages, "\n"))
+	if !strings.Contains(joined, "Error: aborted (reason: user pressed Esc)") {
+		t.Fatalf("messages = %q, want aborted reason", joined)
+	}
+	if app.pendingAbortReason != "" {
+		t.Fatalf("pendingAbortReason = %q, want cleared", app.pendingAbortReason)
+	}
+}
+
 func TestListenEventsPassesThroughDoneAndError(t *testing.T) {
 	eventCh := make(chan agent.Event, 2)
 	eventCh <- agent.Event{Type: agent.EventDone}

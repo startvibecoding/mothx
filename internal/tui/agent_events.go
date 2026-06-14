@@ -205,8 +205,9 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.isThinking = false
 		a.finishRequestTimer()
 		if event.Error != nil {
-			a.addMessage(errorStyle.Render("Error: ") + event.Error.Error())
+			a.addMessage(errorStyle.Render("Error: ") + a.formatAgentError(event))
 		}
+		a.pendingAbortReason = ""
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
 		a.updateViewportContent()
@@ -275,4 +276,15 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	default:
 		return a.listenAgentEvents()
 	}
+}
+
+func (a *App) formatAgentError(event agent.Event) string {
+	if event.Error == nil {
+		return ""
+	}
+	msg := event.Error.Error()
+	if event.StopReason == "aborted" && a.pendingAbortReason != "" && !strings.Contains(msg, a.pendingAbortReason) {
+		msg += " (reason: " + a.pendingAbortReason + ")"
+	}
+	return msg
 }

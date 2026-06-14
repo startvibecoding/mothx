@@ -109,6 +109,7 @@ type App struct {
 	toolResults            []toolResult // Store tool results for expansion
 	isThinking             bool
 	manualCompactionActive bool
+	pendingAbortReason     string
 	agent                  *agent.Agent
 	eventCh                <-chan agent.Event
 	width                  int
@@ -457,6 +458,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, tea.Quit
 		case tea.KeyEsc:
 			if a.isThinking || a.waitingForApproval || a.waitingForQuestion {
+				a.pendingAbortReason = "user pressed Esc"
 				if a.agent != nil {
 					a.agent.Abort()
 					a.agent = nil // Reset agent so next request creates a fresh one with new abort channel
@@ -603,6 +605,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.eventCh = msg.eventCh
 		a.isThinking = true
 		a.manualCompactionActive = msg.compacting
+		a.pendingAbortReason = ""
 		a.spinnerIndex = 0
 		a.requestStart = time.Now()
 		a.lastDuration = 0

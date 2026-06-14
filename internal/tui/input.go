@@ -70,6 +70,7 @@ func (a *App) cycleMode() {
 	}
 
 	if a.isThinking && a.agent != nil {
+		a.pendingAbortReason = "mode change"
 		a.agent.Abort()
 		a.agent = nil
 		a.agentHistoryLoaded = false

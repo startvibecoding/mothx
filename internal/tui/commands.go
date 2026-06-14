@@ -267,6 +267,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				a.mode = parts[1]
 				// If agent is currently running, abort it so the new mode takes effect immediately
 				if a.isThinking && a.agent != nil {
+					a.pendingAbortReason = "mode change"
 					a.agent.Abort()
 					a.agent = nil
 					a.agentHistoryLoaded = false
