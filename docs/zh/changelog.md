@@ -1,6 +1,53 @@
 # 更新日志
 
 
+## v0.1.39
+
+### ✨ 新功能
+
+- **子 Agent 继承 Skills 与 Plan 工具设置**
+  - `AgentFactory` 新增 `skillsMgr` 参数，子 Agent 现在自动继承父会话的 `skill_ref` 工具。
+  - `RegistryConfig` 新增 `EnablePlanTool` 字段，`settings.json` 中的 `enablePlanTool` 设置现在会正确传播到子 Agent 注册表，确保父子 Agent 之间工具可用性一致。
+
+- **会话压缩重放状态持久化**
+  - 会话现在会持久化压缩重放状态（`ReplayState`），压缩后的会话可以在重启后正确恢复。
+  - `LoadHistoryState` / `GetHistoryState` 跟踪每条消息的 Session Entry ID，使压缩边界（`firstKeptEntryID`）在会话重载后不会丢失。
+  - Gateway 和 Hermes 现在使用 `LoadHistoryState` 替代 `LoadHistoryMessages`，确保压缩后的会话重放准确。
+  - TUI 在手动压缩期间阻塞用户输入，将 `agentStartMsg`/`compactionStartMsg` 合并为统一的 `agentStreamStartMsg`。
+
+
+- **TUI 视口重写与 CJK 支持**
+  - 使用 `bubbles/viewport` 和 `charmbracelet/x/ansi` 替换自定义 ANSI 解析和换行逻辑，修复快速流式输出时 CJK/ASCII 混合文本的字符交错问题。
+  - Think 消息与 Assistant 消息现在使用独立的渲染路径。
+  - 长路径和 URL 现在能正确按词换行，不会在 token 中间截断。
+  - Markdown 渲染不再溢出视口宽度。
+  - 新增 `renderutil` 工具包，包含混合 CJK/ASCII 换行、ANSI 序列完整性和完整文件渲染的全面测试覆盖。
+
+- **Grep 工具输出限制**
+  - `grep` 工具在流式输出时现在会限制输出大小，防止大型结果集消耗过多上下文。
+
+### 🐛 Bug 修复
+
+- **Google 工具结果分组**
+  - 修复 Google/Gemini Provider 的工具结果分组逻辑，正确配对工具调用与其结果。
+
+- **TUI Compact 命令**
+  - `/compact` 命令现在立即触发压缩，不再等待下一个 Agent 轮次。
+
+- **Agent 退出路径一致性**
+  - 抽取 `agentEndEvent()` 辅助函数，消除 8 个退出路径中的重复事件发射代码。
+  - 修复 Session 保存错误路径上缺失的 `EventAgentEnd` 事件。
+  - 在 `ShouldStopAfterTurn` 路径中补充缺失的 `usage`/`contextUsage` 元数据。
+
+### 🧪 测试
+
+- 新增 `TestAgentFactorySubAgentsRespectPlanToolSetting` 测试，验证 `enablePlanTool` 设置正确传播到子 Agent 注册表。
+- 新增 `TestAgentFactorySubAgentsRegisterSkillRef` 测试，验证配置了 Skills Manager 时子 Agent 继承 `skill_ref` 工具。
+- 新增 `agentEndEvent` 一致性和 `ShouldStopAfterTurn` 元数据的测试。
+- 新增 TUI 固定高度渲染、CJK 换行和 ANSI 完整性的全面测试。
+
+---
+
 ## v0.1.38
 
 ### ✨ 新功能

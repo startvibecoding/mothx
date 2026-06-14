@@ -1,6 +1,52 @@
 # Changelog
 
 
+## v0.1.39
+
+### ✨ Features
+
+- **Sub-Agent Skills & Plan Tool Inheritance**
+  - `AgentFactory` now accepts a `skillsMgr` parameter so sub-agents automatically inherit the `skill_ref` tool from the parent session.
+  - Added `EnablePlanTool` to `RegistryConfig`; the `enablePlanTool` setting from `settings.json` is now propagated to sub-agent registries, ensuring consistent tool availability across parent and child agents.
+
+- **Session Compaction Replay State Persistence**
+  - Sessions now persist compaction replay state (`ReplayState`) so that compacted sessions can be correctly resumed across restarts.
+  - `LoadHistoryState` / `GetHistoryState` track per-message session entry IDs, enabling the compaction boundary (`firstKeptEntryID`) to survive session reload.
+  - Gateway and Hermes use `LoadHistoryState` instead of `LoadHistoryMessages` for accurate post-compaction replay.
+  - TUI blocks user input during manual compaction and merges `agentStartMsg`/`compactionStartMsg` into a unified `agentStreamStartMsg`.
+
+- **TUI Viewport Rewrite & CJK Support**
+  - Replaced custom ANSI parsing and line-wrapping with `bubbles/viewport` and `charmbracelet/x/ansi`, fixing character interleaving issues with mixed CJK/ASCII text during fast streaming.
+  - Think messages now render on a separate path from assistant messages.
+  - Long paths and URLs are now word-wrapped correctly without mid-token breaks.
+  - Markdown rendering no longer overflows the viewport width.
+  - Added `renderutil` package with comprehensive test coverage for mixed CJK/ASCII wrapping, ANSI sequence integrity, and full-file rendering.
+
+- **Grep Tool Output Limiting**
+  - The `grep` tool now limits output size during streaming to prevent excessive context consumption from large result sets.
+
+### 🐛 Bug Fixes
+
+- **Google Tool Result Grouping**
+  - Fixed tool result grouping logic for Google/Gemini providers to correctly pair tool calls with their results.
+
+- **TUI Compact Command**
+  - The `/compact` command now triggers compaction immediately instead of waiting for the next agent turn.
+
+- **Agent Exit Path Consistency**
+  - Extracted `agentEndEvent()` helper to eliminate duplicate event emission code across 8 exit paths.
+  - Fixed missing `EventAgentEnd` on session-save error paths.
+  - Added missing `usage`/`contextUsage` metadata to `EventDone` in the `ShouldStopAfterTurn` path.
+
+### 🧪 Tests
+
+- Added `TestAgentFactorySubAgentsRespectPlanToolSetting` to verify the `enablePlanTool` setting propagates to sub-agent registries.
+- Added `TestAgentFactorySubAgentsRegisterSkillRef` to verify sub-agents inherit the `skill_ref` tool when a skills manager is configured.
+- Added tests for `agentEndEvent` consistency and `ShouldStopAfterTurn` metadata.
+- Added comprehensive TUI tests for fixed-height rendering, CJK wrapping, and ANSI integrity.
+
+---
+
 ## v0.1.38
 
 ### ✨ Features

@@ -162,6 +162,16 @@ Automatically compresses when context approaches limits:
 4. Compress old messages into summary
 5. Mark compression point in session
 
+### Replay State Persistence
+
+After compaction, the session persists a **replay state** that records per-message entry IDs and the compaction boundary (`firstKeptEntryID`). When a session is reloaded (e.g. after a restart), the replay state ensures that:
+
+- Messages are trimmed to the correct compaction boundary
+- The summary message is correctly prepended
+- Subsequent messages maintain their original session entry IDs
+
+This is handled automatically — no user configuration is needed.
+
 ### Manual Compression
 
 ```bash
