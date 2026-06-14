@@ -65,7 +65,6 @@ func commandHelpText() string {
 		"  Tab       - Cycle mode (plan/agent/yolo)",
 		"  Esc       - Abort current operation",
 		"  Ctrl+O    - Open latest tool details",
-		"  PgUp/PgDn - Page tool details when open",
-		"  Mouse wheel - Scroll transcript",
+		"  PgUp/PgDn - Scroll transcript or page tool details",
 	}, "\n")
 }
