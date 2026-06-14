@@ -150,7 +150,10 @@ func TestAgentManagerDestroyChild(t *testing.T) {
 
 func TestAgentManagerFinishCancelsChildrenAndRetainsStatus(t *testing.T) {
 	m := newTestManager()
-	m.Create(AgentOptions{ID: "main"})
+	parent, err := m.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
 	m.Create(AgentOptions{ID: "sub-1", ParentID: "main"})
 	m.MarkRunning("sub-1")
 
@@ -178,6 +181,14 @@ func TestAgentManagerFinishCancelsChildrenAndRetainsStatus(t *testing.T) {
 	}
 	if st.Error != "network error" {
 		t.Fatalf("expected child error to preserve cause, got %q", st.Error)
+	}
+
+	if adapter, ok := parent.(*AgentAdapter); ok {
+		select {
+		case <-adapter.inner.abort:
+			t.Fatal("Finish aborted the completed parent agent")
+		default:
+		}
 	}
 }
 

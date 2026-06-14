@@ -375,10 +375,7 @@ func (s *server) newToolRegistry() *tools.Registry {
 	}
 	// Register subagent tools when multi-agent mode is enabled
 	if s.agentMgr != nil {
-		registry.Register(agent.NewSubAgentSpawnTool(s.agentMgr))
-		registry.Register(agent.NewSubAgentStatusTool(s.agentMgr))
-		registry.Register(agent.NewSubAgentSendTool(s.agentMgr))
-		registry.Register(agent.NewSubAgentDestroyTool(s.agentMgr))
+		agent.RegisterSubAgentTools(registry, s.agentMgr)
 	}
 	return registry
 }

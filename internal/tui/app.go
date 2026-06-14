@@ -175,6 +175,7 @@ type App struct {
 	// Approval state
 	waitingForApproval bool
 	pendingApprovalID  string
+	currentApproval    pendingApproval
 	approvalQueue      []pendingApproval
 
 	// Question state
@@ -210,6 +211,7 @@ type App struct {
 
 // pendingApproval holds a queued approval request.
 type pendingApproval struct {
+	agentID    agentpkg.AgentID
 	approvalID string
 	toolName   string
 	args       map[string]any
@@ -486,14 +488,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Check if waiting for approval
 			if a.waitingForApproval {
-				if a.agent != nil {
-					approved := strings.ToLower(input) == "y" || strings.ToLower(input) == "yes"
-					a.agent.HandleApprovalResponse(a.pendingApprovalID, approved)
-					if approved {
-						a.addMessage(statusStyle.Render("✅ Approved"))
-					} else {
-						a.addMessage(statusStyle.Render("❌ Denied"))
-					}
+				approved := strings.ToLower(input) == "y" || strings.ToLower(input) == "yes"
+				a.handleApprovalResponse(a.pendingApprovalID, approved)
+				if approved {
+					a.addMessage(statusStyle.Render("✅ Approved"))
+				} else {
+					a.addMessage(statusStyle.Render("❌ Denied"))
 				}
 				// Show next queued approval or clear waiting state
 				if len(a.approvalQueue) > 0 {
@@ -501,6 +501,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					a.waitingForApproval = false
 					a.pendingApprovalID = ""
+					a.currentApproval = pendingApproval{}
 				}
 				a.input.Reset()
 				a.resetInputHistoryNavigation()
@@ -584,7 +585,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.addMessage(statusStyle.Render("No conversation details yet."))
 			return a, nil
 		case tea.KeyCtrlP:
-			a.toggleMultiAgent()
+			a.addCommandStatus("Multi-agent mode is configured at startup. Run with --multi-agent to enable sub-agent tools.")
 			return a, nil
 		}
 

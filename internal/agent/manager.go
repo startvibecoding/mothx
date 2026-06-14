@@ -183,6 +183,8 @@ func (m *AgentManager) Destroy(id agentpkg.AgentID) error {
 
 // Finish unregisters a completed top-level agent and cancels any remaining children.
 // Child statuses are retained so callers can inspect why a delegated task stopped.
+// Finish must not abort the completed agent itself: interactive frontends may keep
+// the same agent instance for the next turn, and Abort is a one-way signal.
 func (m *AgentManager) Finish(id agentpkg.AgentID, cause error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -193,9 +195,6 @@ func (m *AgentManager) Finish(id agentpkg.AgentID, cause error) {
 	if cancel, ok := m.cancels[id]; ok {
 		cancel()
 		delete(m.cancels, id)
-	}
-	if a, ok := m.agents[id]; ok {
-		a.Abort()
 	}
 	if parentID, hasParent := m.parentOf[id]; hasParent {
 		m.children[parentID] = removeAgentID(m.children[parentID], id)

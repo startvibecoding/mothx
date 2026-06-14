@@ -18,7 +18,7 @@ import (
 // handleAgentCommand handles /agent subcommands (multi-agent mode).
 func (a *App) handleAgentCommand(parts []string) {
 	if !a.multiAgent {
-		a.addCommandError("Multi-agent mode is not enabled. Use Ctrl+P to toggle.")
+		a.addCommandError("Multi-agent mode is not enabled. Restart with --multi-agent to enable sub-agent tools.")
 		return
 	}
 	if len(parts) < 2 {
@@ -94,7 +94,7 @@ func (a *App) switchAgent(id agentpkg.AgentID) {
 }
 
 func (a *App) destroyAgent(id agentpkg.AgentID) {
-	if id == "main" {
+	if a.agent != nil && id == a.agent.ID() {
 		a.addCommandError("Cannot destroy the main agent")
 		return
 	}
@@ -117,20 +117,10 @@ func (a *App) destroyAgent(id agentpkg.AgentID) {
 	a.addCommandStatus(fmt.Sprintf("Agent %s destroyed", id))
 }
 
-// toggleMultiAgent toggles multi-agent mode on/off.
-func (a *App) toggleMultiAgent() {
-	a.multiAgent = !a.multiAgent
-	if a.multiAgent {
-		a.addCommandStatus("✅ Multi-agent mode ON (Ctrl+P to toggle)")
-	} else {
-		a.addCommandStatus("❌ Multi-agent mode OFF")
-	}
-}
-
 // handleCronCommand handles /cron subcommands (multi-agent mode).
 func (a *App) handleCronCommand(parts []string) {
 	if !a.multiAgent {
-		a.addCommandError("Cron commands require multi-agent mode. Use Ctrl+P to toggle.")
+		a.addCommandError("Cron commands require multi-agent mode. Restart with --multi-agent to enable.")
 		return
 	}
 	if a.cronStore == nil {

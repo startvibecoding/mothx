@@ -159,10 +159,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// Register sub-agent tools before agent construction; the agent freezes tools at New().
 	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
-		sess.Registry.Register(agent.NewSubAgentSpawnTool(sess.AgentMgr))
-		sess.Registry.Register(agent.NewSubAgentStatusTool(sess.AgentMgr))
-		sess.Registry.Register(agent.NewSubAgentSendTool(sess.AgentMgr))
-		sess.Registry.Register(agent.NewSubAgentDestroyTool(sess.AgentMgr))
+		agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
 	}
 
 	agentCfg := agent.Config{

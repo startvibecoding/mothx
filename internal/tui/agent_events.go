@@ -133,6 +133,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.commitActiveStream()
 		// Queue the approval request
 		a.approvalQueue = append(a.approvalQueue, pendingApproval{
+			agentID:    event.AgentID,
 			approvalID: event.ApprovalID,
 			toolName:   event.ApprovalTool,
 			args:       event.ApprovalArgs,

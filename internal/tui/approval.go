@@ -18,6 +18,7 @@ func (a *App) showNextApproval() {
 	}
 	next := a.approvalQueue[0]
 	a.approvalQueue = a.approvalQueue[1:]
+	a.currentApproval = next
 	a.pendingApprovalID = next.approvalID
 	a.waitingForApproval = true
 
@@ -28,7 +29,20 @@ func (a *App) showNextApproval() {
 func (a *App) clearApprovalState() {
 	a.waitingForApproval = false
 	a.pendingApprovalID = ""
+	a.currentApproval = pendingApproval{}
 	a.approvalQueue = a.approvalQueue[:0]
+}
+
+func (a *App) handleApprovalResponse(approvalID string, approved bool) {
+	if a.currentApproval.agentID != "" && a.agentMgr != nil {
+		if target, ok := a.agentMgr.Get(a.currentApproval.agentID); ok {
+			target.HandleApprovalResponse(approvalID, approved)
+			return
+		}
+	}
+	if a.agent != nil {
+		a.agent.HandleApprovalResponse(approvalID, approved)
+	}
 }
 
 // showNextQuestion pops the next question request from the queue and displays it.

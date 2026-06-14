@@ -24,6 +24,7 @@ type AgentFactory struct {
 	skillsMgr          *skills.Manager
 	compactionSettings ctxpkg.CompactionSettings
 	approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
+	multiAgentEnabled  bool
 }
 
 // NewAgentFactory creates a factory with shared configuration.
@@ -37,6 +38,28 @@ func NewAgentFactory(
 	compactionSettings ctxpkg.CompactionSettings,
 	approvalHandler func(toolCallID, toolName string, args map[string]any) bool,
 ) *AgentFactory {
+	return NewAgentFactoryWithOptions(provider, model, settings, sandboxMgr, extraContext, skillsMgr, compactionSettings, approvalHandler, AgentFactoryOptions{
+		MultiAgentEnabled: true,
+	})
+}
+
+// AgentFactoryOptions configures AgentFactory behavior.
+type AgentFactoryOptions struct {
+	MultiAgentEnabled bool
+}
+
+// NewAgentFactoryWithOptions creates a factory with explicit behavior flags.
+func NewAgentFactoryWithOptions(
+	provider provider.Provider,
+	model *provider.Model,
+	settings *config.Settings,
+	sandboxMgr *sandbox.Manager,
+	extraContext string,
+	skillsMgr *skills.Manager,
+	compactionSettings ctxpkg.CompactionSettings,
+	approvalHandler func(toolCallID, toolName string, args map[string]any) bool,
+	opts AgentFactoryOptions,
+) *AgentFactory {
 	return &AgentFactory{
 		provider:           provider,
 		model:              model,
@@ -46,6 +69,7 @@ func NewAgentFactory(
 		skillsMgr:          skillsMgr,
 		compactionSettings: compactionSettings,
 		approvalHandler:    approvalHandler,
+		multiAgentEnabled:  opts.MultiAgentEnabled,
 	}
 }
 
@@ -62,6 +86,7 @@ type AgentOptions struct {
 	ToolExecutionMode string
 	Session           *session.Manager
 	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool // per-agent approval override
+	MultiAgent        *bool                                                       // optional prompt override
 }
 
 // Create creates a new Agent with per-agent Registry.
@@ -126,6 +151,11 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		sess = f.defaultSession(workDir)
 	}
 
+	multiAgent := f.multiAgentEnabled && opts.ParentID == ""
+	if opts.MultiAgent != nil {
+		multiAgent = *opts.MultiAgent
+	}
+
 	cfg := Config{
 		ID:       opts.ID,
 		ParentID: opts.ParentID,
@@ -155,7 +185,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 			}
 			return f.approvalHandler
 		}(),
-		MultiAgent: opts.ParentID == "",
+		MultiAgent: multiAgent,
 	}
 
 	loopCfg := AgentLoopConfig{

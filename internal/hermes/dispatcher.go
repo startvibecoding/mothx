@@ -271,10 +271,7 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 
 	// Register subagent tools when multi-agent mode is enabled
 	if d.agentMgr != nil {
-		reg.Register(agent.NewSubAgentSpawnTool(d.agentMgr))
-		reg.Register(agent.NewSubAgentStatusTool(d.agentMgr))
-		reg.Register(agent.NewSubAgentSendTool(d.agentMgr))
-		reg.Register(agent.NewSubAgentDestroyTool(d.agentMgr))
+		agent.RegisterSubAgentTools(reg, d.agentMgr)
 	}
 
 	// Register cron tool when cron store is available

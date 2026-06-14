@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
@@ -97,12 +96,6 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 	}
 	runCtx, cancel := context.WithTimeout(parentRunCtx, policy.TimeoutPerAgent)
 
-	// Create approval forwarder that bridges sub-agent approval to parent
-	var approvalHandler func(toolCallID, toolName string, args map[string]any) bool
-	if parentEventCh != nil {
-		approvalHandler = newApprovalForwarder(runCtx, parentID, parentEventCh)
-	}
-
 	a, err := t.manager.Create(AgentOptions{
 		ParentID:          parentID,
 		Mode:              mode,
@@ -110,7 +103,6 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 		Tools:             toolFilter,
 		SystemPromptExtra: extra,
 		MaxIterations:     maxIter,
-		ApprovalHandler:   approvalHandler,
 	})
 	if err != nil {
 		cancel()
@@ -158,51 +150,6 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 	}
 	data, _ := json.Marshal(result)
 	return tools.NewTextToolResult(string(data)), nil
-}
-
-// newApprovalForwarder creates an ApprovalHandler that forwards sub-agent approval
-// requests to the parent agent's event channel and waits for a response.
-func newApprovalForwarder(ctx context.Context, parentID agentpkg.AgentID, parentEventCh chan<- Event) func(toolCallID, toolName string, args map[string]any) bool {
-	var mu sync.Mutex
-	counter := int64(0)
-	pending := make(map[string]chan bool)
-
-	return func(toolCallID, toolName string, args map[string]any) bool {
-		mu.Lock()
-		counter++
-		approvalID := fmt.Sprintf("sub-approval-%d", counter)
-		responseCh := make(chan bool, 1)
-		pending[approvalID] = responseCh
-		mu.Unlock()
-
-		// Forward approval request to parent's event channel.
-		if !sendParentEvent(ctx, parentEventCh, Event{
-			Type:         EventToolApprovalRequest,
-			AgentID:      parentID,
-			ApprovalID:   approvalID,
-			ApprovalTool: toolName,
-			ApprovalArgs: args,
-		}) {
-			mu.Lock()
-			delete(pending, approvalID)
-			mu.Unlock()
-			return false
-		}
-
-		// Wait for response (the parent TUI should call HandleSubAgentApprovalResponse)
-		var approved bool
-		select {
-		case approved = <-responseCh:
-		case <-ctx.Done():
-			approved = false
-		}
-
-		mu.Lock()
-		delete(pending, approvalID)
-		mu.Unlock()
-
-		return approved
-	}
 }
 
 func sendParentEvent(ctx context.Context, ch chan<- Event, ev Event) (ok bool) {

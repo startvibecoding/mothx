@@ -141,9 +141,11 @@ func (s *Scheduler) executeJob(job CronJob) {
 		lastErr = s.executeA2AJob(job)
 	} else {
 		// Local agent mode
+		multiAgentPrompt := false
 		a, err := s.manager.Create(agent.AgentOptions{
-			Mode:    job.Mode,
-			WorkDir: job.WorkDir,
+			Mode:       job.Mode,
+			WorkDir:    job.WorkDir,
+			MultiAgent: &multiAgentPrompt,
 		})
 		if err != nil {
 			s.updateJob(job.ID, func(current *CronJob) {

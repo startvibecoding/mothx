@@ -446,10 +446,7 @@ func run(args []string, opts runOptions) error {
 		agentMgr = agent.NewAgentManager(factory)
 
 		// Register subagent tools
-		registry.Register(agent.NewSubAgentSpawnTool(agentMgr))
-		registry.Register(agent.NewSubAgentStatusTool(agentMgr))
-		registry.Register(agent.NewSubAgentSendTool(agentMgr))
-		registry.Register(agent.NewSubAgentDestroyTool(agentMgr))
+		agent.RegisterSubAgentTools(registry, agentMgr)
 
 		// Create cron store, scheduler, and tool
 		cronPath := filepath.Join(config.ConfigDir(), "cron.json")
