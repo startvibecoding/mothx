@@ -1,6 +1,20 @@
 # 更新日志
 
 
+## v0.1.40
+
+### ✨ 新功能
+
+- **GoStreamingMarkdown 渲染器**
+  - 将 print 模式、本地 TUI 和 Hermes 远程 TUI 的 Markdown 渲染从 Glamour 替换为 `github.com/startvibecoding/GoStreamingMarkdown`（`gsm`）。
+  - 移除本地模块替换，改为直接依赖远程 `github.com/startvibecoding/GoStreamingMarkdown` 模块。
+
+### 🧪 测试
+
+- 更新 TUI Markdown 渲染断言以匹配 `gsm` 行为，同时保留内容完整性和视口宽度限制的覆盖。
+
+---
+
 ## v0.1.39
 
 ### ✨ 新功能

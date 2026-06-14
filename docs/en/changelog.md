@@ -1,6 +1,20 @@
 # Changelog
 
 
+## v0.1.40
+
+### ✨ Features
+
+- **GoStreamingMarkdown Renderer**
+  - Replaced Glamour-based Markdown rendering with `github.com/startvibecoding/GoStreamingMarkdown` (`gsm`) for print mode, local TUI, and Hermes remote TUI.
+  - Removed the local module replacement and now depend on the remote `github.com/startvibecoding/GoStreamingMarkdown` module directly.
+
+### 🧪 Tests
+
+- Updated TUI Markdown rendering assertions to match `gsm` behavior while preserving coverage for content integrity and viewport width limits.
+
+---
+
 ## v0.1.39
 
 ### ✨ Features
