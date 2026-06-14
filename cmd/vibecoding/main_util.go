@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/charmbracelet/glamour"
+	"GoStreamingMarkdown/gsm"
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
@@ -66,19 +66,12 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 
 	fmt.Fprintf(os.Stderr, "Using %s/%s in %s mode\n", p.Name(), model.ID, mode)
 
-	// Create glamour renderer for markdown
+	// Create gsm renderer for markdown
 	wordWrap := 80
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 0 {
 		wordWrap = w
 	}
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle("dark"),
-		glamour.WithWordWrap(wordWrap),
-	)
-	if err != nil {
-		debugLog("Failed to create glamour renderer: %v", err)
-		renderer = nil
-	}
+	mdWidth := wordWrap
 
 	compactionSettings := ctxpkg.CompactionSettings{
 		Enabled:          settings.Compaction.Enabled,
@@ -117,7 +110,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 	var textBuffer strings.Builder
 	var runErr error
 
-	err = agent.ConsumeEvents(ctx, eventCh, agent.EventHandlerFunc(func(_ context.Context, event agent.Event) error {
+	err := agent.ConsumeEvents(ctx, eventCh, agent.EventHandlerFunc(func(_ context.Context, event agent.Event) error {
 		switch event.Type {
 		case agent.EventToolApprovalRequest:
 			return fmt.Errorf("tool approval required in print mode for %s; rerun interactively, use --mode yolo, or whitelist the command", event.ApprovalTool)
@@ -126,7 +119,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		case agent.EventToolCall:
 			// Flush text buffer before tool call
 			if textBuffer.Len() > 0 {
-				flushTextBuffer(&textBuffer, renderer)
+				flushTextBuffer(&textBuffer, mdWidth)
 			}
 			fmt.Fprintf(os.Stderr, "\n[tool: %s]\n", event.ToolCall.Name)
 		case agent.EventToolExecutionStart:
@@ -157,7 +150,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		case agent.EventDone:
 			// Flush remaining text buffer
 			if textBuffer.Len() > 0 {
-				flushTextBuffer(&textBuffer, renderer)
+				flushTextBuffer(&textBuffer, mdWidth)
 			}
 			// Show context usage
 			if event.ContextUsage != nil && event.ContextUsage.Percent != nil {
@@ -169,7 +162,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 			runErr = event.Error
 			// Flush text buffer before error
 			if textBuffer.Len() > 0 {
-				flushTextBuffer(&textBuffer, renderer)
+				flushTextBuffer(&textBuffer, mdWidth)
 			}
 			if event.Error != nil {
 				return event.Error
@@ -274,18 +267,13 @@ func formatLineRange(start, end int) string {
 }
 
 // flushTextBuffer renders and prints the accumulated text buffer.
-func flushTextBuffer(buffer *strings.Builder, renderer *glamour.TermRenderer) {
+func flushTextBuffer(buffer *strings.Builder, mdWidth int) {
 	text := buffer.String()
 	buffer.Reset()
 
-	if renderer != nil {
-		rendered, err := renderer.Render(text)
-		if err != nil {
-			// Fallback to plain text
-			fmt.Print(text)
-		} else {
-			fmt.Print(rendered)
-		}
+	if mdWidth > 0 {
+		rendered := gsm.Render(text, mdWidth, nil)
+		fmt.Print(rendered)
 	} else {
 		fmt.Print(text)
 	}

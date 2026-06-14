@@ -69,10 +69,9 @@ func (a *App) renderAssistantMessage(idx int) string {
 	width := a.assistantMarkdownWidth()
 	if renderutil.LooksLikeMarkdown(raw) {
 		if a.assistantDirty[idx] && a.mdRenderer != nil {
-			rendered, err := a.mdRenderer.Render(raw)
-			if err == nil {
-				a.assistantRendered[idx] = renderutil.TrimANSIBlankLines(rendered)
-			}
+			a.mdRenderer.Update(raw)
+			rendered := a.mdRenderer.Output()
+			a.assistantRendered[idx] = renderutil.TrimANSIBlankLines(rendered)
 			a.assistantDirty[idx] = false
 		}
 		if rendered, ok := a.assistantRendered[idx]; ok && rendered != "" {

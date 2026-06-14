@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"GoStreamingMarkdown/gsm"
 	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
@@ -201,9 +201,9 @@ type App struct {
 	thinkRaw            map[int]string // message index -> raw thinking content
 
 	// Markdown rendering for assistant messages
-	mdRenderer        *glamour.TermRenderer
+	mdRenderer        *gsm.Stream
 	assistantRaw      map[int]string // message index -> raw markdown content
-	assistantRendered map[int]string // message index -> glamour-rendered content
+	assistantRendered map[int]string // message index -> gsm-rendered content
 	assistantDirty    map[int]bool   // message index -> needs re-render
 
 	// Bubble Tea program used to marshal deferred renders back onto the UI goroutine.
@@ -851,12 +851,7 @@ func (a *App) renderTranscriptContent() string {
 
 func (a *App) configureMarkdownRenderer() {
 	width := renderutil.MarkdownStyleWrapWidth(a.assistantMarkdownWidth())
-	if r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle("dark"),
-		glamour.WithWordWrap(width),
-	); err == nil {
-		a.mdRenderer = r
-	}
+	a.mdRenderer = gsm.NewStream(width, nil)
 }
 
 func (a *App) assistantMarkdownWidth() int {
