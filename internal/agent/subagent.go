@@ -43,21 +43,23 @@ func (t *DelegateSubAgentTool) PromptSnippet() string {
 }
 func (t *DelegateSubAgentTool) PromptGuidelines() []string {
 	return []string{
-		"Use delegate_subagent for one independent, bounded subtask when isolating exploration will save main-agent context",
-		"Do not delegate tiny tasks, highly stateful work, or tasks that require ongoing user clarification",
-		"Only one delegated sub-agent can run at a time; review its summarized result before relying on it",
+		"Use delegate_subagent when the subtask requires multi-step exploration (grep many files, trace code paths, run multiple commands) but you only need the final answer — the intermediate steps would bloat your context",
+		"Do NOT delegate single-tool tasks (read one file, run one command) — direct execution is cheaper",
+		"Do NOT delegate tasks smaller than ~3 tool calls, tasks needing user clarification mid-way, or highly stateful work depending on conversation history",
+		"Write a specific task: state the exact goal, list relevant file paths/names, specify expected output format, and include stop conditions",
+		"Only one delegated sub-agent can run at a time; review its result before acting — treat the output as evidence, not ground truth",
 	}
 }
 func (t *DelegateSubAgentTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
-			"task": {"type": "string", "description": "Focused delegated task, including scope, relevant paths/context, expected output, and stop conditions"},
-			"mode": {"type": "string", "enum": ["plan", "agent", "yolo"], "default": "agent", "description": "Sub-agent mode"},
-			"work_dir": {"type": "string", "description": "Working directory for the sub-agent (defaults to current)"},
-			"tools": {"type": "array", "items": {"type": "string"}, "description": "Allowed tools (empty = all except nested sub-agent/delegate tools)"},
-			"max_iterations": {"type": "integer", "default": 50, "description": "Maximum iterations"},
-			"system_prompt_extra": {"type": "string", "description": "Extra context for the delegated sub-agent"}
+			"task": {"type": "string", "description": "A specific, bounded task description. Must include: (1) the exact goal or question, (2) relevant file paths or search patterns, (3) expected output format, (4) stop conditions. Example: 'Find all Go files in internal/gateway/ that import net/http but do not call http.Error. Return file paths with line numbers.'"},
+			"mode": {"type": "string", "enum": ["plan", "agent", "yolo"], "default": "agent", "description": "Sub-agent execution mode. 'agent' for balanced safety, 'yolo' for unrestricted access, 'plan' for read-only analysis."},
+			"work_dir": {"type": "string", "description": "Working directory for the sub-agent (defaults to current directory). Set explicitly if the task targets a different directory."},
+			"tools": {"type": "array", "items": {"type": "string"}, "description": "Restrict sub-agent to specific tools (empty = all tools except nested sub-agent/delegate). Use to narrow scope, e.g. ['read', 'grep', 'find'] for investigation-only tasks."},
+			"max_iterations": {"type": "integer", "default": 50, "description": "Maximum tool-call iterations. Lower for simple tasks (10-20), higher for complex exploration (50-100)."},
+			"system_prompt_extra": {"type": "string", "description": "Additional context or constraints for the sub-agent. Use to pass domain knowledge, coding conventions, or specific instructions not in the task description."}
 		},
 		"required": ["task"]
 	}`)
@@ -128,6 +130,8 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 
 	var runErr error
 	completed := false
+	toolCallCount := 0
+	toolNames := make(map[string]int)
 	ch := a.Run(runCtx, buildSubAgentTask(task))
 	for e := range ch {
 		if e.Type == agentpkg.EventToolApprovalRequest && parentEventCh != nil {
@@ -138,6 +142,14 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 				ApprovalTool: e.ApprovalTool,
 				ApprovalArgs: e.ApprovalArgs,
 			})
+		}
+		if e.Type == agentpkg.EventToolCall {
+			toolCallCount++
+			if e.ToolName != "" {
+				toolNames[e.ToolName]++
+			} else if e.ToolCall != nil && e.ToolCall.Name != "" {
+				toolNames[e.ToolCall.Name]++
+			}
 		}
 		switch e.Type {
 		case agentpkg.EventDone:
@@ -156,9 +168,11 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 
 	response := lastAssistantResponse(a)
 	result := map[string]any{
-		"status":   "done",
-		"result":   response,
-		"duration": time.Since(started).Round(time.Millisecond).String(),
+		"status":         "done",
+		"result":         response,
+		"duration":       time.Since(started).Round(time.Millisecond).String(),
+		"tool_calls":     toolCallCount,
+		"tool_breakdown": toolNames,
 	}
 	if runErr != nil {
 		result["status"] = "error"
@@ -480,11 +494,12 @@ func buildSubAgentTask(task string) string {
 	return fmt.Sprintf(`Delegated task:
 %s
 
-Return the artifact using this format:
-Result:
-Evidence:
-Changes:
-Risks:
+Execute this task precisely. When done, structure your final response using this format:
+
+Result: <the direct answer or completed change>
+Evidence: <files inspected, commands run, test outputs — summarized>
+Changes: <files modified with brief description, or "None">
+Risks: <assumptions, uncertainty, follow-up needed, or "None">
 `, task)
 }
 

@@ -161,18 +161,54 @@ Sub-agents run independently with isolated context and tools. They cannot create
 ## Delegation Mode
 You may delegate one bounded independent subtask at a time using delegate_subagent.
 
-Use delegation when:
-- The task can be isolated from the main conversation
-- The subtask needs codebase inspection, focused research, or verification
-- The result can be summarized back to the main agent
+### When to Delegate (context-cost heuristic)
+Delegate when the sub-agent's intermediate exploration would consume significant context
+but you only need the final answer. Think of it as: "Is the exploration path longer than
+the result I need?"
 
-Do not delegate:
-- Tiny tasks where direct execution is cheaper
-- Tasks requiring continuous back-and-forth with the user
-- Highly stateful tasks that require the full main conversation
+**Good delegation candidates:**
+- Broad codebase searches ("find all callers of X", "list files matching Y")
+  → The sub-agent may grep 20+ files; you only need the filtered list.
+- Multi-step investigation ("why is this test failing?")
+  → The sub-agent reads logs, traces code, runs commands; you need the root cause.
+- Focused implementation ("add input validation to handler Z")
+  → The sub-agent reads context, writes code, runs tests; you need the diff + result.
+- Verification tasks ("check if this change breaks anything")
+  → The sub-agent runs tests, inspects related code; you need pass/fail + details.
+- Research + summarization ("summarize how auth works in this project")
+  → The sub-agent reads many files; you need a concise summary.
 
-The delegate_subagent tool blocks until completion and returns only a summarized result.
-Only one delegated sub-agent can run at a time. Review the returned result before making final decisions.
+**Do NOT delegate:**
+- Single-tool tasks (reading one file, running one command) — direct execution is cheaper.
+- Tasks requiring user clarification mid-way — the sub-agent cannot ask the user.
+- Highly stateful work that depends on the full conversation history.
+- Tasks where you need to see every intermediate step in real time.
+- Tasks smaller than ~3 tool calls — overhead exceeds benefit.
+
+### How to Write Good Task Descriptions
+The task description is the sub-agent's only context. Make it specific:
+- State the exact question or goal.
+- List relevant file paths, function names, or search patterns.
+- Specify the expected output format (e.g., "return a list of files with line numbers").
+- Include stop conditions (e.g., "stop after finding 3 examples" or "stop if the test passes").
+- Mention the working directory if different from default.
+
+Good example:
+  "Find all Go files in internal/gateway/ that import 'net/http' but do not call
+   http.Error for error handling. Return file paths with line numbers."
+
+Bad example:
+  "Look at the gateway code" (too vague, no expected output, no stop condition)
+
+### Interpreting the Result
+The delegate_subagent tool blocks until the sub-agent finishes and returns:
+- status: "done" or "error"
+- result: the sub-agent's final response (your primary output)
+- duration: elapsed time
+- On error: error message + partial_result if available
+
+Always review the result before acting on it. The sub-agent's output is evidence,
+not ground truth — verify critical claims before committing changes.
 `)
 	}
 
@@ -192,13 +228,22 @@ func BuildSubAgentContext() string {
 ## Sub-Agent Operating Contract
 You are a worker sub-agent. Execute only the delegated task, stay within the requested scope, and do not broaden the objective.
 
-Report back with:
-- Result: the direct answer or completed change
-- Evidence: files inspected, commands run, tests/checks performed, and relevant outputs summarized
-- Changes: files modified, if any
-- Risks: assumptions, uncertainty, and follow-up needed
+### Reporting Format
+Structure your final response using these sections:
 
-Stop when the delegated artifact is ready, blocked, or unsafe to continue. Do not ask the user directly unless the task explicitly requires it.
+**Result:** The direct answer, completed change, or conclusion. Be specific and actionable.
+**Evidence:** Files inspected (with paths), commands run, test outputs, key observations. Summarize — do not paste entire file contents.
+**Changes:** Files modified (with paths and brief description of each change). If no changes, write "None".
+**Risks:** Assumptions made, uncertainty, potential issues, follow-up needed. If none, write "None".
+
+### Guidelines
+- Prioritize accuracy over completeness — it is better to report "uncertain" than to guess.
+- When searching, report what you found AND what you did not find (negative results save the parent agent from re-searching).
+- When making code changes, run relevant tests if available and report pass/fail.
+- Keep the response concise but complete — the parent agent needs enough detail to act without re-doing your work.
+- If blocked or the task is unsafe, say so explicitly and explain why.
+- Do not ask the user directly unless the task explicitly requires it.
+- Do not create nested sub-agents or delegate further.
 `
 }
 
