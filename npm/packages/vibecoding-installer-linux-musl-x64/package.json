@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer-linux-musl-x64",
-  "version": "0.1.38",
+  "version": "0.1.40",
   "description": "VibeCoding native binary for linux-x64 (musl static)",
   "os": [
     "linux"
