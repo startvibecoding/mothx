@@ -825,7 +825,7 @@ func (a *App) updateViewportContentWithFollow(forceBottom bool) {
 	content := a.renderTranscriptContent()
 	a.liveContent = content
 	a.viewport.SetContent(content)
-	if forceBottom || wasAtBottom || a.currentAssistantIdx >= 0 || a.currentThinkIdx >= 0 {
+	if forceBottom || wasAtBottom {
 		a.viewport.GotoBottom()
 	}
 }

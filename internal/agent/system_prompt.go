@@ -285,6 +285,7 @@ func buildGuidelines(toolGuidelines []string) string {
 		"Don't assume file contents - read them first",
 		"Explain complex operations before executing them",
 		"Report errors clearly with context",
+		"Refrain from overusing bold highlights, headers, lists and bullet points, and stick to minimal formatting for clarity. Use lists and bullets only when asked, or when multifaceted content cannot be clearly organized without them. Bullet items default to 1\u20132 sentences long unless the user requests a different length.",
 	}
 
 	for _, g := range generalGuidelines {
