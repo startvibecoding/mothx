@@ -43,6 +43,7 @@ When `sandbox.enabled` is `true` in `settings.json`, VibeCoding isolates command
 | [`subagent_status`](#subagent_---delegated-work) | Multi-Agent | Query sub-agent status | Read-only | Multi-Agent Mode |
 | [`subagent_send`](#subagent_---delegated-work) | Multi-Agent | Send commands to sub-agents | Send message | Multi-Agent Mode |
 | [`subagent_destroy`](#subagent_---delegated-work) | Multi-Agent | Remove sub-agents & clean up | Destroy | Multi-Agent Mode |
+| [`delegate_subagent`](#delegate_subagent---blocking-single-sub-agent-delegation) | Delegate | Run one synchronous sub-agent task | Sub-agent scoped limits | Delegate Mode |
 | [`a2a_dispatch`](#a2a_dispatch---remote-agent-dispatch) | Multi-Agent | Dispatch tasks to a remote A2A agent | Network request | A2A Master Mode |
 | [`skill_ref`](#skill_ref---skill-reference-loading) | Skills | Load external skill documentation | Read-only | All modes |
 
@@ -420,6 +421,46 @@ Cleans up logs and releases the sub-agent container/process context.
 ```json
 { "handle": "subagent-job-1" }
 ```
+
+---
+
+### delegate_subagent - Blocking Single Sub-Agent Delegation
+
+When VibeCoding is launched with delegate mode (`--delegate`) or enabled at runtime with `/delegate on`, the main agent gets a single blocking `delegate_subagent` tool. It is useful when a bounded subtask requires several exploration steps, but the parent only needs the final summarized result.
+
+Unlike `subagent_*` multi-agent tools, `delegate_subagent` runs synchronously: the parent waits until the child agent completes, then receives a JSON result. Only one delegated sub-agent can run at a time.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `task` | string | ✓ | - | Specific bounded task with goal, relevant paths/context, expected output, and stop conditions. |
+| `mode` | string | - | Parent mode, then `agent` | Sub-agent execution mode: `plan`, `agent`, or `yolo`. |
+| `work_dir` | string | - | Current working directory | Working directory for the sub-agent. |
+| `tools` | array of strings | - | All tools except nested sub-agent/delegate | Optional tool allowlist, e.g. `["read", "grep", "find"]`. |
+| `max_iterations` | integer | - | `50` | Maximum tool-call iterations. |
+| `system_prompt_extra` | string | - | - | Extra instructions or constraints for the worker. |
+
+Example payload:
+```json
+{
+  "task": "Find all Go files in internal/gateway/ that import net/http but do not call http.Error. Return file paths with line numbers.",
+  "mode": "plan",
+  "tools": ["grep", "read", "find"],
+  "max_iterations": 20
+}
+```
+
+Result shape:
+```json
+{
+  "status": "done",
+  "result": "...summarized worker response...",
+  "duration": "1.234s",
+  "tool_calls": 7,
+  "tool_breakdown": {"grep": 4, "read": 3}
+}
+```
+
+Use delegate mode for broad searches, multi-step investigations, focused implementation, or verification tasks. Avoid it for one-tool operations, tasks needing user clarification, or highly stateful work that depends on the full conversation.
 
 ---
 

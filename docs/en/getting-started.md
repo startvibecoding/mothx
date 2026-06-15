@@ -144,6 +144,20 @@ vibecoding acp --multi-agent
 
 Multi-agent mode registers `subagent_*` tools for delegated work. Cron command entry points are available in TUI multi-agent workflows.
 
+### Delegate Mode
+
+```bash
+# Enable blocking single sub-agent delegation
+vibecoding --delegate
+
+# Toggle it at runtime in TUI
+/delegate on
+/delegate status
+/delegate off
+```
+
+Delegate mode registers `delegate_subagent`, a synchronous tool for one bounded subtask at a time. It is useful for multi-step investigations or focused verification where the main agent only needs a summarized result.
+
 ### A2A Master Mode
 
 ```bash
@@ -290,6 +304,7 @@ This checks your environment, config files, providers, sandbox, MCP, sessions, s
 - Read the [Configuration Guide](configuration.md) to customize settings
 - Check the [Tool Reference](tools.md) to learn about available tools
 - Try [multi-agent mode](cli-reference.md#multi-agent-mode) for delegated investigation and cron command entry points
+- Try [delegate mode](cli-reference.md#delegate-mode) for blocking single sub-agent investigation tasks
 - Understand the [Security Model](security.md) to protect your system
 - Explore the [Skills System](skills.md) to create reusable prompt snippets
 - Set up [IDE Integration](acp.md) with VS Code or JetBrains

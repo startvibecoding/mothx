@@ -43,6 +43,7 @@ VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件
 | [`subagent_status`](#subagent_---子-agent-委托) | 多 Agent | 查询子 Agent 执行状态与结果 | 只读 | 仅多 Agent 模式 |
 | [`subagent_send`](#subagent_---子-agent-委托) | 多 Agent | 向子 Agent 发送后续追问或指令 | 发送消息 | 仅多 Agent 模式 |
 | [`subagent_destroy`](#subagent_---子-agent-委托) | 多 Agent | 销毁子 Agent 释放其上下文资源 | 销毁释放 | 仅多 Agent 模式 |
+| [`delegate_subagent`](#delegate_subagent---阻塞式单子-agent-委托) | 委托模式 | 同步执行一个子 Agent 任务 | 子 Agent 级权限限制 | 仅 Delegate 模式 |
 | [`a2a_dispatch`](#a2a_dispatch---远程-agent-分发) | 多 Agent | 向配置的远程 A2A Agent 节点发送任务 | 发起网络请求 | 仅 A2A Master 模式 |
 | [`skill_ref`](#skill_ref---加载技能引用) | 技能系统 | 动态加载外部技能定义的参考文档 | 只读 | 所有模式 |
 
@@ -420,6 +421,46 @@ VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件
 ```json
 { "handle": "subagent-job-1" }
 ```
+
+---
+
+### delegate_subagent - 阻塞式单子 Agent 委托
+
+当 VibeCoding 以 Delegate 模式启动（`--delegate`）或在运行时通过 `/delegate on` 启用后，主 Agent 可获得一个同步阻塞的 `delegate_subagent` 工具。适合那些需要多步探索但父 Agent 仅需最终摘要结果的边界清晰子任务。
+
+与 `subagent_*` 多 Agent 工具不同，`delegate_subagent` 是同步执行的：父 Agent 等待子 Agent 完成后才收到 JSON 格式的结果。同一时间只能运行一个 delegate。
+
+| 参数名 | 类型 | 必填 | 默认值 | 描述 |
+|--------|------|------|--------|------|
+| `task` | string | ✓ | - | 具体且边界明确的任务描述，需包含目标、相关路径/上下文、预期输出格式和停止条件。 |
+| `mode` | string | - | 父模式，然后 `agent` | 子 Agent 执行模式：`plan`、`agent` 或 `yolo`。 |
+| `work_dir` | string | - | 当前工作目录 | 子 Agent 的工作目录。 |
+| `tools` | array of strings | - | 除嵌套子 Agent/delegate 外的所有工具 | 可选的工具白名单，例如 `["read", "grep", "find"]`。 |
+| `max_iterations` | integer | - | `50` | 最大工具调用迭代次数。 |
+| `system_prompt_extra` | string | - | - | 传给子 Agent 的额外上下文或约束。 |
+
+请求示例：
+```json
+{
+  "task": "查找 internal/gateway/ 下导入 net/http 但未调用 http.Error 的 Go 文件，返回文件路径和行号。",
+  "mode": "plan",
+  "tools": ["grep", "read", "find"],
+  "max_iterations": 20
+}
+```
+
+返回结果结构：
+```json
+{
+  "status": "done",
+  "result": "...摘要结果...",
+  "duration": "1.234s",
+  "tool_calls": 7,
+  "tool_breakdown": {"grep": 4, "read": 3}
+}
+```
+
+Delegate 模式适用于大范围代码搜索、多步调查、聚焦实现或验证任务。不适用于单步操作、需要向用户澄清的任务或强依赖完整会话历史的有状态工作。
 
 ---
 

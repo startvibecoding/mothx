@@ -19,6 +19,7 @@ vibecoding [flags] [message...]
 | `--mode` | `-M` | `agent` | 运行模式 (plan, agent, yolo) |
 | `--thinking` | `-t` | `off` | 思考级别 (off, minimal, low, medium, high, xhigh) |
 | `--multi-agent` | - | `false` | 启用多 Agent 工具和命令 |
+| `--delegate` | - | `false` | 启用 Delegate 模式（阻塞式单子 Agent 工具） |
 
 ### 会话管理
 
@@ -76,6 +77,7 @@ vibecoding acp [flags]
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志 |
 | `--multi-agent` | - | false | 为 ACP 会话启用多 Agent 工具 |
+| `--delegate` | - | false | 为 ACP 会话启用 Delegate 模式 |
 
 详见 [ACP 协议](acp.md) 文档了解 IDE 集成细节。
 
@@ -117,6 +119,7 @@ vibecoding gateway [flags]
 | `--model` | `-m` | 配置文件中的默认值 | 模型 ID |
 | `--sandbox` | - | false | 启用沙箱 (bwrap) |
 | `--multi-agent` | - | false | 启用多 Agent 工具 |
+| `--delegate` | - | false | 启用 Delegate 模式 |
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志 |
 
@@ -240,6 +243,23 @@ vibecoding acp --multi-agent
 ```
 
 启用后，VibeCoding 会注册 `subagent_*` 工具，并支持后台委托调查等多 Agent 工作流。Cron 命令入口也依赖多 Agent 模式。
+
+### Delegate 模式
+
+```bash
+# 启用阻塞式单子 Agent 委托
+vibecoding --delegate
+
+# ACP 会话也可以启用
+vibecoding acp --delegate
+
+# Gateway 也可以启用
+vibecoding gateway --delegate
+```
+
+Delegate 模式会注册 `delegate_subagent` 工具，用于同步阻塞式子 Agent 委托。与可并行异步运行子 Agent 的多 Agent 模式不同，Delegate 模式同一时间只运行一个子 Agent，并等待其完成。适合父 Agent 只需要摘要结果的边界清晰调查任务。
+
+可在 TUI 或 Gateway 中通过 `/delegate [on|off|status]` 运行时切换。
 
 ### A2A Master 模式
 

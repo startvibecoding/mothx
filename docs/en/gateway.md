@@ -38,6 +38,7 @@ curl http://localhost:8080/v1/chat/completions \
 | `--model` / `-m` | Override model |
 | `--sandbox` | Enable sandbox (bwrap) |
 | `--multi-agent` | Enable sub-agent tools |
+| `--delegate` | Enable delegation mode (blocking single sub-agent tool) |
 | `--verbose` | Verbose output |
 | `--debug` | Debug logging |
 
@@ -72,6 +73,7 @@ vibecoding --init-gateway --force  # overwrite existing
   "defaultMode": "yolo",
   "defaultThinkingLevel": "medium",
   "enableSubAgents": false,
+  "enableDelegate": false,
 
   "sandbox": {
     "enabled": false,
@@ -194,6 +196,7 @@ When the last user message starts with `/`, it is processed as a command at the 
 | `/status` | Show session status |
 | `/skill <name>` | Activate a skill |
 | `/skills` | List available skills |
+| `/delegate [on|off|status]` | Toggle delegation mode |
 | `/help` | Show all commands |
 
 Commands return standard OpenAI response format. Works in both `stream: true` and `stream: false`.

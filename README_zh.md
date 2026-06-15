@@ -27,6 +27,7 @@
 - **SSE 流式传输**：实时令牌流式传输，快速响应
 - **思考模式**：扩展思考/推理支持（DeepSeek 推理）
 - **多 Agent 工作流**：可选 `--multi-agent` 模式，支持委托子 Agent 和 cron 命令入口
+- **Delegate 模式**：可选 `--delegate` 模式，提供阻塞式单子 Agent 工具，用于边界清晰的调查任务和摘要结果
 - **A2A Master 模式**：可选 `--enable-a2a-master` 模式，通过 `a2a-list.json` 管理多个远程 A2A Agent，注册 `a2a_dispatch` tool 自动分发任务
 - **三种模式**：
   - 🗒️ **计划** — 只读分析和规划。沙箱化，无文件写入
@@ -137,6 +138,9 @@ vibecoding --provider deepseek-openai --model deepseek-v4-flash
 
 # 启用子 Agent 工具和多 Agent 命令
 vibecoding --multi-agent
+
+# 启用阻塞式单子 Agent 委托
+vibecoding --delegate
 
 # 更改模式
 vibecoding --mode plan    # 只读规划

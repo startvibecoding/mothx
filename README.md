@@ -27,6 +27,7 @@
 - **SSE Streaming**: Real-time token streaming for fast response delivery
 - **Think Mode**: Extended thinking/reasoning support (DeepSeek reasoning)
 - **Multi-Agent Workflows**: Optional `--multi-agent` mode with delegated sub-agents and cron command entry points
+- **Delegate Mode**: Optional `--delegate` mode with a blocking single sub-agent tool for bounded investigations and summarized results
 - **A2A Master Mode**: Optional `--enable-a2a-master` mode to manage multiple remote A2A agents via `a2a-list.json`, registers `a2a_dispatch` tool for automatic task dispatch
 - **Three Modes**:
   - 🗒️ **Plan** — Read-only analysis and planning. Sandboxed, no file writes
@@ -137,6 +138,9 @@ vibecoding --provider deepseek-openai --model deepseek-v4-flash
 
 # Enable sub-agent tools and multi-agent commands
 vibecoding --multi-agent
+
+# Enable blocking single sub-agent delegation
+vibecoding --delegate
 
 # Change mode
 vibecoding --mode plan    # Read-only planning

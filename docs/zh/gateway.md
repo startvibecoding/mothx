@@ -38,6 +38,7 @@ curl http://localhost:8080/v1/chat/completions \
 | `--model` / `-m` | 覆盖 model |
 | `--sandbox` | 启用沙箱（bwrap） |
 | `--multi-agent` | 启用子 Agent 工具 |
+| `--delegate` | 启用 Delegate 模式（阻塞式单子 Agent 工具） |
 | `--verbose` | 详细输出 |
 | `--debug` | 调试日志 |
 
@@ -72,6 +73,7 @@ vibecoding --init-gateway --force  # 强制覆盖
   "defaultMode": "yolo",
   "defaultThinkingLevel": "medium",
   "enableSubAgents": false,
+  "enableDelegate": false,
 
   "sandbox": {
     "enabled": false,
@@ -194,6 +196,7 @@ vibecoding --init-gateway --force  # 强制覆盖
 | `/status` | 查看 session 状态 |
 | `/skill <name>` | 激活 skill |
 | `/skills` | 列出可用 skills |
+| `/delegate [on|off|status]` | 切换 Delegate 模式 |
 | `/help` | 显示所有指令 |
 
 指令返回标准 OpenAI 响应格式，`stream: true` 和 `stream: false` 均支持。

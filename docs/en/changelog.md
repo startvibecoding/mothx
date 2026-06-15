@@ -9,9 +9,39 @@
   - Replaced Glamour-based Markdown rendering with `github.com/startvibecoding/GoStreamingMarkdown` (`gsm`) for print mode, local TUI, and Hermes remote TUI.
   - Removed the local module replacement and now depend on the remote `github.com/startvibecoding/GoStreamingMarkdown` module directly.
 
+- **Delegate Mode (Blocking Single Sub-Agent Delegation)**
+  - New `delegate_subagent` tool: runs one sub-agent synchronously, returns a summarized result, enforces a single concurrent delegate limit.
+  - `--delegate` CLI flag for root, ACP, and gateway commands.
+  - `/delegate [on|off|status]` slash command for TUI and gateway.
+  - `enableDelegate` configuration option in gateway config (`gateway.json`).
+  - Dedicated **Delegation Mode** section in system prompt with context-cost heuristics, good/bad examples, and result interpretation guidance.
+  - `AgentFactoryOptions.DelegateEnabled` factory support for programmatic use.
+  - Sub-agent system prompt now uses a structured reporting format (`Result`, `Evidence`, `Changes`, `Risks`) with guidelines on negative results, test execution, and conciseness.
+  - `delegate_subagent` result includes `tool_calls` count and `tool_breakdown` per-tool-name map.
+
+- **Sub-Agent Execution Mode Inheritance**
+  - Both `subagent_spawn` and `delegate_subagent` now inherit the parent agent's execution mode (`plan`/`agent`/`yolo`) instead of hardcoding `agent`.
+  - Parent mode is injected via context in `executeSingleToolCall`.
+  - Sub-agent policy `AllowedModes` expanded from `["agent"]` to `["plan", "agent", "yolo"]`.
+
+- **Multi-Agent Approval Handling Improvement**
+  - Removed the deadlock-prone `newApprovalForwarder` (synchronous approval handler with Mutex-based pending map).
+  - Sub-agent approval requests are now forwarded via event channel (`sendParentEvent`) without blocking.
+  - TUI tracks `agentID` in `pendingApproval` and dispatches approval responses to the correct sub-agent via `handleApprovalResponse`.
+
+### 🐛 Bug Fixes
+
+- **TUI Abort Reason in Errors**
+  - When a TUI agent session is aborted (user presses Esc or mode changes), the abort reason is now included in the error message, e.g., `"Error: aborted (reason: user pressed Esc)"`.
+  - `pendingAbortReason` tracked on the TUI `App` struct and cleared on `EventError`.
+
 ### 🧪 Tests
 
 - Updated TUI Markdown rendering assertions to match `gsm` behavior while preserving coverage for content integrity and viewport width limits.
+- Added `TestDelegateSubAgentTool` and `TestDelegateSubAgentToolMissingTask` to verify blocking sub-agent delegation.
+- Updated `TestSubAgentPolicyDefault` to expect expanded allowed modes `["plan", "agent", "yolo"]`.
+- Updated `TestAgentManagerEnforcesSubAgentPolicy` to allow `yolo` mode by default.
+- Added `TestAgentErrorIncludesAbortReason` for TUI abort reason rendering.
 
 ---
 

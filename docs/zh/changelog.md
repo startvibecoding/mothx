@@ -9,9 +9,39 @@
   - 将 print 模式、本地 TUI 和 Hermes 远程 TUI 的 Markdown 渲染从 Glamour 替换为 `github.com/startvibecoding/GoStreamingMarkdown`（`gsm`）。
   - 移除本地模块替换，改为直接依赖远程 `github.com/startvibecoding/GoStreamingMarkdown` 模块。
 
+- **Delegate 模式（阻塞式单子 Agent 委托）**
+  - 新增 `delegate_subagent` 工具：同步运行一个子 Agent，等待其完成并返回摘要结果，同时限制同一时间只能运行一个 delegate。
+  - Root、ACP、Gateway 命令新增 `--delegate` CLI 参数。
+  - TUI 与 Gateway 新增 `/delegate [on|off|status]` 斜杠命令。
+  - Gateway 配置（`gateway.json`）新增 `enableDelegate` 选项。
+  - System prompt 新增专门的 **Delegation Mode** 章节，包含上下文成本启发式、正反示例和结果解读指南。
+  - 新增 `AgentFactoryOptions.DelegateEnabled`，便于程序化启用。
+  - 子 Agent system prompt 现在使用结构化汇报格式（`Result`、`Evidence`、`Changes`、`Risks`），并补充负向搜索结果、测试执行和简洁性的说明。
+  - `delegate_subagent` 结果中新增 `tool_calls` 计数和按工具名统计的 `tool_breakdown`。
+
+- **子 Agent 执行模式继承**
+  - `subagent_spawn` 与 `delegate_subagent` 现在会继承父 Agent 的执行模式（`plan`/`agent`/`yolo`），不再硬编码为 `agent`。
+  - `executeSingleToolCall` 通过 context 注入父 Agent 模式。
+  - 子 Agent policy 的 `AllowedModes` 从 `["agent"]` 扩展为 `["plan", "agent", "yolo"]`。
+
+- **多 Agent 审批处理改进**
+  - 移除了容易造成死锁的 `newApprovalForwarder`（基于 Mutex pending map 的同步审批 handler）。
+  - 子 Agent 审批请求现在通过事件通道（`sendParentEvent`）转发，不阻塞工具执行。
+  - TUI 在 `pendingApproval` 中跟踪 `agentID`，并通过 `handleApprovalResponse` 将审批响应分发给正确的子 Agent。
+
+### 🐛 Bug 修复
+
+- **TUI 中止原因显示**
+  - 当 TUI Agent 会话被中止（用户按 Esc 或切换模式）时，错误信息现在会包含中止原因，例如：`"Error: aborted (reason: user pressed Esc)"`。
+  - TUI `App` 结构中新增 `pendingAbortReason`，并在 `EventError` 后清理。
+
 ### 🧪 测试
 
 - 更新 TUI Markdown 渲染断言以匹配 `gsm` 行为，同时保留内容完整性和视口宽度限制的覆盖。
+- 新增 `TestDelegateSubAgentTool` 和 `TestDelegateSubAgentToolMissingTask`，验证阻塞式子 Agent 委托。
+- 更新 `TestSubAgentPolicyDefault`，期望扩展后的允许模式 `["plan", "agent", "yolo"]`。
+- 更新 `TestAgentManagerEnforcesSubAgentPolicy`，默认允许 `yolo` 模式。
+- 新增 `TestAgentErrorIncludesAbortReason`，覆盖 TUI 中止原因渲染。
 
 ---
 

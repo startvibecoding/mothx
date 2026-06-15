@@ -144,6 +144,20 @@ vibecoding acp --multi-agent
 
 多 Agent 模式会注册 `subagent_*` 工具，用于委托边界清晰的任务。TUI 多 Agent 工作流中也提供 cron 命令入口。
 
+### Delegate 模式
+
+```bash
+# 启用阻塞式单子 Agent 委托
+vibecoding --delegate
+
+# 在 TUI 中运行时切换
+/delegate on
+/delegate status
+/delegate off
+```
+
+Delegate 模式会注册 `delegate_subagent`，这是一个一次只处理一个边界清晰子任务的同步工具。适合多步调查或聚焦验证场景，主 Agent 只需接收摘要结果。
+
 ### A2A Master 模式
 
 ```bash
@@ -290,6 +304,7 @@ vibecoding doctor
 - 阅读 [配置详解](configuration.md) 自定义设置
 - 查看 [工具参考](tools.md) 了解可用工具
 - 尝试 [多 Agent 模式](cli-reference.md#多-agent-模式) 进行委托调查和 cron 命令入口
+- 尝试 [Delegate 模式](cli-reference.md#delegate-模式) 进行阻塞式单子 Agent 调查任务
 - 了解 [安全模型](security.md) 保护你的系统
 - 探索 [技能系统](skills.md) 创建可复用提示片段
 - 设置 [IDE 集成](acp.md) 在 VS Code 或 JetBrains 中使用

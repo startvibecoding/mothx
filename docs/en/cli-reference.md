@@ -19,6 +19,7 @@ Alias: `vc`
 | `--mode` | `-M` | `agent` | Run mode (plan, agent, yolo) |
 | `--thinking` | `-t` | `off` | Thinking level (off, minimal, low, medium, high, xhigh) |
 | `--multi-agent` | - | `false` | Enable multi-agent tools and commands |
+| `--delegate` | - | `false` | Enable delegation mode (blocking single sub-agent tool) |
 
 ### Session Management
 
@@ -76,6 +77,7 @@ Supports VS Code, JetBrains IDEs, and any ACP-compatible editor.
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging |
 | `--multi-agent` | - | false | Enable multi-agent tools for ACP sessions |
+| `--delegate` | - | false | Enable delegation mode for ACP sessions |
 
 See the [ACP Protocol](acp.md) documentation for IDE integration details.
 
@@ -117,6 +119,7 @@ vibecoding gateway [flags]
 | `--model` | `-m` | From config | Model ID |
 | `--sandbox` | - | false | Enable sandbox (bwrap) |
 | `--multi-agent` | - | false | Enable multi-agent tools |
+| `--delegate` | - | false | Enable delegation mode |
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging |
 
@@ -240,6 +243,23 @@ vibecoding acp --multi-agent
 ```
 
 When enabled, VibeCoding registers the `subagent_*` tools and exposes multi-agent workflows such as delegated background investigation. Cron command entry points also depend on multi-agent mode.
+
+### Delegate Mode
+
+```bash
+# Enable blocking single sub-agent delegation
+vibecoding --delegate
+
+# ACP sessions can also opt in
+vibecoding acp --delegate
+
+# Gateway can opt in
+vibecoding gateway --delegate
+```
+
+Delegate mode registers the `delegate_subagent` tool for synchronous, blocking sub-agent delegation. Unlike multi-agent (which runs async sub-agents in parallel), delegate mode runs one sub-agent at a time and waits for completion. Use it for bounded investigation tasks where the parent only needs a summarized result.
+
+You can toggle delegation at runtime via `/delegate [on|off|status]` in TUI or gateway slash commands.
 
 ### Thinking Levels
 
