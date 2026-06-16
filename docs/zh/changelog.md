@@ -1,7 +1,7 @@
 # 更新日志
 
 
-## v0.1.44
+## v0.1.43
 
 ### 🐛 Bug 修复
 
@@ -14,18 +14,14 @@
   - 移除未使用的 `mergeSettings()` 函数及相关测试；项目 settings 合现已由 `LoadSettings` 直接处理。
   - 重写 `settings_zero_test`，改为通过实际文件 I/O 调用 `LoadSettings()` 进行测试，而非直接 JSON 反序列化。
 
-### 🧪 测试
-
-- 新增测试验证 `Enter` 键在应用命令建议前先刷新排队输入。
-
----
-
-## v0.1.43
-
 ### 📦 依赖
 
 - **GoStreamingMarkdown 更新**
   - 将 `github.com/startvibecoding/GoStreamingMarkdown` 从 `v0.0.2` 更新到 `v0.0.3`。
+
+### 🧪 测试
+
+- 新增测试验证 `Enter` 键在应用命令建议前先刷新排队输入。
 
 ---
 
@@ -1630,4 +1626,4 @@
 
 ---
 
-**完整变更日志**: https://github.com/startvibecoding/vibecoding/compare/v0.1.26...v0.1.27
+**完整变更日志**: https://gitee.com/startvibecoding/vibecoding/compare/v0.1.26...v0.1.27

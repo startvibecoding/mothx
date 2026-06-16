@@ -1,7 +1,7 @@
 # Changelog
 
 
-## v0.1.44
+## v0.1.43
 
 ### 🐛 Bug Fixes
 
@@ -14,18 +14,14 @@
   - Removed the unused `mergeSettings()` function and its related tests. Project settings merging is now handled directly by `LoadSettings`.
   - Rewrote `settings_zero_test` to test via actual file I/O with `LoadSettings()` instead of direct JSON unmarshaling.
 
-### 🧪 Tests
-
-- Added test verifying that `Enter` flushes queued input before applying command suggestions.
-
----
-
-## v0.1.43
-
 ### 📦 Dependencies
 
 - **GoStreamingMarkdown Update**
   - Updated `github.com/startvibecoding/GoStreamingMarkdown` from `v0.0.2` to `v0.0.3`.
+
+### 🧪 Tests
+
+- Added test verifying that `Enter` flushes queued input before applying command suggestions.
 
 ---
 
