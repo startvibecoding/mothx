@@ -1439,6 +1439,33 @@ func TestInitWithProgramDoesNotBlock(t *testing.T) {
 	}
 }
 
+func TestPrintMessageOnceQueuesMoreThanInitialBuffer(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.program = tea.NewProgram(a)
+
+	const count = 300
+	for i := 0; i < count; i++ {
+		a.addMessage(fmt.Sprintf("line %03d", i))
+	}
+
+	a.printMu.Lock()
+	defer a.printMu.Unlock()
+	if got := len(a.printQueue); got != count {
+		t.Fatalf("print queue len = %d, want %d", got, count)
+	}
+	if got, want := a.printQueue[0], "line 000"; got != want {
+		t.Fatalf("first queued print = %q, want %q", got, want)
+	}
+	if got, want := a.printQueue[count-1], "line 299"; got != want {
+		t.Fatalf("last queued print = %q, want %q", got, want)
+	}
+	for i := 0; i < count; i++ {
+		if !a.printedMessageIdx[i] {
+			t.Fatalf("message %d was not marked printed after queueing", i)
+		}
+	}
+}
+
 // TestCacheHighlightThresholdMath verifies the arithmetic of the 50% boundary
 // independent of any rendering logic.
 func TestCacheHighlightThresholdMath(t *testing.T) {

@@ -180,9 +180,6 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventDone:
-		if a.multiAgent && a.agentMgr != nil && a.agent != nil {
-			a.agentMgr.Finish(a.agent.ID(), nil)
-		}
 		a.isThinking = false
 		a.finishRequestTimer()
 		if event.ContextUsage != nil {
@@ -200,8 +197,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return tea.Batch(a.timer.Stop(), a.listenAgentEvents())
 
 	case agent.EventError:
-		if a.multiAgent && a.agentMgr != nil && a.agent != nil {
-			a.agentMgr.Finish(a.agent.ID(), event.Error)
+		if (a.multiAgent || a.delegateMode) && a.agentMgr != nil && a.agent != nil {
+			a.agentMgr.MarkError(a.agent.ID(), event.Error)
 		}
 		a.isThinking = false
 		a.finishRequestTimer()

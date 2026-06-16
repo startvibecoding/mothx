@@ -91,7 +91,7 @@ func (a *App) switchAgent(id agentpkg.AgentID) {
 	}
 
 	a.activeAgent = id
-	a.addCommandStatus(fmt.Sprintf("Switched to agent: %s", id))
+	a.addCommandStatus(fmt.Sprintf("Focused agent tab: %s", id), "Input still goes to the main agent; use subagent_send for follow-up instructions.")
 }
 
 func (a *App) handleDelegateCommand(parts []string) {
@@ -115,11 +115,13 @@ func (a *App) handleDelegateCommand(parts []string) {
 		}
 		agent.RegisterDelegateSubAgentTool(a.registry, a.agentMgr)
 		a.delegateMode = true
+		a.finishManagedAgent(fmt.Errorf("delegate mode changed"))
 		a.agent = nil
 		a.agentHistoryLoaded = false
 		a.addCommandStatus("Delegation mode: ON")
 	case "off":
 		a.registry.Remove("delegate_subagent")
+		a.finishManagedAgent(fmt.Errorf("delegate mode changed"))
 		a.delegateMode = false
 		a.agent = nil
 		a.agentHistoryLoaded = false

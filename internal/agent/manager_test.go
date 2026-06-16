@@ -192,6 +192,41 @@ func TestAgentManagerFinishCancelsChildrenAndRetainsStatus(t *testing.T) {
 	}
 }
 
+func TestAgentManagerFinishSuccessKeepsAsyncChildren(t *testing.T) {
+	m := newTestManager()
+	if _, err := m.Create(AgentOptions{ID: "main"}); err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	if _, err := m.Create(AgentOptions{ID: "sub-1", ParentID: "main"}); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	m.MarkRunning("sub-1")
+
+	cancelled := false
+	m.SetCancel("sub-1", func() {
+		cancelled = true
+	})
+
+	m.Finish("main", nil)
+
+	if cancelled {
+		t.Fatal("successful parent finish cancelled running async child")
+	}
+	if _, ok := m.Get("main"); ok {
+		t.Fatal("expected finished parent to be removed")
+	}
+	if _, ok := m.Get("sub-1"); !ok {
+		t.Fatal("expected async child to remain active")
+	}
+	st, ok := m.Status("sub-1")
+	if !ok {
+		t.Fatal("expected child status to remain available")
+	}
+	if st.State != "running" {
+		t.Fatalf("child state = %q, want running", st.State)
+	}
+}
+
 func TestAgentManagerDestroyNotFound(t *testing.T) {
 	m := newTestManager()
 	err := m.Destroy("nonexistent")

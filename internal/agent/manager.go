@@ -189,8 +189,10 @@ func (m *AgentManager) Finish(id agentpkg.AgentID, cause error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for _, childID := range m.children[id] {
-		m.finishChildLocked(childID, cause)
+	if cause != nil {
+		for _, childID := range m.children[id] {
+			m.finishChildLocked(childID, cause)
+		}
 	}
 	if cancel, ok := m.cancels[id]; ok {
 		cancel()
@@ -201,7 +203,9 @@ func (m *AgentManager) Finish(id agentpkg.AgentID, cause error) {
 	}
 	delete(m.agents, id)
 	delete(m.parentOf, id)
-	delete(m.children, id)
+	if cause != nil {
+		delete(m.children, id)
+	}
 	delete(m.statuses, id)
 }
 
