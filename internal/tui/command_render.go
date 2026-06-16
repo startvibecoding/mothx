@@ -63,9 +63,13 @@ func commandHelpText() string {
 		"  /help                   - Show this help",
 		"",
 		"Keyboard shortcuts:",
-		"  Tab       - Cycle mode (plan/agent/yolo)",
-		"  Esc       - Abort current operation",
-		"  Ctrl+O    - Open latest tool details",
-		"  PgUp/PgDn - Scroll transcript or page tool details",
+		"  Enter             - Submit input",
+		"  Alt+Enter/Ctrl+J  - Insert newline in input",
+		"  Tab               - Cycle mode (plan/agent/yolo)",
+		"  Esc               - Abort current operation",
+		"  Ctrl+O            - Open latest tool details",
+		"  Ctrl+G            - Toggle compact tool display",
+		"  Up/Down           - Move in multiline input; history at boundaries",
+		"  PgUp/PgDn         - Page tool details when modal is open",
 	}, "\n")
 }

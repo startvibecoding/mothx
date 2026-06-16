@@ -209,13 +209,15 @@ vibecoding --mode yolo
 
 | Shortcut | Function |
 |----------|----------|
+| `Enter` | Submit the current prompt |
+| `Alt+Enter` / `Ctrl+J` | Insert a newline in the prompt editor |
 | `Tab` | Cycle mode (`plan` → `agent` → `yolo`) |
 | `Esc` | Abort the current operation, approval, or question prompt |
 | `Ctrl+O` | Open the latest tool/details modal; press again, `Esc`, or `q` to close |
 | `Ctrl+G` | Toggle compact tool display mode |
-| `Up` / `Down` | Navigate prompt history when the input is focused; scroll tool details when the modal is open |
+| `Up` / `Down` | Move within multiline input; browse prompt history at the first/last input line; scroll tool details when the modal is open |
 | `PgUp` / `PgDn` | Page through tool details when the modal is open |
-| `Home` / `End` | Jump to the top/bottom of tool details when the modal is open |
+| `Home` / `End` | Move to the start/end of the current input line; jump to top/bottom when the tool modal is open |
 
 Completed conversation blocks are printed to the terminal's native scrollback, so use your terminal's normal mouse wheel, trackpad, or scrollbar to review older transcript output.
 

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/vibecoding/internal/agent"
@@ -19,6 +18,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
 )
 
 // ansiRe matches ANSI CSI escape sequences (colours, bold, etc.).
@@ -305,7 +305,7 @@ func TestAssistantMarkdownPreservesFilenameOrder(t *testing.T) {
 
 func TestProcessInputBlocksWhileManualCompactionRuns(t *testing.T) {
 	app := &App{
-		input:                  textinput.New(),
+		input:                  editor.New(80),
 		manualCompactionActive: true,
 	}
 
@@ -541,7 +541,7 @@ func TestViewKeepsTranscriptInMainOutputWhenNoProgram(t *testing.T) {
 	app.ready = true
 	app.width = 80
 	app.height = 8
-	app.input.Width = 76
+	app.input = app.input.SetWidth(76)
 	app.messages = []string{strings.Join([]string{
 		"line 1",
 		"line 2",
@@ -561,7 +561,7 @@ func TestViewKeepsTranscriptInMainOutputWhenNoProgram(t *testing.T) {
 	if !strings.Contains(got, "line 8") {
 		t.Fatalf("View() missing newest transcript line:\n%s", got)
 	}
-	if !strings.Contains(got, app.input.Placeholder) {
+	if !strings.Contains(got, app.input.Placeholder()) {
 		t.Fatalf("View() missing input placeholder:\n%s", got)
 	}
 	if !strings.Contains(got, "Tab:mode") {
@@ -574,7 +574,7 @@ func TestViewDoesNotForceOuterHeight(t *testing.T) {
 	app.ready = true
 	app.width = 80
 	app.height = 8
-	app.input.Width = 76
+	app.input = app.input.SetWidth(76)
 	app.messages = []string{strings.Join([]string{
 		"line 1",
 		"line 2",
@@ -595,7 +595,7 @@ func TestMouseWheelDoesNotScrollTranscript(t *testing.T) {
 	app.ready = true
 	app.width = 80
 	app.height = 12
-	app.input.Width = 76
+	app.input = app.input.SetWidth(76)
 	app.messages = []string{strings.Join([]string{
 		"line 1",
 		"line 2",
@@ -1248,6 +1248,55 @@ func TestInputHistoryNavigationFlushesQueuedDraft(t *testing.T) {
 	a.Update(teaSpecialKeyMsgForTest(tea.KeyDown))
 	if got := a.input.Value(); got != "draft" {
 		t.Fatalf("down value = %q, want queued draft restored", got)
+	}
+}
+
+func TestInputAltEnterAndCtrlJInsertNewlines(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("one"))
+	a.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	a.Update(teaKeyMsgForTest("two"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyCtrlJ))
+	a.Update(teaKeyMsgForTest("three"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "one\ntwo\nthree" {
+		t.Fatalf("input = %q, want multiline value", got)
+	}
+}
+
+func TestInputSmallMultilinePastePreservesNewlines(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("one\ntwo"), Paste: true})
+
+	if got := a.input.Value(); got != "one\ntwo" {
+		t.Fatalf("pasted input = %q, want newlines preserved", got)
+	}
+}
+
+func TestInputUpDownMovesWithinMultilineBeforeHistory(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.recordInputHistory("previous")
+	a.input.SetValue("one\ntwo")
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyUp))
+	if got := a.input.Value(); got != "one\ntwo" {
+		t.Fatalf("up inside multiline changed value = %q", got)
+	}
+	if line, _ := a.input.CursorPos(); line != 0 {
+		t.Fatalf("cursor line after first up = %d, want 0", line)
+	}
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyUp))
+	if got := a.input.Value(); got != "previous" {
+		t.Fatalf("up at first line value = %q, want history entry", got)
+	}
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyDown))
+	if got := a.input.Value(); got != "one\ntwo" {
+		t.Fatalf("down while browsing value = %q, want draft restored", got)
 	}
 }
 

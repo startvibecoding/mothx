@@ -1,6 +1,33 @@
 # 更新日志
 
 
+## v0.1.42
+
+### ✨ 新功能
+
+- **TUI 多行输入**
+  - 将 prompt 输入框替换为可复用的 TUI editor 组件，支持真正的多行 prompt 编写。
+  - `Alt+Enter` 和 `Ctrl+J` 现在用于插入换行；`Enter` 仍用于提交 prompt。
+  - 小型多行粘贴现在会保留换行，不再压平成空格；大型粘贴仍使用 paste marker。
+  - `Up` / `Down` 会优先在多行输入内移动光标，只在输入边界处浏览 prompt 历史。
+
+### 🐛 Bug 修复
+
+- **TUI 输入编辑**
+  - `Home` / `End` 编辑键现在能正确传递到输入 editor，不再被顶层 TUI 处理吞掉。
+  - 修复在排队按键尚未 flush 时浏览 prompt 历史会丢失当前草稿的问题。
+  - `/clear` 在输出清空确认后会重置 printed-message 记录，避免清空对话后复用陈旧的 transcript 打印状态。
+
+### 📚 文档
+
+- 更新 TUI 键盘快捷键文档，补充多行输入、插入换行、历史导航和工具 Modal 行为说明。
+
+### 🧪 测试
+
+- 新增多行 prompt 输入、`Alt+Enter` / `Ctrl+J`、小型多行粘贴保留、prompt 历史边界导航、Home/End 输入编辑和 `/clear` transcript 状态重置相关测试。
+
+---
+
 ## v0.1.41
 
 ### ✨ 新功能

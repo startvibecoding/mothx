@@ -1,9 +1,11 @@
 package editor
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestBufferInsertAndValue(t *testing.T) {
@@ -231,6 +233,9 @@ func TestEditorSetValue(t *testing.T) {
 	if got := m.Value(); got != "hello\nworld" {
 		t.Errorf("Value() = %q, want %q", got, "hello\nworld")
 	}
+	if line, col := m.CursorPos(); line != 1 || col != 5 {
+		t.Errorf("CursorPos() = (%d,%d), want (1,5)", line, col)
+	}
 }
 
 func TestEditorReset(t *testing.T) {
@@ -279,6 +284,22 @@ func TestEditorCtrlJNewline(t *testing.T) {
 	}
 }
 
+func TestEditorInsertStringPreservesNewlines(t *testing.T) {
+	m := New(80)
+	m = m.InsertString("one\ntwo")
+	if got := m.Value(); got != "one\ntwo" {
+		t.Errorf("Value() = %q, want %q", got, "one\ntwo")
+	}
+}
+
+func TestEditorCursorDisplayLineWithWrappedText(t *testing.T) {
+	m := New(3)
+	m = m.SetValue("abcd")
+	if got := m.cursorDisplayLine(3); got != 1 {
+		t.Errorf("cursorDisplayLine() = %d, want 1", got)
+	}
+}
+
 func TestEditorFocusBlur(t *testing.T) {
 	m := New(80)
 	m = m.Blur()
@@ -306,6 +327,35 @@ func TestEditorView(t *testing.T) {
 	}
 }
 
+func TestEditorPlaceholderDoesNotLeakANSIFragment(t *testing.T) {
+	m := New(40)
+	m = m.SetPlaceholder("Type a message...")
+
+	view := m.View()
+	if strings.Contains(view, "[38;5;240m") {
+		t.Fatalf("View() leaked ANSI fragment: %q", view)
+	}
+}
+
+func TestEditorViewHasLightBackgroundWithinWidth(t *testing.T) {
+	m := New(20)
+	m = m.SetValue("hello")
+
+	if got := m.style.GetBackground(); got != lipgloss.Color("236") {
+		t.Fatalf("background = %#v, want subtle gray", got)
+	}
+
+	view := m.View()
+	if strings.ContainsAny(view, "┌┐└┘") {
+		t.Fatalf("View() should not render a border: %q", view)
+	}
+	for _, line := range strings.Split(view, "\n") {
+		if w := lipgloss.Width(line); w > 20 {
+			t.Fatalf("line width = %d, want <= 20: %q", w, line)
+		}
+	}
+}
+
 func TestWrapLine(t *testing.T) {
 	tests := []struct {
 		line   string
@@ -330,7 +380,7 @@ func TestDisplayWidth(t *testing.T) {
 		expect int
 	}{
 		{"hello", 5},
-		{"你好", 4},     // CJK = 2 cells each
+		{"你好", 4}, // CJK = 2 cells each
 		{"", 0},
 		{"abc", 3},
 	}

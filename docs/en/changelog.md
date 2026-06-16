@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v0.1.42
+
+### ✨ Features
+
+- **TUI Multiline Input**
+  - Replaced the prompt input with the reusable TUI editor component, enabling true multiline prompt composition.
+  - `Alt+Enter` and `Ctrl+J` now insert newlines; `Enter` still submits the prompt.
+  - Small multiline pastes are preserved as multiline text instead of flattening newlines to spaces, while large pastes still use paste markers.
+  - `Up` / `Down` now move within multiline input first and only browse prompt history at input boundaries.
+
+### 🐛 Bug Fixes
+
+- **TUI Input Editing**
+  - `Home` / `End` editing keys now reach the input editor correctly instead of being swallowed by top-level TUI handling.
+  - Restored draft-preserving prompt history navigation when queued keystrokes have not yet flushed.
+  - `/clear` now resets printed-message bookkeeping after emitting the clear confirmation, avoiding stale transcript print state after clearing.
+
+### 📚 Documentation
+
+- Updated TUI keyboard shortcut documentation for multiline input, newline insertion, history navigation, and tool modal behavior.
+
+### 🧪 Tests
+
+- Added tests for multiline prompt input, `Alt+Enter` / `Ctrl+J`, small multiline paste preservation, prompt history boundary navigation, Home/End input editing, and `/clear` transcript state reset.
+
+---
+
 ## v0.1.41
 
 ### ✨ Features

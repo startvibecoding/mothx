@@ -369,13 +369,15 @@ Commands available during interactive sessions:
 
 | Shortcut | Function |
 |----------|----------|
+| `Enter` | Submit the current prompt |
+| `Alt+Enter` / `Ctrl+J` | Insert a newline in the prompt editor |
 | `Tab` | Cycle mode (`plan` → `agent` → `yolo`) |
 | `Esc` | Abort current operation, approval, or question prompt |
 | `Ctrl+O` | Open latest tool/details modal; press again, `Esc`, or `q` to close |
 | `Ctrl+G` | Toggle compact tool display mode |
-| `Up` / `Down` | Navigate prompt history; scroll tool details when the modal is open |
+| `Up` / `Down` | Move within multiline input; browse prompt history at the first/last input line; scroll tool details when the modal is open |
 | `PgUp` / `PgDn` | Page through tool details when the modal is open |
-| `Home` / `End` | Jump to top/bottom of tool details when the modal is open |
+| `Home` / `End` | Move to the start/end of the current input line; jump to top/bottom when the tool modal is open |
 
 ## Environment Variables
 

@@ -391,6 +391,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.extraContext = a.baseExtraContext
 		a.updateViewportContent()
 		a.addCommandStatus("✅ Conversation cleared")
+		a.printedMessageIdx = make(map[int]bool)
 
 	case "/quit":
 		return tea.Quit

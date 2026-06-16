@@ -495,7 +495,8 @@ Terminal user interface based on Bubble Tea.
 Key TUI behaviors:
 
 - Completed messages are printed to the terminal's native scrollback so the terminal owns history scrolling and text selection.
-- The managed Bubble Tea view focuses on live streaming content, input, footer status, loading state, and active plan/todo context.
+- The managed Bubble Tea view focuses on live streaming content, multiline input, footer status, loading state, and active plan/todo context.
+- The input editor supports multiline prompt composition: `Enter` submits, `Alt+Enter` / `Ctrl+J` insert newlines, and `Up` / `Down` move within the input before browsing history at boundaries.
 - `Ctrl+G` toggles compact tool display; `Ctrl+O` opens the latest tool/details modal.
 - In multi-agent mode, a tab bar shows active agents and their status when more than one agent exists.
 

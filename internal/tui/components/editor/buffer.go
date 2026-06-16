@@ -12,12 +12,12 @@ import (
 // Cursor position is tracked as (cursorLine, cursorCol) where cursorCol is
 // the rune offset within the line.
 type buffer struct {
-	lines          []string
-	cursorLine     int
-	cursorCol      int
-	preferredCol   int  // preferred column for up/down navigation
-	maxHeight      int  // 0 = unlimited
-	width          int  // display width for wrapping
+	lines        []string
+	cursorLine   int
+	cursorCol    int
+	preferredCol int // preferred column for up/down navigation
+	maxHeight    int // 0 = unlimited
+	width        int // display width for wrapping
 }
 
 func newBuffer() *buffer {
@@ -299,6 +299,17 @@ func (b *buffer) MoveHome() {
 
 // MoveEnd moves cursor to the end of the current line.
 func (b *buffer) MoveEnd() {
+	b.cursorCol = len([]rune(b.lines[b.cursorLine]))
+	b.preferredCol = b.cursorCol
+}
+
+// MoveEndAll moves the cursor to the end of the buffer.
+func (b *buffer) MoveEndAll() {
+	b.cursorLine = len(b.lines) - 1
+	if b.cursorLine < 0 {
+		b.cursorLine = 0
+		b.lines = []string{""}
+	}
 	b.cursorCol = len([]rune(b.lines[b.cursorLine]))
 	b.preferredCol = b.cursorCol
 }

@@ -400,13 +400,15 @@ vibecoding acp --sandbox --mode agent
 
 | 快捷键 | 功能 |
 |--------|------|
+| `Enter` | 提交当前 prompt |
+| `Alt+Enter` / `Ctrl+J` | 在 prompt 编辑器中插入换行 |
 | `Tab` | 循环切换模式（`plan` → `agent` → `yolo`） |
 | `Esc` | 中止当前操作、审批或问题提示 |
 | `Ctrl+O` | 打开最新工具/详情 Modal；再次按下、`Esc` 或 `q` 可关闭 |
 | `Ctrl+G` | 切换紧凑工具显示模式 |
-| `Up` / `Down` | 浏览 prompt 历史；工具 Modal 打开时滚动详情 |
+| `Up` / `Down` | 在多行输入内移动；位于首/末行时浏览 prompt 历史；工具 Modal 打开时滚动详情 |
 | `PgUp` / `PgDn` | 工具 Modal 打开时按页滚动详情 |
-| `Home` / `End` | 工具 Modal 打开时跳到顶部/底部 |
+| `Home` / `End` | 移动到当前输入行首/行尾；工具 Modal 打开时跳到顶部/底部 |
 
 ## 环境变量
 

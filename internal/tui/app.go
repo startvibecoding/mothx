@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/stopwatch"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
@@ -21,6 +20,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
 	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
 	"github.com/startvibecoding/vibecoding/internal/ua"
 )
@@ -101,7 +101,7 @@ type App struct {
 	activeSkills     map[string]string // skill name -> skill context string
 
 	// UI Components
-	input textinput.Model
+	input editor.Model
 	timer stopwatch.Model
 
 	// State
@@ -231,10 +231,7 @@ type pendingQuestion struct {
 
 // NewApp creates a new TUI application.
 func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
-	input := textinput.New()
-	input.Placeholder = "Type a message..."
-	input.Focus()
-	input.CharLimit = 0
+	input := editor.New(80).SetPlaceholder("Type a message...").SetMaxLines(5)
 
 	// Determine initial mode: use provided mode, fall back to settings default
 	mode := initialMode
@@ -382,7 +379,10 @@ func (a *App) Init() tea.Cmd {
 		a.printMessageOnce(idx)
 	}
 
-	cmds = append(cmds, textinput.Blink, a.processInputQueue())
+	if inputCmd := a.input.Init(); inputCmd != nil {
+		cmds = append(cmds, inputCmd)
+	}
+	cmds = append(cmds, a.processInputQueue())
 	return tea.Batch(cmds...)
 }
 
@@ -423,7 +423,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		a.ready = true
 
-		a.input.Width = msg.Width - 4
+		a.input = a.input.SetWidth(msg.Width - 4)
 		if oldWidth != a.width {
 			a.configureMarkdownRenderer()
 			a.markAssistantRenderedDirty()
@@ -521,6 +521,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case tea.KeyEnter:
+			if msg.Alt {
+				a.flushInputQueue()
+				a.input, _ = a.input.Update(msg)
+				a.scheduleRender()
+				return a, nil
+			}
+
 			// Process enter immediately
 			a.flushInputQueue()
 			input := strings.TrimSpace(a.input.Value())
@@ -603,12 +610,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case tea.KeyUp:
 			a.flushInputQueue()
-			if a.navigateInputHistory(-1) {
+			if a.inputHistoryBrowsing || a.input.AtFirstLine() {
+				if a.navigateInputHistory(-1) {
+					return a, nil
+				}
+			}
+			if !a.input.AtFirstLine() {
+				a.input, _ = a.input.Update(msg)
+				a.scheduleRender()
 				return a, nil
 			}
 		case tea.KeyDown:
 			a.flushInputQueue()
-			if a.navigateInputHistory(1) {
+			if a.inputHistoryBrowsing {
+				if a.navigateInputHistory(1) {
+					return a, nil
+				}
+			}
+			if !a.input.AtLastLine() {
+				a.input, _ = a.input.Update(msg)
+				a.scheduleRender()
 				return a, nil
 			}
 		case tea.KeyCtrlO:
@@ -634,7 +655,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Check for paste (multi-line input in a single key event)
 		if msg.Type == tea.KeyRunes && len(msg.Runes) > 0 {
 			input := string(msg.Runes)
-			if strings.Contains(input, "\n") {
+			if msg.Paste || strings.Contains(input, "\n") {
 				a.handlePaste(input)
 				return a, nil
 			}
@@ -841,15 +862,12 @@ func (a *App) handlePaste(text string) {
 		}
 
 		// Insert marker into input
-		current := a.input.Value()
-		a.input.SetValue(current + marker)
+		a.input = a.input.InsertString(marker)
 	} else {
 		// Small paste - insert directly
-		current := a.input.Value()
-		// Replace newlines with spaces for single-line input
-		cleanText := strings.ReplaceAll(text, "\n", " ")
-		a.input.SetValue(current + cleanText)
+		a.input = a.input.InsertString(text)
 	}
+	a.scheduleRender()
 }
 
 // expandPasteMarkers expands paste markers to their original content
