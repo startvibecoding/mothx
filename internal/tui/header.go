@@ -32,7 +32,7 @@ func renderHeader(width int, version string, providerName string, modelName stri
 		BorderForeground(lipgloss.Color("86")).
 		Padding(0, 0)
 
-	line1 := lipgloss.NewStyle().Bold(true).Render(">_ Vibecoding (" + version + ")")
+	line1 := lipgloss.NewStyle().Bold(true).Render("VibeCoding (" + version + ")")
 	line2 := providerName + " | " + modelName
 	line3 := cwd
 
