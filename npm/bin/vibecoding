@@ -104,7 +104,7 @@ function findBinary() {
   console.error('  npm install -g vibecoding-installer');
   console.error('');
   console.error('If the problem persists, install via one-line script instead:');
-  console.error('  curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash');
+  console.error('  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash');
   process.exit(1);
 }
 
