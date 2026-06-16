@@ -532,18 +532,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case tea.KeyEnter:
+			flushCmd := a.flushInputQueue()
 			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
-				return a, nil
+				return a, flushCmd
 			}
 			if msg.Alt {
-				a.flushInputQueue()
 				a.input, _ = a.input.Update(msg)
 				a.scheduleRender()
-				return a, nil
+				return a, flushCmd
 			}
 
 			// Process enter immediately
-			a.flushInputQueue()
 			input := strings.TrimSpace(a.input.Value())
 
 			// Check if waiting for approval
@@ -620,40 +619,41 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case tea.KeyTab:
+			flushCmd := a.flushInputQueue()
 			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
-				return a, nil
+				return a, flushCmd
 			}
 			a.cycleMode()
-			return a, nil
+			return a, flushCmd
 		case tea.KeyUp:
+			flushCmd := a.flushInputQueue()
 			if a.handleCommandSuggestionKey(msg) {
-				return a, nil
+				return a, flushCmd
 			}
-			a.flushInputQueue()
 			if a.inputHistoryBrowsing || a.input.AtFirstLine() {
 				if a.navigateInputHistory(-1) {
-					return a, nil
+					return a, flushCmd
 				}
 			}
 			if !a.input.AtFirstLine() {
 				a.input, _ = a.input.Update(msg)
 				a.scheduleRender()
-				return a, nil
+				return a, flushCmd
 			}
 		case tea.KeyDown:
+			flushCmd := a.flushInputQueue()
 			if a.handleCommandSuggestionKey(msg) {
-				return a, nil
+				return a, flushCmd
 			}
-			a.flushInputQueue()
 			if a.inputHistoryBrowsing {
 				if a.navigateInputHistory(1) {
-					return a, nil
+					return a, flushCmd
 				}
 			}
 			if !a.input.AtLastLine() {
 				a.input, _ = a.input.Update(msg)
 				a.scheduleRender()
-				return a, nil
+				return a, flushCmd
 			}
 		case tea.KeyCtrlO:
 			if a.openLatestToolModal() {

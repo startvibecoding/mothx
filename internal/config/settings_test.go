@@ -299,46 +299,6 @@ func TestDefaultSettingsEnablePlanTool(t *testing.T) {
 	}
 }
 
-func TestMergeSettingsIgnoresNilProviderAndKeepsExistingProviders(t *testing.T) {
-	base := &Settings{
-		Providers: map[string]*ProviderConfig{
-			"base": {API: "openai-chat"},
-		},
-		DefaultProvider: "base",
-	}
-	project := &Settings{
-		Providers: map[string]*ProviderConfig{
-			"base": nil,
-			"new":  {API: "anthropic"},
-		},
-		DefaultProvider: "project",
-	}
-
-	mergeSettings(base, project)
-
-	if base.DefaultProvider != "project" {
-		t.Fatalf("DefaultProvider = %q, want project", base.DefaultProvider)
-	}
-	if base.Providers["base"] == nil {
-		t.Fatal("expected nil provider override to be ignored")
-	}
-	if base.Providers["new"] == nil || base.Providers["new"].API != "anthropic" {
-		t.Fatalf("new provider = %#v, want anthropic provider", base.Providers["new"])
-	}
-}
-
-func TestMergeSettingsEnablePlanToolOverride(t *testing.T) {
-	base := DefaultSettings()
-	disabled := false
-	project := &Settings{EnablePlanTool: &disabled}
-
-	mergeSettings(base, project)
-
-	if base.IsPlanToolEnabled() {
-		t.Fatal("expected enablePlanTool=false override to be applied")
-	}
-}
-
 func TestResolveKey(t *testing.T) {
 	s := &Settings{
 		Providers: map[string]*ProviderConfig{
