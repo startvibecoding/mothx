@@ -1,6 +1,15 @@
 # Changelog
 
 
+## v0.1.43
+
+### 📦 Dependencies
+
+- **GoStreamingMarkdown Update**
+  - Updated `github.com/startvibecoding/GoStreamingMarkdown` from `v0.0.2` to `v0.0.3`.
+
+---
+
 ## v0.1.42
 
 ### ✨ Features

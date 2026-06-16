@@ -1,6 +1,15 @@
 # 更新日志
 
 
+## v0.1.43
+
+### 📦 依赖
+
+- **GoStreamingMarkdown 更新**
+  - 将 `github.com/startvibecoding/GoStreamingMarkdown` 从 `v0.0.2` 更新到 `v0.0.3`。
+
+---
+
 ## v0.1.42
 
 ### ✨ 新功能
