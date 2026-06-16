@@ -21,7 +21,7 @@ cd ~/projects/myapp
 ### 场景 A：代码解释
 
 ```bash
-$ vibecoding "解释 internal/agent/agent.go 的核心逻辑"
+$ vibecoding -P "解释 internal/agent/agent.go 的核心逻辑"
 ```
 
 VibeCoding 会：

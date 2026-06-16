@@ -42,6 +42,16 @@ INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibec
 $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
 ```
 
+**Uninstall:**
+
+```bash
+# Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall
+
+# Windows
+irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex; Uninstall-VibeCoding
+```
+
 This will automatically download the latest release from GitHub and install the binary. Default install locations:
 - Linux/macOS: `/usr/local/bin`
 - Windows: `%LOCALAPPDATA%\vibecoding`
@@ -107,9 +117,6 @@ The optional `vendor` field selects a vendor adapter. If it is omitted, VibeCodi
 ```bash
 # Start interactive session
 vibecoding
-
-# Or use alias
-vc
 ```
 
 ### Non-Interactive Mode
@@ -226,19 +233,19 @@ Completed conversation blocks are printed to the terminal's native scrollback, s
 ### Code Explanation
 
 ```bash
-vibecoding "Explain the purpose of main.go"
+vibecoding -P "Explain the purpose of main.go"
 ```
 
 ### Code Generation
 
 ```bash
-vibecoding "Write a Go HTTP server"
+vibecoding -P "Write a Go HTTP server"
 ```
 
 ### File Operations
 
 ```bash
-vibecoding "Create a README.md in the current directory"
+vibecoding -P "Create a README.md in the current directory"
 ```
 
 ### Continue Session

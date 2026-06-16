@@ -6,8 +6,6 @@
 vibecoding [flags] [message...]
 ```
 
-Alias: `vc`
-
 ## Command Line Arguments
 
 ### Basic Parameters
@@ -200,7 +198,7 @@ Sample output:
 vibecoding
 
 # With initial prompt
-vibecoding "Explain this codebase"
+vibecoding -P "Explain this codebase"
 
 # Non-interactive mode
 vibecoding -p "Write a Hello World"

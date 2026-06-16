@@ -1,185 +1,453 @@
 # Frequently Asked Questions (FAQ)
 
-## Basic Questions
+> Real questions from real users, with practical solutions
 
-### Q: What is VibeCoding?
+---
 
-A: VibeCoding is a terminal AI coding assistant that supports DeepSeek (default), OpenAI, Anthropic, vendor adapters for compatible APIs, and generic OpenAI/Anthropic-format custom endpoints. It provides code writing, debugging, refactoring, delegated multi-agent workflows, and other features.
+## 🚀 Installation & Startup
 
-### Q: What LLMs are supported?
+### Q: After installation, running `vibecoding` shows "command not found"
 
-A:
-- DeepSeek (default): deepseek-v4-flash, deepseek-v4-pro (1M context, up to 384K output)
-- OpenAI: GPT-4o, o1, etc.
-- Anthropic: Claude Sonnet, Opus, etc.
-- Vendor adapters: Google Gemini, Google Vertex, Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more
-- Custom: Any OpenAI Chat or Anthropic Messages compatible API endpoint through generic fallback
+**A:** This usually means the installation path isn't in your PATH environment variable.
 
-### Q: How to install?
-
-A:
 ```bash
-# npm (recommended)
-npm install -g vibecoding-installer
+# Check installation location
+which vibecoding || where vibecoding
 
-# One-line install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+# If installed via npm, check npm global path
+npm root -g
 
-# Go install
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+# Solution: Add installation path to PATH
+# Linux/macOS (add to ~/.bashrc or ~/.zshrc)
+export PATH="$HOME/.local/bin:$PATH"
 
-# Or from source
-git clone https://github.com/startvibecoding/vibecoding.git
-cd vibecoding
-make build
+# Or reinstall to system path
+sudo npm install -g vibecoding-installer
 ```
 
-## Configuration Questions
+### Q: npm installation fails with permission error
 
-### Q: Where is the configuration file?
+**A:** Don't use sudo for npm global packages. Try these alternatives:
 
-A: 
-- Global:
-  - Linux/macOS: `~/.vibecoding/settings.json`
-  - Windows: `%APPDATA%\vibecoding\settings.json`
-- Project: `.vibe/settings.json`
-### Q: How to set API keys?
+```bash
+# Option 1: Change npm global directory
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+export PATH=~/.npm-global/bin:$PATH
 
-A: Two ways:
-1. Environment variables: `export DEEPSEEK_API_KEY=sk-...`
-2. Configuration file: `providers.<name>.apiKey` in `settings.json`
+# Option 2: Use npx to run directly
+npx vibecoding-installer
 
-### Q: How to use custom API?
+# Option 3: Use one-line install script
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+```
 
-A: Configure in `settings.json`:
+### Q: After starting, nothing happens, cursor just blinks
 
-```json
+**A:** This could be a terminal compatibility or TUI rendering issue:
+
+```bash
+# Option 1: Use print mode (non-interactive)
+vibecoding -P "hello"
+
+# Option 2: Check terminal support
+echo $TERM  # Should be xterm-256color or similar
+
+# Option 3: Try a different terminal
+# Recommended: iTerm2 (macOS), Windows Terminal (Windows), Alacritty (Linux)
+```
+
+---
+
+## 🔑 API Keys & Connection
+
+### Q: Shows "API key not found" or "Unauthorized"
+
+**A:** Check your API key configuration:
+
+```bash
+# Option 1: Use environment variables
+export DEEPSEEK_API_KEY=sk-...
+# or
+export OPENAI_API_KEY=sk-...
+
+# Option 2: Check config file
+cat ~/.vibecoding/settings.json
+
+# Option 3: Run diagnostics
+vibecoding doctor
+```
+
+### Q: Shows "connection timeout" or "network error"
+
+**A:** Network connection issues, common for users behind firewalls:
+
+```bash
+# Option 1: Use proxy
+export HTTPS_PROXY=http://127.0.0.1:7890
+
+# Option 2: Use a provider that's accessible from your region
+# Configure in settings.json
 {
   "providers": {
-    "deepseek-openai": {
+    "deepseek": {
       "vendor": "deepseek",
-      "baseUrl": "https://api.deepseek.com",
       "api": "openai-chat",
+      "baseUrl": "https://api.deepseek.com",
       "apiKey": "sk-..."
     }
   },
-  "defaultProvider": "deepseek-openai"
+  "defaultProvider": "deepseek"
 }
+
+# Option 3: Check DNS
+nslookup api.deepseek.com
 ```
 
-## Usage Questions
+### Q: Shows "rate limit exceeded"
 
-### Q: How to switch modes?
+**A:** API call frequency limit exceeded:
 
-A:
 ```bash
-# Command line
-vibecoding --mode plan
-vibecoding -M agent
+# Option 1: Wait a few minutes and retry
 
-# Interactive
-/mode plan
-/mode agent
+# Option 2: Configure retry mechanism
+{
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  }
+}
+
+# Option 3: Switch to another provider
+vibecoding --provider openai --model gpt-4o
+```
+
+---
+
+## 💰 Cost & Billing
+
+### Q: How much does it cost to use VibeCoding?
+
+**A:** VibeCoding itself is free and open source. Costs come from LLM API calls:
+
+| Provider | Approximate Price (per million tokens) |
+|----------|---------------------------------------|
+| DeepSeek V4 Flash | $0.15-0.30 |
+| DeepSeek V4 Pro | $0.60-1.20 |
+| GPT-4o | $2.50-10 |
+| Claude Sonnet | $3-15 |
+
+**Cost-saving tips:**
+- Use `deepseek-v4-flash` (default) for best value
+- Enable cache hit optimization (automatic)
+- Use `/compact` to compress context
+- Avoid sending very long code files
+
+### Q: How to check token usage?
+
+**A:** The TUI status bar shows:
+- Cache hit rate
+- Current turn token usage
+- Cumulative token usage
+
+```bash
+# Use debug mode for detailed info
+vibecoding --debug
+```
+
+### Q: How to reduce API costs?
+
+**A:**
+
+1. **Use cheaper models**: `deepseek-v4-flash` has the best value
+2. **Enable caching**: Repeated prompt prefixes are cached
+3. **Compress context**: Use `/compact` command
+4. **Limit output length**: Set `maxOutputTokens` in config
+5. **Use Plan mode**: Analyze first, then execute
+
+---
+
+## 🎮 Usage Modes
+
+### Q: What's the difference between Plan, Agent, and YOLO modes?
+
+**A:**
+
+| Mode | File Ops | Network | Bash Approval | Use Case |
+|------|----------|---------|---------------|----------|
+| Plan | Read-only | ❌ | N/A | Code analysis, planning |
+| Agent | Read/Write | ❌ | Required | Daily development (recommended) |
+| YOLO | Full | ✅ | Not required | System admin, automation |
+
+**Recommendation:** Use Agent mode for daily work, switch to YOLO when you need network or system operations.
+
+### Q: Why are bash commands rejected in Agent mode?
+
+**A:** Agent mode requires approval for bash commands by default:
+
+```bash
+# Option 1: Type 'y' to approve when prompted
+
+# Option 2: Configure whitelist (auto-approve)
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "ls ", "cat "],
+    "bashBlacklist": ["rm -rf", "sudo"]
+  }
+}
+
+# Option 3: Switch to YOLO mode
 /mode yolo
 ```
 
-### Q: How to switch models?
+### Q: How to make AI only read code, not modify it?
 
-A:
-```bash
-# Command line
-vibecoding --provider deepseek-openai --model deepseek-v4-pro
-
-# Interactive
-/model deepseek-v4-pro
-/model                  # Show current model and available options
-```
-
-### Q: What are thinking levels?
-
-A: Thinking levels control how much reasoning the model does before responding:
-- `off`: No thinking (default)
-- `minimal`: Minimal reasoning
-- `low`: Light reasoning
-- `medium`: Balanced reasoning
-- `high`: Deep reasoning
-- `xhigh`: Maximum reasoning
+**A:** Use Plan mode:
 
 ```bash
 # Command line
-vibecoding --thinking medium
+vibecoding --mode plan
 
 # Interactive
-/think           # Cycle through levels
-Tab              # Keyboard shortcut to cycle
+/mode plan
+
+# Or press Tab to cycle through modes
 ```
 
-### Q: How to continue the last session?
+---
 
-A:
+## 🧠 Models & Thinking
+
+### Q: When should I use thinking mode?
+
+**A:**
+
+| Scenario | Recommended Thinking Level |
+|----------|---------------------------|
+| Simple Q&A | off |
+| Code generation | low - medium |
+| Complex refactoring | high |
+| Architecture design | xhigh |
+| Debugging | medium |
+
 ```bash
-vibecoding --continue
-vibecoding -c
+# Switch thinking level
+/think          # Cycle through levels
+Tab             # Keyboard shortcut
+vibecoding -t high  # Specify on command line
 ```
 
-### Q: How to manage sessions?
+### Q: Why doesn't thinking mode work?
 
-A: Use the `/sessions` command in interactive mode:
-```
-/sessions           # List sessions for current project
-/sessions ls        # List all sessions across projects
-/sessions set abc   # Switch to session starting with 'abc'
-/sessions clear     # Create a new fresh session
-/sessions del abc   # Delete session starting with 'abc'
-```
+**A:** Not all models support thinking mode:
 
-### Q: How to use skills?
-
-A: Skills are reusable prompt snippets. Use them in interactive mode:
-```
-/skills             # List available skills
-/skill my-skill     # Activate a skill
-/skill:my-skill     # Alternative syntax
-```
-
-Create skills by adding `SKILL.md` files:
-- Global: `~/.vibecoding/skills/<name>/SKILL.md`
-- Project: `.skills/<name>/SKILL.md`
-
-See the [Skills System](skills.md) documentation for details.
-
-### Q: How to view the current model?
-
-A:
 ```bash
-# Interactive
-/model
+# Models that support thinking mode
+vibecoding --provider deepseek --model deepseek-v4-pro -t high
+vibecoding --provider openai --model o1 -t high
+vibecoding --provider anthropic --model claude-3-5-sonnet -t high
 
-# Command line
-vibecoding --version
+# Unsupported models ignore thinking parameters
+vibecoding --model deepseek-v4-flash -t high  # No effect
 ```
 
-### Q: How to clear the conversation?
+### Q: How to switch to a different model?
 
-A:
+**A:**
+
 ```bash
+# Temporary switch
+vibecoding --provider openai --model gpt-4o
+
+# Interactive switch
+/model gpt-4o
+/model  # View available models
+
+# Permanent change to default model
+# Edit ~/.vibecoding/settings.json
+{
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-4o"
+}
+```
+
+---
+
+## 📝 Session Management
+
+### Q: Conversation is too long, AI starts forgetting context
+
+**A:**
+
+```bash
+# Option 1: Compress context (keeps key info)
+/compact
+
+# Option 2: Enable auto-compaction
+{
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 20000
+  }
+}
+
+# Option 3: Start a new session
 /clear
 ```
 
-## IDE Integration Questions
+### Q: How to resume a previous conversation?
 
-### Q: Can I use VibeCoding in my IDE?
+**A:**
 
-A: Yes! VibeCoding supports the Agent Client Protocol (ACP) for IDE integration. Supported IDEs:
-- Visual Studio Code
-- JetBrains IDEs (IntelliJ IDEA, GoLand, WebStorm, etc.)
+```bash
+# Continue most recent session
+vibecoding -c
 
-See the [ACP Protocol](acp.md) documentation for setup instructions.
+# List all sessions
+/sessions
 
-### Q: How to set up VS Code integration?
+# Switch to specific session
+/sessions set abc123
 
-A: Add to your VS Code `settings.json`:
+# Or via command line
+vibecoding --resume abc123
+```
+
+### Q: Session files are taking up too much space
+
+**A:**
+
+```bash
+# Check session sizes
+du -sh ~/.vibecoding/sessions/
+
+# Delete old sessions
+/sessions del abc123
+
+# Or clean manually
+rm -rf ~/.vibecoding/sessions/--old-project--/
+```
+
+---
+
+## 🛠️ Tool Usage
+
+### Q: AI command execution rejected, shows "permission denied"
+
+**A:** Check file permissions and sandbox settings:
+
+```bash
+# Option 1: Check file permissions
+ls -la <file>
+
+# Option 2: Check sandbox configuration
+vibecoding doctor
+
+# Option 3: Temporarily disable sandbox
+vibecoding --no-sandbox
+
+# Option 4: Switch to YOLO mode
+/mode yolo
+```
+
+### Q: grep/find tools return no results
+
+**A:** Could be path or pattern issues:
+
+```bash
+# Make sure you're in the project directory
+cd /path/to/your/project
+vibecoding
+
+# Use absolute paths
+vibecoding -P "Search for TODO in /path/to/project"
+
+# Check if .gitignore is excluding target files
+```
+
+### Q: How to prevent AI from automatically executing commands?
+
+**A:**
+
+```bash
+# Option 1: Use Plan mode (read-only)
+/mode plan
+
+# Option 2: Be explicit in your prompt
+vibecoding -P "Analyze this code, don't execute any commands"
+
+# Option 3: Configure approval
+{
+  "approval": {
+    "bashWhitelist": [],
+    "confirmBeforeWrite": true
+  }
+}
+```
+
+---
+
+## 🔒 Security & Privacy
+
+### Q: Does VibeCoding upload my code?
+
+**A:** VibeCoding itself doesn't upload code, but it sends your prompts to the configured LLM API:
+
+- **Local processing**: File reads, tool execution happen locally
+- **API calls**: Prompt content is sent to LLM providers
+- **Recommendation**: Don't include sensitive info (passwords, keys) in prompts
+
+### Q: How to prevent AI from deleting important files?
+
+**A:**
+
+```bash
+# Option 1: Use Plan mode (read-only)
+/mode plan
+
+# Option 2: Configure blacklist
+{
+  "approval": {
+    "bashBlacklist": ["rm -rf", "rm -r", "sudo"]
+  }
+}
+
+# Option 3: Use Git version control
+git add -A && git commit -m "backup before AI changes"
+
+# Option 4: Enable sandbox
+vibecoding --sandbox
+```
+
+### Q: Sandbox mode not working?
+
+**A:** Sandbox is Linux-only:
+
+```bash
+# Check if bubblewrap is installed
+bwrap --version
+
+# Install
+sudo apt install bubblewrap      # Debian/Ubuntu
+sudo dnf install bubblewrap      # Fedora
+sudo pacman -S bubblewrap        # Arch
+
+# macOS/Windows users can use WSL2
+```
+
+---
+
+## 💻 IDE Integration
+
+### Q: Can't see VibeCoding in VS Code
+
+**A:** Check ACP configuration:
+
 ```json
+// .vscode/settings.json or global settings.json
 {
   "acp.agents": {
     "vibecoding": {
@@ -190,173 +458,198 @@ A: Add to your VS Code `settings.json`:
 }
 ```
 
-See the [ACP Protocol](acp.md) documentation for detailed instructions.
+Make sure:
+1. VibeCoding is installed and in PATH
+2. VS Code version supports ACP
+3. Restart VS Code
 
-## Sandbox Questions
+### Q: JetBrains IDE integration not working
 
-### Q: What is a sandbox?
+**A:**
 
-A: A sandbox uses bubblewrap to restrict AI's file system and network access, protecting system security.
+1. Open `Settings → Tools → ACP Agents`
+2. Add Agent:
+   - Name: `VibeCoding`
+   - Command: `vibecoding`
+   - Arguments: `acp --mode agent`
+3. Click Test to verify connection
+4. Restart IDE
 
-### Q: How to enable sandbox?
+---
 
-A: 
+## 🌐 Gateway Mode
+
+### Q: How to use VibeCoding as an API server?
+
+**A:**
+
 ```bash
-# Command line
-vibecoding --sandbox
+# Start Gateway
+vibecoding gateway
 
-# Configuration file
+# Config file ~/.vibecoding/gateway.json
 {
-  "sandbox": {
-    "enabled": true,
-    "level": "standard"
+  "port": 8080,
+  "auth": {
+    "token": "your-secret-token"
   }
+}
+
+# Call API
+curl http://localhost:8080/v1/chat/completions \
+  -H "Authorization: Bearer your-secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
+```
+
+### Q: What APIs does Gateway support?
+
+**A:** Compatible with OpenAI Chat Completions API:
+
+- `/v1/chat/completions` - Chat completion
+- `/v1/models` - Model list
+- Supports SSE streaming
+- Supports all configured providers and models
+
+---
+
+## 📱 Messaging Platforms
+
+### Q: How to deploy as a WeChat/Feishu bot?
+
+**A:**
+
+```bash
+# Start Hermes mode
+vibecoding hermes
+
+# Config file ~/.vibecoding/hermes.json
+{
+  "platform": "wechat",  // or "feishu"
+  "appId": "your-app-id",
+  "appSecret": "your-app-secret",
+  "defaultProvider": "deepseek"
 }
 ```
 
-### Q: Why doesn't the sandbox work?
+See [Hermes Mode](hermes.md) documentation for details.
 
-A: 
-1. Check if bubblewrap is installed: `bwrap --version`
-2. Check if on Linux (macOS/Windows not supported)
-3. Check if configuration is correct
+---
 
-### Q: Does macOS/Windows support sandbox?
+## 🔧 Troubleshooting
 
-A: No. bubblewrap is Linux-specific. You can use WSL2.
+### Q: `vibecoding doctor` shows errors
 
-## Session Questions
-
-### Q: Where are sessions stored?
-
-A:
-- Linux/macOS: `~/.vibecoding/sessions/--<encoded-path>--/`
-- Windows: `%APPDATA%\vibecoding\sessions\--<encoded-path>--/`
-
-### Q: How to restore old sessions?
-
-A: 
-```bash
-# Resume specific session
-vibecoding --resume <session-id>
-
-# Continue most recent session
-vibecoding --continue
-```
-
-### Q: What to do if session file is corrupted?
-
-A: 
-1. Check JSONL format
-2. Manually fix or delete corrupted lines
-3. Use backup
-
-## Tool Questions
-
-### Q: What tools are available?
-
-A: VibeCoding includes core built-in tools plus optional multi-agent tools:
-- `read`: Read file content (including images)
-- `write`: Create/overwrite files
-- `edit`: Precise text replacement
-- `bash`: Execute shell commands
-- `grep`: Regex content search
-- `find`: Filename search
-- `ls`: Directory listing
-- `plan`: Publish visible task plans and status updates
-- `subagent_*`: Delegate work to child agents when started with `--multi-agent`
-
-See the [Tool System](tools.md) documentation for details.
-
-### Q: How do I use multi-agent workflows?
-
-A: Start VibeCoding with `--multi-agent`:
-
-```bash
-vibecoding --multi-agent
-vibecoding acp --multi-agent
-```
-
-This registers `subagent_*` tools for delegated work. Cron command entry points also rely on multi-agent mode.
-
-### Q: Can VibeCoding read images?
-
-A: Yes! The `read` tool supports PNG, JPEG, GIF, and WebP images. Images are sent as base64-encoded data to the LLM for analysis.
-
-### Q: What to do if tools don't work?
-
-A:
-1. Check sandbox level
-2. Check file permissions
-3. Use `--debug` for detailed logs
-
-### Q: How to restrict tool permissions?
-
-A: Use Plan mode (read-only) or configure sandbox level. In Agent mode, bash commands require approval by default (configurable via whitelist/blacklist).
-
-## Build Questions
-
-### Q: What to do if build fails?
-
-A: 
-```bash
-# Check Go version
-go version
-
-# Update dependencies
-go mod tidy
-
-# Clean cache
-go clean -cache
-make clean
-make build
-```
-
-### Q: What to do if tests fail?
-
-A: 
-```bash
-# Run specific test
-go test -v ./internal/agent/
-
-# View detailed output
-go test -v -run TestName ./...
-```
-
-## Other Questions
-
-### Q: How to report a bug?
-
-A: Create an Issue on GitHub, including:
-- Operating system and version
-- Go version
-- Error message
-- Steps to reproduce
-
-### Q: How to contribute code?
-
-A: See [Development Guide](development.md).
-
-### Q: Is there community support?
-
-A:
-- GitHub Issues: Report bugs
-- GitHub Discussions: Ask questions and discuss
-
-### Q: What is the license?
-
-A: MIT License
-
-### Q: How to diagnose environment issues?
-
-A: Use the `doctor` subcommand to check your environment:
+**A:** The doctor command checks:
 
 ```bash
 vibecoding doctor
 ```
 
-This checks OS info, config files, providers, models, sandbox, MCP servers, sessions, skills, and context files. It reports any issues with masked API keys and validates that your default provider can be initialized.
+Common issues:
+- **Config**: Config file format error → Check JSON syntax
+- **Provider**: API key missing or invalid → Reconfigure
+- **Sandbox**: bubblewrap not installed → Install or ignore
+- **MCP**: MCP server config error → Check mcp.json
 
-### Q: What is the current version?
+### Q: How to view detailed logs?
 
-A: The current version is v0.1.39. See the [Changelog](changelog.md) for version history.
+**A:**
+
+```bash
+# Enable debug mode
+vibecoding --debug
+
+# Logs will show
+- API request/response details
+- Tool execution process
+- Error stack traces
+```
+
+### Q: Shows "context window exceeded"
+
+**A:** Context exceeds model limit:
+
+```bash
+# Option 1: Compress context
+/compact
+
+# Option 2: Enable auto-compaction
+{
+  "compaction": {
+    "enabled": true
+  }
+}
+
+# Option 3: Use a model with larger context
+vibecoding --model deepseek-v4-pro  # 1M context
+
+# Option 4: Clear conversation and start fresh
+/clear
+```
+
+### Q: Tool execution hangs
+
+**A:**
+
+```bash
+# Option 1: Press Esc to abort current operation
+
+# Option 2: Check for interactive commands blocking
+# Example: git push may require password input
+
+# Option 3: Configure non-interactive mode
+{
+  "env": {
+    "GIT_TERMINAL_PROMPT": "0",
+    "DEBIAN_FRONTEND": "noninteractive"
+  }
+}
+```
+
+---
+
+## 🆚 Comparison with Other Tools
+
+### Q: What's the difference between VibeCoding and Claude Code?
+
+**A:**
+
+| Feature | VibeCoding | Claude Code |
+|---------|-----------|-------------|
+| Price | Free & Open Source | Paid |
+| Models | Multi-provider | Anthropic only |
+| Sandbox | ✅ bwrap | ❌ |
+| Session Management | ✅ Full | Limited |
+| IDE Integration | ✅ ACP | ✅ |
+| Messaging | ✅ WeChat/Feishu | ❌ |
+| Gateway | ✅ OpenAI compatible | ❌ |
+
+### Q: What's the difference between VibeCoding and Cursor?
+
+**A:**
+
+- **VibeCoding**: Terminal tool, lightweight, great for CLI users
+- **Cursor**: IDE with GUI, great for users who prefer graphical interfaces
+
+Choose based on:
+- Prefer terminal → VibeCoding
+- Prefer GUI → Cursor
+- Need API service → VibeCoding Gateway
+
+---
+
+## 📚 More Resources
+
+- [5-Minute Quick Start](quick-start-tutorial.md)
+- [Features Overview](features-overview.md)
+- [Use Cases](use-cases.md)
+- [Configuration Guide](configuration.md)
+- [Tool Reference](tools.md)
+
+---
+
+<p align="center">
+  <strong>Still have questions? Ask on GitHub!</strong><br>
+  <a href="https://github.com/startvibecoding/vibecoding/issues">GitHub Issues</a> · <a href="https://github.com/startvibecoding/vibecoding/discussions">GitHub Discussions</a>
+</p>

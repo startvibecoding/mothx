@@ -21,7 +21,7 @@ cd ~/projects/myapp
 ### A: Code Explanation
 
 ```bash
-$ vibecoding "explain the core logic of internal/agent/agent.go"
+$ vibecoding -P "explain the core logic of internal/agent/agent.go"
 ```
 
 VibeCoding will:

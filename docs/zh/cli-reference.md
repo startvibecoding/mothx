@@ -6,8 +6,6 @@
 vibecoding [flags] [message...]
 ```
 
-别名: `vc`
-
 ## 命令行参数
 
 ### 基本参数
@@ -200,7 +198,7 @@ vibecoding doctor
 vibecoding
 
 # 带初始提示
-vibecoding "解释这个代码库"
+vibecoding -P "解释这个代码库"
 
 # 非交互模式
 vibecoding -p "写一个 Hello World"

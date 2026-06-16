@@ -14,7 +14,7 @@
 ### 获取源码
 
 ```bash
-git clone https://github.com/startvibecoding/vibecoding.git
+git clone https://gitee.com/startvibecoding/vibecoding.git
 cd vibecoding
 ```
 

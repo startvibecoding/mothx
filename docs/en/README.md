@@ -5,11 +5,12 @@
 </p>
 
 <p align="center">
-  <strong>AI-Powered Terminal Coding Assistant</strong>
+  <strong>🚀 One Binary to Rule Them All — Your AI Coding Assistant in the Terminal</strong>
 </p>
 
 <p align="center">
-  Progressive and agile vibe-coding tool. No need to re-deploy Claude Code, Codex, Claw, or Hermes — everything is packed into a single file.
+  Stop switching between Claude Code, Codex, Claw, and Hermes.<br>
+  VibeCoding packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
 </p>
 
 <p align="center">
@@ -25,83 +26,76 @@
 
 Welcome to the VibeCoding Documentation Center!
 
-## Features
+## ✨ Why VibeCoding?
 
-- Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs through vendor adapters
-- Redesigned terminal UI with a startup header, status footer, native scrollback transcript, sticky plan todo list, compact tool display, sessions, context management, skills, and sandboxed tool execution
-- Optional `--multi-agent` mode with delegated sub-agents, an agent tab bar, and cron command entry points
-- Optional `--delegate` mode with a blocking single sub-agent tool for bounded investigations and summarized results
-- ACP support: run VibeCoding as an Agent Client Protocol stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
-- Safer approval handling: `bashBlacklist` now overrides whitelist entries, including in YOLO mode, and `--print` exits early when approval would be required
-- Unified cache metrics across TUI and print mode for cache hit rate and token totals
-- Consistent provider debug output via `--debug`, including ACP mode
-- `doctor` subcommand for environment diagnostics: config, providers, sandbox, MCP, sessions, skills, and context files
+**The Problem:** You're juggling multiple AI coding tools — Claude Code for one thing, Codex for another, Claw for something else. Each has its own setup, its own quirks, its own dependencies.
 
-## Table of Contents
+**The Solution:** VibeCoding is the **all-in-one terminal AI coding assistant** that does it all. One binary. One config. Zero hassle.
 
-### Getting Started
-- [Quick Start](getting-started.md) — Installation, configuration, and first run
-- [CLI Reference](cli-reference.md) — Complete CLI parameter reference
+### 🎯 Key Highlights
 
-### Configuration
-- [Configuration Guide](configuration.md) — Settings files, environment variables, authentication
+| Feature | What It Means for You |
+|---------|----------------------|
+| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, and 15+ vendor adapters — switch models instantly |
+| **⚡ Lightning Fast** | SSE streaming, real-time token delivery, cache hit optimization |
+| **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude) |
+| **🛡️ Sandboxed** | bwrap process isolation — safe file ops, network control, approval gates |
+| **📝 Sessions** | Persistent JSONL history with branching, compaction, and tree structure |
+| **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
+| **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
+| **🌐 Gateway** | OpenAI-compatible HTTP API — use VibeCoding as a backend service |
+| **📱 Messaging** | WeChat, Feishu, WebSocket — deploy as a chatbot |
+| **🤝 Multi-Agent** | Async sub-agents with `--multi-agent`, blocking delegation with `--delegate`, and A2A master mode |
+| **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals |
+| **🔒 Security** | bashBlacklist > whitelist, YOLO mode safety, `--print` fails fast |
 
-### Architecture
-- [System Architecture](architecture.md) — Project structure, core components, data flow
-- [Tool System](tools.md) — Built-in tools usage guide
+---
+
+## 📚 Documentation
+
+### 🚀 Getting Started
+- [5-Minute Quick Start](quick-start-tutorial.md) — Skip the long docs, just start coding!
+- [Quick Start](getting-started.md) — Installation, configuration, first run
+- [CLI Reference](cli-reference.md) — All commands and flags
+
+### ✨ Core Features
+- [Features Overview](features-overview.md) — Multi-provider, sandbox, sessions, skills, and more
+
+### 🎯 Use Cases
+- [Use Cases & Real-World Examples](use-cases.md) — From daily development to enterprise deployment
+
+### ⚙️ Configuration
+- [Configuration Guide](configuration.md) — Settings, env vars, authentication
+
+### 🏗️ Architecture
+- [System Architecture](architecture.md) — Core components, data flow
+- [Tool System](tools.md) — Built-in tools guide
 - [Skills System](skills.md) — Reusable prompt snippets
-- [Online Skill Marketplace](skillhub.md) — Compatible with SkillHub / ClawHub, skill installation & cron foundation
+- [Online Skill Marketplace](skillhub.md) — SkillHub / ClawHub integration
 - [Session Management](sessions.md) — Session storage and management
 - [SDK Integration](sdk.md) — Embed VibeCoding agent in your Go applications
 
-### Security
-- [Security & Sandbox](security.md) — Sandbox modes, permission control, approval mechanism
+### 🔒 Security
+- [Security & Sandbox](security.md) — Sandbox modes, permissions, approval
 
-### IDE Integration
-- [ACP Protocol](acp.md) — Agent Client Protocol for VS Code and JetBrains
+### 💻 IDE Integration
+- [ACP Protocol](acp.md) — VS Code, Zed, JetBrains integration
 
-### Gateway Modes
-- [Gateway Mode](gateway.md) — OpenAI-compatible HTTP gateway
-- [Hermes Mode](hermes.md) — Messaging gateway (WeChat/Feishu/WebSocket)
-- [A2A Protocol](a2a.md) — Agent-to-Agent protocol server and Master mode
+### 🌐 Gateway Modes
+- [Gateway Mode](gateway.md) — OpenAI-compatible HTTP API
+- [Hermes Mode](hermes.md) — WeChat/Feishu/WebSocket chatbot
+- [A2A Protocol](a2a.md) — Agent-to-Agent protocol
 
-### Scenarios
-- [Scenarios & Walkthroughs](scenarios.md) — Practical usage examples for all modes
+### 📖 Tutorials
+- [Scenarios & Walkthroughs](scenarios.md) — Practical examples
+- [FAQ](faq.md) — Common questions answered
 
-### Development
-- [Development Guide](development.md) — Contributing code, testing, building
+### 🇨🇳 中文文档
+- [中文文档首页](../zh/README.md) — 完整中文文档
 
-### Reference
-- [FAQ](faq.md) — Frequently asked questions
-- [Changelog](changelog.md) — Version history and release notes
+---
 
-## Quick Links
-
-| Topic | Description |
-|-------|-------------|
-| [Quick Start](getting-started.md) | Get started with VibeCoding in 5 minutes |
-| [Configuration](configuration.md) | Customize providers, models, and behavior |
-| [Tool Reference](tools.md) | Learn about built-in tools, optional multi-agent tools, and delegate mode |
-| [Security Model](security.md) | Understand sandbox, modes, and permissions |
-| [ACP Protocol](acp.md) | IDE integration via Agent Client Protocol |
-| [Session Management](sessions.md) | Conversation history and branching |
-| [Skills System](skills.md) | Create reusable prompt snippets |
-| [Online Skill Marketplace](skillhub.md) | SkillHub / ClawHub integration and cron foundation |
-| [SDK Integration](sdk.md) | Embed VibeCoding agent in your Go applications |
-| [Scenarios & Walkthroughs](scenarios.md) | Practical usage examples for all modes |
-| [Changelog](changelog.md) | See what's new in each release |
-
-## Supported LLMs
-
-| Provider | Models | API Format |
-|----------|--------|------------|
-| **DeepSeek** (default) | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
-| **OpenAI** | GPT-4o, o1, etc. | OpenAI Chat |
-| **Anthropic** | Claude Sonnet, Opus, etc. | Anthropic Messages |
-| **Vendor adapters** | Google Gemini, Google Vertex, Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more | OpenAI Chat or Anthropic Messages |
-| **Custom** | Any compatible model | Generic OpenAI Chat or Anthropic Messages fallback |
-
-## Quick Install
+## 🚀 Quick Install
 
 ```bash
 # npm (recommended)
@@ -112,6 +106,58 @@ curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/ins
 
 # Go install
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+```
+
+## 🗑️ Uninstall
+
+```bash
+# npm
+npm uninstall -g vibecoding-installer
+
+# Linux/macOS (one-line install)
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall
+
+# Windows (one-line install)
+irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex; Uninstall-VibeCoding
+```
+
+## 🎮 Three Modes for Every Situation
+
+```
+🗒️  Plan    → Read-only analysis & planning. Safe, sandboxed, no surprises.
+🔧  Agent   → Standard read/write. Bash approval required. (Default)
+🚀  YOLO    → Full system access. No restrictions. For the brave.
+```
+
+Switch modes anytime with `/mode plan|agent|yolo` or press `Tab`.
+
+## 🎯 Use Cases
+
+### 💻 Daily Development
+```bash
+vibecoding -P "Refactor this function to use generics"
+vibecoding -P "Write tests for the UserService struct"
+vibecoding -P "Explain what this regex does"
+```
+
+### 🔍 Code Review
+```bash
+vibecoding --mode plan "Review this PR and suggest improvements"
+```
+
+### 🚀 CI/CD Integration
+```bash
+vibecoding -p "Generate changelog from git log" > CHANGELOG.md
+```
+
+### 🌐 API Server
+```bash
+vibecoding gateway  # Start OpenAI-compatible HTTP server
+```
+
+### 📱 Chatbot
+```bash
+vibecoding hermes   # Deploy as WeChat/Feishu bot
 ```
 
 ## Getting Help

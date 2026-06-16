@@ -1,134 +1,255 @@
-# VibeCoding 文档
-
 <p align="center">
   <img src="assets/logo.svg" alt="VibeCoding" width="128" height="128">
 </p>
 
+<h1 align="center">VibeCoding</h1>
+
 <p align="center">
-  <strong>AI 驱动的终端编码助手</strong>
+  <strong>🚀 一个二进制文件搞定一切 — 你的终端 AI 编程助手</strong>
 </p>
 
 <p align="center">
-  主打渐进式、敏捷开发体验的 VibeCoding 工具，整体打包为单个文件，开箱即用，无需重复搭建部署 Claude Code 、 codex、Claw、Hermes 环境。
+  别再在 Claude Code、Codex、Claw、Hermes 之间来回切换了。<br>
+  VibeCoding 把所有功能打包成一个文件 — 提供商、工具、沙箱、会话、技能，一应俱全。
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
+  <a href="https://gitee.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
   <a href="https://pkg.go.dev/github.com/startvibecoding/vibecoding"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/vibecoding?status.svg" alt="GoDoc"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/vibecoding" alt="Dependencies"></a>
+</p>
+
+<p align="center">
+  <strong>GitHub: <a href="https://github.com/startvibecoding/vibecoding">海外用户</a></strong>
 </p>
 
 ---
 
-欢迎来到 VibeCoding 文档中心！
+## ✨ 为什么选择 VibeCoding？
 
-## 什么是 VibeCoding?
+**问题：** 你在多个 AI 编程工具之间疲于奔命 — Claude Code 做这个，Codex 做那个，Claw 又是另一个。每个都有自己的配置、自己的坑、自己的依赖。
 
-VibeCoding 是一个基于终端的 AI 编码助手，帮助你编写、调试、重构和理解代码。它支持多种 LLM 提供商，包括 DeepSeek（默认）、OpenAI、Anthropic，以及通过厂商适配器接入的 OpenAI/Anthropic 兼容 API。
+**解决方案：** VibeCoding 是**全能终端 AI 编程助手**，一个工具搞定所有事情。一个二进制文件，一份配置，零烦恼。
 
-### 核心特性
+### 🎯 核心亮点
 
-- 🤖 **多提供商支持** — DeepSeek、OpenAI、Anthropic、厂商适配器及自定义提供商
-- 🔧 **内置工具** — 文件操作、代码搜索、命令执行、任务计划和可选子 Agent 工具
-- 🎨 **重设计 TUI** — 启动 Header、状态 Footer、终端原生 scrollback、sticky 计划列表、紧凑工具显示和工具详情 Modal
-- 🧭 **多 Agent 工作流** — `--multi-agent` 模式支持委托子 Agent、Agent Tab Bar 和 cron 命令入口
-- 🧵 **Delegate 模式** — `--delegate` 模式提供阻塞式单子 Agent 工具，用于边界清晰的调查任务和摘要结果
-- 🛡️ **沙箱安全** — 通过 bubblewrap 实现进程级隔离
-- 📝 **会话管理** — 持久化对话历史，支持分支
-- 🎯 **3 种操作模式** — Plan（只读）、Agent（标准）、YOLO（完全访问）
-- 🧩 **技能系统** — 可复用的提示片段，用于项目约定
-- 💻 **IDE 集成** — ACP 协议支持 VS Code 和 JetBrains
-- 🖼️ **图像支持** — 读取和分析图像文件
-- ⚡ **提示缓存** — 通过缓存重复前缀降低 API 成本
-- ✅ **更安全的审批处理** — `bashBlacklist` 优先于白名单，包括 YOLO 模式；`--print` 遇到需审批命令时直接失败
-- 📊 **统一缓存指标** — TUI 与 print 模式使用一致的缓存命中率与 token 统计口径
-- 🐞 **一致的调试输出** — `--debug` 会同时开启 provider 级调试，ACP 模式同样适用
-- 🎨 **丰富 TUI** — Markdown 渲染、语法高亮、思考显示
-- 🩺 **环境诊断** — `doctor` 子命令检查配置、Provider、沙箱、MCP、会话、技能和上下文文件
+| 特性 | 对你意味着什么 |
+|------|---------------|
+| **🤖 多提供商** | DeepSeek、OpenAI、Anthropic 和 15+ 厂商适配器 — 一键切换模型 |
+| **⚡ 极速响应** | SSE 流式传输、实时 token 送达、缓存命中优化 |
+| **🧠 思考模式** | 复杂问题的扩展推理（DeepSeek、o1、Claude） |
+| **🛡️ 沙箱隔离** | bwrap 进程级隔离 — 安全文件操作、网络控制、审批门控 |
+| **📝 会话管理** | 持久化 JSONL 历史，支持分支、压缩和树形结构 |
+| **🧩 技能系统** | 可复用的提示片段，用于项目约定 — 团队共享 |
+| **💻 IDE 集成** | ACP 协议支持 VS Code、Zed、JetBrains — 原生编辑器集成 |
+| **🌐 网关模式** | OpenAI 兼容 HTTP API — 把 VibeCoding 当后端服务用 |
+| **📱 消息平台** | 微信、飞书、WebSocket — 部署为聊天机器人 |
+| **🤝 多 Agent** | `--multi-agent` 异步子 Agent、`--delegate` 阻塞式委托，以及 A2A Master 模式 |
+| **🎨 丰富 TUI** | Markdown 渲染、语法高亮、思考显示、工具弹窗 |
+| **🔒 安全可控** | bashBlacklist 优先于白名单、YOLO 模式安全保护、`--print` 快速失败 |
 
-## 目录
+---
 
-### 入门指南
-- [快速入门](getting-started.md) — 安装、配置和首次运行
-- [命令行参考](cli-reference.md) — 完整的 CLI 参数说明
-
-### 配置
-- [配置详解](configuration.md) — 设置文件、环境变量、认证
-
-### 架构
-- [系统架构](architecture.md) — 项目结构、核心组件、数据流
-- [工具系统](tools.md) — 内置工具使用指南
-- [技能系统](skills.md) — 可复用提示片段
-- [在线Skill市场集成](skillhub.md) — 兼容 SkillHub / ClawHub，技能安装与 Cron 基础设施
-- [会话管理](sessions.md) — 会话存储和管理
-- [SDK 集成指南](sdk.md) — 将 VibeCoding Agent 嵌入你的 Go 应用
-
-### 安全
-- [安全与沙箱](security.md) — 沙箱模式、权限控制、审批机制
-
-### IDE 集成
-- [ACP 协议](acp.md) — Agent Client Protocol 支持 VS Code 和 JetBrains
-
-### 网关模式
-- [Gateway 模式](gateway.md) — OpenAI 兼容 HTTP 网关
-- [Hermes 模式](hermes.md) — 消息平台网关 (微信/飞书/WebSocket)
-- [A2A 协议](a2a.md) — Agent-to-Agent 协议服务器与 Master 模式
-
-### 场景演示
-- [场景演示](scenarios.md) — 各种模式的实际用法和工作流
-
-### 开发
-- [开发指南](development.md) — 贡献代码、测试、构建
-
-### 参考
-- [FAQ](faq.md) — 常见问题解答
-- [更新日志](changelog.md) — 版本历史和发布说明
-
-## 快速链接
-
-| 主题 | 描述 |
-|------|------|
-| [快速入门](getting-started.md) | 5 分钟上手 VibeCoding |
-| [配置文件](configuration.md) | 自定义提供商、模型和行为 |
-| [工具参考](tools.md) | 了解内置工具、可选多 Agent 工具和 Delegate 模式 |
-| [安全模型](security.md) | 理解沙箱、模式和权限 |
-| [ACP 协议](acp.md) | 通过 Agent Client Protocol 集成 IDE |
-| [会话管理](sessions.md) | 对话历史和分支 |
-| [技能系统](skills.md) | 创建可复用提示片段 |
-| [在线Skill市场集成](skillhub.md) | 兼容 SkillHub / ClawHub，技能安装与 Cron 基础设施 |
-| [SDK 集成指南](sdk.md) | 将 VibeCoding Agent 嵌入你的 Go 应用 |
-| [场景演示](scenarios.md) | 各种模式的实际用法和工作流 |
-| [更新日志](changelog.md) | 查看每个版本的新内容 |
-
-## 支持的 LLM
-
-| 提供商 | 模型 | API 格式 |
-|--------|------|----------|
-| **DeepSeek**（默认） | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
-| **OpenAI** | GPT-4o, o1 等 | OpenAI Chat |
-| **Anthropic** | Claude Sonnet, Opus 等 | Anthropic Messages |
-| **厂商适配器** | Google Gemini、Google Vertex、小米、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、OpenRouter、Together、Groq、Fireworks 等 | OpenAI Chat 或 Anthropic Messages |
-| **自定义** | 任何兼容模型 | 通用 OpenAI Chat 或 Anthropic Messages fallback |
-
-## 快速安装
+## 🚀 30 秒上手
 
 ```bash
-# npm（推荐）
-npm install -g vibecoding-installer
+# 安装（任选其一）
+npm install -g vibecoding-installer          # npm（推荐）
+curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash  # Linux/macOS
 
-# 一键安装（Linux/macOS）
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+# 设置 API 密钥
+export DEEPSEEK_API_KEY=sk-...
 
-# Go install
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+# 运行
+vibecoding
 ```
 
-## 获取帮助
+就这么简单，你已经在用 AI 编程了。
 
-- 使用 `/help` 命令查看交互式帮助
-- 查看 [CLI 参考](cli-reference.md) 了解所有命令
-- 阅读 [FAQ](faq.md) 获取常见问题解答
-- 访问 [GitHub Issues](https://github.com/startvibecoding/vibecoding/issues) 报告 Bug
+**卸载:**
+
+```bash
+# npm
+npm uninstall -g vibecoding-installer
+
+# Linux/macOS（一键安装）
+curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+
+# Windows（一键安装）
+irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+```
+
+---
+
+## 🎮 三种模式，应对各种场景
+
+```
+🗒️  Plan    → 只读分析和规划。安全、沙箱化、没有意外。
+🔧  Agent   → 标准读写。Bash 需要审批。（默认）
+🚀  YOLO    → 完全系统访问。没有限制。给勇者的。
+```
+
+随时切换模式：`/mode plan|agent|yolo` 或按 `Tab`。
+
+---
+
+## 🏗️ 架构概览
+
+```
+vibecoding/
+├── cmd/vibecoding/        # CLI 入口
+├── internal/
+│   ├── agent/             # 核心 Agent 循环
+│   ├── provider/          # LLM 提供商抽象（15+ 厂商）
+│   ├── tools/             # 内置工具（read, write, bash, grep, find, ...）
+│   ├── sandbox/           # bwrap 沙箱实现
+│   ├── session/           # JSONL 会话存储
+│   ├── skills/            # 技能系统
+│   ├── tui/               # 终端 UI（BubbleTea + Lipgloss）
+│   ├── gateway/           # OpenAI 兼容 HTTP 网关
+│   ├── hermes/            # 消息平台网关（微信/飞书/WebSocket）
+│   ├── a2a/               # A2A 协议服务器和 Master 模式
+│   └── acp/               # ACP / MCP 集成
+└── pkg/sdk/               # 公共 SDK 接口
+```
+
+---
+
+## 📚 文档
+
+### 🚀 入门指南
+- [5 分钟快速上手](quick-start-tutorial.md) — 别读长文档，直接上手！
+- [快速入门](getting-started.md) — 安装、配置、首次运行
+- [命令行参考](cli-reference.md) — 所有命令和参数
+
+### ✨ 核心特性
+- [核心特性详解](features-overview.md) — 多提供商、沙箱、会话、技能等
+
+### 🎯 使用场景
+- [使用场景与实战示例](use-cases.md) — 从日常开发到企业部署
+
+### ⚙️ 配置
+- [配置详解](configuration.md) — 设置、环境变量、认证
+
+### 🏗️ 架构
+- [系统架构](architecture.md) — 核心组件、数据流
+- [工具系统](tools.md) — 内置工具指南
+- [技能系统](skills.md) — 可复用提示片段
+- [在线 Skill 市场](skillhub.md) — SkillHub / ClawHub 集成
+
+### 🔒 安全
+- [安全与沙箱](security.md) — 沙箱模式、权限、审批
+
+### 💻 IDE 集成
+- [ACP 协议](acp.md) — VS Code、Zed、JetBrains 集成
+
+### 🌐 网关模式
+- [Gateway 模式](gateway.md) — OpenAI 兼容 HTTP API
+- [Hermes 模式](hermes.md) — 微信/飞书/WebSocket 聊天机器人
+- [A2A 协议](a2a.md) — Agent-to-Agent 协议
+
+### 📖 教程
+- [场景演示](scenarios.md) — 实际用法示例
+- [FAQ](faq.md) — 常见问题解答
+
+### 🇬🇧 English Docs
+- [English Documentation](../en/README.md) — Full English documentation
+
+---
+
+## 🎯 使用场景
+
+### 💻 日常开发
+```bash
+vibecoding -P "把这个函数重构成泛型版本"
+vibecoding -P "为 UserService 结构体写测试"
+vibecoding -P "解释这个正则表达式的作用"
+```
+
+### 🔍 代码审查
+```bash
+vibecoding --mode plan "审查这个 PR 并提出改进建议"
+```
+
+### 🚀 CI/CD 集成
+```bash
+vibecoding -p "从 git log 生成更新日志" > CHANGELOG.md
+```
+
+### 🌐 API 服务器
+```bash
+vibecoding gateway  # 启动 OpenAI 兼容 HTTP 服务器
+```
+
+### 📱 聊天机器人
+```bash
+vibecoding hermes   # 部署为微信/飞书机器人
+```
+
+---
+
+## 🛠️ 内置工具
+
+| 工具 | 描述 |
+|------|------|
+| `read` | 读取文件内容 |
+| `write` | 创建/覆盖文件 |
+| `edit` | 精确文本替换 |
+| `bash` | 执行 Shell 命令 |
+| `grep` | 搜索文件内容（基于 ripgrep） |
+| `find` | 按模式查找文件（基于 fd） |
+| `ls` | 列出目录内容 |
+| `plan` | 发布任务计划 |
+| `jobs` | 管理后台任务 |
+| `kill` | 停止后台任务 |
+| `skill_ref` | 加载技能引用 |
+
+---
+
+## 🔧 配置
+
+### 配置文件
+
+| 位置 | 平台 | 作用域 |
+|------|------|--------|
+| `~/.vibecoding/settings.json` | Linux/macOS | 全局 |
+| `%APPDATA%\vibecoding\settings.json` | Windows | 全局 |
+| `.vibe/settings.json` | 所有 | 项目（覆盖全局） |
+
+### 环境变量
+
+| 变量 | 描述 |
+|------|------|
+| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 |
+| `VIBECODING_DIR` | 覆盖配置目录 |
+| `VIBECODING_PROVIDER` | 覆盖默认提供商 |
+| `VIBECODING_MODEL` | 覆盖默认模型 |
+| `VIBECODING_MODE` | 覆盖默认模式 |
+| `VIBECODING_DEBUG` | 启用调试输出 |
+
+---
+
+## 🤝 贡献
+
+我们欢迎贡献！详见 [开发指南](development.md)。
+
+```bash
+git clone https://gitee.com/startvibecoding/vibecoding.git
+cd vibecoding
+make build
+make test
+```
+
+---
+
+## 📄 许可证
+
+MIT — 详见 [LICENSE](../../LICENSE)。
+
+---
+
+<p align="center">
+  <strong>准备好开始了吗？⭐ Star 这个仓库，开始编程吧！</strong>
+</p>

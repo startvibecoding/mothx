@@ -1,185 +1,453 @@
 # 常见问题 (FAQ)
 
-## 基本问题
+> 来自真实用户的提问和解决方案
 
-### Q: VibeCoding 是什么?
+---
 
-A: VibeCoding 是一个终端 AI 编码助手，支持 DeepSeek（默认）、OpenAI、Anthropic、面向兼容 API 的厂商适配器，以及通过通用 OpenAI/Anthropic 格式接入的自定义端点，提供代码编写、调试、重构、多 Agent 委托工作流等功能。
+## 🚀 安装与启动
 
-### Q: 支持哪些 LLM?
+### Q: 安装后运行 `vibecoding` 提示 "command not found"
 
-A:
-- DeepSeek (默认): deepseek-v4-flash, deepseek-v4-pro (1M 上下文，最多 384K 输出)
-- OpenAI: GPT-4o, o1 等
-- Anthropic: Claude Sonnet, Opus 等
-- 厂商适配器: Google Gemini、Google Vertex、小米、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、OpenRouter、Together、Groq、Fireworks 等
-- 自定义: 任何 OpenAI Chat 或 Anthropic Messages 兼容 API 端点，会回退到通用 provider
+**A:** 这通常是因为安装路径不在 PATH 环境变量中。
 
-### Q: 如何安装?
-
-A:
 ```bash
-# npm（推荐）
-npm install -g vibecoding-installer
+# 检查安装位置
+which vibecoding || where vibecoding
 
-# 一键安装（Linux/macOS）
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+# 如果使用 npm 安装，检查 npm 全局路径
+npm root -g
 
-# Go install
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+# 解决方案：将安装路径添加到 PATH
+# Linux/macOS (添加到 ~/.bashrc 或 ~/.zshrc)
+export PATH="$HOME/.local/bin:$PATH"
 
-# 或从源码
-git clone https://github.com/startvibecoding/vibecoding.git
-cd vibecoding
-make build
+# 或者重新安装到系统路径
+sudo npm install -g vibecoding-installer
 ```
 
-## 配置问题
+### Q: npm 安装失败，提示权限错误
 
-### Q: 配置文件在哪里?
+**A:** 不要使用 sudo 安装 npm 全局包，改用以下方式：
 
-A: 
-- 全局:
-  - Linux/macOS: `~/.vibecoding/settings.json`
-  - Windows: `%APPDATA%\vibecoding\settings.json`
-- 项目: `.vibe/settings.json`
-### Q: 如何设置 API 密钥?
+```bash
+# 方案一：修改 npm 全局目录
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+export PATH=~/.npm-global/bin:$PATH
 
-A: 两种方式:
-1. 环境变量: `export DEEPSEEK_API_KEY=sk-...`
-2. 配置文件: `settings.json` 中的 `providers.<name>.apiKey`
+# 方案二：使用 npx 直接运行
+npx vibecoding-installer
 
-### Q: 如何使用自定义 API?
+# 方案三：使用一键安装脚本
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+```
 
-A: 在 `settings.json` 中配置:
+### Q: 启动后没有任何反应，光标闪烁
 
-```json
+**A:** 可能是终端不兼容或 TUI 渲染问题：
+
+```bash
+# 方案一：使用 print 模式（非交互）
+vibecoding -P "hello"
+
+# 方案二：检查终端支持
+echo $TERM  # 应该是 xterm-256color 或类似
+
+# 方案三：尝试其他终端
+# 推荐：iTerm2 (macOS), Windows Terminal (Windows), Alacritty (Linux)
+```
+
+---
+
+## 🔑 API 密钥与连接
+
+### Q: 提示 "API key not found" 或 "Unauthorized"
+
+**A:** 检查 API 密钥配置：
+
+```bash
+# 方案一：使用环境变量
+export DEEPSEEK_API_KEY=sk-...
+# 或
+export OPENAI_API_KEY=sk-...
+
+# 方案二：检查配置文件
+cat ~/.vibecoding/settings.json
+
+# 方案三：运行诊断
+vibecoding doctor
+```
+
+### Q: 提示 "connection timeout" 或 "network error"
+
+**A:** 网络连接问题，常见于国内用户访问国外 API：
+
+```bash
+# 方案一：使用代理
+export HTTPS_PROXY=http://127.0.0.1:7890
+
+# 方案二：使用国内提供商
+# 在 settings.json 中配置 DeepSeek（国内可直连）
 {
   "providers": {
-    "deepseek-openai": {
+    "deepseek": {
       "vendor": "deepseek",
-      "baseUrl": "https://api.deepseek.com",
       "api": "openai-chat",
+      "baseUrl": "https://api.deepseek.com",
       "apiKey": "sk-..."
     }
   },
-  "defaultProvider": "deepseek-openai"
+  "defaultProvider": "deepseek"
 }
+
+# 方案三：检查 DNS
+nslookup api.deepseek.com
 ```
 
-## 使用问题
+### Q: 提示 "rate limit exceeded"
 
-### Q: 如何切换模式?
+**A:** API 调用频率超限：
 
-A:
 ```bash
-# 命令行
-vibecoding --mode plan
-vibecoding -M agent
+# 方案一：等待几分钟后重试
 
-# 交互式
-/mode plan
-/mode agent
+# 方案二：配置重试机制
+{
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  }
+}
+
+# 方案三：切换到其他提供商
+vibecoding --provider openai --model gpt-4o
+```
+
+---
+
+## 💰 成本与计费
+
+### Q: 使用 VibeCoding 会花多少钱？
+
+**A:** VibeCoding 本身免费开源，费用来自 LLM API 调用：
+
+| 提供商 | 大致价格（每百万 token） |
+|--------|------------------------|
+| DeepSeek V4 Flash | ¥1-2 |
+| DeepSeek V4 Pro | ¥4-8 |
+| GPT-4o | $2.5-10 |
+| Claude Sonnet | $3-15 |
+
+**省钱技巧：**
+- 使用 `deepseek-v4-flash`（默认）最便宜
+- 开启缓存命中优化（自动）
+- 使用 `/compact` 压缩上下文
+- 避免发送过长的代码文件
+
+### Q: 如何查看 token 使用量？
+
+**A:** TUI 底部状态栏会显示：
+- 缓存命中率
+- 当前轮 token 使用量
+- 累计 token 使用量
+
+```bash
+# 使用 debug 模式查看详细信息
+vibecoding --debug
+```
+
+### Q: 如何降低 API 成本？
+
+**A:**
+
+1. **使用便宜的模型**：`deepseek-v4-flash` 性价比最高
+2. **开启缓存**：重复的 prompt 前缀会被缓存
+3. **压缩上下文**：使用 `/compact` 命令
+4. **限制输出长度**：在配置中设置 `maxOutputTokens`
+5. **使用 Plan 模式**：先分析再执行，减少无效调用
+
+---
+
+## 🎮 使用模式
+
+### Q: Plan、Agent、YOLO 模式有什么区别？
+
+**A:**
+
+| 模式 | 文件操作 | 网络 | Bash 审批 | 适用场景 |
+|------|---------|------|----------|---------|
+| Plan | 只读 | ❌ | N/A | 分析代码、制定计划 |
+| Agent | 读写 | ❌ | 需要 | 日常开发（推荐） |
+| YOLO | 完全 | ✅ | 不需要 | 系统管理、自动化 |
+
+**建议：** 日常使用 Agent 模式，需要网络或系统操作时临时切换 YOLO。
+
+### Q: 为什么 Agent 模式下 bash 命令被拒绝？
+
+**A:** Agent 模式默认需要审批 bash 命令：
+
+```bash
+# 方案一：交互时输入 y 批准
+
+# 方案二：配置白名单（自动批准）
+{
+  "approval": {
+    "bashWhitelist": ["go ", "make ", "git ", "npm ", "ls ", "cat "],
+    "bashBlacklist": ["rm -rf", "sudo"]
+  }
+}
+
+# 方案三：切换到 YOLO 模式
 /mode yolo
 ```
 
-### Q: 如何切换模型?
+### Q: 如何让 AI 只读代码不修改？
 
-A:
-```bash
-# 命令行
-vibecoding --provider deepseek-openai --model deepseek-v4-pro
-
-# 交互式
-/model deepseek-v4-pro
-/model                  # 显示当前模型和可用选项
-```
-
-### Q: 什么是思考级别?
-
-A: 思考级别控制模型在回答前进行多少推理：
-- `off`: 无思考（默认）
-- `minimal`: 最少推理
-- `low`: 轻度推理
-- `medium`: 平衡推理
-- `high`: 深度推理
-- `xhigh`: 最大推理
+**A:** 使用 Plan 模式：
 
 ```bash
 # 命令行
-vibecoding --thinking medium
+vibecoding --mode plan
 
 # 交互式
-/think           # 循环切换级别
-Tab              # 键盘快捷键循环切换
+/mode plan
+
+# 或按 Tab 键循环切换
 ```
 
-### Q: 如何继续上次的会话?
+---
 
-A:
+## 🧠 模型与思考
+
+### Q: 什么时候该用思考模式？
+
+**A:**
+
+| 场景 | 推荐思考级别 |
+|------|-------------|
+| 简单问答 | off |
+| 代码生成 | low - medium |
+| 复杂重构 | high |
+| 架构设计 | xhigh |
+| 调试 bug | medium |
+
 ```bash
-vibecoding --continue
-vibecoding -c
+# 切换思考级别
+/think          # 循环切换
+Tab             # 快捷键
+vibecoding -t high  # 命令行指定
 ```
 
-### Q: 如何管理会话?
+### Q: 思考模式为什么没有效果？
 
-A: 在交互模式下使用 `/sessions` 命令：
-```
-/sessions           # 列出当前项目的会话
-/sessions ls        # 列出所有项目的会话
-/sessions set abc   # 切换到以 'abc' 开头的会话
-/sessions clear     # 创建新的空白会话
-/sessions del abc   # 删除以 'abc' 开头的会话
-```
+**A:** 不是所有模型都支持思考模式：
 
-### Q: 如何使用技能?
-
-A: 技能是可复用的提示片段。在交互模式下使用：
-```
-/skills             # 列出可用技能
-/skill my-skill     # 激活技能
-/skill:my-skill     # 替代语法
-```
-
-创建技能的方式是添加 `SKILL.md` 文件：
-- 全局: `~/.vibecoding/skills/<name>/SKILL.md`
-- 项目: `.skills/<name>/SKILL.md`
-
-详见 [技能系统](skills.md) 文档。
-
-### Q: 如何查看当前模型?
-
-A:
 ```bash
-# 交互式
-/model
+# 支持思考模式的模型
+vibecoding --provider deepseek --model deepseek-v4-pro -t high
+vibecoding --provider openai --model o1 -t high
+vibecoding --provider anthropic --model claude-3-5-sonnet -t high
 
-# 命令行
-vibecoding --version
+# 不支持的模型会忽略思考参数
+vibecoding --model deepseek-v4-flash -t high  # 无效
 ```
 
-### Q: 如何清空对话?
+### Q: 如何切换到其他模型？
 
-A:
+**A:**
+
 ```bash
+# 临时切换
+vibecoding --provider openai --model gpt-4o
+
+# 交互式切换
+/model gpt-4o
+/model  # 查看可用模型
+
+# 永久修改默认模型
+# 编辑 ~/.vibecoding/settings.json
+{
+  "defaultProvider": "openai",
+  "defaultModel": "gpt-4o"
+}
+```
+
+---
+
+## 📝 会话管理
+
+### Q: 对话太长，AI 开始遗忘上下文怎么办？
+
+**A:**
+
+```bash
+# 方案一：压缩上下文（保留关键信息）
+/compact
+
+# 方案二：开启自动压缩
+{
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 20000
+  }
+}
+
+# 方案三：开启新会话
 /clear
 ```
 
-## IDE 集成问题
+### Q: 如何恢复之前的对话？
 
-### Q: 可以在 IDE 中使用 VibeCoding 吗?
+**A:**
 
-A: 可以！VibeCoding 支持 Agent Client Protocol (ACP) 用于 IDE 集成。支持的 IDE：
-- Visual Studio Code
-- JetBrains IDE（IntelliJ IDEA、GoLand、WebStorm 等）
+```bash
+# 继续最近的会话
+vibecoding -c
 
-详见 [ACP 协议](acp.md) 文档了解配置说明。
+# 列出所有会话
+/sessions
 
-### Q: 如何设置 VS Code 集成?
+# 恢复特定会话
+/sessions set abc123
 
-A: 在 VS Code 的 `settings.json` 中添加：
+# 或命令行
+vibecoding --resume abc123
+```
+
+### Q: 会话文件占用太多空间怎么办？
+
+**A:**
+
+```bash
+# 查看会话大小
+du -sh ~/.vibecoding/sessions/
+
+# 删除旧会话
+/sessions del abc123
+
+# 或手动清理
+rm -rf ~/.vibecoding/sessions/--old-project--/
+```
+
+---
+
+## 🛠️ 工具使用
+
+### Q: AI 执行命令被拒绝，提示 "permission denied"
+
+**A:** 检查文件权限和沙箱设置：
+
+```bash
+# 方案一：检查文件权限
+ls -la <file>
+
+# 方案二：检查沙箱配置
+vibecoding doctor
+
+# 方案三：临时禁用沙箱
+vibecoding --no-sandbox
+
+# 方案四：切换到 YOLO 模式
+/mode yolo
+```
+
+### Q: grep/find 工具找不到结果
+
+**A:** 可能是路径或模式问题：
+
+```bash
+# 确保在项目目录下运行
+cd /path/to/your/project
+vibecoding
+
+# 使用绝对路径
+vibecoding -P "在 /path/to/project 中搜索 TODO"
+
+# 检查 .gitignore 是否排除了目标文件
+```
+
+### Q: 如何让 AI 不要自动执行命令？
+
+**A:**
+
+```bash
+# 方案一：使用 Plan 模式
+/mode plan
+
+# 方案二：在 prompt 中明确说明
+vibecoding -P "分析这段代码，不要执行任何命令"
+
+# 方案三：配置审批
+{
+  "approval": {
+    "bashWhitelist": [],
+    "confirmBeforeWrite": true
+  }
+}
+```
+
+---
+
+## 🔒 安全与隐私
+
+### Q: VibeCoding 会上传我的代码吗？
+
+**A:** VibeCoding 本身不会上传代码，但会将你的 prompt 发送到配置的 LLM API：
+
+- **本地处理**：文件读取、工具执行都在本地
+- **API 调用**：prompt 内容会发送到 LLM 提供商
+- **建议**：不要在 prompt 中包含敏感信息（密码、密钥等）
+
+### Q: 如何防止 AI 删除重要文件？
+
+**A:**
+
+```bash
+# 方案一：使用 Plan 模式（只读）
+/mode plan
+
+# 方案二：配置黑名单
+{
+  "approval": {
+    "bashBlacklist": ["rm -rf", "rm -r", "sudo"]
+  }
+}
+
+# 方案三：使用 Git 版本控制
+git add -A && git commit -m "backup before AI changes"
+
+# 方案四：启用沙箱
+vibecoding --sandbox
+```
+
+### Q: 沙箱模式不工作？
+
+**A:** 沙箱仅支持 Linux：
+
+```bash
+# 检查是否安装 bubblewrap
+bwrap --version
+
+# 安装
+sudo apt install bubblewrap      # Debian/Ubuntu
+sudo dnf install bubblewrap      # Fedora
+sudo pacman -S bubblewrap        # Arch
+
+# macOS/Windows 用户可以使用 WSL2
+```
+
+---
+
+## 💻 IDE 集成
+
+### Q: VS Code 中看不到 VibeCoding
+
+**A:** 检查 ACP 配置：
+
 ```json
+// .vscode/settings.json 或全局 settings.json
 {
   "acp.agents": {
     "vibecoding": {
@@ -190,173 +458,198 @@ A: 在 VS Code 的 `settings.json` 中添加：
 }
 ```
 
-详见 [ACP 协议](acp.md) 文档了解详细说明。
+确保：
+1. VibeCoding 已安装并在 PATH 中
+2. VS Code 版本支持 ACP
+3. 重启 VS Code
 
-## 沙箱问题
+### Q: JetBrains IDE 集成不工作
 
-### Q: 沙箱是什么?
+**A:**
 
-A: 沙箱使用 bubblewrap 限制 AI 的文件系统和网络访问，保护系统安全。
+1. 打开 `Settings → Tools → ACP Agents`
+2. 添加 Agent：
+   - Name: `VibeCoding`
+   - Command: `vibecoding`
+   - Arguments: `acp --mode agent`
+3. 点击 Test 验证连接
+4. 重启 IDE
 
-### Q: 如何启用沙箱?
+---
 
-A: 
+## 🌐 Gateway 模式
+
+### Q: 如何将 VibeCoding 作为 API 服务器？
+
+**A:**
+
 ```bash
-# 命令行
-vibecoding --sandbox
+# 启动 Gateway
+vibecoding gateway
 
-# 配置文件
+# 配置文件 ~/.vibecoding/gateway.json
 {
-  "sandbox": {
-    "enabled": true,
-    "level": "standard"
+  "port": 8080,
+  "auth": {
+    "token": "your-secret-token"
   }
+}
+
+# 调用 API
+curl http://localhost:8080/v1/chat/completions \
+  -H "Authorization: Bearer your-secret-token" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
+```
+
+### Q: Gateway 支持哪些 API？
+
+**A:** 兼容 OpenAI Chat Completions API：
+
+- `/v1/chat/completions` - 聊天补全
+- `/v1/models` - 模型列表
+- 支持 SSE 流式响应
+- 支持所有配置的提供商和模型
+
+---
+
+## 📱 消息平台
+
+### Q: 如何部署为微信/飞书机器人？
+
+**A:**
+
+```bash
+# 启动 Hermes 模式
+vibecoding hermes
+
+# 配置文件 ~/.vibecoding/hermes.json
+{
+  "platform": "wechat",  // 或 "feishu"
+  "appId": "your-app-id",
+  "appSecret": "your-app-secret",
+  "defaultProvider": "deepseek"
 }
 ```
 
-### Q: 为什么沙箱不工作?
+详见 [Hermes 模式](hermes.md) 文档。
 
-A: 
-1. 检查 bubblewrap 是否安装: `bwrap --version`
-2. 检查是否在 Linux 上 (macOS/Windows 不支持)
-3. 检查配置是否正确
+---
 
-### Q: macOS/Windows 支持沙箱吗?
+## 🔧 故障排查
 
-A: 不支持。bubblewrap 是 Linux 特有的。可以使用 WSL2。
+### Q: 运行 `vibecoding doctor` 报错
 
-## 会话问题
-
-### Q: 会话存储在哪里?
-
-A:
-- Linux/macOS: `~/.vibecoding/sessions/--<编码的路径>--/`
-- Windows: `%APPDATA%\vibecoding\sessions\--<编码的路径>--\`
-
-### Q: 如何恢复旧会话?
-
-A: 
-```bash
-# 恢复特定会话
-vibecoding --resume <session-id>
-
-# 继续最近会话
-vibecoding --continue
-```
-
-### Q: 会话文件损坏怎么办?
-
-A: 
-1. 检查 JSONL 格式
-2. 手动修复或删除损坏行
-3. 使用备份
-
-## 工具问题
-
-### Q: 有哪些可用工具?
-
-A: VibeCoding 包含核心内置工具，以及可选的多 Agent 工具：
-- `read`: 读取文件内容（包括图像）
-- `write`: 创建/覆盖文件
-- `edit`: 精确文本替换
-- `bash`: 执行 shell 命令
-- `grep`: 正则内容搜索
-- `find`: 文件名搜索
-- `ls`: 目录列表
-- `plan`: 发布可见任务计划和状态更新
-- `subagent_*`: 使用 `--multi-agent` 启动时委托任务给子 Agent
-
-详见 [工具系统](tools.md) 文档。
-
-### Q: 如何使用多 Agent 工作流?
-
-A: 使用 `--multi-agent` 启动 VibeCoding：
-
-```bash
-vibecoding --multi-agent
-vibecoding acp --multi-agent
-```
-
-这会注册 `subagent_*` 工具用于委托工作。Cron 命令入口也依赖多 Agent 模式。
-
-### Q: VibeCoding 能读取图像吗?
-
-A: 可以！`read` 工具支持 PNG、JPEG、GIF 和 WebP 图像。图像以 base64 编码发送给 LLM 进行分析。
-
-### Q: 工具不工作怎么办?
-
-A:
-1. 检查沙箱级别
-2. 检查文件权限
-3. 使用 `--debug` 查看详细日志
-
-### Q: 如何限制工具权限?
-
-A: 使用 Plan 模式（只读）或配置沙箱级别。在 Agent 模式下，bash 命令默认需要审批（可通过白名单/黑名单配置）。
-
-## 构建问题
-
-### Q: 构建失败怎么办?
-
-A: 
-```bash
-# 检查 Go 版本
-go version
-
-# 更新依赖
-go mod tidy
-
-# 清理缓存
-go clean -cache
-make clean
-make build
-```
-
-### Q: 测试失败怎么办?
-
-A: 
-```bash
-# 运行特定测试
-go test -v ./internal/agent/
-
-# 查看详细输出
-go test -v -run TestName ./...
-```
-
-## 其他问题
-
-### Q: 如何报告 Bug?
-
-A: 在 GitHub 上创建 Issue，包含:
-- 操作系统和版本
-- Go 版本
-- 错误信息
-- 复现步骤
-
-### Q: 如何贡献代码?
-
-A: 参考 [开发指南](development.md)。
-
-### Q: 有社区支持吗?
-
-A:
-- GitHub Issues: 报告 Bug
-- GitHub Discussions: 提问和讨论
-
-### Q: 许可证是什么?
-
-A: MIT License
-
-### Q: 如何诊断环境问题?
-
-A: 使用 `doctor` 子命令检查你的环境：
+**A:** doctor 命令会检查：
 
 ```bash
 vibecoding doctor
 ```
 
-这会检查系统信息、配置文件、Provider、模型、沙箱、MCP 服务器、会话、技能和上下文文件。报告中会对 API key 进行脱敏显示，并验证默认 Provider 是否可以正常初始化。
+常见问题：
+- **Config**: 配置文件格式错误 → 检查 JSON 语法
+- **Provider**: API 密钥缺失或无效 → 重新配置
+- **Sandbox**: bubblewrap 未安装 → 安装或忽略
+- **MCP**: MCP 服务器配置错误 → 检查 mcp.json
 
-### Q: 当前版本是什么?
+### Q: 如何查看详细日志？
 
-A: 当前版本是 v0.1.39。详见 [更新日志](changelog.md) 了解版本历史。
+**A:**
+
+```bash
+# 启用 debug 模式
+vibecoding --debug
+
+# 日志会显示
+- API 请求/响应详情
+- 工具执行过程
+- 错误堆栈信息
+```
+
+### Q: 提示 "context window exceeded"
+
+**A:** 上下文超出模型限制：
+
+```bash
+# 方案一：压缩上下文
+/compact
+
+# 方案二：开启自动压缩
+{
+  "compaction": {
+    "enabled": true
+  }
+}
+
+# 方案三：使用更大上下文的模型
+vibecoding --model deepseek-v4-pro  # 1M context
+
+# 方案四：清除对话重新开始
+/clear
+```
+
+### Q: 工具执行卡住不动
+
+**A:**
+
+```bash
+# 方案一：按 Esc 中止当前操作
+
+# 方案二：检查是否有交互式命令阻塞
+# 例如：git push 可能需要输入密码
+
+# 方案三：配置非交互模式
+{
+  "env": {
+    "GIT_TERMINAL_PROMPT": "0",
+    "DEBIAN_FRONTEND": "noninteractive"
+  }
+}
+```
+
+---
+
+## 🆚 与其他工具对比
+
+### Q: VibeCoding 和 Claude Code 有什么区别？
+
+**A:**
+
+| 特性 | VibeCoding | Claude Code |
+|------|-----------|-------------|
+| 价格 | 免费开源 | 付费 |
+| 模型 | 多提供商 | 仅 Anthropic |
+| 沙箱 | ✅ bwrap | ❌ |
+| 会话管理 | ✅ 完整 | 有限 |
+| IDE 集成 | ✅ ACP | ✅ |
+| 消息平台 | ✅ 微信/飞书 | ❌ |
+| Gateway | ✅ OpenAI 兼容 | ❌ |
+
+### Q: VibeCoding 和 Cursor 有什么区别？
+
+**A:**
+
+- **VibeCoding**：终端工具，轻量级，适合命令行用户
+- **Cursor**：IDE，图形界面，适合喜欢 GUI 的用户
+
+选择建议：
+- 喜欢终端 → VibeCoding
+- 喜欢图形界面 → Cursor
+- 需要 API 服务 → VibeCoding Gateway
+
+---
+
+## 📚 更多资源
+
+- [5 分钟快速上手](quick-start-tutorial.md)
+- [核心特性详解](features-overview.md)
+- [使用场景](use-cases.md)
+- [配置详解](configuration.md)
+- [工具参考](tools.md)
+
+---
+
+<p align="center">
+  <strong>还有问题？在 GitHub 上提问！</strong><br>
+  <a href="https://gitee.com/startvibecoding/vibecoding/issues">Gitee Issues</a> · <a href="https://gitee.com/startvibecoding/vibecoding">Gitee 仓库</a>
+</p>

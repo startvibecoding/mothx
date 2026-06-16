@@ -23,26 +23,36 @@ npm install -g vibecoding-installer
 **Linux/macOS:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
+irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex
 ```
 
 或者指定安装目录:
 
 ```bash
 # Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+INSTALL_DIR=~/.local/bin curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash
 
 # Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
+$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex
 ```
 
-这将自动从 GitHub 下载最新版本并安装二进制文件。默认安装位置：
+**卸载:**
+
+```bash
+# Linux/macOS
+curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+
+# Windows
+irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+```
+
+这将自动从 Gitee 下载最新版本并安装二进制文件。默认安装位置：
 - Linux/macOS: `/usr/local/bin`
 - Windows: `%LOCALAPPDATA%\vibecoding`
 
@@ -56,7 +66,7 @@ go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 
 ```bash
 # 克隆仓库
-git clone https://github.com/startvibecoding/vibecoding.git
+git clone https://gitee.com/startvibecoding/vibecoding.git
 cd vibecoding
 
 # 构建
@@ -107,9 +117,6 @@ export DEEPSEEK_API_KEY=sk-...
 ```bash
 # 启动交互式会话
 vibecoding
-
-# 或使用别名
-vc
 ```
 
 ### 非交互模式
@@ -226,19 +233,19 @@ vibecoding --mode yolo
 ### 代码解释
 
 ```bash
-vibecoding "解释 main.go 的作用"
+vibecoding -P "解释 main.go 的作用"
 ```
 
 ### 代码生成
 
 ```bash
-vibecoding "写一个 Go HTTP 服务器"
+vibecoding -P "写一个 Go HTTP 服务器"
 ```
 
 ### 文件操作
 
 ```bash
-vibecoding "在当前目录创建一个 README.md"
+vibecoding -P "在当前目录创建一个 README.md"
 ```
 
 ### 继续会话
