@@ -55,6 +55,7 @@ type authDialogState struct {
 	HTTPProxy  string
 	APIKey     string
 	ModelIDs   string
+	Search     string
 	SetDefault bool
 
 	ContextWindow string
@@ -155,6 +156,12 @@ func (a *App) handleAuthKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		a.closeAuthDialog()
 		return true, nil
 	case tea.KeyEsc:
+		if a.auth.View == authViewExistingProvider && a.auth.Search != "" {
+			a.auth.Search = ""
+			a.auth.Cursor = 0
+			a.scheduleRender()
+			return true, nil
+		}
 		a.popAuthView()
 		return true, nil
 	}
@@ -173,6 +180,21 @@ func (a *App) handleAuthKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 	}
 
 	switch msg.Type {
+	case tea.KeyBackspace:
+		if a.auth.View == authViewExistingProvider && a.auth.Search != "" {
+			r := []rune(a.auth.Search)
+			a.auth.Search = string(r[:len(r)-1])
+			a.auth.Cursor = 0
+			a.scheduleRender()
+			return true, nil
+		}
+	case tea.KeyRunes:
+		if a.auth.View == authViewExistingProvider && len(msg.Runes) > 0 {
+			a.auth.Search += string(msg.Runes)
+			a.auth.Cursor = 0
+			a.scheduleRender()
+			return true, nil
+		}
 	case tea.KeyUp:
 		a.moveAuthCursor(-1)
 		return true, nil
@@ -563,6 +585,7 @@ func (a *App) authOptions() []authOption {
 		}
 	case authViewExistingProvider:
 		ids := sortedAuthProviderIDs(a.settings)
+		ids = filterAuthProviderIDs(ids, a.auth.Search)
 		opts := make([]authOption, 0, len(ids))
 		for _, id := range ids {
 			pc := a.settings.GetProviderConfig(id)
@@ -653,6 +676,13 @@ func (a *App) renderAuthDialog() string {
 		lines = append(lines, a.renderAuthOptions())
 		lines = append(lines, statusStyle.Render("Enter to save, Esc to go back"))
 	} else {
+		if a.auth.View == authViewExistingProvider {
+			query := a.auth.Search
+			if query == "" {
+				query = "type to search"
+			}
+			lines = append(lines, statusStyle.Render("Search: "+query), "")
+		}
 		lines = append(lines, a.renderAuthOptions())
 		lines = append(lines, "")
 		lines = append(lines, statusStyle.Render("Enter to select, ↑↓ to navigate, Esc to go back"))
@@ -679,6 +709,48 @@ func sortedAuthProviderIDs(settings *config.Settings) []string {
 		return ids[i] < ids[j]
 	})
 	return ids
+}
+
+func filterAuthProviderIDs(ids []string, query string) []string {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return ids
+	}
+	type scored struct {
+		id    string
+		score int
+	}
+	var matches []scored
+	for _, id := range ids {
+		lower := strings.ToLower(id)
+		score := -1
+		switch {
+		case lower == query:
+			score = 0
+		case strings.HasPrefix(lower, query):
+			score = 1
+		case strings.Contains(lower, query):
+			score = 2
+		}
+		if score >= 0 {
+			matches = append(matches, scored{id: id, score: score})
+		}
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].score != matches[j].score {
+			return matches[i].score < matches[j].score
+		}
+		pi, pj := authProviderSortPriority(matches[i].id), authProviderSortPriority(matches[j].id)
+		if pi != pj {
+			return pi < pj
+		}
+		return matches[i].id < matches[j].id
+	})
+	out := make([]string, len(matches))
+	for i, m := range matches {
+		out[i] = m.id
+	}
+	return out
 }
 
 func authProviderSortPriority(id string) int {
@@ -720,6 +792,9 @@ func renderAuthPreview(preview string) []string {
 func (a *App) renderAuthOptions() string {
 	opts := a.authOptions()
 	if len(opts) == 0 {
+		if a.auth.View == authViewExistingProvider && a.auth.Search != "" {
+			return statusStyle.Render("No providers match.")
+		}
 		return ""
 	}
 	start, end := authVisibleRange(a.auth.Cursor, len(opts), authMaxVisibleOptions)

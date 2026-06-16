@@ -163,6 +163,24 @@ func TestAuthProviderSortOrder(t *testing.T) {
 	}
 }
 
+func TestAuthProviderSearchFilter(t *testing.T) {
+	ids := []string{"moark", "deepseek-openai", "xiaomi", "openai", "moonshotai", "moonshotai-cn"}
+	got := filterAuthProviderIDs(ids, "moon")
+	want := []string{"moonshotai", "moonshotai-cn"}
+	if len(got) != len(want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %#v, want %#v", got, want)
+		}
+	}
+	got = filterAuthProviderIDs(ids, "ai")
+	if len(got) == 0 || got[0] != "deepseek-openai" {
+		t.Fatalf("contains search should keep priority ordering, got %#v", got)
+	}
+}
+
 func TestAuthBaseURLOptionsForProvider(t *testing.T) {
 	for _, tc := range []struct {
 		provider string
