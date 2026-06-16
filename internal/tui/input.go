@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -89,6 +90,21 @@ func (a *App) finishManagedAgent(cause error) {
 	}
 }
 
+func (a *App) resetAgent(cause error) {
+	if a.agent != nil {
+		a.finishManagedAgent(cause)
+	}
+	a.agent = nil
+	a.agentHistoryLoaded = false
+}
+
+func (a *App) abortAndResetAgent(reason string) {
+	if a.agent != nil {
+		a.agent.Abort()
+	}
+	a.resetAgent(errors.New(reason))
+}
+
 func (a *App) finishRequestTimer() {
 	if !a.requestStart.IsZero() {
 		a.lastDuration = time.Since(a.requestStart)
@@ -114,9 +130,7 @@ func (a *App) cycleMode() {
 
 	if a.isThinking && a.agent != nil {
 		a.pendingAbortReason = "mode change"
-		a.agent.Abort()
-		a.agent = nil
-		a.agentHistoryLoaded = false
+		a.abortAndResetAgent("mode changed")
 		a.clearQueuedInput()
 		a.isThinking = false
 		a.finishRequestTimer()
@@ -138,6 +152,7 @@ func (a *App) cycleMode() {
 		oldMessages, oldMessageIDs := a.agent.GetHistoryState()
 		a.finishManagedAgent(fmt.Errorf("mode changed"))
 		agentCfg := agent.Config{
+			ID:                 agentpkg.AgentID("agent-master"),
 			Provider:           a.provider,
 			Model:              a.model,
 			Mode:               a.mode,
@@ -256,6 +271,7 @@ func (a *App) processInput(input string) tea.Cmd {
 		}
 
 		agentCfg := agent.Config{
+			ID:                 agentpkg.AgentID("agent-master"),
 			Provider:           a.provider,
 			Model:              a.model,
 			Mode:               a.mode,

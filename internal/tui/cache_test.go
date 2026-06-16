@@ -1685,6 +1685,9 @@ func TestCycleModeReregistersManagedAgent(t *testing.T) {
 		t.Fatal("processInput returned nil command")
 	}
 	firstID := app.agent.ID()
+	if firstID != "agent-master" {
+		t.Fatalf("main agent ID = %s, want agent-master", firstID)
+	}
 	if _, ok := mgr.Get(firstID); !ok {
 		t.Fatalf("initial agent %s was not registered", firstID)
 	}
@@ -1694,14 +1697,77 @@ func TestCycleModeReregistersManagedAgent(t *testing.T) {
 	if app.agent == nil {
 		t.Fatal("agent is nil after cycleMode")
 	}
-	if app.agent.ID() == firstID {
-		t.Fatal("cycleMode did not rebuild the agent")
-	}
 	if _, ok := mgr.Get(app.agent.ID()); !ok {
 		t.Fatalf("rebuilt agent %s was not registered", app.agent.ID())
 	}
+	if got := mgr.Count(); got != 1 {
+		t.Fatalf("manager count after cycleMode = %d, want 1", got)
+	}
+}
+
+func TestModelCommandResetsManagedAgentWithoutLeavingOldTab(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	mockProvider := &historyInjectMockProvider{}
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	app := NewApp(
+		mockProvider,
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		session.New(cwd, filepath.Join(tmp, "sessions")),
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		nil,
+		"agent",
+		true,
+		false,
+		mgr,
+		nil,
+		nil,
+	)
+
+	if cmd := app.processInput("first"); cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	firstID := app.agent.ID()
+	if firstID != "agent-master" {
+		t.Fatalf("main agent ID = %s, want agent-master", firstID)
+	}
+	if _, ok := mgr.Get(firstID); !ok {
+		t.Fatalf("initial agent %s was not registered", firstID)
+	}
+
+	app.handleCommand("/model mock-model")
+
+	if app.agent != nil {
+		t.Fatal("agent should be reset after /model")
+	}
 	if _, ok := mgr.Get(firstID); ok {
 		t.Fatalf("old agent %s should have been removed from manager", firstID)
+	}
+	if got := mgr.Count(); got != 0 {
+		t.Fatalf("manager count after /model = %d, want 0", got)
+	}
+
+	if cmd := app.processInput("second"); cmd == nil {
+		t.Fatal("second processInput returned nil command")
+	}
+	secondID := app.agent.ID()
+	if secondID != "agent-master" {
+		t.Fatalf("second main agent ID = %s, want agent-master", secondID)
+	}
+	if got := mgr.Count(); got != 1 {
+		t.Fatalf("manager count after second input = %d, want 1", got)
+	}
+	if _, ok := mgr.Get(secondID); !ok {
+		t.Fatalf("new agent %s was not registered", secondID)
 	}
 }
 
@@ -1832,6 +1898,9 @@ func TestRenderAgentTabBarShowsSubAgentStatus(t *testing.T) {
 	got := stripANSI(renderAgentTabBar(mgr, "sub-1", 120))
 	if !strings.Contains(got, "main") || !strings.Contains(got, "sub-1") {
 		t.Fatalf("tab bar missing agent IDs: %q", got)
+	}
+	if strings.Index(got, "main") > strings.Index(got, "sub-1") {
+		t.Fatalf("tab bar order should be stable with parent first: %q", got)
 	}
 	if !strings.Contains(got, "● sub-1") {
 		t.Fatalf("tab bar missing running status for sub-agent: %q", got)

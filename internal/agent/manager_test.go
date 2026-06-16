@@ -237,13 +237,33 @@ func TestAgentManagerDestroyNotFound(t *testing.T) {
 
 func TestAgentManagerList(t *testing.T) {
 	m := newTestManager()
-	m.Create(AgentOptions{ID: "a"})
-	m.Create(AgentOptions{ID: "b"})
-	m.Create(AgentOptions{ID: "c"})
+	if _, err := m.Create(AgentOptions{ID: "a"}); err != nil {
+		t.Fatalf("create a: %v", err)
+	}
+	if _, err := m.Create(AgentOptions{ID: "b"}); err != nil {
+		t.Fatalf("create b: %v", err)
+	}
+	if _, err := m.Create(AgentOptions{ID: "c"}); err != nil {
+		t.Fatalf("create c: %v", err)
+	}
 
 	ids := m.List()
 	if len(ids) != 3 {
 		t.Errorf("expected 3 IDs, got %d", len(ids))
+	}
+	want := []agentpkg.AgentID{"a", "b", "c"}
+	for i, id := range want {
+		if ids[i] != id {
+			t.Fatalf("ids[%d] = %s, want %s; full list: %v", i, ids[i], id, ids)
+		}
+	}
+	for i := 0; i < 20; i++ {
+		got := m.List()
+		for j, id := range want {
+			if got[j] != id {
+				t.Fatalf("list order changed on iteration %d: got %v, want %v", i, got, want)
+			}
+		}
 	}
 }
 

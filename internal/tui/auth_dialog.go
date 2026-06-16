@@ -1125,8 +1125,7 @@ func (a *App) saveAuthProvider() {
 	a.settings = runtimePatched
 	a.provider = p
 	a.model = m
-	a.agent = nil
-	a.agentHistoryLoaded = false
+	a.resetAgent(fmt.Errorf("provider changed"))
 	providerID := a.auth.ProviderID
 	model := m.ID
 	a.closeAuthDialog()

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -321,6 +322,14 @@ func (m *AgentManager) List() []agentpkg.AgentID {
 	for id := range m.agents {
 		ids = append(ids, id)
 	}
+	sort.Slice(ids, func(i, j int) bool {
+		left := m.statuses[ids[i]]
+		right := m.statuses[ids[j]]
+		if !left.StartedAt.Equal(right.StartedAt) {
+			return left.StartedAt.Before(right.StartedAt)
+		}
+		return ids[i] < ids[j]
+	})
 	return ids
 }
 

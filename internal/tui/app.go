@@ -524,9 +524,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.isThinking || a.waitingForApproval || a.waitingForQuestion {
 				a.pendingAbortReason = "user pressed Esc"
 				if a.agent != nil {
-					a.agent.Abort()
-					a.agent = nil // Reset agent so next request creates a fresh one with new abort channel
-					a.agentHistoryLoaded = false
+					a.abortAndResetAgent("aborted")
 				}
 				a.clearApprovalState()
 				a.clearQuestionState()

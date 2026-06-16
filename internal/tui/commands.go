@@ -115,16 +115,12 @@ func (a *App) handleDelegateCommand(parts []string) {
 		}
 		agent.RegisterDelegateSubAgentTool(a.registry, a.agentMgr)
 		a.delegateMode = true
-		a.finishManagedAgent(fmt.Errorf("delegate mode changed"))
-		a.agent = nil
-		a.agentHistoryLoaded = false
+		a.resetAgent(fmt.Errorf("delegate mode changed"))
 		a.addCommandStatus("Delegation mode: ON")
 	case "off":
 		a.registry.Remove("delegate_subagent")
-		a.finishManagedAgent(fmt.Errorf("delegate mode changed"))
+		a.resetAgent(fmt.Errorf("delegate mode changed"))
 		a.delegateMode = false
-		a.agent = nil
-		a.agentHistoryLoaded = false
 		a.addCommandStatus("Delegation mode: OFF")
 	default:
 		a.addCommandError("Usage: /delegate [on|off|status]")
@@ -296,16 +292,13 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				// If agent is currently running, abort it so the new mode takes effect immediately
 				if a.isThinking && a.agent != nil {
 					a.pendingAbortReason = "mode change"
-					a.agent.Abort()
-					a.agent = nil
-					a.agentHistoryLoaded = false
+					a.abortAndResetAgent("mode changed")
 					a.clearQueuedInput()
 					a.isThinking = false
 					a.finishRequestTimer()
 					a.addCommandStatus("⏹ Aborted (mode change)")
 				} else {
-					a.agent = nil
-					a.agentHistoryLoaded = false
+					a.resetAgent(fmt.Errorf("mode changed"))
 				}
 				a.addCommandStatus(fmt.Sprintf("Mode: %s", strings.ToUpper(a.mode)))
 			default:
@@ -338,8 +331,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			}
 			a.model = newModel
 			// Reset agent so next message uses the new model
-			a.agent = nil
-			a.agentHistoryLoaded = false
+			a.resetAgent(fmt.Errorf("model changed"))
 			a.addCommandStatus(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID))
 		} else {
 			// Show current model and available models
@@ -387,8 +379,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		}
 	case "/clear":
 		a.resetTranscriptState()
-		a.agent = nil
-		a.agentHistoryLoaded = false
+		a.resetAgent(fmt.Errorf("conversation cleared"))
 		a.contextUsage = nil
 		a.totalInputTokens = 0
 		a.totalCacheRead = 0
@@ -475,8 +466,7 @@ func (a *App) activateSkill(name string) {
 	a.rebuildExtraContext()
 
 	// Reset agent so next message uses the updated context
-	a.agent = nil
-	a.agentHistoryLoaded = false
+	a.resetAgent(fmt.Errorf("skill activated"))
 
 	a.addCommandStatus(fmt.Sprintf("✅ Skill '%s' activated (%s): %s", name, skill.Source, skill.Description))
 }
@@ -646,10 +636,9 @@ func (a *App) sessionsSet(id string) {
 	// Switch session
 	a.session = newSess
 	a.historyLoaded = false
-	a.agentHistoryLoaded = false
 
 	// Reset agent and UI state
-	a.agent = nil
+	a.resetAgent(fmt.Errorf("session changed"))
 	a.resetTranscriptState()
 	a.contextUsage = nil
 	a.totalInputTokens = 0
@@ -783,10 +772,9 @@ func (a *App) sessionsClear() {
 
 	a.session = newSess
 	a.historyLoaded = false
-	a.agentHistoryLoaded = false
 
 	// Reset agent and UI state
-	a.agent = nil
+	a.resetAgent(fmt.Errorf("session changed"))
 	a.resetTranscriptState()
 	a.contextUsage = nil
 	a.totalInputTokens = 0
