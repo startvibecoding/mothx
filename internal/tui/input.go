@@ -15,7 +15,9 @@ import (
 )
 
 func (a *App) addMessage(msg string) {
+	idx := len(a.messages)
 	a.messages = append(a.messages, msg)
+	a.printMessageOnce(idx)
 	a.updateViewportContentWithFollow(true)
 }
 
@@ -24,10 +26,24 @@ func normalizeHistoryLineEndings(msg string) string {
 }
 
 func (a *App) printMessageOnce(idx int) {
+	if a.printedMessageIdx == nil {
+		a.printedMessageIdx = make(map[int]bool)
+	}
 	if idx < 0 || a.printedMessageIdx[idx] {
 		return
 	}
+	rendered := strings.TrimRight(a.renderMessageAt(idx), "\n")
+	if strings.TrimSpace(rendered) == "" {
+		return
+	}
 	a.printedMessageIdx[idx] = true
+	if a.program != nil && a.printCh != nil {
+		select {
+		case a.printCh <- rendered:
+		default:
+			go func() { a.printCh <- rendered }()
+		}
+	}
 	a.updateViewportContentWithFollow(true)
 }
 

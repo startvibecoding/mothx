@@ -117,7 +117,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			idx := a.toolResults[foundIdx].msgIndex
 			if idx >= 0 && idx < len(a.messages) {
 				a.messages[idx] = ""
-				a.updateViewportContent()
+				a.printMessageOnce(idx)
 			}
 		}
 		a.scheduleRender()

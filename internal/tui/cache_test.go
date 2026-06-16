@@ -504,7 +504,7 @@ func TestThinkMessageWrapsAndPreservesContent(t *testing.T) {
 	transcript := stripANSI(a.liveContent)
 	if !strings.Contains(removeWhitespace(transcript), "AGENTS.md") ||
 		!strings.Contains(removeWhitespace(transcript), "then-checking-a-very-long-unspaced-token-for-wrapping") {
-		t.Fatalf("managed transcript lost think content: %q", transcript)
+		t.Fatalf("transcript lost think content: %q", transcript)
 	}
 }
 
@@ -536,7 +536,7 @@ func TestThinkMessageUsesPlainMixedCJKASCIIWrapping(t *testing.T) {
 	}
 }
 
-func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
+func TestViewKeepsTranscriptInMainOutputWhenNoProgram(t *testing.T) {
 	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
@@ -555,8 +555,8 @@ func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
 	app.updateViewportContent()
 
 	got := stripANSI(app.View())
-	if strings.Contains(got, "line 1") {
-		t.Fatalf("View() kept oldest transcript line despite limited height:\n%s", got)
+	if !strings.Contains(got, "line 1") {
+		t.Fatalf("View() missing oldest transcript line:\n%s", got)
 	}
 	if !strings.Contains(got, "line 8") {
 		t.Fatalf("View() missing newest transcript line:\n%s", got)
@@ -569,21 +569,28 @@ func TestViewClampsTranscriptViewportToKeepInputVisible(t *testing.T) {
 	}
 }
 
-func TestViewUsesFixedOuterHeight(t *testing.T) {
+func TestViewDoesNotForceOuterHeight(t *testing.T) {
 	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
 	app.input.Width = 76
-	app.messages = []string{"hello"}
+	app.messages = []string{strings.Join([]string{
+		"line 1",
+		"line 2",
+		"line 3",
+		"line 4",
+		"line 5",
+		"line 6",
+	}, "\n")}
 	app.updateViewportContent()
 
-	if got := lipgloss.Height(app.View()); got != app.height {
-		t.Fatalf("View() height = %d, want %d", got, app.height)
+	if got := lipgloss.Height(app.View()); got <= app.height {
+		t.Fatalf("View() height = %d, want > %d so terminal scrollback can own transcript history", got, app.height)
 	}
 }
 
-func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
+func TestMouseWheelDoesNotScrollTranscript(t *testing.T) {
 	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
@@ -605,30 +612,15 @@ func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
 	}, "\n")}
 	app.updateViewportContent()
 
-	viewContainsLine := func(view, line string) bool {
-		for _, l := range strings.Split(view, "\n") {
-			if strings.TrimSpace(l) == line {
-				return true
-			}
-		}
-		return false
-	}
-
-	before := stripANSI(app.View())
-	// "line 2" should NOT be visible initially (view at bottom shows lines 5-12)
-	if viewContainsLine(before, "line 2") {
-		t.Fatalf("precondition failed: expected initial view at bottom:\n%s", before)
-	}
+	before := app.liveContent
 
 	app.Update(tea.MouseMsg{
 		Action: tea.MouseActionPress,
 		Button: tea.MouseButtonWheelUp,
 	})
 
-	after := stripANSI(app.View())
-	// After scrolling up 3 lines, "line 2" should become visible
-	if !viewContainsLine(after, "line 2") {
-		t.Fatalf("mouse wheel did not scroll transcript upward:\n%s", after)
+	if after := app.liveContent; after != before {
+		t.Fatalf("mouse wheel changed transcript content:\nbefore:\n%s\n\nafter:\n%s", before, after)
 	}
 }
 
@@ -936,10 +928,10 @@ func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
 	assistantAt := strings.Index(joined, "Assistant: I need to run a command.")
 	approvalAt := strings.Index(joined, "Approval required: bash")
 	if thinkAt < 0 || assistantAt < 0 || approvalAt < 0 {
-		t.Fatalf("managed transcript missing expected content: %q", joined)
+		t.Fatalf("transcript missing expected content: %q", joined)
 	}
 	if !(thinkAt < assistantAt && assistantAt < approvalAt) {
-		t.Fatalf("managed transcript out of order: %q", joined)
+		t.Fatalf("transcript out of order: %q", joined)
 	}
 	if a.currentThinkIdx != -1 || a.currentAssistantIdx != -1 {
 		t.Fatalf("active stream indices = think %d assistant %d, want both reset", a.currentThinkIdx, a.currentAssistantIdx)
@@ -1159,22 +1151,25 @@ func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
 	}
 }
 
-func TestHelpCommandAutoScrollsToBottom(t *testing.T) {
+func TestHelpCommandPrintsCommandOutput(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.width = 80
 	a.height = 10
 	for i := 0; i < 8; i++ {
 		a.addMessage(fmt.Sprintf("line %d", i))
 	}
-	a.viewport.GotoTop()
-	if a.viewport.AtBottom() {
-		t.Fatal("viewport unexpectedly at bottom before /help")
-	}
 
 	a.handleCommand("/help")
 
-	if !a.viewport.AtBottom() {
-		t.Fatal("viewport not at bottom after /help")
+	if len(a.messages) == 0 {
+		t.Fatal("messages empty after /help")
+	}
+	idx := len(a.messages) - 1
+	if !a.printedMessageIdx[idx] {
+		t.Fatal("/help output was not marked for unmanaged transcript output")
+	}
+	if plain := stripANSI(a.messages[idx]); !strings.Contains(plain, "Commands:") {
+		t.Fatalf("/help output = %q, want command list", plain)
 	}
 }
 

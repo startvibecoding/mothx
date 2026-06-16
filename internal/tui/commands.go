@@ -650,6 +650,9 @@ func (a *App) sessionsSet(id string) {
 	// Load history messages from the new session
 	a.LoadHistoryMessages()
 	a.updateViewportContent()
+	for idx := range a.messages {
+		a.printMessageOnce(idx)
+	}
 
 	a.addCommandStatus(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
 		match.ID, match.MessageCount))

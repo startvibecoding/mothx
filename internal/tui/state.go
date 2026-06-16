@@ -8,8 +8,6 @@ func (a *App) resetTranscriptState() {
 	a.messages = nil
 	a.toolResults = nil
 	a.liveContent = ""
-	a.viewport.SetContent("")
-	a.viewport.GotoBottom()
 	a.currentPlan = nil
 	a.assistantRaw = make(map[int]string)
 	a.assistantRendered = make(map[int]string)

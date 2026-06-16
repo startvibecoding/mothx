@@ -8,7 +8,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/stopwatch"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
@@ -128,11 +127,11 @@ type App struct {
 	inputBatchSize int
 	inputDelay     time.Duration
 
-	// Transcript content is rendered through a managed viewport. Keeping both
-	// completed history and streaming deltas in one render tree avoids stale
-	// unmanaged terminal output mixing with live frames.
-	viewport    viewport.Model
+	// Completed transcript blocks are printed above the live Bubble Tea view so
+	// the terminal owns scrollback, mouse scrolling, and text selection.
 	liveContent string
+	printCh     chan string
+	printOnce   sync.Once
 
 	// Initial message to display
 	initialMessage string
@@ -259,8 +258,8 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		activeSkills:        make(map[string]string),
 		skillsMgr:           skillsMgr,
 		input:               input,
-		viewport:            viewport.New(0, 0),
 		timer:               stopwatch.NewWithInterval(time.Second),
+		printCh:             make(chan string, 256),
 		pastes:              make(map[int]string),
 		inputQueue:          make([]InputEvent, 0, 100),
 		inputBatchSize:      10,
@@ -293,6 +292,18 @@ func (a *App) SetInitialMessage(msg string) {
 // SetProgram stores the Bubble Tea program used for deferred UI updates.
 func (a *App) SetProgram(p *tea.Program) {
 	a.program = p
+	if a.printCh == nil {
+		a.printCh = make(chan string, 256)
+	}
+	a.printOnce.Do(func() {
+		go func() {
+			for line := range a.printCh {
+				if a.program != nil {
+					a.program.Println(line)
+				}
+			}
+		}()
+	})
 }
 
 // LoadHistoryMessages loads messages from session history into TUI display.
@@ -315,7 +326,7 @@ func (a *App) LoadHistoryMessages() {
 	for _, msg := range historyMessages {
 		switch msg.Role {
 		case "user":
-			a.addMessage(userStyle.Render("You: ") + msg.Content)
+			a.messages = append(a.messages, userStyle.Render("You: ")+msg.Content)
 		case "assistant":
 			// Extract text content from assistant message
 			var textContent string
@@ -329,7 +340,7 @@ func (a *App) LoadHistoryMessages() {
 				}
 			}
 			if textContent != "" {
-				a.addMessage(assistantStyle.Render(textContent))
+				a.messages = append(a.messages, assistantStyle.Render(textContent))
 			}
 		}
 	}
@@ -367,6 +378,9 @@ func (a *App) Init() tea.Cmd {
 	// Load history messages from session
 	a.LoadHistoryMessages()
 	a.updateViewportContent()
+	for idx := range a.messages {
+		a.printMessageOnce(idx)
+	}
 
 	cmds = append(cmds, textinput.Blink, a.processInputQueue())
 	return tea.Batch(cmds...)
@@ -410,7 +424,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ready = true
 
 		a.input.Width = msg.Width - 4
-		a.resizeViewport()
 		if oldWidth != a.width {
 			a.configureMarkdownRenderer()
 			a.markAssistantRenderedDirty()
@@ -588,12 +601,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyTab:
 			a.cycleMode()
 			return a, nil
-		case tea.KeyPgUp:
-			a.viewport.PageUp()
-			return a, nil
-		case tea.KeyPgDown:
-			a.viewport.PageDown()
-			return a, nil
 		case tea.KeyUp:
 			a.flushInputQueue()
 			if a.navigateInputHistory(-1) {
@@ -669,11 +676,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if inputCmd != nil {
 		cmds = append(cmds, inputCmd)
-	}
-	var viewportCmd tea.Cmd
-	a.viewport, viewportCmd = a.viewport.Update(msg)
-	if viewportCmd != nil {
-		cmds = append(cmds, viewportCmd)
 	}
 
 	return a, tea.Batch(cmds...)
@@ -772,11 +774,12 @@ func (a *App) View() string {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderToolModal(), footer))
 	}
 
-	a.resizeViewport()
 	var parts []string
 
-	// 1. Transcript (main message area)
-	parts = append(parts, a.viewport.View())
+	// 1. Live transcript (streaming content only when unmanaged output is active)
+	if live := a.renderLiveTranscriptContent(); live != "" {
+		parts = append(parts, live)
+	}
 
 	// 2. Plan panel (active plan steps)
 	if planPanel := a.renderPlanPanel(); planPanel != "" {
@@ -811,7 +814,7 @@ func (a *App) View() string {
 		parts = append(parts, tabBar)
 	}
 
-	return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, parts...))
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // handlePaste handles large pastes by creating markers
@@ -886,15 +889,9 @@ func (a *App) updateViewportContent() {
 	a.updateViewportContentWithFollow(false)
 }
 
-func (a *App) updateViewportContentWithFollow(forceBottom bool) {
-	a.resizeViewport()
-	wasAtBottom := a.viewport.AtBottom()
+func (a *App) updateViewportContentWithFollow(_ bool) {
 	content := a.renderTranscriptContent()
 	a.liveContent = content
-	a.viewport.SetContent(content)
-	if forceBottom || wasAtBottom {
-		a.viewport.GotoBottom()
-	}
 }
 
 func (a *App) renderTranscriptContent() string {
@@ -907,6 +904,35 @@ func (a *App) renderTranscriptContent() string {
 	}
 	blocks := make([]string, 0, count)
 	for idx := 0; idx < count; idx++ {
+		rendered := strings.TrimRight(a.renderMessageAt(idx), "\n")
+		if strings.TrimSpace(rendered) == "" {
+			continue
+		}
+		blocks = append(blocks, rendered)
+	}
+	return strings.Join(blocks, "\n\n")
+}
+
+func (a *App) renderLiveTranscriptContent() string {
+	if a.program == nil {
+		return a.liveContent
+	}
+
+	count := len(a.messages)
+	if a.currentThinkIdx >= count {
+		count = a.currentThinkIdx + 1
+	}
+	if a.currentAssistantIdx >= count {
+		count = a.currentAssistantIdx + 1
+	}
+	blocks := make([]string, 0, 2)
+	for idx := 0; idx < count; idx++ {
+		if a.printedMessageIdx[idx] {
+			continue
+		}
+		if idx != a.currentThinkIdx && idx != a.currentAssistantIdx {
+			continue
+		}
 		rendered := strings.TrimRight(a.renderMessageAt(idx), "\n")
 		if strings.TrimSpace(rendered) == "" {
 			continue
@@ -931,47 +957,6 @@ func (a *App) assistantMarkdownWidth() int {
 		return 1
 	}
 	return width
-}
-
-func (a *App) resizeViewport() {
-	if a.width <= 0 {
-		return
-	}
-	footer := a.renderFooter()
-	a.viewport.Width = a.width
-	a.viewport.Height = a.transcriptViewportHeight(footer)
-}
-
-func (a *App) transcriptViewportHeight(footer string) int {
-	height := a.height
-	if height <= 0 {
-		return 1
-	}
-	used := lipgloss.Height(a.input.View()) + lipgloss.Height(footer)
-	if panel := a.renderPlanPanel(); panel != "" {
-		used += lipgloss.Height(panel)
-	}
-	maxTodoVisible := 5
-	if height > 0 {
-		maxTodoVisible = height / 8
-		if maxTodoVisible < 3 {
-			maxTodoVisible = 3
-		}
-	}
-	if todoList := renderStickyTodoList(a.currentPlan, a.width, maxTodoVisible); todoList != "" {
-		used += lipgloss.Height(todoList)
-	}
-	if loading := renderLoadingIndicator(a.isThinking, a.spinnerIndex, a.timer.Elapsed(), 0, a.width); loading != "" {
-		used += lipgloss.Height(loading)
-	}
-	if tabBar := renderAgentTabBar(a.agentMgr, string(a.activeAgent), a.width); tabBar != "" {
-		used += lipgloss.Height(tabBar)
-	}
-	available := height - used
-	if available < 1 {
-		return 1
-	}
-	return available
 }
 
 func (a *App) renderFixedHeight(view string) string {
@@ -1000,9 +985,7 @@ func (a *App) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 
-	var cmd tea.Cmd
-	a.viewport, cmd = a.viewport.Update(msg)
-	return cmd
+	return nil
 }
 
 func (a *App) markAssistantRenderedDirty() {
