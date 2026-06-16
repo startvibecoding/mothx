@@ -15,6 +15,7 @@ trap 'error "Installation failed at line $LINENO."' ERR
 # Supports non-root installation to ~/.vibecoding/bin
 #
 # Repository: https://github.com/startvibecoding/vibecoding
+# Gitee:      https://gitee.com/startvibecoding/vibecoding
 # Author:     zhenruyan
 # Blog:       https://pkold.com
 
@@ -57,6 +58,193 @@ warn() {
 error() {
     echo -e "${RED}[ERROR]${NC} $1"
     exit 1
+}
+
+# Show help
+show_help() {
+    echo ""
+    echo "╔═══════════════════════════════════════════════════════════════╗"
+    echo "║                   VibeCoding Installer                        ║"
+    echo "║               https://github.com/startvibecoding/vibecoding    ║"
+    echo "║                  Author: zhenruyan | pkold.com                ║"
+    echo "╚═══════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "Usage: install.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help        Show this help message"
+    echo "  -u, --uninstall   Uninstall VibeCoding"
+    echo "  -d, --dir DIR     Install to DIR (default: auto-detect)"
+    echo ""
+    echo "Environment variables:"
+    echo "  INSTALL_DIR       Install directory (same as -d)"
+    echo ""
+    echo "Examples:"
+    echo "  # Install (default)"
+    echo "  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash"
+    echo ""
+    echo "  # Install to custom directory"
+    echo "  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- -d ~/.local/bin"
+    echo ""
+    echo "  # Uninstall"
+    echo "  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall"
+    echo ""
+    echo "  # Or download and run"
+    echo "  ./install.sh --uninstall"
+    echo ""
+}
+
+# Uninstall VibeCoding
+uninstall() {
+    echo ""
+    echo "╔═══════════════════════════════════════════════════════════════╗"
+    echo "║                 VibeCoding Uninstaller                        ║"
+    echo "╚═══════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # Find vibecoding binary
+    local binary_path=""
+    local found_paths=()
+
+    # Check common install locations
+    for dir in "/usr/local/bin" "$USER_INSTALL_DIR" "$HOME/.local/bin"; do
+        if [ -f "$dir/$BINARY_NAME" ]; then
+            found_paths+=("$dir/$BINARY_NAME")
+        fi
+    done
+
+    # Also check PATH
+    if command -v "$BINARY_NAME" &> /dev/null; then
+        local which_path
+        which_path=$(which "$BINARY_NAME" 2>/dev/null || true)
+        if [ -n "$which_path" ] && [[ ! " ${found_paths[*]} " =~ " ${which_path} " ]]; then
+            found_paths+=("$which_path")
+        fi
+    fi
+
+    if [ ${#found_paths[@]} -eq 0 ]; then
+        warn "VibeCoding not found in common locations"
+        echo ""
+        echo "Checked locations:"
+        echo "  - /usr/local/bin/$BINARY_NAME"
+        echo "  - $USER_INSTALL_DIR/$BINARY_NAME"
+        echo "  - $HOME/.local/bin/$BINARY_NAME"
+        echo ""
+        echo "If installed elsewhere, remove it manually:"
+        echo "  rm <path>/$BINARY_NAME"
+        echo ""
+        return 0
+    fi
+
+    # Show found installations
+    info "Found VibeCoding installations:"
+    echo ""
+    for p in "${found_paths[@]}"; do
+        echo "  - $p"
+    done
+    echo ""
+
+    # Ask for confirmation
+    local answer
+    read -rp "Remove all installations? [y/N] " answer
+    answer="${answer:-N}"
+
+    if [[ ! "$answer" =~ ^[Yy]$ ]]; then
+        info "Uninstall cancelled"
+        return 0
+    fi
+
+    # Remove binaries
+    echo ""
+    for p in "${found_paths[@]}"; do
+        if [ -f "$p" ]; then
+            if [ -w "$(dirname "$p")" ]; then
+                rm -f "$p"
+                success "Removed: $p"
+            else
+                info "Need sudo to remove: $p"
+                sudo rm -f "$p" && success "Removed: $p" || warn "Failed to remove: $p"
+            fi
+        fi
+    done
+
+    # Ask about config and sessions
+    echo ""
+    local config_dir="${HOME}/.vibecoding"
+    if [ -d "$config_dir" ]; then
+        info "Config directory: $config_dir"
+        echo ""
+        read -rp "Remove config directory ($config_dir)? [y/N] " answer
+        answer="${answer:-N}"
+
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+            rm -rf "$config_dir"
+            success "Removed: $config_dir"
+        else
+            info "Kept: $config_dir"
+        fi
+    fi
+
+    # Ask about project .vibe directory
+    echo ""
+    local project_vibe="./.vibe"
+    if [ -d "$project_vibe" ]; then
+        info "Project config found: $project_vibe"
+        read -rp "Remove project config ($project_vibe)? [y/N] " answer
+        answer="${answer:-N}"
+
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+            rm -rf "$project_vibe"
+            success "Removed: $project_vibe"
+        else
+            info "Kept: $project_vibe"
+        fi
+    fi
+
+    # Clean PATH entries
+    echo ""
+    info "Checking shell config for PATH entries..."
+    local config_file
+    config_file=$(detect_shell_config)
+
+    if [ -f "$config_file" ] && grep -q "\.vibecoding/bin" "$config_file" 2>/dev/null; then
+        info "Found PATH entry in: $config_file"
+        read -rp "Remove PATH entry from $config_file? [y/N] " answer
+        answer="${answer:-N}"
+
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+            # Remove VibeCoding PATH entry (works for bash/zsh)
+            sed -i.bak '/# VibeCoding/,+1d' "$config_file"
+            rm -f "${config_file}.bak"
+            success "Removed PATH entry from $config_file"
+        fi
+    fi
+
+    # Uninstall npm package if installed via npm
+    echo ""
+    if command -v npm &> /dev/null; then
+        local npm_global
+        npm_global=$(npm root -g 2>/dev/null || true)
+        if [ -n "$npm_global" ] && [ -d "$npm_global/vibecoding-installer" ]; then
+            info "Found npm global installation"
+            read -rp "Uninstall npm package (vibecoding-installer)? [y/N] " answer
+            answer="${answer:-N}"
+
+            if [[ "$answer" =~ ^[Yy]$ ]]; then
+                npm uninstall -g vibecoding-installer && success "Uninstalled npm package" || warn "Failed to uninstall npm package"
+            fi
+        fi
+    fi
+
+    echo ""
+    success "Uninstall complete!"
+    echo ""
+    echo "  Thank you for using VibeCoding! 🙏"
+    echo ""
+    echo "  If you have any feedback, please visit:"
+    echo "    - GitHub: https://github.com/startvibecoding/vibecoding"
+    echo "    - Gitee:  https://gitee.com/startvibecoding/vibecoding"
+    echo ""
 }
 
 # Detect OS and architecture
@@ -325,7 +513,7 @@ check_path() {
 }
 
 # Main installation
-main() {
+main_install() {
     echo ""
     echo "╔═══════════════════════════════════════════════════════════════╗"
     echo "║                   VibeCoding Installer                        ║"
@@ -474,4 +662,38 @@ main() {
     fi
 }
 
-main "$@"
+# Parse arguments
+ACTION="install"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -u|--uninstall)
+            ACTION="uninstall"
+            shift
+            ;;
+        -d|--dir)
+            if [ -z "${2:-}" ]; then
+                error "Option $1 requires an argument"
+            fi
+            INSTALL_DIR="$2"
+            shift 2
+            ;;
+        *)
+            error "Unknown option: $1\nUse --help for usage information"
+            ;;
+    esac
+done
+
+# Execute action
+case "$ACTION" in
+    install)
+        main_install
+        ;;
+    uninstall)
+        uninstall
+        ;;
+esac
