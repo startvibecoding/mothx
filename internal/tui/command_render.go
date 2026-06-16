@@ -37,6 +37,7 @@ func commandHelpText() string {
 		"Commands:",
 		"  /mode [plan|agent|yolo] - Switch or show mode",
 		"  /model [model_id]       - Switch or show model",
+		"  /auth                  - Configure provider token, base URL and models",
 		"  /skills                 - List available skills",
 		"  /skill <name>           - Activate a skill",
 		"  /clear                  - Clear conversation",

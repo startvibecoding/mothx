@@ -21,6 +21,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
+	"github.com/startvibecoding/vibecoding/internal/tui/components/suggest"
 	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
 	"github.com/startvibecoding/vibecoding/internal/ua"
 )
@@ -101,11 +102,14 @@ type App struct {
 	activeSkills     map[string]string // skill name -> skill context string
 
 	// UI Components
-	input editor.Model
-	timer stopwatch.Model
+	input     editor.Model
+	authInput editor.Model
+	suggest   suggest.Model
+	timer     stopwatch.Model
 
 	// State
 	messages               []string
+	auth                   authDialogState
 	toolResults            []toolResult // Store tool results for expansion
 	isThinking             bool
 	manualCompactionActive bool
@@ -255,6 +259,8 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		activeSkills:        make(map[string]string),
 		skillsMgr:           skillsMgr,
 		input:               input,
+		authInput:           editor.New(80).SetPlaceholder("").SetMaxLines(3),
+		suggest:             suggest.New(80).SetItems(commandSuggestionItems()),
 		timer:               stopwatch.NewWithInterval(time.Second),
 		printCh:             make(chan string, 256),
 		pastes:              make(map[int]string),
@@ -424,6 +430,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.ready = true
 
 		a.input = a.input.SetWidth(msg.Width - 4)
+		a.authInput = a.authInput.SetWidth(msg.Width - 8)
+		a.suggest = a.suggest.SetWidth(msg.Width - 4)
 		if oldWidth != a.width {
 			a.configureMarkdownRenderer()
 			a.markAssistantRenderedDirty()
@@ -464,6 +472,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleMouse(msg)
 
 	case tea.KeyMsg:
+		if handled, cmd := a.handleAuthKey(msg); handled {
+			return a, cmd
+		}
 		if a.toolModalOpen {
 			switch {
 			case msg.Type == tea.KeyEsc || msg.Type == tea.KeyCtrlO || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
@@ -521,6 +532,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case tea.KeyEnter:
+			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
+				return a, nil
+			}
 			if msg.Alt {
 				a.flushInputQueue()
 				a.input, _ = a.input.Update(msg)
@@ -606,9 +620,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case tea.KeyTab:
+			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
+				return a, nil
+			}
 			a.cycleMode()
 			return a, nil
 		case tea.KeyUp:
+			if a.handleCommandSuggestionKey(msg) {
+				return a, nil
+			}
 			a.flushInputQueue()
 			if a.inputHistoryBrowsing || a.input.AtFirstLine() {
 				if a.navigateInputHistory(-1) {
@@ -621,6 +641,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 		case tea.KeyDown:
+			if a.handleCommandSuggestionKey(msg) {
+				return a, nil
+			}
 			a.flushInputQueue()
 			if a.inputHistoryBrowsing {
 				if a.navigateInputHistory(1) {
@@ -740,6 +763,7 @@ func (a *App) flushInputQueue() tea.Cmd {
 	}
 
 	// Schedule render
+	a.updateCommandSuggestions()
 	a.scheduleRender()
 
 	if len(cmds) > 0 {
@@ -802,12 +826,7 @@ func (a *App) View() string {
 		parts = append(parts, live)
 	}
 
-	// 2. Plan panel (active plan steps)
-	if planPanel := a.renderPlanPanel(); planPanel != "" {
-		parts = append(parts, planPanel)
-	}
-
-	// 3. Sticky todo list (non-done tasks)
+	// 2. Sticky todo list (non-done tasks)
 	maxTodoVisible := 5
 	if a.height > 0 {
 		maxTodoVisible = a.height / 8
@@ -819,18 +838,25 @@ func (a *App) View() string {
 		parts = append(parts, todoList)
 	}
 
-	// 4. Loading indicator (spinner + timer + tokens when thinking)
+	// 3. Loading indicator (spinner + timer + tokens when thinking)
 	if loading := renderLoadingIndicator(a.isThinking, a.spinnerIndex, a.timer.Elapsed(), 0, a.width); loading != "" {
 		parts = append(parts, loading)
 	}
 
-	// 5. Input field
-	parts = append(parts, a.input.View())
+	// 4. Auth dialog or input field
+	if a.auth.Open {
+		parts = append(parts, a.renderAuthDialog())
+	} else {
+		parts = append(parts, a.input.View())
+		if suggestions := a.suggest.View(); suggestions != "" {
+			parts = append(parts, suggestions)
+		}
+	}
 
-	// 6. Footer (status bar)
+	// 5. Footer (status bar)
 	parts = append(parts, footer)
 
-	// 7. Agent tab bar (multi-agent mode)
+	// 6. Agent tab bar (multi-agent mode)
 	if tabBar := renderAgentTabBar(a.agentMgr, string(a.activeAgent), a.width); tabBar != "" {
 		parts = append(parts, tabBar)
 	}

@@ -238,7 +238,7 @@ func run(args []string, opts runOptions) error {
 	}
 
 	// Load settings
-	settings, err := config.LoadSettings()
+	settings, settingsMeta, err := config.LoadSettingsWithMeta()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
@@ -502,6 +502,12 @@ func run(args []string, opts runOptions) error {
 			initialMsg += "\n"
 		}
 		initialMsg += sessionInfo
+	}
+	if settingsMeta.CreatedGlobalConfig && !settingsHasResolvedDefaultToken(settings) {
+		if initialMsg != "" {
+			initialMsg += "\n"
+		}
+		initialMsg += fmt.Sprintf("Created default config: %s\nNo provider token configured yet. Run /auth to add a provider token and model.", settingsMeta.GlobalSettingsPath)
 	}
 	if initialMsg != "" {
 		app.SetInitialMessage(initialMsg)

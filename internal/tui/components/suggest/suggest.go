@@ -44,6 +44,12 @@ func (m Model) SetItems(items []Item) Model {
 	return m.filter()
 }
 
+// SetWidth sets the dropdown width.
+func (m Model) SetWidth(width int) Model {
+	m.width = width
+	return m
+}
+
 // Update updates the filter based on the current input query.
 func (m Model) Update(query string) Model {
 	m.query = query

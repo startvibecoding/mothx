@@ -218,17 +218,15 @@ func DefaultSettings() *Settings {
 					{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
 				},
 			},
-			"xiaomi": &ProviderConfig{
-				BaseURL:        "https://api.xiaomimimo.com/v1",
-				APIKey:         "${XIAOMI_API_KEY}",
-				API:            "openai-chat",
-				ThinkingFormat: "xiaomi",
-				Models: []ModelConfig{
-					{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.0036}, Input: []string{"text"}},
-					{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text", "image", "audio", "video"}},
-					{ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 256000, MaxTokens: 64000, Cost: &CostConfig{Input: 0.10, Output: 0.30, CacheRead: 0.01}, Input: []string{"text"}},
-				},
-			},
+			"xiaomi":              {BaseURL: "https://api.xiaomimimo.com/v1", APIKey: "${XIAOMI_API_KEY}", API: "openai-chat", ThinkingFormat: "xiaomi", Models: []ModelConfig{{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.0036}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text", "image", "audio", "video"}}, {ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 256000, MaxTokens: 64000, Cost: &CostConfig{Input: 0.10, Output: 0.30, CacheRead: 0.01}, Input: []string{"text"}}}},
+			"openrouter":          {Vendor: "openrouter", BaseURL: "https://openrouter.ai/api/v1", APIKey: "${OPENROUTER_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "z-ai/glm-4.5-air:free", Name: "OpenRouter GLM-4.5-Air Free", ContextWindow: 128000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "openai/gpt-oss-120b:free", Name: "OpenRouter GPT-OSS-120B Free", ContextWindow: 131072, MaxTokens: 8192, Input: []string{"text"}}}},
+			"minimax":             {Vendor: "minimax", BaseURL: "https://api.minimax.io/v1", APIKey: "${MINIMAX_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMax-M3", Name: "MiniMax-M3", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "MiniMax-M2.7", Name: "MiniMax-M2.7", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.7-highspeed", Name: "MiniMax-M2.7-highspeed", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5-highspeed", Name: "MiniMax-M2.5-highspeed", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}}},
+			"zai":                 {BaseURL: "https://api.z.ai/api/paas/v4", APIKey: "${ZAI_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "GLM-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "GLM-5", Name: "GLM-5", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "GLM-5-Turbo", Name: "GLM-5-Turbo", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}}},
+			"modelscope":          {BaseURL: "https://api-inference.modelscope.cn/v1", APIKey: "${MODELSCOPE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "deepseek-ai/DeepSeek-V4-Flash", Name: "DeepSeek-V4-Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "Qwen/Qwen3.5-397B-A17B", Name: "Qwen3.5-397B-A17B", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "ZhipuAI/GLM-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}}},
+			"alibaba-coding-plan": {Vendor: "bailian", BaseURL: "https://coding.dashscope.aliyuncs.com/v1", APIKey: "${BAILIAN_CODING_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.5-plus", Name: "Qwen3.5 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "kimi-k2.5", Name: "Kimi-K2.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", Reasoning: true, ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-coder-plus", Name: "Qwen3 Coder Plus", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-coder-next", Name: "Qwen3 Coder Next", ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-max-2026-01-23", Name: "Qwen3 Max", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}}},
+			"alibaba-token-plan":  {Vendor: "bailian", BaseURL: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1", APIKey: "${BAILIAN_TOKEN_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.6-flash", Name: "Qwen3.6 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v3.2", Name: "DeepSeek-V3.2", ContextWindow: 131072, MaxTokens: 8192, Input: []string{"text"}}, {ID: "kimi-k2.6", Name: "Kimi-K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "kimi-k2.5", Name: "Kimi-K2.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}}},
+			"moark":               {BaseURL: "https://api.moark.com/v1", APIKey: "${MOARK_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}}},
+			"alibaba-standard":    {Vendor: "bailian", BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", APIKey: "${DASHSCOPE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}}},
 		},
 		DefaultProvider:      "deepseek-openai",
 		DefaultModel:         "deepseek-v4-flash",
@@ -274,10 +272,27 @@ func ProjectSettingsPath() string {
 }
 
 func LoadSettings() (*Settings, error) {
-	s := DefaultSettings()
+	s, _, err := LoadSettingsWithMeta()
+	return s, err
+}
 
-	if err := ensureConfigExists(s); err != nil {
+// LoadMeta describes side effects and paths from settings loading.
+type LoadMeta struct {
+	CreatedGlobalConfig bool
+	GlobalSettingsPath  string
+}
+
+// LoadSettingsWithMeta loads settings and reports whether the global settings
+// file was created during this call. The loaded schema is the same as LoadSettings.
+func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
+	s := DefaultSettings()
+	meta := LoadMeta{GlobalSettingsPath: GlobalSettingsPath()}
+
+	created, err := ensureConfigExists(s)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not create config: %v\n", err)
+	} else {
+		meta.CreatedGlobalConfig = created
 	}
 
 	globalPath := GlobalSettingsPath()
@@ -286,7 +301,7 @@ func LoadSettings() (*Settings, error) {
 	}
 	if data, err := os.ReadFile(globalPath); err == nil {
 		if err := json.Unmarshal(data, s); err != nil {
-			return nil, fmt.Errorf("parse global settings: %w", err)
+			return nil, meta, fmt.Errorf("parse global settings: %w", err)
 		}
 		if Verbose {
 			fmt.Fprintf(os.Stderr, "[config] Loaded global settings\n")
@@ -302,11 +317,9 @@ func LoadSettings() (*Settings, error) {
 		fmt.Fprintf(os.Stderr, "[config] Loading project settings: %s\n", projectPath)
 	}
 	if data, err := os.ReadFile(projectPath); err == nil {
-		var proj Settings
-		if err := json.Unmarshal(data, &proj); err != nil {
-			return nil, fmt.Errorf("parse project settings: %w", err)
+		if err := json.Unmarshal(data, s); err != nil {
+			return nil, meta, fmt.Errorf("parse project settings: %w", err)
 		}
-		mergeSettings(s, &proj)
 		if Verbose {
 			fmt.Fprintf(os.Stderr, "[config] Loaded project settings\n")
 		}
@@ -333,7 +346,7 @@ func LoadSettings() (*Settings, error) {
 		s.DefaultThinkingLevel = v
 	}
 
-	return s, nil
+	return s, meta, nil
 }
 
 // mergeSettings deep-merges project settings into global settings.
@@ -409,28 +422,100 @@ func mergeSettings(s, proj *Settings) {
 	}
 }
 
-func ensureConfigExists(defaults *Settings) error {
+func ensureConfigExists(defaults *Settings) (bool, error) {
 	configDir := ConfigDir()
 	settingsPath := GlobalSettingsPath()
 
 	if _, err := os.Stat(settingsPath); err == nil {
-		return nil
+		return false, nil
 	}
 
 	if err := os.MkdirAll(configDir, 0700); err != nil {
-		return fmt.Errorf("create config directory: %w", err)
+		return false, fmt.Errorf("create config directory: %w", err)
 	}
 
 	data, err := json.MarshalIndent(defaults, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal default settings: %w", err)
+		return false, fmt.Errorf("marshal default settings: %w", err)
 	}
 
 	if err := os.WriteFile(settingsPath, data, 0600); err != nil {
-		return fmt.Errorf("write settings file: %w", err)
+		return false, fmt.Errorf("write settings file: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "Created default config: %s\n", settingsPath)
+	return true, nil
+}
+
+// LoadGlobalSettingsOrDefault loads only the global settings file over defaults.
+// It intentionally does not apply project settings or environment overrides, so
+// callers that need a full runnable global config can avoid persisting runtime state.
+func LoadGlobalSettingsOrDefault() (*Settings, error) {
+	s := DefaultSettings()
+	globalPath := GlobalSettingsPath()
+	if data, err := os.ReadFile(globalPath); err == nil {
+		if err := json.Unmarshal(data, s); err != nil {
+			return nil, fmt.Errorf("parse global settings: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read global settings %s: %w", globalPath, err)
+	}
+	return s, nil
+}
+
+// LoadGlobalSettingsSparse loads only fields explicitly present in the global
+// settings file. If the file does not exist, it returns an empty Settings.
+// Use this for patch-style writes so defaults are not expanded into settings.json.
+func LoadGlobalSettingsSparse() (*Settings, error) {
+	s := &Settings{}
+	globalPath := GlobalSettingsPath()
+	if data, err := os.ReadFile(globalPath); err == nil {
+		if err := json.Unmarshal(data, s); err != nil {
+			return nil, fmt.Errorf("parse global settings: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read global settings %s: %w", globalPath, err)
+	}
+	if s.Providers == nil {
+		s.Providers = map[string]*ProviderConfig{}
+	}
+	return s, nil
+}
+
+// SaveGlobalSettings writes settings.json atomically with private permissions.
+func SaveGlobalSettings(s *Settings) error {
+	if s == nil {
+		return fmt.Errorf("settings is nil")
+	}
+	configDir := ConfigDir()
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal settings: %w", err)
+	}
+	settingsPath := GlobalSettingsPath()
+	tmp, err := os.CreateTemp(configDir, "settings-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp settings: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write temp settings: %w", err)
+	}
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("chmod temp settings: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp settings: %w", err)
+	}
+	if err := os.Rename(tmpName, settingsPath); err != nil {
+		return fmt.Errorf("replace settings: %w", err)
+	}
 	return nil
 }
 
@@ -607,16 +692,4 @@ func normalizeWebSearchSettings(cfg WebSearchSettings) WebSearchSettings {
 		}
 	}
 	return cfg
-}
-
-func SaveGlobalSettings(s *Settings) error {
-	dir := ConfigDir()
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(s, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(GlobalSettingsPath(), data, 0600)
 }

@@ -22,8 +22,8 @@ func TestDefaultSettings(t *testing.T) {
 		t.Errorf("expected default mode 'agent', got '%s'", s.DefaultMode)
 	}
 
-	if len(s.Providers) != 7 {
-		t.Errorf("expected 7 providers, got %d", len(s.Providers))
+	if len(s.Providers) != 15 {
+		t.Errorf("expected 15 providers, got %d", len(s.Providers))
 	}
 
 	if s.Providers["openai"] == nil {
@@ -40,6 +40,12 @@ func TestDefaultSettings(t *testing.T) {
 	}
 	if s.Providers["google-vertex"] == nil {
 		t.Fatal("expected default google-vertex provider")
+	}
+
+	for _, name := range []string{"openrouter", "minimax", "zai", "modelscope", "alibaba-standard", "alibaba-coding-plan", "alibaba-token-plan", "moark"} {
+		if s.Providers[name] == nil {
+			t.Fatalf("expected default %s provider", name)
+		}
 	}
 
 	if s.DefaultThinkingLevel != "medium" {

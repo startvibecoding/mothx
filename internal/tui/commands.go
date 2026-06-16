@@ -356,6 +356,12 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				a.addCommandStatus(sb.String())
 			}
 		}
+	case "/auth":
+		if a.isThinking {
+			a.addCommandError("Cannot open /auth while the agent is running.")
+		} else {
+			a.openAuthDialog()
+		}
 	case "/skills":
 		a.listSkills()
 	case "/skill":
