@@ -23,6 +23,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
+	"github.com/startvibecoding/vibecoding/internal/ua"
 )
 
 var (
@@ -140,6 +141,9 @@ type App struct {
 	toolModalOpen         bool
 	toolModalOffset       int
 	toolModalPinnedBottom bool
+
+	// Compact tool display mode
+	compactMode bool
 
 	// Context usage
 	contextUsage *ctxpkg.ContextUsage
@@ -334,6 +338,26 @@ func (a *App) LoadHistoryMessages() {
 // Init implements tea.Model.
 func (a *App) Init() tea.Cmd {
 	var cmds []tea.Cmd
+
+	// Render header as first message (use width 80 as default before WindowSizeMsg)
+	headerW := a.width
+	if headerW <= 0 {
+		headerW = 80
+	}
+	providerName := ""
+	modelName := "unknown"
+	if a.model != nil {
+		providerName = a.model.Provider
+		modelName = a.model.Name
+	}
+	cwd := "."
+	if a.session != nil && a.session.GetHeader() != nil {
+		cwd = a.session.GetHeader().Cwd
+	}
+	header := renderHeader(headerW, ua.Version, providerName, modelName, cwd)
+	if header != "" {
+		a.messages = append(a.messages, header)
+	}
 
 	// Show initial message if set
 	if a.initialMessage != "" {
@@ -586,6 +610,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.addMessage(statusStyle.Render("No conversation details yet."))
 			return a, nil
+		case tea.KeyCtrlG:
+			a.compactMode = !a.compactMode
+			if a.compactMode {
+				a.addMessage(statusStyle.Render("Compact tool display: ON"))
+			} else {
+				a.addMessage(statusStyle.Render("Compact tool display: OFF"))
+			}
+			a.updateViewportContent()
+			return a, nil
 		case tea.KeyCtrlP:
 			a.addCommandStatus("Multi-agent mode is configured at startup. Run with --multi-agent to enable sub-agent tools.")
 			return a, nil
@@ -740,10 +773,44 @@ func (a *App) View() string {
 	}
 
 	a.resizeViewport()
-	parts := []string{a.viewport.View(), a.input.View(), footer}
+	var parts []string
+
+	// 1. Transcript (main message area)
+	parts = append(parts, a.viewport.View())
+
+	// 2. Plan panel (active plan steps)
 	if planPanel := a.renderPlanPanel(); planPanel != "" {
-		parts = append([]string{planPanel}, parts...)
+		parts = append(parts, planPanel)
 	}
+
+	// 3. Sticky todo list (non-done tasks)
+	maxTodoVisible := 5
+	if a.height > 0 {
+		maxTodoVisible = a.height / 8
+		if maxTodoVisible < 3 {
+			maxTodoVisible = 3
+		}
+	}
+	if todoList := renderStickyTodoList(a.currentPlan, a.width, maxTodoVisible); todoList != "" {
+		parts = append(parts, todoList)
+	}
+
+	// 4. Loading indicator (spinner + timer + tokens when thinking)
+	if loading := renderLoadingIndicator(a.isThinking, a.spinnerIndex, a.timer.Elapsed(), 0, a.width); loading != "" {
+		parts = append(parts, loading)
+	}
+
+	// 5. Input field
+	parts = append(parts, a.input.View())
+
+	// 6. Footer (status bar)
+	parts = append(parts, footer)
+
+	// 7. Agent tab bar (multi-agent mode)
+	if tabBar := renderAgentTabBar(a.agentMgr, string(a.activeAgent), a.width); tabBar != "" {
+		parts = append(parts, tabBar)
+	}
+
 	return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
@@ -883,6 +950,22 @@ func (a *App) transcriptViewportHeight(footer string) int {
 	used := lipgloss.Height(a.input.View()) + lipgloss.Height(footer)
 	if panel := a.renderPlanPanel(); panel != "" {
 		used += lipgloss.Height(panel)
+	}
+	maxTodoVisible := 5
+	if height > 0 {
+		maxTodoVisible = height / 8
+		if maxTodoVisible < 3 {
+			maxTodoVisible = 3
+		}
+	}
+	if todoList := renderStickyTodoList(a.currentPlan, a.width, maxTodoVisible); todoList != "" {
+		used += lipgloss.Height(todoList)
+	}
+	if loading := renderLoadingIndicator(a.isThinking, a.spinnerIndex, a.timer.Elapsed(), 0, a.width); loading != "" {
+		used += lipgloss.Height(loading)
+	}
+	if tabBar := renderAgentTabBar(a.agentMgr, string(a.activeAgent), a.width); tabBar != "" {
+		used += lipgloss.Height(tabBar)
 	}
 	available := height - used
 	if available < 1 {

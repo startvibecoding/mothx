@@ -587,7 +587,7 @@ func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
 	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
-	app.height = 8
+	app.height = 12
 	app.input.Width = 76
 	app.messages = []string{strings.Join([]string{
 		"line 1",
@@ -598,11 +598,25 @@ func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
 		"line 6",
 		"line 7",
 		"line 8",
+		"line 9",
+		"line 10",
+		"line 11",
+		"line 12",
 	}, "\n")}
 	app.updateViewportContent()
 
+	viewContainsLine := func(view, line string) bool {
+		for _, l := range strings.Split(view, "\n") {
+			if strings.TrimSpace(l) == line {
+				return true
+			}
+		}
+		return false
+	}
+
 	before := stripANSI(app.View())
-	if strings.Contains(before, "line 1") {
+	// "line 2" should NOT be visible initially (view at bottom shows lines 5-12)
+	if viewContainsLine(before, "line 2") {
 		t.Fatalf("precondition failed: expected initial view at bottom:\n%s", before)
 	}
 
@@ -612,7 +626,8 @@ func TestMouseWheelScrollsTranscriptViewport(t *testing.T) {
 	})
 
 	after := stripANSI(app.View())
-	if !strings.Contains(after, "line 1") {
+	// After scrolling up 3 lines, "line 2" should become visible
+	if !viewContainsLine(after, "line 2") {
 		t.Fatalf("mouse wheel did not scroll transcript upward:\n%s", after)
 	}
 }
@@ -856,6 +871,7 @@ func TestRenderFooterShowsBlinkingApprovalAlert(t *testing.T) {
 	a := &App{
 		waitingForApproval: true,
 		spinnerIndex:       0,
+		width:              120,
 	}
 	visible := stripANSI(a.renderFooter())
 	if !strings.Contains(visible, "! APPROVAL REQUIRED: y/n") {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
@@ -28,6 +29,20 @@ func (a *App) renderMessageAt(idx int) string {
 }
 
 func (a *App) renderToolResult(result toolResult) string {
+	// Compact mode: single-line summary for all tool types
+	if a.compactMode {
+		header := formatToolHeader(result)
+		summary := result.summary
+		if summary == "" {
+			summary = "..."
+		}
+		// Use first line of summary only
+		if idx := strings.IndexByte(summary, '\n'); idx >= 0 {
+			summary = summary[:idx]
+		}
+		return toolStyle.Render(fmt.Sprintf("%s %s", header, summary))
+	}
+
 	if result.toolName == "edit" {
 		if result.summary == "" && result.fullContent == "" && result.diff == nil {
 			return toolStyle.Render(fmt.Sprintf("%s ...", formatToolHeader(result)))
@@ -191,55 +206,85 @@ func (a *App) renderFooter() string {
 		cwd = "..." + cwd[len(cwd)-27:]
 	}
 
-	// Build context usage string with color coding
-	contextStr := ""
+	// Build right column: sandbox + context + cache (fixed width, never compressed)
+	var rightParts []string
+	if a.sandboxInfo != "" {
+		rightParts = append(rightParts, a.sandboxInfo)
+	}
 	if a.contextUsage != nil && a.contextUsage.ContextWindow > 0 {
 		if a.contextUsage.Percent != nil {
 			percent := *a.contextUsage.Percent
 			contextDisplay := fmt.Sprintf("%.1f%%/%s",
 				percent,
 				formatTokens(a.contextUsage.ContextWindow))
-			// Colorize based on usage
 			if percent > 90 {
-				contextStr = " | " + errorStyle.Render(contextDisplay)
+				rightParts = append(rightParts, errorStyle.Render(contextDisplay))
 			} else if percent > 70 {
-				contextStr = " | " + userStyle.Render(contextDisplay)
+				rightParts = append(rightParts, userStyle.Render(contextDisplay))
 			} else {
-				contextStr = " | " + contextDisplay
+				rightParts = append(rightParts, contextDisplay)
 			}
 		} else {
-			contextStr = fmt.Sprintf(" | ?/%s", formatTokens(a.contextUsage.ContextWindow))
+			rightParts = append(rightParts, fmt.Sprintf("?/%s", formatTokens(a.contextUsage.ContextWindow)))
 		}
 	}
-
-	// Build cache hit rate string, highlighting when hit rate >= 50%
-	cacheStr := ""
 	if cachePercentStr := a.formatCachePercent(); cachePercentStr != "" {
 		if a.totalInputTokens > 0 && float64(a.totalCacheRead)/float64(a.totalInputTokens)*100 >= 50 {
-			cacheStr = " | " + statusStyle.Render(cachePercentStr)
+			rightParts = append(rightParts, statusStyle.Render(cachePercentStr))
 		} else {
-			cacheStr = " | " + cachePercentStr
+			rightParts = append(rightParts, cachePercentStr)
 		}
 	}
+	rightStr := strings.Join(rightParts, " | ")
+	rightWidth := lipgloss.Width(rightStr)
 
-	status := fmt.Sprintf(" %s | %s | %s%s%s", modeStr, modelName, cwd, contextStr, cacheStr)
+	// Build left column: mode + model, cwd, hints
+	leftLine1 := fmt.Sprintf(" %s | %s", modeStr, modelName)
+	leftLine2 := fmt.Sprintf(" %s", cwd)
+
+	// Third line: dynamic hints
+	var leftLine3 string
 	if a.waitingForApproval {
-		status += " | " + a.renderApprovalFooterAlert()
-	}
-	if a.isThinking {
-		status += " | " + spinnerChars[a.spinnerIndex] + " " + formatDuration(a.timer.Elapsed())
+		leftLine3 = " " + a.renderApprovalFooterAlert()
+	} else if a.isThinking {
+		leftLine3 = " " + spinnerChars[a.spinnerIndex] + " " + formatDuration(a.timer.Elapsed()) + " · esc to cancel"
 	} else {
 		if a.lastDuration > 0 {
-			status += " | last " + formatDuration(a.lastDuration)
+			leftLine3 = fmt.Sprintf(" last %s", formatDuration(a.lastDuration))
 		}
 		if a.toolModalOpen {
-			status += " | Esc/Ctrl+O:close PgUp/PgDn Up/Down:scroll"
+			leftLine3 += " | Esc/Ctrl+O:close PgUp/PgDn:scroll"
 		} else {
-			status += " | Tab:mode Esc:abort Ctrl+O:details"
+			leftLine3 += " | Tab:mode Esc:abort Ctrl+O:details Ctrl+G:compact"
 		}
 	}
 
-	return footerStyle.Width(a.width).Render(status)
+	leftContent := leftLine1 + "\n" + leftLine2 + "\n" + leftLine3
+
+	// Calculate left width (total width minus right column minus separator)
+	sepWidth := 2 // " |" separator
+	leftWidth := a.width - rightWidth - sepWidth
+	if leftWidth < 10 {
+		leftWidth = 10
+	}
+
+	// Truncate left lines to fit
+	leftLines := strings.Split(leftContent, "\n")
+	for i, line := range leftLines {
+		if xansi.StringWidth(line) > leftWidth {
+			leftLines[i] = xansi.Truncate(line, leftWidth, "…")
+		}
+	}
+
+	// Build footer: left lines + right-aligned last line
+	rightPadding := leftWidth - xansi.StringWidth(leftLines[len(leftLines)-1])
+	if rightPadding < 2 {
+		rightPadding = 2
+	}
+	// Append right column to the last left line
+	leftLines[len(leftLines)-1] += strings.Repeat(" ", rightPadding) + rightStr
+
+	return footerStyle.Width(a.width).Render(strings.Join(leftLines, "\n"))
 }
 
 func (a *App) renderApprovalFooterAlert() string {
