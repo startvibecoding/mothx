@@ -1,6 +1,25 @@
 # 更新日志
 
 
+## v0.1.44
+
+### 🐛 Bug 修复
+
+- **TUI 输入 Flush**
+  - 修复 TUI 中 `flushInputQueue` 未将其返回值作为 `tea.Cmd` 返回的问题，确保排队的按键在处理 `Enter`、`Tab`、`Up`、`Down` 等事件前正确刷新。
+
+### 🔧 重构
+
+- **移除未使用的 `mergeSettings`**
+  - 移除未使用的 `mergeSettings()` 函数及相关测试；项目 settings 合现已由 `LoadSettings` 直接处理。
+  - 重写 `settings_zero_test`，改为通过实际文件 I/O 调用 `LoadSettings()` 进行测试，而非直接 JSON 反序列化。
+
+### 🧪 测试
+
+- 新增测试验证 `Enter` 键在应用命令建议前先刷新排队输入。
+
+---
+
 ## v0.1.43
 
 ### 📦 依赖

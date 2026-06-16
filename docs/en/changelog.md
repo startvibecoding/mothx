@@ -1,6 +1,25 @@
 # Changelog
 
 
+## v0.1.44
+
+### 🐛 Bug Fixes
+
+- **TUI Input Flush**
+  - Fixed `flushInputQueue` in TUI app to properly return the queued input as a `tea.Cmd`, ensuring queued keystrokes are flushed before processing key events (`Enter`, `Tab`, `Up`, `Down`). Previously the command was called but its return value was discarded.
+
+### 🔧 Refactoring
+
+- **Remove Unused `mergeSettings`**
+  - Removed the unused `mergeSettings()` function and its related tests. Project settings merging is now handled directly by `LoadSettings`.
+  - Rewrote `settings_zero_test` to test via actual file I/O with `LoadSettings()` instead of direct JSON unmarshaling.
+
+### 🧪 Tests
+
+- Added test verifying that `Enter` flushes queued input before applying command suggestions.
+
+---
+
 ## v0.1.43
 
 ### 📦 Dependencies
