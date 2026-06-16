@@ -364,6 +364,11 @@ vibecoding acp --sandbox --mode agent
 | `/mode [plan\|agent\|yolo]` | 切换或显示当前模式 |
 | `/model [model_id]` | 切换或显示当前模型 |
 | `/think` | 循环切换思考级别 |
+| `/compact` | 触发上下文压缩 |
+| `/delegate [on\|off\|status]` | 切换或查看 Delegate 模式 |
+| `/agent list` | 在多 Agent 模式下列出子 Agent |
+| `/agent switch <id>` | 切换活跃子 Agent |
+| `/agent destroy <id>` | 销毁子 Agent |
 
 ### 会话管理
 
@@ -395,10 +400,13 @@ vibecoding acp --sandbox --mode agent
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+C` | 中断当前操作 / 清空输入 |
-| `Ctrl+D` | 退出 |
-| `Tab` | 循环切换思考级别 |
-| `Ctrl+T` | 切换思考内容显示 |
+| `Tab` | 循环切换模式（`plan` → `agent` → `yolo`） |
+| `Esc` | 中止当前操作、审批或问题提示 |
+| `Ctrl+O` | 打开最新工具/详情 Modal；再次按下、`Esc` 或 `q` 可关闭 |
+| `Ctrl+G` | 切换紧凑工具显示模式 |
+| `Up` / `Down` | 浏览 prompt 历史；工具 Modal 打开时滚动详情 |
+| `PgUp` / `PgDn` | 工具 Modal 打开时按页滚动详情 |
+| `Home` / `End` | 工具 Modal 打开时跳到顶部/底部 |
 
 ## 环境变量
 

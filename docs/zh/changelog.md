@@ -1,6 +1,47 @@
 # 更新日志
 
 
+## v0.1.41
+
+### ✨ 新功能
+
+- **TUI 界面重设计**
+  - 新增启动 Header，展示 Vibe Logo、版本、Provider/Model 和当前工作目录。
+  - 重设计 Footer，展示模式、模型、cwd、当前/上次请求耗时、沙箱、上下文窗口用量、缓存指标和快捷键提示。
+  - Agent 运行时新增内联 Loading 指示器，包含 spinner、耗时和取消提示。
+  - `plan` 工具新增 sticky todo list，只展示未完成步骤，长任务执行时仍能持续看到当前计划。
+  - 多 Agent 场景新增 Agent Tab Bar，当存在多个 Agent 时展示活跃 Agent 和状态。
+  - 新增紧凑工具显示模式，可用 `Ctrl+G` 切换；工具输出折叠为单行摘要，详细内容仍可通过 `Ctrl+O` 查看。
+
+- **终端原生 Scrollback Transcript**
+  - 已完成的 transcript block 现在通过 Bubble Tea `Program.Println` 打印到终端原生 scrollback，只把实时流式内容保留在受管理的 TUI 视图中。
+  - 改善长对话中的鼠标滚动、终端选择/复制和历史查看体验。
+
+- **TUI 组件基础设施**
+  - 在 `internal/tui/components/` 下新增可复用的 editor、suggestion list 和 vertical scroll 组件，包含 CJK 感知的 buffer 与渲染行为。
+
+- **回复格式指南**
+  - System prompt 新增格式约束，减少不必要的粗体、标题和列表，除非用户明确要求或内容确实需要结构化表达。
+
+### 🐛 Bug 修复
+
+- **TUI 工具结果打印**
+  - 工具结果更新现在通过一次性 transcript 打印路径输出，而不是只刷新内存中的 live content，避免已完成工具输出从终端 scrollback 中消失。
+
+- **Viewport 清理**
+  - 在 TUI 历史迁移到终端原生 scrollback 后，移除过时的 viewport 状态重置逻辑。
+
+### 📦 打包
+
+- 更新 npm installer 包元数据及各平台 optional package 版本到 `0.1.40`。
+
+### 🧪 测试
+
+- 新增 TUI editor、suggestion list 和 vertical scroll 模型的组件测试。
+- 更新 TUI cache/render 测试，覆盖 Header、Footer、终端原生 scrollback transcript 打印、紧凑显示模式和简化后的 viewport 行为。
+
+---
+
 ## v0.1.40
 
 ### ✨ 新功能

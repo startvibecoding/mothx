@@ -28,8 +28,8 @@ Welcome to the VibeCoding Documentation Center!
 ## Features
 
 - Multi-provider AI coding assistant for DeepSeek, OpenAI, Anthropic, and compatible custom APIs through vendor adapters
-- Rich terminal UI with sessions, context management, skills, and sandboxed tool execution
-- Optional `--multi-agent` mode with delegated sub-agents and cron command entry points
+- Redesigned terminal UI with a startup header, status footer, native scrollback transcript, sticky plan todo list, compact tool display, sessions, context management, skills, and sandboxed tool execution
+- Optional `--multi-agent` mode with delegated sub-agents, an agent tab bar, and cron command entry points
 - Optional `--delegate` mode with a blocking single sub-agent tool for bounded investigations and summarized results
 - ACP support: run VibeCoding as an Agent Client Protocol stdio agent for editor integrations and compatible clients, including VS Code, Zed, and JetBrains IDEs such as IntelliJ IDEA/WebStorm via ACP-compatible plugins
 - Safer approval handling: `bashBlacklist` now overrides whitelist entries, including in YOLO mode, and `--print` exits early when approval would be required

@@ -209,10 +209,15 @@ vibecoding --mode yolo
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+C` | 中断 / 清空输入 |
-| `Ctrl+D` | 退出 |
-| `Tab` | 切换思考级别 |
-| `Ctrl+T` | 切换思考显示 |
+| `Tab` | 循环切换模式（`plan` → `agent` → `yolo`） |
+| `Esc` | 中止当前操作、审批或问题提示 |
+| `Ctrl+O` | 打开最新工具/详情 Modal；再次按下、`Esc` 或 `q` 可关闭 |
+| `Ctrl+G` | 切换紧凑工具显示模式 |
+| `Up` / `Down` | 输入框聚焦时浏览 prompt 历史；工具 Modal 打开时滚动详情 |
+| `PgUp` / `PgDn` | 工具 Modal 打开时按页滚动详情 |
+| `Home` / `End` | 工具 Modal 打开时跳到顶部/底部 |
+
+已完成的对话块会打印到终端原生 scrollback，因此可以使用终端自带的鼠标滚轮、触控板或滚动条查看更早的 transcript 输出。
 
 ## 使用示例
 

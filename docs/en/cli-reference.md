@@ -333,6 +333,11 @@ Commands available during interactive sessions:
 | `/mode [plan\|agent\|yolo]` | Switch or show current mode |
 | `/model [model_id]` | Switch or show current model |
 | `/think` | Cycle thinking level |
+| `/compact` | Trigger context compaction |
+| `/delegate [on\|off\|status]` | Toggle or show delegate mode |
+| `/agent list` | List sub-agents in multi-agent mode |
+| `/agent switch <id>` | Switch the active sub-agent |
+| `/agent destroy <id>` | Destroy a sub-agent |
 
 ### Session Management
 
@@ -364,10 +369,13 @@ Commands available during interactive sessions:
 
 | Shortcut | Function |
 |----------|----------|
-| `Ctrl+C` | Interrupt current operation / Clear input |
-| `Ctrl+D` | Exit |
-| `Tab` | Cycle thinking level |
-| `Ctrl+T` | Toggle thinking content display |
+| `Tab` | Cycle mode (`plan` → `agent` → `yolo`) |
+| `Esc` | Abort current operation, approval, or question prompt |
+| `Ctrl+O` | Open latest tool/details modal; press again, `Esc`, or `q` to close |
+| `Ctrl+G` | Toggle compact tool display mode |
+| `Up` / `Down` | Navigate prompt history; scroll tool details when the modal is open |
+| `PgUp` / `PgDn` | Page through tool details when the modal is open |
+| `Home` / `End` | Jump to top/bottom of tool details when the modal is open |
 
 ## Environment Variables
 

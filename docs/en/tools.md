@@ -279,7 +279,7 @@ Perform fast regex-based searches across codebase files. Uses embedded `rg` (rip
 
 ### plan - Task Planning
 
-Renders a beautiful multi-step checklist panel in the TUI, helping users and developers monitor exactly what steps the assistant intends to execute and which ones have succeeded or failed.
+Renders a multi-step checklist panel in the TUI and persists the current plan state. The TUI also shows active non-done steps in a sticky todo list so users can keep track of progress while the transcript continues streaming.
 
 #### Parameters:
 

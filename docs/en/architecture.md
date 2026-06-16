@@ -471,32 +471,33 @@ Sandbox implements process isolation through bubblewrap (bwrap).
 
 ### 11. TUI System
 
-Terminal user interface based on BubbleTea.
+Terminal user interface based on Bubble Tea.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        TUI App                              │
 ├─────────────────────────────────────────────────────────────┤
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                   Header Bar                          │  │
-│  │  Provider: anthropic │ Model: claude-sonnet-4 │ Mode  │  │
-│  └───────────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                   Message Area                        │  │
-│  │  User: ...                                            │  │
-│  │  Assistant: ...                                        │  │
-│  │  [tool: bash] running...                              │  │
-│  └───────────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                   Input Area                          │  │
-│  │  > _                                                  │  │
-│  └───────────────────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │                   Status Bar                          │  │
-│  │  Thinking: medium │ Tokens: 1234 in / 567 out │ Cost  │  │
-│  └───────────────────────────────────────────────────────┘  │
+│  Startup Header                                             │
+│  Vibe logo │ version │ provider/model │ cwd                 │
+├─────────────────────────────────────────────────────────────┤
+│  Native terminal scrollback                                 │
+│  Completed transcript blocks are printed with Program.Println│
+├─────────────────────────────────────────────────────────────┤
+│  Managed live view                                          │
+│  Live assistant/thinking stream, sticky plan todos, loading  │
+│  indicator, prompt input, footer, and multi-agent tab bar    │
+├─────────────────────────────────────────────────────────────┤
+│  Tool details modal                                         │
+│  Ctrl+O opens a scrollable full-screen details view          │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+Key TUI behaviors:
+
+- Completed messages are printed to the terminal's native scrollback so the terminal owns history scrolling and text selection.
+- The managed Bubble Tea view focuses on live streaming content, input, footer status, loading state, and active plan/todo context.
+- `Ctrl+G` toggles compact tool display; `Ctrl+O` opens the latest tool/details modal.
+- In multi-agent mode, a tab bar shows active agents and their status when more than one agent exists.
 
 ## Configuration Files
 

@@ -1,6 +1,47 @@
 # Changelog
 
 
+## v0.1.41
+
+### ✨ Features
+
+- **TUI Redesign**
+  - Added a startup header with the Vibe logo, version, provider/model, and current working directory.
+  - Added a redesigned footer showing mode, model, cwd, elapsed/last request duration, sandbox, context window usage, cache metrics, and key hints.
+  - Added an inline loading indicator while the agent is running, with spinner, elapsed time, and cancel hint.
+  - Added a sticky todo list for active non-done `plan` tool steps, so long-running tasks remain visible while the transcript scrolls.
+  - Added a multi-agent tab bar showing active agents and their states when more than one agent is running.
+  - Added compact tool display mode, toggled with `Ctrl+G`, to collapse tool outputs into one-line summaries while keeping details available through `Ctrl+O`.
+
+- **Terminal Scrollback Transcript**
+  - Completed transcript blocks are now printed to native terminal scrollback via Bubble Tea `Program.Println`, leaving only live streaming content inside the managed TUI view.
+  - This improves mouse scrolling, terminal selection/copying, and behavior for long transcripts.
+
+- **TUI Component Foundation**
+  - Added reusable editor, suggestion list, and vertical scroll components under `internal/tui/components/` with CJK-aware buffer and rendering behavior.
+
+- **Response Formatting Guideline**
+  - Updated the system prompt to discourage excessive bold text, headers, and bullet lists unless structure is needed or requested.
+
+### 🐛 Bug Fixes
+
+- **TUI Tool Result Printing**
+  - Tool result updates now go through one-time transcript printing instead of only refreshing in-memory live content, preventing completed tool output from disappearing from terminal scrollback.
+
+- **Viewport Cleanup**
+  - Removed obsolete viewport state resets after the TUI moved transcript history to terminal-native scrollback.
+
+### 📦 Packaging
+
+- Updated npm installer package metadata and optional platform package versions to `0.1.40`.
+
+### 🧪 Tests
+
+- Added component tests for the new TUI editor, suggestion list, and vertical scroll models.
+- Updated TUI cache/render tests for header, footer, native scrollback transcript printing, compact display mode, and simplified viewport behavior.
+
+---
+
 ## v0.1.40
 
 ### ✨ Features
