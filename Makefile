@@ -8,7 +8,7 @@
 
 # Variables
 BINARY_NAME=vibecoding
-VERSION=$(shell git describe --tags --always 2>/dev/null || echo "dev")
+VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X github.com/startvibecoding/vibecoding/internal/ua.Version=$(VERSION)"
 GOBUILD_FLAGS=-trimpath
 DIST_DIR=dist

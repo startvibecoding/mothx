@@ -21,6 +21,7 @@ else
 fi
 VERSION="${VERSION#v}"
 VERSION="${VERSION%-dirty}"
+VERSION="${VERSION%%-[0-9]*-g[0-9a-f]*}"
 
 echo "Syncing npm version to: $VERSION"
 
