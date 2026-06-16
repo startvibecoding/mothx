@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,14 +37,18 @@ func (a *App) printMessageOnce(idx int) {
 	if strings.TrimSpace(rendered) == "" {
 		return
 	}
-	a.printedMessageIdx[idx] = true
-	if a.program != nil && a.printCh != nil {
-		select {
-		case a.printCh <- rendered:
-		default:
-			go func() { a.printCh <- rendered }()
-		}
+	if a.program == nil {
+		a.updateViewportContentWithFollow(true)
+		return
 	}
+	if a.printCond == nil {
+		a.printCond = sync.NewCond(&a.printMu)
+	}
+	a.printMu.Lock()
+	a.printQueue = append(a.printQueue, rendered)
+	a.printCond.Signal()
+	a.printMu.Unlock()
+	a.printedMessageIdx[idx] = true
 	a.updateViewportContentWithFollow(true)
 }
 
@@ -59,6 +64,28 @@ func (a *App) commitActiveStream() {
 		a.currentThinkIdx = -1
 		a.currentAssistantIdx = -1
 		a.updateViewportContentWithFollow(true)
+	}
+}
+
+func (a *App) registerManagedAgent() {
+	if !(a.multiAgent || a.delegateMode) || a.agentMgr == nil || a.agent == nil {
+		return
+	}
+	id := agentpkg.AgentID(a.agent.ID())
+	if _, ok := a.agentMgr.Get(id); !ok {
+		a.agentMgr.Register(agent.NewAgentAdapter(a.agent))
+	}
+	a.activeAgent = id
+}
+
+func (a *App) finishManagedAgent(cause error) {
+	if !(a.multiAgent || a.delegateMode) || a.agentMgr == nil || a.agent == nil {
+		return
+	}
+	id := a.agent.ID()
+	a.agentMgr.Finish(id, cause)
+	if a.activeAgent == id {
+		a.activeAgent = ""
 	}
 }
 
@@ -109,6 +136,7 @@ func (a *App) cycleMode() {
 		}
 
 		oldMessages, oldMessageIDs := a.agent.GetHistoryState()
+		a.finishManagedAgent(fmt.Errorf("mode changed"))
 		agentCfg := agent.Config{
 			Provider:           a.provider,
 			Model:              a.model,
@@ -124,6 +152,7 @@ func (a *App) cycleMode() {
 		}
 		a.agent = agent.New(agentCfg, a.registry)
 		a.agent.LoadHistoryState(oldMessages, oldMessageIDs)
+		a.registerManagedAgent()
 	}
 
 	var modeLabel string
@@ -240,10 +269,7 @@ func (a *App) processInput(input string) tea.Cmd {
 			DelegateMode:       a.delegateMode,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
-		if (a.multiAgent || a.delegateMode) && a.agentMgr != nil {
-			a.agentMgr.Register(agent.NewAgentAdapter(a.agent))
-			a.activeAgent = agentpkg.AgentID(a.agent.ID())
-		}
+		a.registerManagedAgent()
 
 		// Load history messages from session if available and not yet loaded
 		a.sessionMu.Lock()
@@ -262,6 +288,8 @@ func (a *App) processInput(input string) tea.Cmd {
 			}
 		}
 	}
+
+	a.registerManagedAgent()
 
 	ctx := context.Background()
 	return func() tea.Msg {

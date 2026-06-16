@@ -134,7 +134,9 @@ type App struct {
 	// Completed transcript blocks are printed above the live Bubble Tea view so
 	// the terminal owns scrollback, mouse scrolling, and text selection.
 	liveContent string
-	printCh     chan string
+	printMu     sync.Mutex
+	printCond   *sync.Cond
+	printQueue  []string
 	printOnce   sync.Once
 
 	// Initial message to display
@@ -262,7 +264,7 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		authInput:           editor.New(80).SetPlaceholder("").SetMaxLines(3),
 		suggest:             suggest.New(80).SetItems(commandSuggestionItems()),
 		timer:               stopwatch.NewWithInterval(time.Second),
-		printCh:             make(chan string, 256),
+		printQueue:          make([]string, 0, 256),
 		pastes:              make(map[int]string),
 		inputQueue:          make([]InputEvent, 0, 100),
 		inputBatchSize:      10,
@@ -295,14 +297,24 @@ func (a *App) SetInitialMessage(msg string) {
 // SetProgram stores the Bubble Tea program used for deferred UI updates.
 func (a *App) SetProgram(p *tea.Program) {
 	a.program = p
-	if a.printCh == nil {
-		a.printCh = make(chan string, 256)
+	if a.printCond == nil {
+		a.printCond = sync.NewCond(&a.printMu)
 	}
 	a.printOnce.Do(func() {
 		go func() {
-			for line := range a.printCh {
-				if a.program != nil {
-					a.program.Println(line)
+			for {
+				a.printMu.Lock()
+				for len(a.printQueue) == 0 {
+					a.printCond.Wait()
+				}
+				line := a.printQueue[0]
+				a.printQueue[0] = ""
+				a.printQueue = a.printQueue[1:]
+				program := a.program
+				a.printMu.Unlock()
+
+				if program != nil {
+					program.Send(tea.Println(line)())
 				}
 			}
 		}()

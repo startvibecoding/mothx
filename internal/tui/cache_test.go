@@ -1153,7 +1153,7 @@ func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
 	}
 }
 
-func TestHelpCommandPrintsCommandOutput(t *testing.T) {
+func TestHelpCommandRendersCommandOutputWithoutProgram(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.width = 80
 	a.height = 10
@@ -1167,11 +1167,14 @@ func TestHelpCommandPrintsCommandOutput(t *testing.T) {
 		t.Fatal("messages empty after /help")
 	}
 	idx := len(a.messages) - 1
-	if !a.printedMessageIdx[idx] {
-		t.Fatal("/help output was not marked for unmanaged transcript output")
+	if a.printedMessageIdx[idx] {
+		t.Fatal("/help output was marked printed without a Bubble Tea program")
 	}
 	if plain := stripANSI(a.messages[idx]); !strings.Contains(plain, "Commands:") {
 		t.Fatalf("/help output = %q, want command list", plain)
+	}
+	if plain := stripANSI(a.liveContent); !strings.Contains(plain, "Commands:") {
+		t.Fatalf("live transcript = %q, want command list", plain)
 	}
 }
 
@@ -1647,5 +1650,190 @@ func TestInitThenProcessInputStillInjectsSessionHistory(t *testing.T) {
 			t.Fatalf("timeout waiting for agent messages")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestCycleModeReregistersManagedAgent(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	mockProvider := &historyInjectMockProvider{}
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	app := NewApp(
+		mockProvider,
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		session.New(cwd, filepath.Join(tmp, "sessions")),
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		nil,
+		"agent",
+		true,
+		false,
+		mgr,
+		nil,
+		nil,
+	)
+
+	if cmd := app.processInput("first"); cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	firstID := app.agent.ID()
+	if _, ok := mgr.Get(firstID); !ok {
+		t.Fatalf("initial agent %s was not registered", firstID)
+	}
+
+	app.cycleMode()
+
+	if app.agent == nil {
+		t.Fatal("agent is nil after cycleMode")
+	}
+	if app.agent.ID() == firstID {
+		t.Fatal("cycleMode did not rebuild the agent")
+	}
+	if _, ok := mgr.Get(app.agent.ID()); !ok {
+		t.Fatalf("rebuilt agent %s was not registered", app.agent.ID())
+	}
+	if _, ok := mgr.Get(firstID); ok {
+		t.Fatalf("old agent %s should have been removed from manager", firstID)
+	}
+}
+
+func TestTUIDoneKeepsManagedMainAgentForNextTurn(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	mockProvider := &historyInjectMockProvider{}
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	app := NewApp(
+		mockProvider,
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		session.New(cwd, filepath.Join(tmp, "sessions")),
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		nil,
+		"agent",
+		true,
+		false,
+		mgr,
+		nil,
+		nil,
+	)
+
+	if cmd := app.processInput("first"); cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	id := app.agent.ID()
+	app.handleAgentEvent(agent.Event{Type: agent.EventDone})
+
+	if _, ok := mgr.Get(id); !ok {
+		t.Fatalf("managed main agent %s was removed after EventDone", id)
+	}
+}
+
+func TestDelegateToggleOffRemovesManagedMainAgent(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	mockProvider := &historyInjectMockProvider{}
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	app := NewApp(
+		mockProvider,
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		session.New(cwd, filepath.Join(tmp, "sessions")),
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		nil,
+		"agent",
+		false,
+		true,
+		mgr,
+		nil,
+		nil,
+	)
+
+	if cmd := app.processInput("first"); cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	id := app.agent.ID()
+	app.handleDelegateCommand([]string{"/delegate", "off"})
+
+	if _, ok := mgr.Get(id); ok {
+		t.Fatalf("managed delegate main agent %s remained after /delegate off", id)
+	}
+	if app.delegateMode {
+		t.Fatal("delegateMode = true after /delegate off")
+	}
+}
+
+func TestAgentSwitchMessageDoesNotClaimInputRetarget(t *testing.T) {
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	if _, err := mgr.Create(agent.AgentOptions{ID: "main"}); err != nil {
+		t.Fatalf("create main: %v", err)
+	}
+	if _, err := mgr.Create(agent.AgentOptions{ID: "sub-1", ParentID: "main"}); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	app := &App{
+		multiAgent:          true,
+		agentMgr:            mgr,
+		activeAgent:         "main",
+		assistantRaw:        make(map[int]string),
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      make(map[int]bool),
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+	}
+
+	app.switchAgent("sub-1")
+
+	if app.activeAgent != "sub-1" {
+		t.Fatalf("activeAgent = %s, want sub-1", app.activeAgent)
+	}
+	joined := stripANSI(strings.Join(app.messages, "\n"))
+	if !strings.Contains(joined, "Focused agent tab: sub-1") {
+		t.Fatalf("switch message missing: %q", joined)
+	}
+	if !strings.Contains(joined, "Input still goes to the main agent") {
+		t.Fatalf("switch message should explain input target: %q", joined)
+	}
+}
+
+func TestRenderAgentTabBarShowsSubAgentStatus(t *testing.T) {
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	if _, err := mgr.Create(agent.AgentOptions{ID: "main"}); err != nil {
+		t.Fatalf("create main: %v", err)
+	}
+	if _, err := mgr.Create(agent.AgentOptions{ID: "sub-1", ParentID: "main"}); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	mgr.MarkRunning("sub-1")
+
+	got := stripANSI(renderAgentTabBar(mgr, "sub-1", 120))
+	if !strings.Contains(got, "main") || !strings.Contains(got, "sub-1") {
+		t.Fatalf("tab bar missing agent IDs: %q", got)
+	}
+	if !strings.Contains(got, "● sub-1") {
+		t.Fatalf("tab bar missing running status for sub-agent: %q", got)
 	}
 }
