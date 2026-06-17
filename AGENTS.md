@@ -147,5 +147,5 @@ Common commands:
 
 ## Versioning Note
 
-Current version: `v0.1.42`
-Next version: `v0.1.43`
+Current version: `v0.1.43`
+Next version: `v0.1.44`

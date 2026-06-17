@@ -1,6 +1,44 @@
 # Changelog
 
 
+## v0.1.44
+
+### ✨ Features
+
+- **Z.AI Vendor Adapter**
+  - Added `vendor_zai.go` with a dedicated `zai` vendor adapter, registering domains `api.z.ai` and `open.bigmodel.cn` with `thinkingFormat: zai`.
+  - Updated `zai` and `zai-coding-cn` provider configs: set `Vendor: "zai"`, `ThinkingFormat: "zai"`, updated base URL to the coding endpoint, added `glm-5v-turbo` vision model.
+
+- **Kimi Provider Updates**
+  - Added `api.kimi.com` domain to the `kimi` vendor adapter for automatic vendor detection.
+  - Added `User-Agent: KimiCLI/1.5` header to the `kimi-coding` provider config.
+  - Added Kimi K2.7 Code and K2.7 Code HighSpeed models to `moonshotai`, `moonshotai-cn`, `fireworks`, and `opencode-go` providers.
+
+- **New Models**
+  - Added `GLM-5.2` model to the `opencode-go` provider (1M context, 262K max output).
+  - Added Kimi K2.7 Code Fast model to `fireworks` provider.
+
+### 🐛 Bug Fixes
+
+- **Version Strings**
+  - Fixed `Makefile` to use `--abbrev=0` with `git describe` for clean tag versions without commit count/hash suffix.
+  - Fixed `sync-npm-version.sh` to strip commit count and hash suffix from version strings.
+  - Updated `npm/bin/vibecoding` to use GitHub raw URL for install script fallback.
+
+### 🔧 Refactoring
+
+- **Agent Manager Deterministic Ordering**
+  - `AgentManager.List` now sorts agents by start time then ID for stable, deterministic ordering.
+  - Extracted `resetAgent`/`abortAndResetAgent` helpers to reduce code duplication in TUI commands.
+  - Agent ID is now set in config when creating agents in TUI.
+
+### 🧪 Tests
+
+- Added `VendorFromBaseURL` test cases for `api.kimi.com`, `api.z.ai`, and `open.bigmodel.cn`.
+- Added agent manager tests verifying deterministic list ordering.
+
+---
+
 ## v0.1.43
 
 ### 🐛 Bug Fixes

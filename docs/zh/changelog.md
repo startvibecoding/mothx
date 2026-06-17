@@ -1,6 +1,44 @@
 # 更新日志
 
 
+## v0.1.44
+
+### ✨ 新功能
+
+- **Z.AI 供应商适配器**
+  - 新增 `vendor_zai.go`，注册 `zai` 供应商适配器，域名 `api.z.ai` 和 `open.bigmodel.cn`，设置 `thinkingFormat: zai`。
+  - 更新 `zai` 和 `zai-coding-cn` 供应商配置：设置 `Vendor: "zai"`、`ThinkingFormat: "zai"`，更新 base URL 为 coding 端点，新增 `glm-5v-turbo` 视觉模型。
+
+- **Kimi 供应商更新**
+  - `kimi` 供应商适配器新增 `api.kimi.com` 域名，支持自动供应商检测。
+  - `kimi-coding` 供应商配置新增 `User-Agent: KimiCLI/1.5` 请求头。
+  - `moonshotai`、`moonshotai-cn`、`fireworks`、`opencode-go` 供应商新增 Kimi K2.7 Code 和 K2.7 Code HighSpeed 模型。
+
+- **新模型**
+  - `opencode-go` 供应商新增 `GLM-5.2` 模型（1M 上下文窗口，262K 最大输出）。
+  - `fireworks` 供应商新增 Kimi K2.7 Code Fast 模型。
+
+### 🐛 Bug 修复
+
+- **版本号字符串**
+  - 修复 `Makefile` 中 `git describe` 使用 `--abbrev=0`，确保生成干净的标签版本号，不附带 commit 数量和 hash 后缀。
+  - 修复 `sync-npm-version.sh`，去除版本号中的 commit 数量和 hash 后缀。
+  - 更新 `npm/bin/vibecoding`，使用 GitHub raw URL 作为安装脚本的 fallback。
+
+### 🔧 重构
+
+- **Agent Manager 确定性排序**
+  - `AgentManager.List` 现在按启动时间和 ID 排序，确保列表顺序稳定可预测。
+  - 提取 `resetAgent`/`abortAndResetAgent` 辅助函数，减少 TUI commands 中的代码重复。
+  - TUI 创建 Agent 时现在会在 config 中设置 Agent ID。
+
+### 🧪 测试
+
+- 新增 `VendorFromBaseURL` 测试用例：`api.kimi.com`、`api.z.ai`、`open.bigmodel.cn`。
+- 新增 agent manager 测试，验证列表排序的确定性。
+
+---
+
 ## v0.1.43
 
 ### 🐛 Bug 修复
