@@ -3,6 +3,6 @@ package provider
 func init() {
 	RegisterVendorAdapter(simpleVendorAdapter{
 		name:    "kimi",
-		domains: []string{"api.moonshot.cn"},
+		domains: []string{"api.moonshot.cn", "api.kimi.com"},
 	})
 }
