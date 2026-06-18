@@ -27,6 +27,10 @@
 
 ### 🐛 Bug Fixes
 
+- **TUI Agent Event Handling**
+  - Fixed partial response text not being committed to terminal scrollback when an error event occurs mid-stream, ensuring partial content is not lost.
+  - Added regression test verifying stream indices and print queue behavior on error.
+
 - **Version Strings**
   - Fixed `Makefile` to use `--abbrev=0` with `git describe` for clean tag versions without commit count/hash suffix.
   - Fixed `sync-npm-version.sh` to strip commit count and hash suffix from version strings.

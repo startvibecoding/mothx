@@ -27,6 +27,10 @@
 
 ### 🐛 Bug 修复
 
+- **TUI Agent 事件处理**
+  - 修复了在流式响应中途发生错误事件时，部分响应文本未提交到终端 scrollback 的问题，确保部分内容不会丢失。
+  - 新增回归测试，验证错误发生时流索引和打印队列行为正确。
+
 - **版本号字符串**
   - 修复 `Makefile` 中 `git describe` 使用 `--abbrev=0`，确保生成干净的标签版本号，不附带 commit 数量和 hash 后缀。
   - 修复 `sync-npm-version.sh`，去除版本号中的 commit 数量和 hash 后缀。
