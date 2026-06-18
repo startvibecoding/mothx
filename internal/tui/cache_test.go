@@ -986,6 +986,30 @@ func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
 	}
 }
 
+func TestHandleAgentEventCommitsStreamBeforeError(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.program = tea.NewProgram(a)
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventTurnStart})
+	a.handleAgentEvent(agent.Event{Type: agent.EventTextDelta, TextDelta: "partial response"})
+	a.handleAgentEvent(agent.Event{Type: agent.EventError, Error: assertErr("provider failed")})
+
+	a.printMu.Lock()
+	defer a.printMu.Unlock()
+	if len(a.printQueue) != 2 {
+		t.Fatalf("print queue len = %d, want partial response and error: %#v", len(a.printQueue), a.printQueue)
+	}
+	if plain := stripANSI(a.printQueue[0]); !strings.Contains(plain, "Assistant: partial response") {
+		t.Fatalf("first queued print = %q, want partial assistant response", plain)
+	}
+	if plain := stripANSI(a.printQueue[1]); !strings.Contains(plain, "Error: provider failed") {
+		t.Fatalf("second queued print = %q, want error", plain)
+	}
+	if a.currentThinkIdx != -1 || a.currentAssistantIdx != -1 {
+		t.Fatalf("active stream indices = think %d assistant %d, want both reset", a.currentThinkIdx, a.currentAssistantIdx)
+	}
+}
+
 func TestFormatApprovalArgsBashShowsCommandWithoutJSON(t *testing.T) {
 	got := stripANSI(formatApprovalArgs("bash", map[string]any{
 		"command": "git diff\nmake test",

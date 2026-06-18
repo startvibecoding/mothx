@@ -197,6 +197,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return tea.Batch(a.timer.Stop(), a.listenAgentEvents())
 
 	case agent.EventError:
+		a.commitActiveStream()
 		if (a.multiAgent || a.delegateMode) && a.agentMgr != nil && a.agent != nil {
 			a.agentMgr.MarkError(a.agent.ID(), event.Error)
 		}
