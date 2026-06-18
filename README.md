@@ -39,6 +39,7 @@
 
 | Feature | What It Means for You |
 |---------|----------------------|
+| **⚙️ Workflow Mode** | Dynamic Elisp workflows with phases, parallel execution, and multi-worker coordination — automate complex development pipelines |
 | **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, and 15+ vendor adapters — switch models instantly |
 | **⚡ Lightning Fast** | SSE streaming, real-time token delivery, cache hit optimization |
 | **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude) |
