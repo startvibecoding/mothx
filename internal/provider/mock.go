@@ -1,12 +1,16 @@
 package provider
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // MockProvider is a mock implementation of Provider for testing.
 type MockProvider struct {
 	name      string
 	models    []*Model
 	responses []StreamEvent
+	mu        sync.Mutex
 	callCount int
 }
 
@@ -22,10 +26,13 @@ func NewMockProvider(name string, models []*Model, responses []StreamEvent) *Moc
 // Chat sends a chat request and returns a channel of streaming events.
 func (p *MockProvider) Chat(ctx context.Context, params ChatParams) <-chan StreamEvent {
 	ch := make(chan StreamEvent, 100)
+	p.mu.Lock()
+	p.callCount++
+	responses := append([]StreamEvent(nil), p.responses...)
+	p.mu.Unlock()
 
 	go func() {
 		defer close(ch)
-		p.callCount++
 
 		select {
 		case <-ctx.Done():
@@ -34,7 +41,7 @@ func (p *MockProvider) Chat(ctx context.Context, params ChatParams) <-chan Strea
 		default:
 		}
 
-		for _, event := range p.responses {
+		for _, event := range responses {
 			select {
 			case <-ctx.Done():
 				ch <- StreamEvent{Type: StreamError, Error: ctx.Err()}
@@ -69,5 +76,7 @@ func (p *MockProvider) GetModel(id string) *Model {
 
 // GetCallCount returns the number of times Chat was called.
 func (p *MockProvider) GetCallCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return p.callCount
 }

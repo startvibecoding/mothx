@@ -227,10 +227,12 @@ Workflow rules:
 
 Elisp VM scope:
 - This project embeds our own minimal Elisp VM, not full Emacs Lisp
-- Supported syntax: lists, symbols, keyword symbols like :prompt, strings with basic escapes, numbers, quote shorthand, and line comments
-- Supported special forms: quote, progn, let, setq, if, when, unless, and, or
-- Supported builtins: concat, format (%s only), list, length, =, <, >, string=, not
-- Not supported: macros, defun, lambda, backquote/comma, reader macros, vectors, buffers, files, shell, network, packages, or arbitrary Emacs APIs
+- Supported syntax: lists, symbols, keyword symbols like :prompt, strings with basic escapes, numbers, quote shorthand, backquote/comma, and line comments
+- Supported special forms: quote, backquote, comma, comma-splice, progn, let, let*, setq, if, when, unless, and, or, while, cond, catch, throw, lambda, defun, defmacro, with-current-buffer, save-current-buffer
+- Supported builtins: concat, format (%s only), list, length, cons, car, cdr, nth, append, reverse, member, assoc, funcall, apply, macroexpand-1, macroexpand, +, -, *, /, =, /=, <, <=, >, >=, eq, equal, string=, string-equal, string-lessp, string<, string-greaterp, string>, not, null, symbolp, stringp, numberp, listp, consp, atom
+- Supported in-memory buffer/marker builtins: bufferp, buffer-name, current-buffer, set-buffer, get-buffer, get-buffer-create, generate-new-buffer, kill-buffer, point, point-min, point-max, goto-char, insert, delete-region, buffer-substring, buffer-string, erase-buffer, markerp, make-marker, point-marker, copy-marker, marker-position, marker-buffer, set-marker
+- Function definitions support fixed argument lists only; full Emacs Lisp lambda-list features such as &optional and &rest are not implemented
+- Not supported: full Emacs Lisp runtime, reader macros beyond quote/backquote/comma, vectors, filesystem-backed buffers, windows, frames, processes, files, shell, network, packages, or arbitrary Emacs APIs
 - Host-defined workflow forms are registered into the VM; use the names below exactly and do not change Elisp syntax
 
 Workflow DSL forms:
@@ -251,7 +253,7 @@ Workflow source shape:
 - Keywords are unquoted symbols: :prompt, :mode, :tools, :work-dir, :max-iterations, :system-prompt-extra
 - Tool lists must be quoted string lists, for example :tools '("read" "grep" "find")
 - If you need multiline prompt text, keep it inside one string and use \n escapes or concat with string literals
-- Do not use backquote, comma, lambda, defun, vectors, property-list reader syntax, or unquoted natural language
+- Prefer simple direct forms for workflows; do not use vectors, property-list reader syntax, full lambda-list features, or unquoted natural language
 
 Authoring guidance:
 - Prefer :mode "plan" with read-only tools for audits and exploration; use narrower :tools lists when possible

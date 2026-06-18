@@ -1026,8 +1026,10 @@ func TestBuildSystemPromptWorkflowGated(t *testing.T) {
 	for _, want := range []string{
 		"Elisp VM scope",
 		"our own minimal Elisp VM",
-		"Supported special forms: quote, progn, let, setq, if, when, unless, and, or",
-		"Supported builtins: concat, format (%s only), list, length, =, <, >, string=, not",
+		"Supported special forms: quote, backquote, comma, comma-splice, progn, let, let*, setq, if, when, unless, and, or, while, cond, catch, throw, lambda, defun, defmacro, with-current-buffer, save-current-buffer",
+		"Supported builtins: concat, format (%s only), list, length, cons, car, cdr, nth, append, reverse, member, assoc, funcall, apply, macroexpand-1, macroexpand, +, -, *, /, =, /=, <, <=, >, >=",
+		"Supported in-memory buffer/marker builtins: bufferp, buffer-name, current-buffer, set-buffer, get-buffer, get-buffer-create, generate-new-buffer, kill-buffer",
+		"Function definitions support fixed argument lists only",
 		"Host-defined workflow forms are registered into the VM",
 		"(agent \"name\" :prompt",
 		"[:tools '(\"read\" \"grep\")]",
