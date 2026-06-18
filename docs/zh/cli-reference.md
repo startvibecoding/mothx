@@ -18,6 +18,7 @@ vibecoding [flags] [message...]
 | `--thinking` | `-t` | `off` | 思考级别 (off, minimal, low, medium, high, xhigh) |
 | `--multi-agent` | - | `false` | 启用多 Agent 工具和命令 |
 | `--delegate` | - | `false` | 启用 Delegate 模式（阻塞式单子 Agent 工具） |
+| `--workflows` | - | `false` | 启用 Elisp workflow 工具和 `/workflows` 命令 |
 
 ### 会话管理
 
@@ -76,6 +77,7 @@ vibecoding acp [flags]
 | `--debug` | - | false | 调试日志 |
 | `--multi-agent` | - | false | 为 ACP 会话启用多 Agent 工具 |
 | `--delegate` | - | false | 为 ACP 会话启用 Delegate 模式 |
+| `--workflows` | - | false | 为 ACP 会话启用 Elisp workflow 工具 |
 
 详见 [ACP 协议](acp.md) 文档了解 IDE 集成细节。
 
@@ -118,6 +120,7 @@ vibecoding gateway [flags]
 | `--sandbox` | - | false | 启用沙箱 (bwrap) |
 | `--multi-agent` | - | false | 启用多 Agent 工具 |
 | `--delegate` | - | false | 启用 Delegate 模式 |
+| `--workflows` | - | false | 启用 Elisp workflow 工具 |
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志 |
 

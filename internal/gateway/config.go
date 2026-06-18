@@ -18,6 +18,7 @@ type GatewayConfig struct {
 	DefaultThinkingLevel string               `json:"defaultThinkingLevel,omitempty"`
 	EnableSubAgents      bool                 `json:"enableSubAgents,omitempty"`
 	EnableDelegate       bool                 `json:"enableDelegate,omitempty"`
+	EnableWorkflows      bool                 `json:"enableWorkflows,omitempty"`
 	Sandbox              GatewaySandboxConfig `json:"sandbox"`
 	AllowedWorkDirs      *[]string            `json:"allowedWorkDirs,omitempty"` // nil=no check, []=deny all overrides
 	Session              SessionConfig        `json:"session"`
@@ -80,6 +81,7 @@ func DefaultGatewayConfig() *GatewayConfig {
 		DefaultThinkingLevel: "medium",
 		EnableSubAgents:      false,
 		EnableDelegate:       false,
+		EnableWorkflows:      false,
 		Sandbox:              GatewaySandboxConfig{Enabled: false},
 		Session:              SessionConfig{IdleTimeoutSeconds: 1800},
 		CORS:                 CORSConfig{Enabled: false, AllowOrigins: []string{"*"}},

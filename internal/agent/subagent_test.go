@@ -42,6 +42,61 @@ func newTestFactoryAndManager(t testing.TB) (*AgentFactory, *AgentManager) {
 	return factory, NewAgentManager(factory)
 }
 
+func TestAgentFactoryWorkflowPromptNotInheritedByChild(t *testing.T) {
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, nil)
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
+	factory := NewAgentFactoryWithOptions(
+		mockProvider,
+		mockProvider.Models()[0],
+		settings,
+		sandboxMgr,
+		"",
+		nil,
+		ctxpkg.CompactionSettings{},
+		nil,
+		AgentFactoryOptions{
+			MultiAgentEnabled: true,
+			DelegateEnabled:   true,
+			WorkflowsEnabled:  true,
+		},
+	)
+	mgr := NewAgentManager(factory)
+
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	parentAdapter := parent.(*AgentAdapter)
+	if !parentAdapter.inner.config.Workflows {
+		t.Fatal("expected top-level factory agent to enable workflows")
+	}
+	if !contains(parentAdapter.inner.frozenSystemPrompt, "Workflow Tools") {
+		t.Fatal("expected top-level prompt to include workflow instructions")
+	}
+
+	child, err := mgr.Create(AgentOptions{ID: "child", ParentID: "main"})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	childAdapter := child.(*AgentAdapter)
+	if childAdapter.inner.config.MultiAgent {
+		t.Fatal("expected child agent to disable multi-agent prompt mode")
+	}
+	if childAdapter.inner.config.DelegateMode {
+		t.Fatal("expected child agent to disable delegate prompt mode")
+	}
+	if childAdapter.inner.config.Workflows {
+		t.Fatal("expected child agent to disable workflow prompt mode")
+	}
+	if contains(childAdapter.inner.frozenSystemPrompt, "Workflow Tools") {
+		t.Fatal("expected child prompt to omit workflow instructions")
+	}
+}
+
 func TestSubAgentSpawnTool(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSpawnTool(mgr)

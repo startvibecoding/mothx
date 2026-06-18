@@ -536,7 +536,6 @@ func formatSize(bytes int64) string {
 	return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
 }
 
-
 func truncateStr(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

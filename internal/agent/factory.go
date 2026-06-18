@@ -26,6 +26,7 @@ type AgentFactory struct {
 	approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
 	multiAgentEnabled  bool
 	delegateEnabled    bool
+	workflowsEnabled   bool
 }
 
 // NewAgentFactory creates a factory with shared configuration.
@@ -48,6 +49,7 @@ func NewAgentFactory(
 type AgentFactoryOptions struct {
 	MultiAgentEnabled bool
 	DelegateEnabled   bool
+	WorkflowsEnabled  bool
 }
 
 // NewAgentFactoryWithOptions creates a factory with explicit behavior flags.
@@ -73,6 +75,7 @@ func NewAgentFactoryWithOptions(
 		approvalHandler:    approvalHandler,
 		multiAgentEnabled:  opts.MultiAgentEnabled,
 		delegateEnabled:    opts.DelegateEnabled,
+		workflowsEnabled:   opts.WorkflowsEnabled,
 	}
 }
 
@@ -91,6 +94,7 @@ type AgentOptions struct {
 	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool // per-agent approval override
 	MultiAgent        *bool                                                       // optional prompt override
 	DelegateMode      *bool                                                       // optional prompt override
+	Workflows         *bool                                                       // optional prompt override
 }
 
 // Create creates a new Agent with per-agent Registry.
@@ -164,8 +168,13 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 	if opts.DelegateMode != nil {
 		delegateMode = *opts.DelegateMode
 	}
+	workflows := f.workflowsEnabled && opts.ParentID == ""
+	if opts.Workflows != nil {
+		workflows = *opts.Workflows
+	}
 	if opts.ParentID != "" {
 		delegateMode = false
+		workflows = false
 	}
 
 	cfg := Config{
@@ -199,6 +208,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		}(),
 		MultiAgent:   multiAgent,
 		DelegateMode: delegateMode,
+		Workflows:    workflows,
 	}
 
 	loopCfg := AgentLoopConfig{

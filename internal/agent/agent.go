@@ -93,6 +93,7 @@ type Config struct {
 	ApprovalHandler    func(toolCallID, toolName string, args map[string]any) bool
 	MultiAgent         bool // Decision 8: multi-agent mode
 	DelegateMode       bool // blocking single sub-agent delegation mode
+	Workflows          bool // dynamic workflow orchestration mode
 }
 
 // AgentLoopConfig extends Config with loop-specific settings.
@@ -313,6 +314,7 @@ func (a *Agent) buildFrozenPrompt() {
 		toolGuidelines,
 		a.config.MultiAgent,
 		a.config.DelegateMode,
+		a.config.Workflows,
 	)
 	a.frozenToolDefs = toolDefs
 	a.frozenToolNames = toolNames

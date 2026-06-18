@@ -15,9 +15,10 @@ type GatewaySession struct {
 	WorkDir      string
 	Manager      *session.Manager
 	Registry     *tools.Registry
-	AgentMgr     *agent.AgentManager // nil unless sub-agents/delegate enabled
+	AgentMgr     *agent.AgentManager // nil unless sub-agents/delegate/workflows enabled
 	Mode         string              // session-level mode override
 	DelegateMode bool                // session-level delegation mode
+	Workflows    bool                // session-level workflow mode
 	LastUsed     time.Time
 	mu           sync.Mutex // serializes requests within this session
 

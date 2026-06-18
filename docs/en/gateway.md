@@ -74,6 +74,7 @@ vibecoding --init-gateway --force  # overwrite existing
   "defaultThinkingLevel": "medium",
   "enableSubAgents": false,
   "enableDelegate": false,
+  "enableWorkflows": false,
 
   "sandbox": {
     "enabled": false,

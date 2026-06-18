@@ -31,6 +31,7 @@ type RunOptions struct {
 	Sandbox    bool
 	MultiAgent bool
 	Delegate   bool
+	Workflows  bool
 	Verbose    bool
 	Debug      bool
 }
@@ -86,6 +87,9 @@ func Run(opts RunOptions, version string) error {
 	}
 	if opts.Delegate {
 		gCfg.EnableDelegate = true
+	}
+	if opts.Workflows {
+		gCfg.EnableWorkflows = true
 	}
 	if opts.Sandbox {
 		gCfg.Sandbox.Enabled = true
@@ -230,6 +234,9 @@ func Run(opts RunOptions, version string) error {
 		}
 		if gCfg.EnableDelegate {
 			fmt.Fprintf(os.Stderr, "  Delegate: enabled\n")
+		}
+		if gCfg.EnableWorkflows {
+			fmt.Fprintf(os.Stderr, "  Workflows: enabled\n")
 		}
 		fmt.Fprintf(os.Stderr, "  Tool visibility: %s | System prompt: %s\n", gCfg.ToolVisibility.Mode, gCfg.SystemPromptMode)
 		fmt.Fprintf(os.Stderr, "\nReady to serve.\n")

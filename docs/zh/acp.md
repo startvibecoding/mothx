@@ -73,6 +73,7 @@ vibecoding acp --multi-agent
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志 |
 | `--multi-agent` | - | false | 启用子 Agent 工具和多 Agent 工作流 |
+| `--workflows` | - | false | 启用 Elisp workflow 工具 |
 
 ## 协议细节
 

@@ -239,6 +239,52 @@ func TestAssistantCommonMarkdownUsesRenderer(t *testing.T) {
 	}
 }
 
+func TestAssistantMarkdownTableDoesNotOffsetFirstTableLine(t *testing.T) {
+	app := &App{
+		width: 80,
+		assistantRaw: map[int]string{0: strings.Join([]string{
+			"| Name | Status |",
+			"|------|--------|",
+			"| Build | Passing |",
+			"| Tests | Passing |",
+		}, "\n")},
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      map[int]bool{0: true},
+		currentAssistantIdx: 0,
+		currentThinkIdx:     -1,
+	}
+	app.configureMarkdownRenderer()
+
+	plain := stripANSI(app.renderAssistantMessage(0))
+	lines := strings.Split(plain, "\n")
+	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "Assistant:" {
+		t.Fatalf("assistant table should render label on its own line: %q", plain)
+	}
+	tableLines := 0
+	for _, line := range lines[1:] {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if !strings.ContainsAny(trimmed, "┌├└│") {
+			continue
+		}
+		tableLines++
+		if line != trimmed {
+			t.Fatalf("table line has leading padding and will render misaligned: %q\nall:\n%s", line, plain)
+		}
+		if strings.Contains(line, "Assistant:") {
+			t.Fatalf("assistant prefix leaked onto table line: %q\nall:\n%s", line, plain)
+		}
+		if width := lipgloss.Width(line); width > app.width {
+			t.Fatalf("table line width = %d, want <= %d: %q", width, app.width, line)
+		}
+	}
+	if tableLines == 0 {
+		t.Fatalf("rendered markdown table was not found: %q", plain)
+	}
+}
+
 func TestAssistantMarkdownPreservesFilenameOrder(t *testing.T) {
 	tests := []struct {
 		name string

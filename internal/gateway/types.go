@@ -34,17 +34,17 @@ type RequestMessage struct {
 
 // ChatCompletionResponse is the non-streaming response.
 type ChatCompletionResponse struct {
-	ID      string                   `json:"id"`
-	Object  string                   `json:"object"`
-	Created int64                    `json:"created"`
-	Model   string                   `json:"model"`
-	Choices []ChatCompletionChoice   `json:"choices"`
-	Usage   *CompletionUsage         `json:"usage,omitempty"`
+	ID      string                 `json:"id"`
+	Object  string                 `json:"object"`
+	Created int64                  `json:"created"`
+	Model   string                 `json:"model"`
+	Choices []ChatCompletionChoice `json:"choices"`
+	Usage   *CompletionUsage       `json:"usage,omitempty"`
 
 	// VibeCoding extensions
-	XSessionID string         `json:"x_session_id,omitempty"`
-	XCommand   string         `json:"x_command,omitempty"`
-	XToolCalls []XToolCall    `json:"x_tool_calls,omitempty"`
+	XSessionID string      `json:"x_session_id,omitempty"`
+	XCommand   string      `json:"x_command,omitempty"`
+	XToolCalls []XToolCall `json:"x_tool_calls,omitempty"`
 }
 
 // ChatCompletionChoice is a single choice in the response.

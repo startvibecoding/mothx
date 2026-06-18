@@ -21,6 +21,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/init_mcp", Value: "/init_mcp ", Description: "Init mcp.json"},
 		{Label: "/mcps", Value: "/mcps", Description: "List MCP servers"},
 		{Label: "/delegate", Value: "/delegate ", Description: "Toggle delegation mode"},
+		{Label: "/workflows", Value: "/workflows ", Description: "Workflow run commands"},
 		{Label: "/agent", Value: "/agent ", Description: "Multi-agent commands"},
 		{Label: "/cron", Value: "/cron ", Description: "Scheduled task commands"},
 		{Label: "/help", Value: "/help", Description: "Show help"},

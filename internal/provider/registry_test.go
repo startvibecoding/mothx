@@ -55,11 +55,19 @@ func TestVendorFromBaseURL(t *testing.T) {
 		url      string
 		expected string
 	}{
+		{"https://api.ant-ling.com", "ant-ling"},
+		{"https://api.anthropic.com/v1/messages", "anthropic"},
 		{"https://api.deepseek.com", "deepseek"},
 		{"https://api.deepseek.com/anthropic", "deepseek"},
+		{"https://api.cerebras.ai/v1", "cerebras"},
+		{"https://router.huggingface.co/v1", "huggingface"},
 		{"https://api.xiaomimimo.com/v1", "xiaomi"},
 		{"https://api.moonshot.cn/v1", "kimi"},
 		{"https://api.kimi.com/coding", "kimi"},
+		{"https://api.moonshot.ai/v1", "moonshotai"},
+		{"https://integrate.api.nvidia.com/v1", "nvidia"},
+		{"https://api.openai.com/v1/chat/completions", "openai"},
+		{"https://opencode.ai/v1", "opencode"},
 		{"https://api.z.ai/api/coding/paas/v4", "zai"},
 		{"https://open.bigmodel.cn/api/coding/paas/v4", "zai"},
 		{"https://api.minimax.chat/v1", "minimax"},
@@ -73,6 +81,8 @@ func TestVendorFromBaseURL(t *testing.T) {
 		{"https://api.fireworks.ai/inference", "fireworks"},
 		{"https://generativelanguage.googleapis.com/v1beta/models", "google-gemini"},
 		{"https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models", "google-vertex"},
+		{"https://ai-gateway.vercel.sh/v1", "vercel-ai-gateway"},
+		{"https://api.x.ai/v1", "xai"},
 		{"https://unknown.example.com/v1", ""},
 		{"", ""},
 	}

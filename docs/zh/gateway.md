@@ -74,6 +74,7 @@ vibecoding --init-gateway --force  # 强制覆盖
   "defaultThinkingLevel": "medium",
   "enableSubAgents": false,
   "enableDelegate": false,
+  "enableWorkflows": false,
 
   "sandbox": {
     "enabled": false,

@@ -19,6 +19,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 type recordingGatewayProvider struct {
@@ -1639,10 +1640,28 @@ func TestCommands_SkillsEmpty(t *testing.T) {
 func TestCommands_Help(t *testing.T) {
 	srv := newTestServer(t)
 	result := srv.cmdHelp()
-	for _, cmd := range []string{"/clear", "/mode", "/model", "/compact", "/help"} {
+	for _, cmd := range []string{"/clear", "/mode", "/model", "/compact", "/workflows", "/help"} {
 		if !strings.Contains(result.Message, cmd) {
 			t.Errorf("help missing %s", cmd)
 		}
+	}
+}
+
+func TestCommands_WorkflowsCancelActiveRun(t *testing.T) {
+	srv := newTestServer(t)
+	active := workflow.DefaultActiveRegistry()
+	canceled := false
+	if err := active.Register("gateway-run", func() { canceled = true }); err != nil {
+		t.Fatalf("register active workflow: %v", err)
+	}
+	defer active.Unregister("gateway-run")
+
+	result := srv.cmdWorkflows([]string{"/workflows", "cancel", "gateway-run"})
+	if result.Error {
+		t.Fatalf("expected cancel success, got %q", result.Message)
+	}
+	if !canceled {
+		t.Fatal("expected cancel function to be called")
 	}
 }
 

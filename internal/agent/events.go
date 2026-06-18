@@ -115,7 +115,7 @@ type Event struct {
 	ContextUsage *ctxpkg.ContextUsage
 
 	// Pressure info (for EventContextPressure / EventBudgetPressure)
-	PressureMessage string // Human-readable warning message
-	PressureType    string // "context" or "budget"
+	PressureMessage string  // Human-readable warning message
+	PressureType    string  // "context" or "budget"
 	PressurePercent float64 // Usage percentage that triggered the event
 }

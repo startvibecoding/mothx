@@ -9,7 +9,7 @@
 
 新增 TUI 内 `/auth` 指令，用于在交互界面中配置 Provider、Token、Base URL 和模型列表，降低首次使用和切换厂商的配置门槛。
 
-核心体验参考 `/home/free/src/qwen-code-by-moark` 中 `/auth` 弹框：以 bordered dialog 展示多层菜单，支持键盘选择、逐步输入、回退、预览并保存。
+核心体验参考 `qwen-code` 中 `/auth` 弹框：以 bordered dialog 展示多层菜单，支持键盘选择、逐步输入、回退、预览并保存。
 
 同时优化首次安装启动体验：当全局 `settings.json` 不存在时自动创建默认配置文件，并在首次 TUI 启动时提示用户使用 `/auth` 添加登录厂商、token 和模型。
 
@@ -137,10 +137,10 @@ No provider token configured yet. Run /auth to add a provider token and model.
 
 qwen-code 参考位置：
 
-- `/home/free/src/qwen-code-by-moark/packages/core/src/providers/all-providers.ts`
-- `/home/free/src/qwen-code-by-moark/packages/core/src/providers/presets/*.ts`
-- `/home/free/src/qwen-code-by-moark/packages/core/src/providers/provider-config.ts`
-- `/home/free/src/qwen-code-by-moark/packages/core/src/providers/types.ts`
+- `/home/free/src/qwen-code/packages/core/src/providers/all-providers.ts`
+- `/home/free/src/qwen-code/packages/core/src/providers/presets/*.ts`
+- `/home/free/src/qwen-code/packages/core/src/providers/provider-config.ts`
+- `/home/free/src/qwen-code/packages/core/src/providers/types.ts`
 
 注意：qwen-code 仅作为厂商、模型、base URL 与交互样式参考；开发时所有配置字段、API 类型、vendor 名称、compat flag 名称都必须以本项目 Go 类型为准。如果 qwen-code 的类型名/枚举名与本项目不一致，不做沿用或翻译式引入，统一映射到本项目已有命名。
 

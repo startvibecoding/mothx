@@ -14,6 +14,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
@@ -166,6 +167,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sess.Registry.Remove("delegate_subagent")
 	}
+	if sess.Workflows && sess.AgentMgr != nil {
+		workflow.RegisterTools(sess.Registry, sess.AgentMgr, nil)
+	}
 
 	agentCfg := agent.Config{
 		Provider:           currentProvider,
@@ -180,6 +184,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		CompactionSettings: compactionSettings,
 		MultiAgent:         s.cfg.EnableSubAgents,
 		DelegateMode:       sess.DelegateMode,
+		Workflows:          sess.Workflows,
 	}
 
 	a := agent.New(agentCfg, sess.Registry)
@@ -474,11 +479,12 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 		Registry:     registry,
 		Mode:         "",
 		DelegateMode: s.cfg.EnableDelegate,
+		Workflows:    s.cfg.EnableWorkflows,
 		LastUsed:     time.Now(),
 	}
 
-	// Create sub-agent manager if enabled
-	if s.cfg.EnableSubAgents || s.cfg.EnableDelegate {
+	// Create agent manager if sub-agent, delegate, or workflow mode is enabled.
+	if s.cfg.EnableSubAgents || s.cfg.EnableDelegate || s.cfg.EnableWorkflows {
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          s.settings.Compaction.Enabled,
 			ReserveTokens:    s.settings.Compaction.ReserveTokens,
@@ -487,6 +493,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			DelegateEnabled:   s.cfg.EnableDelegate,
+			WorkflowsEnabled:  s.cfg.EnableWorkflows,
 		})
 		sess.AgentMgr = agent.NewAgentManager(factory)
 	}

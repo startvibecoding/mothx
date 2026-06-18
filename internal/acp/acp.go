@@ -25,6 +25,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 const protocolVersion = 1
@@ -40,6 +41,7 @@ type RunOptions struct {
 	Debug      bool
 	MultiAgent bool
 	Delegate   bool
+	Workflows  bool
 	WebSearch  bool
 }
 
@@ -62,6 +64,7 @@ type server struct {
 
 	multiAgent bool
 	delegate   bool
+	workflows  bool
 	factory    *agent.AgentFactory
 	agentMgr   *agent.AgentManager
 
@@ -247,6 +250,7 @@ func Run(opts RunOptions) error {
 		cwd:        cwd,
 		multiAgent: opts.MultiAgent,
 		delegate:   opts.Delegate,
+		workflows:  opts.Workflows,
 		sessions:   make(map[string]*sessionRuntime),
 		pending:    make(map[string]chan json.RawMessage),
 		toolTitles: make(map[string]string),
@@ -307,7 +311,7 @@ func Run(opts RunOptions) error {
 	}
 
 	// Agent manager backs multi-agent and delegate workflows.
-	if opts.MultiAgent || opts.Delegate {
+	if opts.MultiAgent || opts.Delegate || opts.Workflows {
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          settings.Compaction.Enabled,
 			ReserveTokens:    settings.Compaction.ReserveTokens,
@@ -323,6 +327,7 @@ func Run(opts RunOptions) error {
 		srv.factory = agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, srv.extraContext, nil, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			DelegateEnabled:   opts.Delegate,
+			WorkflowsEnabled:  opts.Workflows,
 		})
 		srv.agentMgr = agent.NewAgentManager(srv.factory)
 	}
@@ -385,6 +390,9 @@ func (s *server) newToolRegistry() *tools.Registry {
 		}
 		if s.delegate {
 			agent.RegisterDelegateSubAgentTool(registry, s.agentMgr)
+		}
+		if s.workflows {
+			workflow.RegisterTools(registry, s.agentMgr, nil)
 		}
 	}
 	return registry
@@ -551,6 +559,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			},
 			MultiAgent:   s.multiAgent,
 			DelegateMode: s.delegate,
+			Workflows:    s.workflows,
 		}, rt.registry)
 		a = agent.NewAgentAdapter(inner)
 	}

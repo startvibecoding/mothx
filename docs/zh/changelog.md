@@ -5,6 +5,13 @@
 
 ### ✨ 新功能
 
+- **Dynamic Workflows**
+  - 新增独立 `--workflows` 模式，支持 CLI、ACP 和 Gateway，不依赖 `--multi-agent`。
+  - 新增 Elisp workflow 工具：`workflow_run`、`workflow_status` 和 `workflow_cancel`。
+  - Workflow runtime 支持 phase、series/parallel 执行、并发限制、worker agent 任务、结果汇总和运行日志。
+  - 新增 workflow run 状态持久化，并在 TUI 与 Gateway 中提供 `/workflows` 状态命令。
+  - 新增进程内 active run 取消能力，`workflow_cancel` 和 `/workflows cancel <id>` 可中断运行中的 workflow。
+
 - **Z.AI 供应商适配器**
   - 新增 `vendor_zai.go`，注册 `zai` 供应商适配器，域名 `api.z.ai` 和 `open.bigmodel.cn`，设置 `thinkingFormat: zai`。
   - 更新 `zai` 和 `zai-coding-cn` 供应商配置：设置 `Vendor: "zai"`、`ThinkingFormat: "zai"`，更新 base URL 为 coding 端点，新增 `glm-5v-turbo` 视觉模型。
@@ -32,8 +39,19 @@
   - 提取 `resetAgent`/`abortAndResetAgent` 辅助函数，减少 TUI commands 中的代码重复。
   - TUI 创建 Agent 时现在会在 config 中设置 Agent ID。
 
+### 📦 依赖
+
+- 新增 `github.com/startvibecoding/vibeEmacsLispVm v0.0.1`，作为 workflow DSL 执行使用的内嵌 Elisp 子集解释器。
+
+### 📚 文档
+
+- 在 `docs/proposal/` 下新增 dynamic workflows Elisp 方案文档。
+- 更新中英文工具文档，补充 workflow 工具用法、仅支持 Elisp DSL 的约束和取消范围说明。
+
 ### 🧪 测试
 
+- 新增 workflow runner/store/tool 测试，覆盖 Elisp 执行、并行 worker、结果汇总、持久化、工具注册隔离和 active run 取消。
+- 新增 prompt 与 CLI flag 测试，确认 workflow 模式不会污染 multi-agent、delegate 或 worker agent prompt。
 - 新增 `VendorFromBaseURL` 测试用例：`api.kimi.com`、`api.z.ai`、`open.bigmodel.cn`。
 - 新增 agent manager 测试，验证列表排序的确定性。
 

@@ -196,6 +196,7 @@ type App struct {
 	// Multi-agent / delegate state
 	multiAgent   bool
 	delegateMode bool
+	workflows    bool
 	activeAgent  agentpkg.AgentID
 	agentMgr     *agent.AgentManager
 
@@ -237,6 +238,10 @@ type pendingQuestion struct {
 
 // NewApp creates a new TUI application.
 func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
+	return NewAppWithWorkflows(p, model, settings, sess, registry, sandboxInfo, extraContext, skillsMgr, initialMode, multiAgent, delegateMode, false, agentMgr, cronStore, scheduler)
+}
+
+func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
 	input := editor.New(80).SetPlaceholder("Type a message...").SetMaxLines(5)
 
 	// Determine initial mode: use provided mode, fall back to settings default
@@ -279,6 +284,7 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 		assistantDirty:      make(map[int]bool),
 		multiAgent:          multiAgent,
 		delegateMode:        delegateMode,
+		workflows:           workflows,
 		agentMgr:            agentMgr,
 		cronStore:           cronStore,
 		scheduler:           scheduler,
@@ -314,7 +320,9 @@ func (a *App) SetProgram(p *tea.Program) {
 				a.printMu.Unlock()
 
 				if program != nil {
-					program.Send(tea.Println(line)())
+					// Print directly to native terminal scrollback; do not route
+					// completed transcript output back through the update loop.
+					program.Println(line)
 				}
 			}
 		}()

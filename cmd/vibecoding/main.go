@@ -26,6 +26,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/tui"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 var version = "dev"
@@ -52,6 +53,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 		flagDebug           bool
 		flagMultiAgent      bool
 		flagDelegate        bool
+		flagWorkflows       bool
 		flagWebSearch       bool
 		flagInitGateway     bool
 		flagForce           bool
@@ -97,6 +99,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				debug:           flagDebug,
 				multiAgent:      flagMultiAgent,
 				delegate:        flagDelegate,
+				workflows:       flagWorkflows,
 				webSearch:       flagWebSearch,
 				enableA2AMaster: flagEnableA2AMaster,
 			})
@@ -118,6 +121,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				Debug:      flagDebug,
 				MultiAgent: flagMultiAgent,
 				Delegate:   flagDelegate,
+				Workflows:  flagWorkflows,
 				WebSearch:  flagWebSearch,
 			})
 		},
@@ -137,6 +141,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	flags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	flags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
 	flags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
+	flags.BoolVar(&flagWorkflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
 	flags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this run")
 	flags.BoolVar(&flagInitGateway, "init-gateway", false, "Create gateway.json config template")
 	flags.BoolVar(&flagForce, "force", false, "Force overwrite existing files (used with --init-*)")
@@ -153,6 +158,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	acpFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	acpFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
 	acpFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
+	acpFlags.BoolVar(&flagWorkflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
 	acpFlags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this ACP run")
 
 	var (
@@ -175,6 +181,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 				Sandbox:    flagSandbox,
 				MultiAgent: flagMultiAgent,
 				Delegate:   flagDelegate,
+				Workflows:  flagWorkflows,
 				Verbose:    flagVerbose,
 				Debug:      flagDebug,
 			}, version)
@@ -190,6 +197,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	gatewayFlags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
 	gatewayFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
 	gatewayFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
+	gatewayFlags.BoolVar(&flagWorkflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
 	gatewayFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
 	gatewayFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 
@@ -215,6 +223,7 @@ type runOptions struct {
 	debug           bool
 	multiAgent      bool
 	delegate        bool
+	workflows       bool
 	webSearch       bool
 	enableA2AMaster bool
 }
@@ -433,7 +442,7 @@ func run(args []string, opts runOptions) error {
 		}
 	}
 
-	// Agent manager backs multi-agent and delegate workflows.
+	// Agent manager backs multi-agent, delegate, and workflow modes.
 	var agentMgr *agent.AgentManager
 	var cronStore cron.CronStore
 	var cronScheduler *cron.Scheduler
@@ -453,6 +462,7 @@ func run(args []string, opts runOptions) error {
 		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			DelegateEnabled:   opts.delegate,
+			WorkflowsEnabled:  opts.workflows,
 		})
 		agentMgr = agent.NewAgentManager(factory)
 
@@ -471,6 +481,9 @@ func run(args []string, opts runOptions) error {
 		if opts.delegate {
 			agent.RegisterDelegateSubAgentTool(registry, agentMgr)
 		}
+		if opts.workflows {
+			workflow.RegisterTools(registry, agentMgr, nil)
+		}
 
 		if opts.verbose {
 			if opts.multiAgent {
@@ -479,19 +492,22 @@ func run(args []string, opts runOptions) error {
 			if opts.delegate {
 				fmt.Fprintf(os.Stderr, "Delegate mode enabled\n")
 			}
+			if opts.workflows {
+				fmt.Fprintf(os.Stderr, "Workflow mode enabled\n")
+			}
 		}
 	}
 
 	// Print mode: non-interactive
 	if opts.print {
-		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, opts.delegate, agentMgr)
+		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, opts.delegate, opts.workflows, agentMgr)
 	}
 
 	// Interactive mode
 	// Clear any pending stdin input (e.g., terminal color queries)
 	clearStdin()
 
-	app := tui.NewApp(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, opts.delegate, agentMgr, cronStore, cronScheduler)
+	app := tui.NewAppWithWorkflows(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, opts.delegate, opts.workflows, agentMgr, cronStore, cronScheduler)
 	// Add context files info and session info as initial message
 	var initialMsg string
 	if contextFilesInfo != "" {

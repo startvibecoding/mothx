@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 
 	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
 )
@@ -82,6 +82,7 @@ func (a *App) renderAssistantMessage(idx int) string {
 	}
 	prefix := assistantStyle.Render("Assistant: ")
 	width := a.assistantMarkdownWidth()
+	tableMarkdown := containsMarkdownTable(raw)
 	if renderutil.LooksLikeMarkdown(raw) {
 		if a.assistantDirty[idx] && a.mdRenderer != nil {
 			a.mdRenderer.Update(raw)
@@ -90,6 +91,9 @@ func (a *App) renderAssistantMessage(idx int) string {
 			a.assistantDirty[idx] = false
 		}
 		if rendered, ok := a.assistantRendered[idx]; ok && rendered != "" {
+			if tableMarkdown {
+				return assistantStyle.Render("Assistant:") + "\n" + renderutil.WrapANSI(rendered, a.assistantFullWidth())
+			}
 			return prefix + renderutil.WrapANSI(rendered, width)
 		}
 	}
@@ -123,6 +127,52 @@ func (a *App) thinkMessageWidth() int {
 
 func wrapPlainText(s string, width int) string {
 	return renderutil.WrapANSI(s, width)
+}
+
+func (a *App) assistantFullWidth() int {
+	width := a.width
+	if width <= 0 {
+		width = 80
+	}
+	if width < 1 {
+		return 1
+	}
+	return width
+}
+
+func containsMarkdownTable(s string) bool {
+	lines := strings.Split(s, "\n")
+	for i := 0; i+1 < len(lines); i++ {
+		header := strings.TrimSpace(lines[i])
+		if !isMarkdownTableHeader(header) {
+			continue
+		}
+		if isMarkdownTableSeparator(strings.TrimSpace(lines[i+1])) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMarkdownTableHeader(line string) bool {
+	return strings.HasPrefix(line, "|") && strings.Count(line, "|") >= 2
+}
+
+func isMarkdownTableSeparator(line string) bool {
+	if !strings.HasPrefix(line, "|") || strings.Count(line, "|") < 2 {
+		return false
+	}
+	hasDash := false
+	for _, r := range line {
+		switch r {
+		case '|', ':', ' ', '\t':
+		case '-':
+			hasDash = true
+		default:
+			return false
+		}
+	}
+	return hasDash
 }
 
 func (a *App) renderPlanPanel() string {

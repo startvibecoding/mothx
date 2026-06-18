@@ -69,7 +69,7 @@ func (a *App) commitActiveStream() {
 }
 
 func (a *App) registerManagedAgent() {
-	if !(a.multiAgent || a.delegateMode) || a.agentMgr == nil || a.agent == nil {
+	if !(a.multiAgent || a.delegateMode || a.workflows) || a.agentMgr == nil || a.agent == nil {
 		return
 	}
 	id := agentpkg.AgentID(a.agent.ID())
@@ -80,7 +80,7 @@ func (a *App) registerManagedAgent() {
 }
 
 func (a *App) finishManagedAgent(cause error) {
-	if !(a.multiAgent || a.delegateMode) || a.agentMgr == nil || a.agent == nil {
+	if !(a.multiAgent || a.delegateMode || a.workflows) || a.agentMgr == nil || a.agent == nil {
 		return
 	}
 	id := a.agent.ID()
@@ -164,6 +164,7 @@ func (a *App) cycleMode() {
 			CompactionSettings: compactionSettings,
 			MultiAgent:         a.multiAgent,
 			DelegateMode:       a.delegateMode,
+			Workflows:          a.workflows,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
 		a.agent.LoadHistoryState(oldMessages, oldMessageIDs)
@@ -283,6 +284,7 @@ func (a *App) processInput(input string) tea.Cmd {
 			CompactionSettings: compactionSettings,
 			MultiAgent:         a.multiAgent,
 			DelegateMode:       a.delegateMode,
+			Workflows:          a.workflows,
 		}
 		a.agent = agent.New(agentCfg, a.registry)
 		a.registerManagedAgent()

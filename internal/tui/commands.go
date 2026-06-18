@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/session"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 // handleAgentCommand handles /agent subcommands (multi-agent mode).
@@ -265,6 +267,70 @@ func (a *App) handleCronCommand(parts []string) {
 	}
 }
 
+func (a *App) handleWorkflowsCommand(parts []string) {
+	store := workflow.DefaultStore()
+	sub := "list"
+	if len(parts) > 1 {
+		sub = strings.ToLower(parts[1])
+	}
+	switch sub {
+	case "list", "ls":
+		runs, err := store.List(context.Background())
+		if err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to list workflows: %v", err))
+			return
+		}
+		if len(runs) == 0 {
+			a.addCommandStatus("Workflow runs: (none)")
+			return
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Workflow runs (%d):\n", len(runs)))
+		for _, run := range runs {
+			sb.WriteString(fmt.Sprintf("  [%s] %s %s (%s)\n", run.Status, run.ID, run.Name, run.UpdatedAt.Format(time.RFC3339)))
+		}
+		a.addCommandStatus(strings.TrimRight(sb.String(), "\n"))
+	case "show":
+		if len(parts) < 3 {
+			a.addCommandStatus("Usage: /workflows show <id>")
+			return
+		}
+		run, err := store.Load(context.Background(), parts[2])
+		if err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to load workflow: %v", err))
+			return
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Workflow %s: %s\n", run.ID, run.Status))
+		if run.Name != "" {
+			sb.WriteString(fmt.Sprintf("Name: %s\n", run.Name))
+		}
+		for _, phase := range run.Phases {
+			sb.WriteString(fmt.Sprintf("Phase [%s] %s tasks=%d\n", phase.Status, phase.Name, len(phase.Tasks)))
+		}
+		for key, result := range run.Results {
+			sb.WriteString(fmt.Sprintf("\n%s [%s]\n%s\n", key, result.Status, strings.TrimSpace(result.Result)))
+		}
+		if run.Error != "" {
+			sb.WriteString("\nError: " + run.Error)
+		}
+		a.addCommandStatus(strings.TrimRight(sb.String(), "\n"))
+	case "cancel":
+		if len(parts) < 3 {
+			a.addCommandStatus("Usage: /workflows cancel <id>")
+			return
+		}
+		id := strings.TrimSpace(parts[2])
+		if !workflow.DefaultActiveRegistry().Cancel(id) {
+			a.addCommandError(fmt.Sprintf("Workflow run %s is not active.", id))
+			return
+		}
+		a.addCommandStatus(fmt.Sprintf("Workflow run %s cancellation requested.", id))
+	default:
+		a.addCommandError("Usage: /workflows [list|show <id>|cancel <id>]")
+	}
+}
+
 func (a *App) handleCommand(cmd string) tea.Cmd {
 	parts := strings.Fields(cmd)
 	if len(parts) == 0 {
@@ -406,6 +472,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleDelegateCommand(parts)
 	case "/cron":
 		a.handleCronCommand(parts)
+	case "/workflows":
+		a.handleWorkflowsCommand(parts)
 	case "/help":
 		a.addCommandStatus(commandHelpText())
 	default:

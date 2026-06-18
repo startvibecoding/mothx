@@ -92,6 +92,58 @@ func TestRootParsesSessionFlags(t *testing.T) {
 	}
 }
 
+func TestRootParsesWorkflowFlagIndependently(t *testing.T) {
+	var got runOptions
+
+	cmd := newRootCommand(
+		func(args []string, opts runOptions) error {
+			got = opts
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	cmd.SetArgs([]string{"--workflows", "plan workflow"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute command: %v", err)
+	}
+	if !got.workflows {
+		t.Fatal("expected workflows flag")
+	}
+	if got.multiAgent {
+		t.Fatal("did not expect workflows to enable multi-agent")
+	}
+}
+
+func TestRootMultiAgentDoesNotEnableWorkflows(t *testing.T) {
+	var got runOptions
+
+	cmd := newRootCommand(
+		func(args []string, opts runOptions) error {
+			got = opts
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	cmd.SetArgs([]string{"--multi-agent", "delegate"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute command: %v", err)
+	}
+	if !got.multiAgent {
+		t.Fatal("expected multi-agent flag")
+	}
+	if got.workflows {
+		t.Fatal("did not expect multi-agent to enable workflows")
+	}
+}
+
 func TestACPParsesSharedFlagsWithoutRootFlags(t *testing.T) {
 	var got acp.RunOptions
 
@@ -105,7 +157,7 @@ func TestACPParsesSharedFlagsWithoutRootFlags(t *testing.T) {
 			return nil
 		},
 	)
-	cmd.SetArgs([]string{"acp", "-p", "anthropic", "-m", "claude-test", "-M", "yolo", "-t", "medium", "--sandbox", "--verbose", "--debug"})
+	cmd.SetArgs([]string{"acp", "-p", "anthropic", "-m", "claude-test", "-M", "yolo", "-t", "medium", "--sandbox", "--verbose", "--debug", "--workflows"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute command: %v", err)
@@ -124,6 +176,12 @@ func TestACPParsesSharedFlagsWithoutRootFlags(t *testing.T) {
 	}
 	if !got.Sandbox || !got.Verbose || !got.Debug {
 		t.Fatalf("flags = sandbox:%v verbose:%v debug:%v, want all true", got.Sandbox, got.Verbose, got.Debug)
+	}
+	if !got.Workflows {
+		t.Fatal("expected workflows flag")
+	}
+	if got.MultiAgent {
+		t.Fatal("did not expect workflows to enable multi-agent")
 	}
 }
 

@@ -73,6 +73,7 @@ vibecoding acp --multi-agent
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging |
 | `--multi-agent` | - | false | Enable sub-agent tools and multi-agent workflows |
+| `--workflows` | - | false | Enable Elisp workflow tools |
 
 ## Protocol Details
 

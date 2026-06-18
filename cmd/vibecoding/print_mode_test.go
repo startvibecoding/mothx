@@ -34,6 +34,7 @@ func TestRunPrintFailsWhenApprovalWouldBeRequired(t *testing.T) {
 		"",
 		false,
 		false,
+		false,
 		nil,
 	)
 	if err == nil {

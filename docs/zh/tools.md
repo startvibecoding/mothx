@@ -44,6 +44,9 @@ VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件
 | [`subagent_send`](#subagent_---子-agent-委托) | 多 Agent | 向子 Agent 发送后续追问或指令 | 发送消息 | 仅多 Agent 模式 |
 | [`subagent_destroy`](#subagent_---子-agent-委托) | 多 Agent | 销毁子 Agent 释放其上下文资源 | 销毁释放 | 仅多 Agent 模式 |
 | [`delegate_subagent`](#delegate_subagent---阻塞式单子-agent-委托) | 委托模式 | 同步执行一个子 Agent 任务 | 子 Agent 级权限限制 | 仅 Delegate 模式 |
+| [`workflow_run`](#workflow_run---动态-elisp-workflow) | Workflow | 执行 Elisp workflow 并编排 worker agent | 子 Agent 级权限限制 | 仅 Workflow 模式 |
+| [`workflow_status`](#workflow_status---workflow-运行状态) | Workflow | 查询 workflow 运行记录与结果 | 只读 | 仅 Workflow 模式 |
+| [`workflow_cancel`](#workflow_cancel---workflow-取消) | Workflow | 取消运行中的 workflow | 仅当前进程 active run | 仅 Workflow 模式 |
 | [`a2a_dispatch`](#a2a_dispatch---远程-agent-分发) | 多 Agent | 向配置的远程 A2A Agent 节点发送任务 | 发起网络请求 | 仅 A2A Master 模式 |
 | [`skill_ref`](#skill_ref---加载技能引用) | 技能系统 | 动态加载外部技能定义的参考文档 | 只读 | 所有模式 |
 
@@ -461,6 +464,39 @@ VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件
 ```
 
 Delegate 模式适用于大范围代码搜索、多步调查、聚焦实现或验证任务。不适用于单步操作、需要向用户澄清的任务或强依赖完整会话历史的有状态工作。
+
+---
+
+### workflow_run - 动态 Elisp Workflow
+
+当 VibeCoding 使用 Workflow 模式启动（`--workflows`）后，主 Agent 可以运行一段普通 Elisp workflow 脚本，将任务拆成多个 phase，并在 phase 内调度 worker agent。Workflow 模式与 `--multi-agent` 独立：启用 workflow 只暴露 `workflow_*` 工具，不会暴露 `subagent_*` 工具。
+
+Workflow 脚本必须使用受支持的 Elisp 子集。不要用 JSON DSL 描述 workflow 结构。
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `source` | string | ✓ | Elisp workflow 源码。顶层表单应为 `(workflow "name" ...)`。 |
+
+请求示例：
+```json
+{
+  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"审计 internal/gateway 的认证风险\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"审计 internal/hermes 的认证风险\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :prompt (concat (results \"scan\") \"\\n交叉验证结论并列出具体风险。\"))))"
+}
+```
+
+当前支持的 workflow builtin 包括 `workflow`、`phase`、`parallel`、`series`、`agent`、`concurrency`、`result`、`results` 和 `log`。Worker agent 通过任务 prompt 接收动态 workflow 上下文，因此父 Agent 的 system prompt 和 tool definitions 在构造后保持冻结。
+
+### workflow_status - Workflow 运行状态
+
+列出最近的 workflow run，或返回指定 run 的完整持久化状态。
+
+| 参数名 | 类型 | 必填 | 描述 |
+|--------|------|------|------|
+| `id` | string | - | Workflow run ID。省略时列出最近运行记录。 |
+
+### workflow_cancel - Workflow 取消
+
+取消当前 VibeCoding 进程内仍在运行的 workflow run。已经完成的 run、其他进程中的 run，以及重启前遗留的 run 不再是 active 状态，不能按 ID 取消。
 
 ---
 

@@ -44,6 +44,9 @@ When `sandbox.enabled` is `true` in `settings.json`, VibeCoding isolates command
 | [`subagent_send`](#subagent_---delegated-work) | Multi-Agent | Send commands to sub-agents | Send message | Multi-Agent Mode |
 | [`subagent_destroy`](#subagent_---delegated-work) | Multi-Agent | Remove sub-agents & clean up | Destroy | Multi-Agent Mode |
 | [`delegate_subagent`](#delegate_subagent---blocking-single-sub-agent-delegation) | Delegate | Run one synchronous sub-agent task | Sub-agent scoped limits | Delegate Mode |
+| [`workflow_run`](#workflow_run---dynamic-elisp-workflows) | Workflow | Run an Elisp workflow with worker agents | Worker-agent scoped limits | Workflow Mode |
+| [`workflow_status`](#workflow_status---workflow-run-status) | Workflow | Inspect workflow runs and results | Read-only | Workflow Mode |
+| [`workflow_cancel`](#workflow_cancel---workflow-cancellation) | Workflow | Cancel an active workflow run | In-process active run only | Workflow Mode |
 | [`a2a_dispatch`](#a2a_dispatch---remote-agent-dispatch) | Multi-Agent | Dispatch tasks to a remote A2A agent | Network request | A2A Master Mode |
 | [`skill_ref`](#skill_ref---skill-reference-loading) | Skills | Load external skill documentation | Read-only | All modes |
 
@@ -461,6 +464,39 @@ Result shape:
 ```
 
 Use delegate mode for broad searches, multi-step investigations, focused implementation, or verification tasks. Avoid it for one-tool operations, tasks needing user clarification, or highly stateful work that depends on the full conversation.
+
+---
+
+### workflow_run - Dynamic Elisp Workflows
+
+When VibeCoding is launched with workflow mode (`--workflows`), the main agent can run a plain Elisp workflow script that coordinates multiple worker agents across phases. Workflow mode is independent from `--multi-agent`: enabling workflows exposes `workflow_*` tools, not `subagent_*` tools.
+
+Workflow scripts must use the supported Elisp subset. Do not describe workflow structure with a JSON DSL.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source` | string | ✓ | Elisp workflow source. The top-level form should be `(workflow "name" ...)`. |
+
+Example payload:
+```json
+{
+  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"Audit internal/gateway auth risks\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"Audit internal/hermes auth risks\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :prompt (concat (results \"scan\") \"\\nReconcile the findings and list concrete risks.\"))))"
+}
+```
+
+Supported workflow builtins include `workflow`, `phase`, `parallel`, `series`, `agent`, `concurrency`, `result`, `results`, and `log`. Worker agents receive dynamic workflow context through their task prompt, so the parent system prompt and tool definitions remain frozen after agent construction.
+
+### workflow_status - Workflow Run Status
+
+Lists recent workflow runs, or returns the full persisted state for one run.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | - | Workflow run ID. Omit to list recent runs. |
+
+### workflow_cancel - Workflow Cancellation
+
+Cancels an active workflow run in the current VibeCoding process. Completed runs, runs from another process, and runs from before a restart are not active and cannot be canceled by ID.
 
 ---
 

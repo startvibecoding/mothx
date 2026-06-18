@@ -18,6 +18,7 @@ vibecoding [flags] [message...]
 | `--thinking` | `-t` | `off` | Thinking level (off, minimal, low, medium, high, xhigh) |
 | `--multi-agent` | - | `false` | Enable multi-agent tools and commands |
 | `--delegate` | - | `false` | Enable delegation mode (blocking single sub-agent tool) |
+| `--workflows` | - | `false` | Enable Elisp workflow tools and `/workflows` commands |
 
 ### Session Management
 
@@ -76,6 +77,7 @@ Supports VS Code, JetBrains IDEs, and any ACP-compatible editor.
 | `--debug` | - | false | Debug logging |
 | `--multi-agent` | - | false | Enable multi-agent tools for ACP sessions |
 | `--delegate` | - | false | Enable delegation mode for ACP sessions |
+| `--workflows` | - | false | Enable Elisp workflow tools for ACP sessions |
 
 See the [ACP Protocol](acp.md) documentation for IDE integration details.
 
@@ -118,6 +120,7 @@ vibecoding gateway [flags]
 | `--sandbox` | - | false | Enable sandbox (bwrap) |
 | `--multi-agent` | - | false | Enable multi-agent tools |
 | `--delegate` | - | false | Enable delegation mode |
+| `--workflows` | - | false | Enable Elisp workflow tools |
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging |
 

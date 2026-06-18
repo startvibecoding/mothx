@@ -93,6 +93,72 @@ func TestResolveAdapterConfigGoogleVertex(t *testing.T) {
 	}
 }
 
+func TestResolveAdapterConfigExplicitVendorKimi(t *testing.T) {
+	resolved := ResolveAdapterConfig(&config.ProviderConfig{
+		Vendor:  "kimi",
+		BaseURL: "https://api.kimi.com/coding",
+		API:     "anthropic-messages",
+	})
+	if resolved.Vendor != "kimi" {
+		t.Fatalf("Vendor = %q, want kimi", resolved.Vendor)
+	}
+	// kimi has no special thinkingFormat, should remain empty
+	if resolved.ThinkingFormat != "" {
+		t.Fatalf("ThinkingFormat = %q, want empty", resolved.ThinkingFormat)
+	}
+}
+
+func TestResolveAdapterConfigExplicitVendorZai(t *testing.T) {
+	resolved := ResolveAdapterConfig(&config.ProviderConfig{
+		Vendor:  "zai",
+		BaseURL: "https://api.z.ai/api/coding/paas/v4",
+		API:     "openai-chat",
+	})
+	if resolved.Vendor != "zai" {
+		t.Fatalf("Vendor = %q, want zai", resolved.Vendor)
+	}
+	if resolved.ThinkingFormat != "zai" {
+		t.Fatalf("ThinkingFormat = %q, want zai", resolved.ThinkingFormat)
+	}
+}
+
+func TestResolveAdapterConfigBaseURLDetectKimi(t *testing.T) {
+	tests := []struct {
+		url string
+	}{
+		{"https://api.moonshot.cn/v1"},
+		{"https://api.kimi.com/coding"},
+	}
+	for _, tt := range tests {
+		resolved := ResolveAdapterConfig(&config.ProviderConfig{
+			BaseURL: tt.url,
+		})
+		if resolved.Vendor != "kimi" {
+			t.Fatalf("VendorFromBaseURL(%q) = %q, want kimi", tt.url, resolved.Vendor)
+		}
+	}
+}
+
+func TestResolveAdapterConfigBaseURLDetectZai(t *testing.T) {
+	tests := []struct {
+		url string
+	}{
+		{"https://api.z.ai/api/coding/paas/v4"},
+		{"https://open.bigmodel.cn/api/coding/paas/v4"},
+	}
+	for _, tt := range tests {
+		resolved := ResolveAdapterConfig(&config.ProviderConfig{
+			BaseURL: tt.url,
+		})
+		if resolved.Vendor != "zai" {
+			t.Fatalf("VendorFromBaseURL(%q) = %q, want zai", tt.url, resolved.Vendor)
+		}
+		if resolved.ThinkingFormat != "zai" {
+			t.Fatalf("ThinkingFormat(%q) = %q, want zai", tt.url, resolved.ThinkingFormat)
+		}
+	}
+}
+
 func TestVendorFromBaseURLDetectsXiaomiTokenPlan(t *testing.T) {
 	got := VendorFromBaseURL("https://token-plan-cn.xiaomimimo.com/v1")
 	if got != "xiaomi-token-plan-cn" {

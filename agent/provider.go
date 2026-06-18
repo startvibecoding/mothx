@@ -143,14 +143,25 @@ func (p *BaseProvider) GetModel(id string) *ModelInfo {
 // VendorFromBaseURL attempts to identify the vendor from a base URL.
 // Returns empty string if no match.
 func VendorFromBaseURL(baseURL string) string {
+	// Order matters: more specific domains must come before less specific ones
+	// to avoid false positives from substring matching.
 	vendorMap := map[string]string{
-		"api.deepseek.com":          "deepseek",
-		"api.xiaomimimo.com":        "xiaomi",
-		"api.xiaomi.com":            "xiaomi",
-		"api.moonshot.cn":           "kimi",
-		"api.kimi.com":              "kimi",
-		"api.z.ai":                  "zai",
-		"open.bigmodel.cn":          "zai",
+		// xiaomi token plans (longer domains first to avoid matching xiaomimimo.com)
+		"token-plan-ams.xiaomimimo.com": "xiaomi-token-plan-ams",
+		"token-plan-cn.xiaomimimo.com":  "xiaomi-token-plan-cn",
+		"token-plan-sgp.xiaomimimo.com": "xiaomi-token-plan-sgp",
+		"api.xiaomimimo.com":            "xiaomi",
+		"api.xiaomi.com":                "xiaomi",
+		// deepseek
+		"api.deepseek.com": "deepseek",
+		// kimi / moonshot
+		"api.moonshot.cn":  "kimi",
+		"api.kimi.com":     "kimi",
+		"api.moonshot.ai":  "moonshotai",
+		// zai
+		"api.z.ai":         "zai",
+		"open.bigmodel.cn": "zai",
+		// other vendors
 		"api.minimax.chat":          "minimax",
 		"ark.cn-beijing.volces.com": "seed",
 		"aip.baidubce.com":          "qianfan",
@@ -160,6 +171,18 @@ func VendorFromBaseURL(baseURL string) string {
 		"api.together.xyz":          "together",
 		"api.groq.com":              "groq",
 		"api.fireworks.ai":          "fireworks",
+		// newly added to match vendor adapters
+		"api.anthropic.com":               "anthropic",
+		"api.ant-ling.com":                "ant-ling",
+		"api.cerebras.ai":                 "cerebras",
+		"generativelanguage.googleapis.com": "google-gemini",
+		"aiplatform.googleapis.com":        "google-vertex",
+		"router.huggingface.co":            "huggingface",
+		"integrate.api.nvidia.com":         "nvidia",
+		"api.openai.com":                   "openai",
+		"opencode.ai":                      "opencode",
+		"ai-gateway.vercel.sh":             "vercel-ai-gateway",
+		"api.x.ai":                         "xai",
 	}
 	for domain, vendor := range vendorMap {
 		if contains(baseURL, domain) {

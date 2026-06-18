@@ -5,6 +5,13 @@
 
 ### ✨ Features
 
+- **Dynamic Workflows**
+  - Added `--workflows` mode for CLI, ACP, and Gateway, independent from `--multi-agent`.
+  - Added Elisp workflow tools: `workflow_run`, `workflow_status`, and `workflow_cancel`.
+  - Added workflow runtime support for phases, series/parallel execution, concurrency limits, worker-agent tasks, result fan-in, and run logs.
+  - Added persistent workflow run state under the VibeCoding workflow store and `/workflows` status commands in TUI and Gateway.
+  - Added in-process active-run cancellation so `workflow_cancel` and `/workflows cancel <id>` can interrupt running workflows.
+
 - **Z.AI Vendor Adapter**
   - Added `vendor_zai.go` with a dedicated `zai` vendor adapter, registering domains `api.z.ai` and `open.bigmodel.cn` with `thinkingFormat: zai`.
   - Updated `zai` and `zai-coding-cn` provider configs: set `Vendor: "zai"`, `ThinkingFormat: "zai"`, updated base URL to the coding endpoint, added `glm-5v-turbo` vision model.
@@ -32,8 +39,19 @@
   - Extracted `resetAgent`/`abortAndResetAgent` helpers to reduce code duplication in TUI commands.
   - Agent ID is now set in config when creating agents in TUI.
 
+### 📦 Dependencies
+
+- Added `github.com/startvibecoding/vibeEmacsLispVm v0.0.1` as the embedded Elisp subset evaluator used by workflow DSL execution.
+
+### 📚 Documentation
+
+- Added the dynamic workflows Elisp proposal under `docs/proposal/`.
+- Updated English and Chinese tool docs with workflow tool usage, Elisp-only DSL guidance, and cancellation scope.
+
 ### 🧪 Tests
 
+- Added workflow runner/store/tool tests covering Elisp execution, parallel workers, result fan-in, persistence, tool registration isolation, and active-run cancellation.
+- Added prompt and CLI flag tests ensuring workflow mode does not leak into multi-agent mode, delegate mode, or worker-agent prompts.
 - Added `VendorFromBaseURL` test cases for `api.kimi.com`, `api.z.ai`, and `open.bigmodel.cn`.
 - Added agent manager tests verifying deterministic list ordering.
 

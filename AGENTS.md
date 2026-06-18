@@ -123,6 +123,12 @@ When changing code, prefer the least risky approach that satisfies the request.
 - The `resolveToolEvent()` helper in `handler_chat.go` handles the fact that `EventToolCall` carries tool name in `ev.ToolCall.Name` (not `ev.ToolName`).
 - When adding new slash commands, add to both gateway `commands.go` and TUI `commands.go` to keep feature parity.
 
+## TUI-Specific Notes
+
+- Completed transcript blocks must be printed to native terminal scrollback with Bubble Tea `Program.Println`.
+- Do not route completed transcript scrollback output through `tea.Println(...)` sent via `Program.Send`; that puts printing back into the update loop and can swallow or delay transcript output.
+- Keep only active streaming content in the managed Bubble Tea view. Completed user/assistant/tool/status blocks should leave the live view after they are printed so mouse scrolling and terminal selection use the terminal's own scrollback.
+
 ## Docs and Release Notes
 
 - Put changelog updates only in:
@@ -147,5 +153,5 @@ Common commands:
 
 ## Versioning Note
 
-Current version: `v0.1.43`
-Next version: `v0.1.44`
+Current version: `v0.1.44`
+Next version: `v0.1.45`

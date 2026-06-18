@@ -1,11 +1,13 @@
 package gateway
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 // CommandResult holds the output of a slash command.
@@ -45,6 +47,8 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 		return s.cmdCompact(sess)
 	case "/delegate":
 		return s.cmdDelegate(sess, parts)
+	case "/workflows":
+		return s.cmdWorkflows(parts)
 	case "/skill":
 		return s.cmdSkill(parts)
 	case "/skills":
@@ -259,6 +263,64 @@ func (s *Server) cmdSkills() *CommandResult {
 	return &CommandResult{Message: sb.String()}
 }
 
+func (s *Server) cmdWorkflows(parts []string) *CommandResult {
+	store := workflow.DefaultStore()
+	sub := "list"
+	if len(parts) > 1 {
+		sub = strings.ToLower(parts[1])
+	}
+	switch sub {
+	case "list", "ls":
+		runs, err := store.List(context.Background())
+		if err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to list workflows: %v", err), Error: true}
+		}
+		if len(runs) == 0 {
+			return &CommandResult{Message: "Workflow runs: (none)"}
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Workflow runs (%d):\n", len(runs)))
+		for _, run := range runs {
+			sb.WriteString(fmt.Sprintf("  [%s] %s %s\n", run.Status, run.ID, run.Name))
+		}
+		return &CommandResult{Message: strings.TrimRight(sb.String(), "\n")}
+	case "show":
+		if len(parts) < 3 {
+			return &CommandResult{Message: "Usage: /workflows show <id>", Error: true}
+		}
+		run, err := store.Load(context.Background(), parts[2])
+		if err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to load workflow: %v", err), Error: true}
+		}
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Workflow %s: %s\n", run.ID, run.Status))
+		if run.Name != "" {
+			sb.WriteString(fmt.Sprintf("Name: %s\n", run.Name))
+		}
+		for _, phase := range run.Phases {
+			sb.WriteString(fmt.Sprintf("Phase [%s] %s tasks=%d\n", phase.Status, phase.Name, len(phase.Tasks)))
+		}
+		for key, result := range run.Results {
+			sb.WriteString(fmt.Sprintf("\n%s [%s]\n%s\n", key, result.Status, strings.TrimSpace(result.Result)))
+		}
+		if run.Error != "" {
+			sb.WriteString("\nError: " + run.Error)
+		}
+		return &CommandResult{Message: strings.TrimRight(sb.String(), "\n")}
+	case "cancel":
+		if len(parts) < 3 {
+			return &CommandResult{Message: "Usage: /workflows cancel <id>", Error: true}
+		}
+		id := strings.TrimSpace(parts[2])
+		if !workflow.DefaultActiveRegistry().Cancel(id) {
+			return &CommandResult{Message: fmt.Sprintf("Workflow run %s is not active.", id), Error: true}
+		}
+		return &CommandResult{Message: fmt.Sprintf("Workflow run %s cancellation requested.", id)}
+	default:
+		return &CommandResult{Message: "Usage: /workflows [list|show <id>|cancel <id>]", Error: true}
+	}
+}
+
 func (s *Server) cmdHelp() *CommandResult {
 	help := `Available commands:
   /clear                  - Clear conversation context
@@ -269,6 +331,7 @@ func (s *Server) cmdHelp() *CommandResult {
   /sessions del <id>      - Delete a session
   /compact                - Trigger context compaction
   /delegate [on|off|status] - Toggle delegation mode
+  /workflows [list|show <id>|cancel <id>] - Inspect workflow runs
   /status                 - Show session status
   /skill <name>           - Activate a skill
   /skills                 - List available skills
