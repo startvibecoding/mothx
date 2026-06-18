@@ -69,6 +69,7 @@ func ContentBlockToPublic(cb provider.ContentBlock) agentpkg.ContentBlock {
 			ID:               cb.ToolCall.ID,
 			Name:             cb.ToolCall.Name,
 			Arguments:        cb.ToolCall.Arguments,
+			InvalidArguments: cb.ToolCall.InvalidArguments,
 			ThoughtSignature: cb.ToolCall.ThoughtSignature,
 		}
 	}
@@ -97,6 +98,7 @@ func ContentBlockFromPublic(cb agentpkg.ContentBlock) provider.ContentBlock {
 			ID:               cb.ToolCall.ID,
 			Name:             cb.ToolCall.Name,
 			Arguments:        cb.ToolCall.Arguments,
+			InvalidArguments: cb.ToolCall.InvalidArguments,
 			ThoughtSignature: cb.ToolCall.ThoughtSignature,
 		}
 	}
@@ -189,6 +191,7 @@ func ToolCallBlockToPublic(tc *provider.ToolCallBlock) *agentpkg.ToolCallBlock {
 		ID:               tc.ID,
 		Name:             tc.Name,
 		Arguments:        tc.Arguments,
+		InvalidArguments: tc.InvalidArguments,
 		ThoughtSignature: tc.ThoughtSignature,
 	}
 }
@@ -292,6 +295,7 @@ func StreamEventToPublic(e provider.StreamEvent) agentpkg.StreamEvent {
 			ID:               e.ToolCall.ID,
 			Name:             e.ToolCall.Name,
 			Arguments:        e.ToolCall.Arguments,
+			InvalidArguments: e.ToolCall.InvalidArguments,
 			ThoughtSignature: e.ToolCall.ThoughtSignature,
 		}
 	}
@@ -559,6 +563,7 @@ func StreamEventFromPublic(e agentpkg.StreamEvent) provider.StreamEvent {
 			ID:               e.ToolCall.ID,
 			Name:             e.ToolCall.Name,
 			Arguments:        e.ToolCall.Arguments,
+			InvalidArguments: e.ToolCall.InvalidArguments,
 			ThoughtSignature: e.ToolCall.ThoughtSignature,
 		}
 	}

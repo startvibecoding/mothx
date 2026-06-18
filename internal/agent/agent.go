@@ -252,6 +252,21 @@ func cloneContentBlock(block provider.ContentBlock) provider.ContentBlock {
 	return cloned
 }
 
+func normalizeToolCallArguments(tc *provider.ToolCallBlock) (map[string]any, error) {
+	if tc == nil || len(tc.Arguments) == 0 {
+		return nil, nil
+	}
+	var args map[string]any
+	if err := json.Unmarshal(tc.Arguments, &args); err != nil {
+		if tc.InvalidArguments == "" {
+			tc.InvalidArguments = string(tc.Arguments)
+		}
+		tc.Arguments = json.RawMessage(`{}`)
+		return nil, err
+	}
+	return args, nil
+}
+
 // Agent is the core agent loop.
 type Agent struct {
 	id          agentpkg.AgentID
@@ -795,15 +810,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 					if event.ToolCall.ID == "" {
 						event.ToolCall.ID = fmt.Sprintf("toolcall_%d", len(toolCalls))
 					}
-					toolCalls = append(toolCalls, *event.ToolCall)
 					// Parse arguments for the event
-					var args map[string]any
-					if len(event.ToolCall.Arguments) > 0 {
-						if err := json.Unmarshal(event.ToolCall.Arguments, &args); err != nil {
-							// Log parse error but continue - tool execution will handle invalid args
-							ch <- Event{Type: EventStatus, StatusMessage: fmt.Sprintf("Warning: failed to parse tool arguments: %v", err)}
-						}
+					args, err := normalizeToolCallArguments(event.ToolCall)
+					if err != nil {
+						// Log parse error but continue - tool execution will handle invalid args.
+						ch <- Event{Type: EventStatus, StatusMessage: fmt.Sprintf("Warning: failed to parse tool arguments: %v", err)}
 					}
+					toolCalls = append(toolCalls, *event.ToolCall)
 					ch <- Event{Type: EventToolCall, ToolCall: event.ToolCall, ToolArgs: args}
 				}
 			case provider.StreamUsage:
@@ -1136,8 +1149,12 @@ func (a *Agent) executeToolCallsParallel(ctx context.Context, toolCalls []provid
 func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallBlock, ch chan<- Event) provider.Message {
 	// Parse arguments
 	var params map[string]any
-	if len(tc.Arguments) > 0 {
-		if err := json.Unmarshal(tc.Arguments, &params); err != nil {
+	argsRaw := tc.Arguments
+	if tc.InvalidArguments != "" {
+		argsRaw = json.RawMessage(tc.InvalidArguments)
+	}
+	if len(argsRaw) > 0 {
+		if err := json.Unmarshal(argsRaw, &params); err != nil {
 			errMsg := fmt.Sprintf("parse tool arguments: %v", err)
 			ch <- Event{
 				Type:       EventToolExecutionEnd,

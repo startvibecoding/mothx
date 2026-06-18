@@ -33,6 +33,7 @@ type ToolCallBlock struct {
 	ID               string          `json:"id"`
 	Name             string          `json:"name"`
 	Arguments        json.RawMessage `json:"arguments"`
+	InvalidArguments string          `json:"invalidArguments,omitempty"`
 	ThoughtSignature string          `json:"thoughtSignature,omitempty"`
 }
 

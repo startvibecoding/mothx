@@ -692,6 +692,70 @@ func TestSessionSaveErrorEmitsAgentEnd(t *testing.T) {
 	}
 }
 
+func TestInvalidToolArgumentsDoNotBreakSessionSave(t *testing.T) {
+	responses := []provider.StreamEvent{
+		{Type: provider.StreamStart},
+		{Type: provider.StreamToolCall, ToolCall: &provider.ToolCallBlock{
+			ID:        "call_1",
+			Name:      "bash",
+			Arguments: json.RawMessage(`]`),
+		}},
+		{Type: provider.StreamDone},
+	}
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, responses)
+
+	sess := session.New(t.TempDir(), t.TempDir())
+	if err := sess.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	cfg := AgentLoopConfig{
+		Config: Config{
+			Provider: mockProvider,
+			Model:    mockProvider.Models()[0],
+			Mode:     "agent",
+			Session:  sess,
+		},
+		ToolExecutionMode: "sequential",
+		MaxIterations:     1,
+	}
+	a := NewWithLoopConfig(cfg, tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox()))
+
+	var events []Event
+	for event := range a.Run(context.Background(), "test") {
+		events = append(events, event)
+	}
+
+	var sawParseError bool
+	for _, event := range events {
+		if event.Type == EventError && event.Error != nil && strings.Contains(event.Error.Error(), "save assistant message to session") {
+			t.Fatalf("unexpected session save error: %v", event.Error)
+		}
+		if event.Type == EventToolExecutionEnd && event.ToolError != nil && strings.Contains(event.ToolError.Error(), "invalid character ']'") {
+			sawParseError = true
+		}
+	}
+	if !sawParseError {
+		t.Fatal("expected tool argument parse error")
+	}
+
+	rawSession, err := os.ReadFile(sess.GetFile())
+	if err != nil {
+		t.Fatalf("read session: %v", err)
+	}
+	if !strings.Contains(string(rawSession), `"arguments":{}`) {
+		t.Fatalf("expected sanitized arguments in session, got:\n%s", string(rawSession))
+	}
+	if !strings.Contains(string(rawSession), `"invalidArguments":"]"`) {
+		t.Fatalf("expected original invalid arguments in session, got:\n%s", string(rawSession))
+	}
+	if _, err := session.Open(sess.GetFile()); err != nil {
+		t.Fatalf("reopen session: %v", err)
+	}
+}
+
 func TestCallbackSnapshotDoesNotExposeInternalSlices(t *testing.T) {
 	mockProvider := newMockProvider()
 	a := New(Config{

@@ -116,6 +116,7 @@ type ToolCallBlock struct {
 	ID               string
 	Name             string
 	Arguments        []byte
+	InvalidArguments string
 	ThoughtSignature string
 }
 
