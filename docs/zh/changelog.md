@@ -1,6 +1,38 @@
 # 更新日志
 
 
+## v0.1.45
+
+### ✨ 新功能
+
+- **Workflow Skill 渐进式参考文档**
+  - 将 workflow Elisp/DSL 文档从 system prompt 中提取为独立的 `workflow-elisp` skill，减少 system prompt 体积。
+  - 引入渐进式参考结构：skill 索引页列出 9 个参考文件，按需加载，核心规则默认加载。
+  - 8 个模式指南：研究与调研、串行与并行组合、决策路由、连续循环、水平多 Agent 协作、主从小团队、评估优化器循环、治理与人审检查点。
+  - 每个参考文件包含可直接复制的 Elisp 骨架示例和模式选择指引。
+  - `EnsureProjectSkill` 自动在项目 `.skills/workflow-elisp/` 下创建 skill 和所有参考文件，不覆盖用户已有的自定义内容。
+
+### 🔧 重构
+
+- **Gateway Session 级 Skills 支持**
+  - Gateway session 现在支持独立的 `SkillsMgr` 和 `ExtraContext`，使 delegate 子 Agent 继承 session 级状态。
+  - `/skill` 和 `/skills` 命令改为操作 session 级 skills，而非全局 server 级。
+
+- **System Prompt 精简**
+  - Workflow Elisp VM 语法和 DSL 表单的详细说明从 system prompt 移除，改为引用 `workflow-elisp` skill。
+  - system prompt 中仅保留关键约束和调用说明，显著减少 token 占用。
+
+### 📚 文档
+
+- 新增 Workflow 模式使用指南和最佳实践文档（中英文），覆盖快速入门、核心概念、常见模式和避坑指南。
+
+### 🧪 测试
+
+- 新增 workflow skill 测试，验证 skill 文件和 8 个参考文件的创建、不覆盖已有文件、缺失引用自动补全。
+- 扩展 workflow runner 和 lisp 测试覆盖。
+
+---
+
 ## v0.1.44
 
 ### ✨ 新功能
