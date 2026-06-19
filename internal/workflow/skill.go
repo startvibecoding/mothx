@@ -452,10 +452,10 @@ Single responsibility: show a fixed, one-pass quality pipeline where one worker
 generates output, another critiques it, and a final worker revises it.
 
 Use this for writing, migration plans, design docs, policy analysis, or complex
-search when quality improves through explicit critique. This reference does not
-define loop control. Do not create numbered phase simulations for repeated
-attempts. If runtime repetition is required, load the bounded while loop
-reference and keep this file's role limited to critique criteria.
+search when quality improves through explicit critique. This reference does not define loop control.
+Do not create numbered phase simulations for repeated attempts. If runtime
+repetition is required, load the bounded while loop reference and keep this
+file's role limited to critique criteria.
 
 ## Draft, Critique, Revise
 
