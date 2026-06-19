@@ -40,6 +40,7 @@
 
 - Added Workflow mode usage guide and best practices documentation (EN/ZH) covering quick start, core concepts, common patterns, and pitfalls.
 - Synced workflow references across docs pages: added Dynamic Workflows section to features overview, workflow orchestration scenario to use cases, and cross-links from tools references.
+- Clarified workflow hidden defaults and limits in the `workflow-elisp` skill and docs: worker `:max-iterations` default/failure behavior, `workflow_run timeoutSeconds`, `concurrency` default, inherited `:mode`, default `:tools`, current work directory behavior, disabled nested orchestration, and unsupported per-worker options.
 
 ### 🧪 Tests
 
