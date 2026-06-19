@@ -8,9 +8,17 @@
 - **Workflow Skill with Progressive References**
   - Extracted workflow Elisp/DSL documentation from the system prompt into a dedicated `workflow-elisp` skill, reducing system prompt size.
   - Introduced progressive reference structure: skill index page lists 9 reference files loaded on demand, with core rules loaded by default.
-  - Eight pattern guides: research & investigation, serial & parallel composition, decision routing, continuous loops, horizontal multi-agent collaboration, master-slave small teams, evaluator-optimizer loops, and governance & human checkpoints.
+  - Eight pattern guides: research & investigation, serial & parallel composition, decision routing, bounded while loops, horizontal multi-agent collaboration, master-slave small teams, evaluator-optimizer review passes, and governance & human checkpoints.
   - Each reference file includes copy-ready Elisp skeleton examples and pattern selection guidance.
   - `EnsureProjectSkill` automatically creates the skill and all reference files under `.skills/workflow-elisp/` without overwriting user-customized content.
+- **Workflow Timeout Control**
+  - Added optional `timeoutSeconds` support to `workflow_run`, allowing bounded long workflows to choose an appropriate timeout and intentional continuous workflows to set `0` to avoid the default agent-level deadline.
+
+- **vibeEmacsLispVm v0.0.2 Upgrade**
+  - Upgraded `vibeEmacsLispVm` dependency from v0.0.1 to v0.0.2 with expanded Elisp surface.
+  - Added support for backquote/comma, `let*`/`while`/`cond`/`catch`/`throw`/`lambda`/`defun`/`defmacro`/`with-current-buffer`/`save-current-buffer` special forms.
+  - Added builtins: `cons`/`car`/`cdr`/`nth`/`append`/`reverse`/`member`/`assoc`/`funcall`/`apply`/`macroexpand`, arithmetic and predicate functions, and in-memory buffer + marker builtins.
+  - Added comprehensive test coverage for v0.0.2 Elisp features.
 
 ### 🔧 Refactoring
 
@@ -22,14 +30,22 @@
   - Detailed workflow Elisp VM syntax and DSL form descriptions removed from the system prompt, replaced by a reference to the `workflow-elisp` skill.
   - Only key constraints and usage notes remain in the system prompt, significantly reducing token usage.
 
+- **Workflow Skill Reference Clarity**
+  - Renamed reference file titles for clarity: "Continuous Loops and Iterative Tasks" → "Bounded While Loops", "Evaluator-Optimizer and Critic Loops" → "Evaluator-Optimizer Review Passes".
+  - Split pattern selection guidance: bounded while loops for runtime repetition with stop conditions; evaluator-optimizer for one-pass draft/critique/revise pipelines.
+  - Added constraint: do not simulate loops with numbered phases.
+  - Unified progressive reference status labels to English ("loaded" / "load on demand") for consistency.
+
 ### 📚 Documentation
 
 - Added Workflow mode usage guide and best practices documentation (EN/ZH) covering quick start, core concepts, common patterns, and pitfalls.
+- Synced workflow references across docs pages: added Dynamic Workflows section to features overview, workflow orchestration scenario to use cases, and cross-links from tools references.
 
 ### 🧪 Tests
 
 - Added workflow skill tests verifying skill file and 8 reference file creation, non-overwrite behavior, and missing reference auto-creation.
   - Expanded workflow runner and lisp test coverage.
+  - Added tests for reference content clarity and non-overlap of loop vs evaluator-optimizer patterns.
 
 ---
 

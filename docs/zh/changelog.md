@@ -8,9 +8,17 @@
 - **Workflow Skill 渐进式参考文档**
   - 将 workflow Elisp/DSL 文档从 system prompt 中提取为独立的 `workflow-elisp` skill，减少 system prompt 体积。
   - 引入渐进式参考结构：skill 索引页列出 9 个参考文件，按需加载，核心规则默认加载。
-  - 8 个模式指南：研究与调研、串行与并行组合、决策路由、连续循环、水平多 Agent 协作、主从小团队、评估优化器循环、治理与人审检查点。
+  - 8 个模式指南：研究与调研、串行与并行组合、决策路由、有界 While 循环、水平多 Agent 协作、主从小团队、评估优化器评审轮次、治理与人审检查点。
   - 每个参考文件包含可直接复制的 Elisp 骨架示例和模式选择指引。
   - `EnsureProjectSkill` 自动在项目 `.skills/workflow-elisp/` 下创建 skill 和所有参考文件，不覆盖用户已有的自定义内容。
+- **Workflow 超时控制**
+  - `workflow_run` 新增可选 `timeoutSeconds` 参数，有明确上限的长 workflow 可设置合适的超时时间；需要持续运行的 workflow 可设置为 `0`，避免触发默认 agent 级 deadline。
+
+- **vibeEmacsLispVm v0.0.2 升级**
+  - `vibeEmacsLispVm` 依赖从 v0.0.1 升级到 v0.0.2，扩展了 Elisp 支持范围。
+  - 新增 backquote/comma、`let*`/`while`/`cond`/`catch`/`throw`/`lambda`/`defun`/`defmacro`/`with-current-buffer`/`save-current-buffer` 等特殊形式支持。
+  - 新增内置函数：`cons`/`car`/`cdr`/`nth`/`append`/`reverse`/`member`/`assoc`/`funcall`/`apply`/`macroexpand`、算术与谓词函数、以及内存缓冲区 + marker 内置函数。
+  - 新增 v0.0.2 Elisp 特性的全面测试覆盖。
 
 ### 🔧 重构
 
@@ -22,14 +30,22 @@
   - Workflow Elisp VM 语法和 DSL 表单的详细说明从 system prompt 移除，改为引用 `workflow-elisp` skill。
   - system prompt 中仅保留关键约束和调用说明，显著减少 token 占用。
 
+- **Workflow Skill 参考文件职责澄清**
+  - 重命名参考文件标题以更清晰："连续循环与迭代任务" → "有界 While 循环"，"评估优化器与评论家循环" → "评估优化器评审轮次"。
+  - 拆分模式选择指引：有界 while 循环用于带停止条件的运行时重复；评估优化器用于单轮草稿/评审/修订流水线。
+  - 新增约束：不要用编号 phase 模拟循环。
+  - 渐进式参考状态标签统一为英文（"loaded" / "load on demand"），保持与 skill 其余内容一致。
+
 ### 📚 文档
 
 - 新增 Workflow 模式使用指南和最佳实践文档（中英文），覆盖快速入门、核心概念、常见模式和避坑指南。
+- 同步各文档页面的 workflow 引用：在功能概览中新增动态 Workflow 章节，在使用场景中新增 workflow 编排场景，并从工具参考文档添加交叉链接。
 
 ### 🧪 测试
 
 - 新增 workflow skill 测试，验证 skill 文件和 8 个参考文件的创建、不覆盖已有文件、缺失引用自动补全。
 - 扩展 workflow runner 和 lisp 测试覆盖。
+- 新增参考内容清晰度测试，验证循环与评估优化器模式不重叠。
 
 ---
 
