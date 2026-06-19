@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
@@ -62,6 +63,7 @@ func (t *RunTool) PromptGuidelines() []string {
 		"Before calling workflow_run, ensure the source is one complete (workflow \"name\" ...) form with balanced parentheses and closed double-quoted strings.",
 		"Use quoted string lists for tools, for example :tools '(\"read\" \"grep\").",
 		"Keep worker prompts explicit and bounded; use result to pass prior phase outputs into later phases.",
+		"Set timeoutSeconds to the expected workflow duration; use 0 only for intentional continuous workflows that must not hit the default tool deadline.",
 	}
 }
 func (t *RunTool) Parameters() json.RawMessage {
@@ -71,10 +73,30 @@ func (t *RunTool) Parameters() json.RawMessage {
 				"source": {
 					"type": "string",
 					"description": "Complete raw Elisp workflow DSL source. Must be one balanced (workflow \"name\" ...) form with closed double-quoted strings; do not pass Markdown fences."
+				},
+				"timeoutSeconds": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Agent-level timeout for this workflow_run call in seconds. Omit to use the default tool timeout; set to 0 for intentional continuous workflows with no agent-level deadline."
 				}
 			},
 			"required": ["source"]
 		}`)
+}
+
+func (t *RunTool) ExecutionTimeout(params map[string]any) (time.Duration, bool) {
+	v, ok := params["timeoutSeconds"]
+	if !ok {
+		return 0, false
+	}
+	seconds, ok := numericParam(v)
+	if !ok || seconds < 0 {
+		return 0, false
+	}
+	if seconds == 0 {
+		return 0, true
+	}
+	return time.Duration(seconds) * time.Second, true
 }
 
 func (t *RunTool) Execute(ctx context.Context, params map[string]any) (tools.ToolResult, error) {
@@ -202,6 +224,35 @@ func (t *CancelTool) Execute(ctx context.Context, params map[string]any) (tools.
 		"status": StatusCanceled,
 	})
 	return tools.NewTextToolResult(string(data)), nil
+}
+
+func numericParam(v any) (int64, bool) {
+	switch x := v.(type) {
+	case int:
+		return int64(x), true
+	case int64:
+		return x, true
+	case int32:
+		return int64(x), true
+	case float64:
+		if x != float64(int64(x)) {
+			return 0, false
+		}
+		return int64(x), true
+	case float32:
+		if x != float32(int64(x)) {
+			return 0, false
+		}
+		return int64(x), true
+	case json.Number:
+		i, err := x.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return i, true
+	default:
+		return 0, false
+	}
 }
 
 func summarizeResults(state *RunState) map[string]string {

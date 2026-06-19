@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/tools"
@@ -37,6 +38,7 @@ func TestRunToolPromptGuidelinesRequireCompleteElispSource(t *testing.T) {
 		"balanced parentheses",
 		"closed double-quoted strings",
 		":tools '(\"read\" \"grep\")",
+		"timeoutSeconds",
 	} {
 		if !strings.Contains(guidelines, want) {
 			t.Fatalf("workflow_run guidelines missing %q:\n%s", want, guidelines)
@@ -49,6 +51,8 @@ func TestRunToolPromptGuidelinesRequireCompleteElispSource(t *testing.T) {
 		"one balanced (workflow",
 		"closed double-quoted strings",
 		"Markdown fences",
+		"timeoutSeconds",
+		"continuous workflows",
 	} {
 		if !strings.Contains(params, want) {
 			t.Fatalf("workflow_run schema missing %q:\n%s", want, params)
@@ -56,6 +60,34 @@ func TestRunToolPromptGuidelinesRequireCompleteElispSource(t *testing.T) {
 	}
 	if strings.Contains(guidelines, "JSON DSL") || strings.Contains(params, "JSON DSL") {
 		t.Fatalf("workflow_run prompt text should avoid JSON DSL negative guidance:\n%s\n%s", guidelines, params)
+	}
+}
+
+func TestRunToolExecutionTimeout(t *testing.T) {
+	tool := NewRunTool(nil, nil)
+
+	if _, ok := tool.ExecutionTimeout(map[string]any{}); ok {
+		t.Fatal("expected omitted timeoutSeconds to use default tool timeout")
+	}
+
+	timeout, ok := tool.ExecutionTimeout(map[string]any{"timeoutSeconds": float64(90)})
+	if !ok {
+		t.Fatal("expected timeoutSeconds override")
+	}
+	if timeout != 90*time.Second {
+		t.Fatalf("timeout = %s, want 90s", timeout)
+	}
+
+	timeout, ok = tool.ExecutionTimeout(map[string]any{"timeoutSeconds": 0})
+	if !ok {
+		t.Fatal("expected zero timeoutSeconds override")
+	}
+	if timeout != 0 {
+		t.Fatalf("timeout = %s, want no agent-level deadline", timeout)
+	}
+
+	if _, ok := tool.ExecutionTimeout(map[string]any{"timeoutSeconds": float64(1.5)}); ok {
+		t.Fatal("expected fractional timeoutSeconds to be ignored")
 	}
 }
 

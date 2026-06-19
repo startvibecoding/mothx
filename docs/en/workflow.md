@@ -363,6 +363,8 @@ You can also use tool calls:
 - `workflow_status` — check status
 - `workflow_cancel` — cancel a run
 
+`workflow_run` accepts an optional `timeoutSeconds` parameter. Omit it to use the default tool timeout, set a positive value for long bounded workflows, or set `0` only for intentional continuous workflows that should not be interrupted by the agent-level deadline. In Gateway mode, `requestTimeoutSeconds` is still an outer HTTP request deadline and must also be sized for long-running requests.
+
 ---
 
 ## Further Learning

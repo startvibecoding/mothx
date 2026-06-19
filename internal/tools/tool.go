@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
@@ -130,6 +131,14 @@ type Tool interface {
 
 	// Execute runs the tool with the given parameters.
 	Execute(ctx context.Context, params map[string]any) (ToolResult, error)
+}
+
+// ExecutionTimeoutProvider lets a tool override the agent's default execution
+// timeout. The bool reports whether an override is provided. A non-positive
+// duration disables the agent-level deadline while preserving parent
+// cancellation.
+type ExecutionTimeoutProvider interface {
+	ExecutionTimeout(params map[string]any) (time.Duration, bool)
 }
 
 // ToolDefinition converts a Tool to a provider.ToolDefinition.
