@@ -27,12 +27,40 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 	content := string(data)
 	for _, want := range []string{
 		"# Workflow Elisp",
+		"Progressive References",
+		"references/00-core-rules.md",
+		"references/06-master-slave-team.md",
+		"workflow, phase, and agent names must be string literals.",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("skill content missing %q", want)
+		}
+	}
+	corePath := filepath.Join(root, ".skills", SkillName, "references", "00-core-rules.md")
+	coreData, err := os.ReadFile(corePath)
+	if err != nil {
+		t.Fatalf("read core reference: %v", err)
+	}
+	core := string(coreData)
+	for _, want := range []string{
 		"The first argument of agent must be a string literal.",
 		"defun only supports fixed parameter lists.",
 		"(workflow \"auth audit\"",
 	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("skill content missing %q", want)
+		if !strings.Contains(core, want) {
+			t.Fatalf("core reference missing %q", want)
+		}
+	}
+	for _, rel := range []string{
+		"01-research.md",
+		"03-decision-routing.md",
+		"04-continuous-loops.md",
+		"05-horizontal-collaboration.md",
+		"07-evaluator-optimizer.md",
+		"08-governance-checkpoints.md",
+	} {
+		if _, err := os.Stat(filepath.Join(root, ".skills", SkillName, "references", rel)); err != nil {
+			t.Fatalf("expected reference %s: %v", rel, err)
 		}
 	}
 }
@@ -65,6 +93,10 @@ func TestEnsureProjectSkillDoesNotOverwriteExistingSkill(t *testing.T) {
 	if string(data) != "custom workflow skill" {
 		t.Fatalf("skill was overwritten: %q", string(data))
 	}
+	refPath := filepath.Join(skillDir, "references", "01-research.md")
+	if _, err := os.Stat(refPath); err != nil {
+		t.Fatalf("expected missing references to be created: %v", err)
+	}
 }
 
 func TestEnsureProjectSkillRespectsLowercaseSkill(t *testing.T) {
@@ -87,5 +119,9 @@ func TestEnsureProjectSkillRespectsLowercaseSkill(t *testing.T) {
 	}
 	if gotPath != path {
 		t.Fatalf("path = %q, want %q", gotPath, path)
+	}
+	refPath := filepath.Join(skillDir, "references", "00-core-rules.md")
+	if _, err := os.Stat(refPath); err != nil {
+		t.Fatalf("expected missing references to be created: %v", err)
 	}
 }
