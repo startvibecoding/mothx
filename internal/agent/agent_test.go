@@ -1024,27 +1024,26 @@ func TestBuildSystemPromptWorkflowGated(t *testing.T) {
 		t.Error("expected workflow prompt to omit sub-agent instructions")
 	}
 	for _, want := range []string{
-		"Elisp VM scope",
-		"our own minimal Elisp VM",
-		"Supported special forms: quote, backquote, comma, comma-splice, progn, let, let*, setq, if, when, unless, and, or, while, cond, catch, throw, lambda, defun, defmacro, with-current-buffer, save-current-buffer",
-		"Supported builtins: concat, format (%s only), list, length, cons, car, cdr, nth, append, reverse, member, assoc, funcall, apply, macroexpand-1, macroexpand, +, -, *, /, =, /=, <, <=, >, >=",
-		"Supported in-memory buffer/marker builtins: bufferp, buffer-name, current-buffer, set-buffer, get-buffer, get-buffer-create, generate-new-buffer, kill-buffer",
-		"Function definitions support fixed argument lists only",
-		"Host-defined workflow forms are registered into the VM",
-		"(agent \"name\" :prompt",
-		"[:tools '(\"read\" \"grep\")]",
-		"(results \"phase\")",
 		"raw Elisp text, not Markdown",
-		"Every workflow form must be parenthesized",
-		"Names, prompts, modes, work dirs, tool names, and result keys are double-quoted strings",
-		"Tool lists must be quoted string lists",
-		"Minimal valid skeleton",
-		"Syntax checklist before workflow_run",
-		"Parentheses are balanced",
-		":tools uses quoted list syntax exactly like '(\"read\" \"grep\")",
+		"active workflow-elisp skill",
+		"workflow, phase, and agent names must be string literals",
+		"defun and defmacro support fixed argument lists only",
 	} {
 		if !contains(workflowPrompt, want) {
 			t.Errorf("expected workflow prompt to contain %q", want)
+		}
+	}
+	for _, unwanted := range []string{
+		"Elisp VM scope",
+		"Workflow DSL forms",
+		"Supported special forms:",
+		"Supported builtins:",
+		"Minimal valid skeleton",
+		"Syntax checklist before workflow_run",
+		"(workflow \"auth audit\"",
+	} {
+		if contains(workflowPrompt, unwanted) {
+			t.Errorf("expected workflow prompt to omit detailed tutorial text %q", unwanted)
 		}
 	}
 	if contains(workflowPrompt, "JSON DSL") {

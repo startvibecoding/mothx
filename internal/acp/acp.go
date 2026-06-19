@@ -301,13 +301,22 @@ func Run(opts RunOptions) error {
 	}
 	srv.sbMgr = sbMgr
 
+	if opts.Workflows {
+		if _, _, err := workflow.EnsureProjectSkill(cwd); err != nil {
+			return fmt.Errorf("create workflow skill: %w", err)
+		}
+	}
 	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	_ = skillsMgr.Load()
 	srv.skillsMgr = skillsMgr
 
 	cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
 	if ctx := contextfiles.BuildContextString(cfResult); ctx != "" {
-		srv.extraContext = ctx + skillsMgr.BuildAllSkillsContext()
+		srv.extraContext = ctx
+	}
+	srv.extraContext += skillsMgr.BuildAllSkillsContext()
+	if opts.Workflows {
+		srv.extraContext += skillsMgr.BuildSkillContext(workflow.SkillName)
 	}
 
 	// Agent manager backs multi-agent and delegate workflows.

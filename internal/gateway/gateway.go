@@ -19,6 +19,7 @@ import (
 	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/skills"
+	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
 // RunOptions holds the CLI flags for the gateway command.
@@ -157,19 +158,10 @@ func Run(opts RunOptions, version string) error {
 		}
 	}
 
-	// Load skills
-	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
-	_ = skillsMgr.Load()
-
-	// Load context files
-	var extraContext string
-	if settings.ContextFiles.Enabled {
-		cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
-		if ctx := contextfiles.BuildContextString(cfResult); ctx != "" {
-			extraContext = ctx
-		}
+	skillsMgr, extraContext, err := buildWorkDirContext(settings, cwd, gCfg.EnableWorkflows)
+	if err != nil {
+		return err
 	}
-	extraContext += skillsMgr.BuildAllSkillsContext()
 
 	// Build session pool
 	idleTimeout := time.Duration(gCfg.Session.IdleTimeoutSeconds) * time.Second
@@ -263,6 +255,29 @@ func Run(opts RunOptions, version string) error {
 	}
 
 	return nil
+}
+
+func buildWorkDirContext(settings *config.Settings, workDir string, workflows bool) (*skills.Manager, string, error) {
+	if workflows {
+		if _, _, err := workflow.EnsureProjectSkill(workDir); err != nil {
+			return nil, "", fmt.Errorf("create workflow skill: %w", err)
+		}
+	}
+	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(workDir))
+	_ = skillsMgr.Load()
+
+	var extraContext string
+	if settings.ContextFiles.Enabled {
+		cfResult := contextfiles.LoadContextFiles(workDir, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
+		if ctx := contextfiles.BuildContextString(cfResult); ctx != "" {
+			extraContext = ctx
+		}
+	}
+	extraContext += skillsMgr.BuildAllSkillsContext()
+	if workflows {
+		extraContext += skillsMgr.BuildSkillContext(workflow.SkillName)
+	}
+	return skillsMgr, extraContext, nil
 }
 
 // LoggingMiddleware logs each request.

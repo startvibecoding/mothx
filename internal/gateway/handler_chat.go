@@ -82,7 +82,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		sessionID = s.defaultSessionID
 		s.mu.RUnlock()
 	}
-	sess := s.getOrCreateSession(sessionID, workDir)
+	sess, err := s.getOrCreateSession(sessionID, workDir)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+		return
+	}
 	if sess == nil {
 		writeError(w, http.StatusServiceUnavailable, "session pool is at capacity", "server_error")
 		return
@@ -121,7 +125,10 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build extra context: system prompt handling
-	extraContext := s.extraContext
+	extraContext := sess.ExtraContext
+	if extraContext == "" {
+		extraContext = s.extraContext
+	}
 	if s.cfg.SystemPromptMode == "append" && len(systemMsgs) > 0 {
 		extraContext += "\n## Client Instructions\n" + strings.Join(systemMsgs, "\n") + "\n"
 	}
@@ -208,7 +215,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	timeout := time.Duration(s.cfg.RequestTimeoutSecs) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	if (s.cfg.EnableSubAgents || sess.DelegateMode) && sess.AgentMgr != nil {
+	if (s.cfg.EnableSubAgents || sess.DelegateMode || sess.Workflows) && sess.AgentMgr != nil {
 		sess.AgentMgr.Register(agent.NewAgentAdapter(a))
 		defer func() {
 			sess.AgentMgr.Finish(a.ID(), ctx.Err())
@@ -439,10 +446,10 @@ func (s *Server) writeCommandResponseStreaming(w http.ResponseWriter, result *Co
 }
 
 // getOrCreateSession returns an existing session or creates a new one.
-func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
+func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession, error) {
 	if sessionID != "" {
 		if sess := s.pool.Get(sessionID); sess != nil {
-			return sess
+			return sess, nil
 		}
 	}
 
@@ -452,12 +459,12 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 		if err := mgr.InitWithID(sessionID); err != nil {
 			// Fallback to auto-generated ID
 			if err := mgr.Init(); err != nil {
-				return nil
+				return nil, nil
 			}
 		}
 	} else {
 		if err := mgr.Init(); err != nil {
-			return nil
+			return nil, nil
 		}
 	}
 
@@ -466,10 +473,15 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 		id = mgr.GetHeader().ID
 	}
 
+	skillsMgr, extraContext, err := buildWorkDirContext(s.settings, workDir, s.cfg.EnableWorkflows)
+	if err != nil {
+		return nil, err
+	}
+
 	registry := tools.NewRegistry(workDir, s.sandboxMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
-	if s.skillsMgr != nil {
-		registry.Register(tools.NewSkillRefTool(s.skillsMgr))
+	if skillsMgr != nil {
+		registry.Register(tools.NewSkillRefTool(skillsMgr))
 	}
 
 	sess := &GatewaySession{
@@ -478,6 +490,8 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 		Manager:      mgr,
 		Registry:     registry,
 		Mode:         "",
+		SkillsMgr:    skillsMgr,
+		ExtraContext: extraContext,
 		DelegateMode: s.cfg.EnableDelegate,
 		Workflows:    s.cfg.EnableWorkflows,
 		LastUsed:     time.Now(),
@@ -490,7 +504,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 			ReserveTokens:    s.settings.Compaction.ReserveTokens,
 			KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
 		}
-		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			DelegateEnabled:   s.cfg.EnableDelegate,
 			WorkflowsEnabled:  s.cfg.EnableWorkflows,
@@ -499,7 +513,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 	}
 
 	if err := s.pool.Put(sess); err != nil {
-		return nil
+		return nil, nil
 	}
 
 	// If this session was created without a client-supplied ID,
@@ -513,7 +527,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) *GatewaySession {
 		s.mu.Unlock()
 	}
 
-	return sess
+	return sess, nil
 }
 
 // parseMessages extracts the last user message, system messages, and history messages.

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	elispvm "github.com/startvibecoding/vibeEmacsLispVm"
@@ -155,6 +156,30 @@ func TestNewLispEvaluatorSupportsV002ElispSurface(t *testing.T) {
 			}
 			if got := elispvm.Stringify(got); got != tt.want {
 				t.Fatalf("result = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewLispEvaluatorRejectsVariableLambdaLists(t *testing.T) {
+	tests := []string{
+		`(lambda (&rest xs) xs)`,
+		`(lambda (&optional x) x)`,
+		`(lambda (&body body) body)`,
+		`(defun bad (&rest xs) xs)`,
+		`(defun bad (&optional x) x)`,
+		`(defmacro bad (&rest xs) xs)`,
+		`(defmacro bad (&optional x) x)`,
+		`(defmacro bad (&body body) body)`,
+	}
+	for _, source := range tests {
+		t.Run(source, func(t *testing.T) {
+			_, err := NewLispEvaluator().EvalString(context.Background(), source)
+			if err == nil {
+				t.Fatal("expected fixed-argument-list error")
+			}
+			if !strings.Contains(err.Error(), "only supports fixed arguments") {
+				t.Fatalf("error = %q, want fixed argument list error", err.Error())
 			}
 		})
 	}

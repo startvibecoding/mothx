@@ -121,6 +121,75 @@ func TestRunnerReportsMissingResult(t *testing.T) {
 	}
 }
 
+func TestRunnerRequiresLiteralWorkflowPhaseAndAgentNames(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{
+			name:   "workflow variable name",
+			source: `(let ((name "bad")) (workflow name))`,
+			want:   "workflow name: expected string literal",
+		},
+		{
+			name:   "workflow expression name",
+			source: `(workflow (concat "bad" "-name"))`,
+			want:   "workflow name: expected string literal",
+		},
+		{
+			name: "phase variable name",
+			source: `
+				(workflow "bad"
+				  (let ((phase-name "scan"))
+				    (phase phase-name)))`,
+			want: "phase name: expected string literal",
+		},
+		{
+			name: "phase expression name",
+			source: `
+				(workflow "bad"
+				  (phase (concat "scan" "-phase")))`,
+			want: "phase name: expected string literal",
+		},
+		{
+			name: "agent variable name",
+			source: `
+				(workflow "bad"
+				  (phase "scan"
+				    (let ((agent-name "worker"))
+				      (agent agent-name :prompt "do work"))))`,
+			want: "agent name: expected string literal",
+		},
+		{
+			name: "agent expression name",
+			source: `
+				(workflow "bad"
+				  (phase "scan"
+				    (agent (concat "worker" "-a") :prompt "do work")))`,
+			want: "agent name: expected string literal",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &Runner{Host: &fakeHost{}, Now: fixedClock()}
+			state, err := r.Run(context.Background(), tt.source)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %q, want substring %q", err.Error(), tt.want)
+			}
+			if state == nil {
+				t.Fatal("expected error state")
+			}
+			if state.Status != StatusError {
+				t.Fatalf("status = %s, want error", state.Status)
+			}
+		})
+	}
+}
+
 func TestRunnerCanBeCanceledByActiveRegistry(t *testing.T) {
 	host := &blockingHost{started: make(chan struct{})}
 	store := &memoryStore{}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
@@ -50,9 +51,9 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 	case "/workflows":
 		return s.cmdWorkflows(parts)
 	case "/skill":
-		return s.cmdSkill(parts)
+		return s.cmdSkill(sess, parts)
 	case "/skills":
-		return s.cmdSkills()
+		return s.cmdSkills(sess)
 	case "/help":
 		return s.cmdHelp()
 	default:
@@ -199,7 +200,15 @@ func (s *Server) cmdDelegate(sess *GatewaySession, parts []string) *CommandResul
 				ReserveTokens:    s.settings.Compaction.ReserveTokens,
 				KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
 			}
-			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, s.extraContext, s.skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+			extraContext := sess.ExtraContext
+			if extraContext == "" {
+				extraContext = s.extraContext
+			}
+			skillsMgr := sess.SkillsMgr
+			if skillsMgr == nil {
+				skillsMgr = s.skillsMgr
+			}
+			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 				MultiAgentEnabled: true,
 				DelegateEnabled:   true,
 			})
@@ -232,26 +241,28 @@ func (s *Server) cmdCompact(sess *GatewaySession) *CommandResult {
 	return &CommandResult{Message: "✅ Context compaction will be triggered on the next request."}
 }
 
-func (s *Server) cmdSkill(parts []string) *CommandResult {
-	if s.skillsMgr == nil {
+func (s *Server) cmdSkill(sess *GatewaySession, parts []string) *CommandResult {
+	skillsMgr := s.sessionSkills(sess)
+	if skillsMgr == nil {
 		return &CommandResult{Message: "No skills available.", Error: true}
 	}
 	if len(parts) < 2 {
-		return s.cmdSkills()
+		return s.cmdSkills(sess)
 	}
 	name := parts[1]
-	skill := s.skillsMgr.Get(name)
+	skill := skillsMgr.Get(name)
 	if skill == nil {
 		return &CommandResult{Message: fmt.Sprintf("Skill not found: %s", name), Error: true}
 	}
 	return &CommandResult{Message: fmt.Sprintf("✅ Skill '%s' activated: %s", name, skill.Description)}
 }
 
-func (s *Server) cmdSkills() *CommandResult {
-	if s.skillsMgr == nil {
+func (s *Server) cmdSkills(sess *GatewaySession) *CommandResult {
+	skillsMgr := s.sessionSkills(sess)
+	if skillsMgr == nil {
 		return &CommandResult{Message: "No skills available."}
 	}
-	skillList := s.skillsMgr.List()
+	skillList := skillsMgr.List()
 	if len(skillList) == 0 {
 		return &CommandResult{Message: "No skills found."}
 	}
@@ -261,6 +272,13 @@ func (s *Server) cmdSkills() *CommandResult {
 		sb.WriteString(fmt.Sprintf("  - %s (%s): %s\n", sk.Name, sk.Source, sk.Description))
 	}
 	return &CommandResult{Message: sb.String()}
+}
+
+func (s *Server) sessionSkills(sess *GatewaySession) *skills.Manager {
+	if sess != nil && sess.SkillsMgr != nil {
+		return sess.SkillsMgr
+	}
+	return s.skillsMgr
 }
 
 func (s *Server) cmdWorkflows(parts []string) *CommandResult {

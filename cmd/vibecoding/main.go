@@ -322,11 +322,23 @@ func run(args []string, opts runOptions) error {
 	}
 
 	// Load skills
+	if opts.workflows {
+		path, created, err := workflow.EnsureProjectSkill(cwd)
+		if err != nil {
+			return fmt.Errorf("create workflow skill: %w", err)
+		}
+		if opts.verbose && created {
+			fmt.Fprintf(os.Stderr, "Created workflow skill: %s\n", path)
+		}
+	}
 	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	if err := skillsMgr.Load(); err != nil && opts.verbose {
 		fmt.Fprintf(os.Stderr, "Warning: load skills: %v\n", err)
 	}
 	skillsContext := skillsMgr.BuildAllSkillsContext()
+	if opts.workflows {
+		skillsContext += skillsMgr.BuildSkillContext(workflow.SkillName)
+	}
 	if opts.verbose && skillsContext != "" {
 		fmt.Fprintf(os.Stderr, "Loaded %d skills\n", len(skillsMgr.List()))
 	}

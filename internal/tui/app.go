@@ -289,6 +289,7 @@ func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *c
 		cronStore:           cronStore,
 		scheduler:           scheduler,
 	}
+	app.markBuiltinActiveSkills()
 
 	app.configureMarkdownRenderer()
 

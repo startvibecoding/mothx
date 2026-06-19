@@ -1615,7 +1615,7 @@ func TestCommands_StatusNoSession(t *testing.T) {
 func TestCommands_SkillNoManager(t *testing.T) {
 	srv := newTestServer(t)
 	srv.skillsMgr = nil
-	result := srv.cmdSkill([]string{"/skill", "test"})
+	result := srv.cmdSkill(nil, []string{"/skill", "test"})
 	if !result.Error {
 		t.Error("expected error when no skills manager")
 	}
@@ -1623,7 +1623,7 @@ func TestCommands_SkillNoManager(t *testing.T) {
 
 func TestCommands_SkillNotFound(t *testing.T) {
 	srv := newTestServer(t)
-	result := srv.cmdSkill([]string{"/skill", "nonexistent"})
+	result := srv.cmdSkill(nil, []string{"/skill", "nonexistent"})
 	if !result.Error {
 		t.Error("expected error for unknown skill")
 	}
@@ -1631,9 +1631,33 @@ func TestCommands_SkillNotFound(t *testing.T) {
 
 func TestCommands_SkillsEmpty(t *testing.T) {
 	srv := newTestServer(t)
-	result := srv.cmdSkills()
+	result := srv.cmdSkills(nil)
 	if !strings.Contains(result.Message, "No skills found") {
 		t.Errorf("expected no skills message, got %q", result.Message)
+	}
+}
+
+func TestGatewaySessionCreatesAndActivatesWorkflowSkillForWorkDir(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	srv.cfg.EnableWorkflows = true
+
+	sess, err := srv.getOrCreateSession("workflow-sess", workDir)
+	if err != nil {
+		t.Fatalf("getOrCreateSession() error = %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected session")
+	}
+	skillPath := filepath.Join(workDir, ".skills", workflow.SkillName, "SKILL.md")
+	if _, err := os.Stat(skillPath); err != nil {
+		t.Fatalf("expected workflow skill at %s: %v", skillPath, err)
+	}
+	if sess.SkillsMgr == nil || sess.SkillsMgr.Get(workflow.SkillName) == nil {
+		t.Fatal("expected session skills manager to load workflow skill")
+	}
+	if !strings.Contains(sess.ExtraContext, "## Active Skill: "+workflow.SkillName) {
+		t.Fatalf("expected workflow skill to be active in session context")
 	}
 }
 

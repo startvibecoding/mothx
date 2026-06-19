@@ -453,6 +453,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.pastes = make(map[int]string)
 		a.pasteCounter = 0
 		a.activeSkills = make(map[string]string)
+		a.markBuiltinActiveSkills()
 		a.extraContext = a.baseExtraContext
 		a.updateViewportContent()
 		a.printedMessageIdx = make(map[int]bool)
@@ -547,6 +548,21 @@ func (a *App) rebuildExtraContext() {
 		sb.WriteString(ctx)
 	}
 	a.extraContext = sb.String()
+}
+
+func (a *App) markBuiltinActiveSkills() {
+	if !a.workflows || a.skillsMgr == nil {
+		return
+	}
+	if a.skillsMgr.Get(workflow.SkillName) == nil {
+		return
+	}
+	if a.activeSkills == nil {
+		a.activeSkills = make(map[string]string)
+	}
+	if _, ok := a.activeSkills[workflow.SkillName]; !ok {
+		a.activeSkills[workflow.SkillName] = ""
+	}
 }
 
 // getSessionDir returns the session directory path.
