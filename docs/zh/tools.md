@@ -486,6 +486,8 @@ Workflow 脚本必须使用受支持的 Elisp 子集。不要用 JSON DSL 描述
 
 当前支持的 workflow builtin 包括 `workflow`、`phase`、`parallel`、`series`、`agent`、`concurrency`、`result`、`results` 和 `log`。Worker agent 通过任务 prompt 接收动态 workflow 上下文，因此父 Agent 的 system prompt 和 tool definitions 在构造后保持冻结。
 
+更多 workflow 模式的详细用法和最佳实践请参考 [Workflow 模式](workflow.md) 文档。
+
 ### workflow_status - Workflow 运行状态
 
 列出最近的 workflow run，或返回指定 run 的完整持久化状态。

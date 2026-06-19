@@ -306,6 +306,25 @@ vibecoding --enable-a2a-master
 > "分析数据并生成报告"
 ```
 
+### 场景 4：动态 Workflow 编排
+
+使用 Workflow 模式进行多阶段、带验证的复杂任务编排：
+
+```bash
+# 启用 Workflow 模式
+vibecoding --workflows
+
+# 让 AI 运行代码审计 workflow
+> "对 internal/gateway 和 internal/hermes 做一次安全审计，先并行扫描再交叉验证"
+
+# AI 会自动生成并执行类似这样的 Elisp workflow:
+# - phase 1: 并行扫描多个模块
+# - phase 2: 交叉验证结果，剔除弱结论
+# - phase 3: 生成最终审计报告
+```
+
+Workflow 模式适合代码审计、架构调研、多角色评审、生成-评审循环等需要结构化多智能体协作的场景。详见 [Workflow 模式](workflow.md) 文档。
+
 ---
 
 ## 🛠️ 系统管理

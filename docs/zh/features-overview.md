@@ -321,6 +321,22 @@ vibecoding --enable-a2a-master
 vibecoding --init-a2a-master-config
 ```
 
+### 动态 Workflow
+
+```bash
+# 启用 Workflow 模式
+vibecoding --workflows
+
+# Workflow 工具
+workflow_run      # 运行 Elisp workflow
+workflow_status   # 查看 workflow 状态
+workflow_cancel   # 取消 workflow 运行
+```
+
+使用 Elisp DSL 编排多个 worker agent，支持 phase 阶段划分、parallel 并行执行、并发控制、结果汇总和运行日志。适合代码审计、架构调研、多角色评审、生成-评审循环等复杂多智能体场景。
+
+详见 [Workflow 模式](workflow.md) 文档了解完整语法和最佳实践。
+
 ### 使用场景
 
 - **大型任务**：将大任务拆分成多个子任务

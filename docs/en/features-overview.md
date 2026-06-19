@@ -321,6 +321,22 @@ vibecoding --enable-a2a-master
 vibecoding --init-a2a-master-config
 ```
 
+### Dynamic Workflows
+
+```bash
+# Enable Workflow mode
+vibecoding --workflows
+
+# Workflow tools
+workflow_run      # Run an Elisp workflow
+workflow_status   # Check workflow status
+workflow_cancel   # Cancel a workflow run
+```
+
+Orchestrate multiple worker agents using an Elisp DSL, with phase grouping, parallel execution, concurrency control, result fan-in, and run logs. Ideal for code audits, architecture research, multi-role reviews, generate-critic loops, and other complex multi-agent scenarios.
+
+See the [Workflow Mode](workflow.md) documentation for full syntax and best practices.
+
 ### Use Cases
 
 - **Large tasks**: Split large tasks into multiple subtasks

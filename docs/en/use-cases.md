@@ -306,6 +306,25 @@ vibecoding --enable-a2a-master
 > "Analyze data and generate report"
 ```
 
+### Scenario 4: Dynamic Workflow Orchestration
+
+Use Workflow mode for structured multi-phase, verified complex task orchestration:
+
+```bash
+# Enable Workflow mode
+vibecoding --workflows
+
+# Ask AI to run a security audit workflow
+> "Run a security audit on internal/gateway and internal/hermes, parallel scan then cross-verify"
+
+# AI automatically generates and executes an Elisp workflow like:
+# - phase 1: parallel scan of multiple modules
+# - phase 2: cross-verify results, drop weak findings
+# - phase 3: generate final audit report
+```
+
+Workflow mode is ideal for code audits, architecture research, multi-role reviews, generate-critic loops, and other scenarios requiring structured multi-agent collaboration. See the [Workflow Mode](workflow.md) documentation for details.
+
 ---
 
 ## 🛠️ System Administration

@@ -486,6 +486,8 @@ Example payload:
 
 Supported workflow builtins include `workflow`, `phase`, `parallel`, `series`, `agent`, `concurrency`, `result`, `results`, and `log`. Worker agents receive dynamic workflow context through their task prompt, so the parent system prompt and tool definitions remain frozen after agent construction.
 
+For detailed usage and best practices of workflow mode, see the [Workflow Mode](workflow.md) documentation.
+
 ### workflow_status - Workflow Run Status
 
 Lists recent workflow runs, or returns the full persisted state for one run.

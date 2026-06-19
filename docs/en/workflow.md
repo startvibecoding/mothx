@@ -2,6 +2,9 @@
 
 Workflow mode lets you orchestrate multiple worker agents using an Elisp DSL, automatically executing multi-phase, parallel, verified complex tasks. It is ideal for code audits, architecture research, multi-role reviews, generate-review loops, and other scenarios requiring multi-agent collaboration.
 
+> **💡 Out-of-the-box orchestration**
+> When you enable `--workflows`, a `workflow-elisp` skill is automatically created in your project directory with complete syntax rules, pattern skeletons, and best practices. The AI loads this skill automatically — you don't need to write Elisp manually. Just describe the task in natural language, and the AI will generate the corresponding workflow orchestration script for you.
+
 ---
 
 ## Quick Start
