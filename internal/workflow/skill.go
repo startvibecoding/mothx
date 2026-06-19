@@ -24,10 +24,10 @@ that pattern.
 ### 2. Research and Investigation Workflows (references/01-research.md) [load on demand]
 ### 3. Serial and Parallel Composition (references/02-serial-parallel.md) [load on demand]
 ### 4. Decision Routing and Branching (references/03-decision-routing.md) [load on demand]
-### 5. Continuous Loops and Iterative Tasks (references/04-continuous-loops.md) [load on demand]
+### 5. Bounded While Loops (references/04-continuous-loops.md) [load on demand]
 ### 6. Horizontal Multi-Agent Collaboration (references/05-horizontal-collaboration.md) [load on demand]
 ### 7. Master-Slave Small Team Workflows (references/06-master-slave-team.md) [load on demand]
-### 8. Evaluator-Optimizer and Critic Loops (references/07-evaluator-optimizer.md) [load on demand]
+### 8. Evaluator-Optimizer Review Passes (references/07-evaluator-optimizer.md) [load on demand]
 ### 9. Governance and Human Checkpoints (references/08-governance-checkpoints.md) [load on demand]
 
 ## Pattern Selection
@@ -35,7 +35,10 @@ that pattern.
 - Simple ordered task: load serial and parallel composition.
 - Broad research or audit: load research workflows.
 - Distinct input classes or risk levels: load decision routing.
-- Repeat-until-good-enough work: load continuous loops and evaluator-optimizer.
+- Repeated execution with a runtime stop condition: load bounded while loops.
+- One-pass draft, critique, and revision: load evaluator-optimizer review passes.
+- If a task needs both repetition and critique, use bounded while loops for the
+  loop control and use evaluator-optimizer only for the worker prompt criteria.
 - Several peer experts checking one problem: load horizontal collaboration.
 - One coordinator decomposes work for specialists: load master-slave team.
 - High-impact or user-sensitive decisions: load governance checkpoints.
@@ -47,6 +50,8 @@ that pattern.
   &rest, &body, or any argument marker beginning with &.
 - Tool lists must be quoted string lists: '("read" "grep" "find").
 - Every agent needs a bounded prompt, expected output, and stop condition.
+- Do not simulate loops by writing many numbered phases. Use while only when a
+  bounded runtime loop is actually required.
 `
 
 var defaultReferenceFiles = map[string]string{
@@ -288,11 +293,21 @@ and agent names inside branches must still be string literals.
 Prefer routing labels that are exact strings. If classifier output may include
 rationale, ask it to put the label on the first line and route conservatively.
 `,
-	"references/04-continuous-loops.md": `# Continuous Loops and Iterative Tasks
+	"references/04-continuous-loops.md": `# Bounded While Loops
 
-Use loops for bounded repeated work: test-fix cycles, repeated search until a
-coverage threshold, or periodic audit batches. Always include a hard iteration
-limit and a clear stop condition.
+Single responsibility: show how to write bounded while loops in workflow Elisp.
+Use this only when the task truly needs repeated execution with a runtime stop
+condition, such as test-fix cycles or repeated search until a coverage threshold.
+
+Do not use this file for one-pass quality review. For draft, critique, and
+revise without runtime repetition, use the evaluator-optimizer reference.
+
+Every while loop must have:
+
+- A hard iteration limit.
+- A state variable updated inside the loop.
+- A clear stop condition.
+- A final phase that summarizes the last state.
 
 ## Bounded Test-Fix Loop
 
@@ -324,28 +339,10 @@ limit and a clear stop condition.
               status
               "\nSummarize changes, evidence, and residual risk.")))))
 
-Note: repeated phase and agent literal names overwrite result keys from prior
-iterations. Use loop logs or final summaries when you only need the latest
-iteration. If you need all iteration outputs, ask each worker to append a compact
-history into its final response or split into explicit phase names.
-
-## Persistent Monitoring Batch
-
-For unattended or cron-triggered workflows, make each run finite:
-
-    (workflow "daily regression audit"
-      (phase "collect"
-        (agent "collector"
-          :mode "plan"
-          :tools '("read" "grep" "find")
-          :prompt "Inspect today's changed files and list likely regression areas."))
-      (phase "audit"
-        (agent "auditor"
-          :mode "plan"
-          :tools '("read" "grep")
-          :prompt (concat
-            (result "collect.collector")
-            "\nAudit the listed areas. Return only actionable findings."))))
+Important: repeated phase and agent literal names overwrite result keys from
+prior iterations. Use this pattern when you only need the latest iteration. If
+you need a full history, make the worker or checker include a compact history in
+its latest response.
 `,
 	"references/05-horizontal-collaboration.md": `# Horizontal Multi-Agent Collaboration
 
@@ -449,12 +446,18 @@ Rules:
 - Prefer narrow tools for each worker.
 - Add a final master-review phase before reporting success.
 `,
-	"references/07-evaluator-optimizer.md": `# Evaluator-Optimizer and Critic Loops
+	"references/07-evaluator-optimizer.md": `# Evaluator-Optimizer Review Passes
 
-Use this when quality improves through explicit critique: writing, migration
-plans, design docs, policy analysis, or complex search.
+Single responsibility: show a fixed, one-pass quality pipeline where one worker
+generates output, another critiques it, and a final worker revises it.
 
-## Generate, Critique, Revise
+Use this for writing, migration plans, design docs, policy analysis, or complex
+search when quality improves through explicit critique. This reference does not
+define loop control. Do not create numbered phase simulations for repeated
+attempts. If runtime repetition is required, load the bounded while loop
+reference and keep this file's role limited to critique criteria.
+
+## Draft, Critique, Revise
 
     (workflow "proposal refinement"
       (phase "draft"
@@ -479,10 +482,12 @@ plans, design docs, policy analysis, or complex search.
             "\n\nCRITIQUE:\n"
             (result "critique.critic")))))
 
-## Bounded Optimizer Loop
+## When to Use
 
-Use a loop only if each critique has objective criteria. Keep max iterations
-small and put final acceptance in a separate phase.
+- Use this for one expected revision pass.
+- Keep critique criteria objective and explicit.
+- Put final acceptance criteria in the reviser prompt.
+- For repeated attempts, use a bounded while loop in the loop reference.
 `,
 	"references/08-governance-checkpoints.md": `# Governance and Human Checkpoints
 

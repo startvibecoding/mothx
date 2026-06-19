@@ -63,6 +63,45 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 			t.Fatalf("expected reference %s: %v", rel, err)
 		}
 	}
+
+	loopsData, err := os.ReadFile(filepath.Join(root, ".skills", SkillName, "references", "04-continuous-loops.md"))
+	if err != nil {
+		t.Fatalf("read loop reference: %v", err)
+	}
+	loops := string(loopsData)
+	for _, want := range []string{
+		"# Bounded While Loops",
+		"(while (and (< i 3)",
+		"Single responsibility",
+	} {
+		if !strings.Contains(loops, want) {
+			t.Fatalf("loop reference missing %q", want)
+		}
+	}
+
+	evaluatorData, err := os.ReadFile(filepath.Join(root, ".skills", SkillName, "references", "07-evaluator-optimizer.md"))
+	if err != nil {
+		t.Fatalf("read evaluator reference: %v", err)
+	}
+	evaluator := string(evaluatorData)
+	for _, want := range []string{
+		"# Evaluator-Optimizer Review Passes",
+		"This reference does not define loop control.",
+		"Draft, Critique, Revise",
+	} {
+		if !strings.Contains(evaluator, want) {
+			t.Fatalf("evaluator reference missing %q", want)
+		}
+	}
+	for _, unwanted := range []string{
+		"Critic Loops",
+		"Bounded Optimizer Loop",
+		"(while ",
+	} {
+		if strings.Contains(evaluator, unwanted) {
+			t.Fatalf("evaluator reference should not contain %q", unwanted)
+		}
+	}
 }
 
 func TestEnsureProjectSkillDoesNotOverwriteExistingSkill(t *testing.T) {
