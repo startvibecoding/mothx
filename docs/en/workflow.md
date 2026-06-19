@@ -102,10 +102,10 @@ For analyzability and safety, the following names must be direct string literals
 | Option | Type | Description |
 |--------|------|-------------|
 | `:prompt` | string | **Required**. Task description. |
-| `:mode` | string | Run mode: `plan` / `agent` / `yolo`. Defaults to parent agent's mode. |
-| `:tools` | string list | Available tools. Use `'("read" "grep")` syntax. |
-| `:work-dir` | string | Working directory. Defaults to parent agent's work dir. |
-| `:max-iterations` | number | Maximum iterations. Default 50. |
+| `:mode` | string | Run mode: `plan` / `agent` / `yolo`. Defaults to the parent agent's mode; if unavailable, defaults to `agent`. |
+| `:tools` | string list | Available tools. Use `'("read" "grep")` syntax. If omitted, the worker gets the default tool set for its mode, but cannot spawn subagents, delegate, or start nested workflows. |
+| `:work-dir` | string | Working directory. Defaults to the current process working directory. |
+| `:max-iterations` | number | Maximum worker-agent loop iterations. Omitted, `0`, or negative values default to 50. |
 | `:system-prompt-extra` | string | Extra system prompt content. |
 
 ### concurrency
@@ -115,6 +115,8 @@ Set maximum concurrent agent count:
 ```elisp
 (concurrency 4)
 ```
+
+If omitted, workflow concurrency defaults to 5. This limits the number of worker agents running at the same time, not the total number of workers.
 
 ### log
 
@@ -300,7 +302,13 @@ Multi-agent parallel results always need a summary/verification phase. Worker re
 
 Default is 5 concurrent agents. If all agents call the same LLM provider, watch out for rate limits — you may want to lower it to 2-3.
 
-### 7. Don't Use Workflows for Small Tasks
+### 7. Make Defaults Explicit When They Matter
+
+For safety-sensitive or long-running workers, set `:mode`, `:tools`, and `:max-iterations` explicitly instead of relying on inherited defaults. `:mode` inherits the parent mode, `:tools` omission grants the default tool set for the mode, and `:max-iterations` falls back to 50 worker-agent loop iterations.
+
+`workflow_run` `timeoutSeconds` is a tool parameter, not an `(agent ...)` DSL option. Use it for long workflows; worker agents do not have a per-worker `:timeout` option.
+
+### 8. Don't Use Workflows for Small Tasks
 
 For simple sequential tasks or anything a single agent can handle, regular conversation is cheaper and faster. Workflow overhead is non-trivial.
 
@@ -343,6 +351,10 @@ For simple sequential tasks or anything a single agent can handle, regular conve
 
 Workflow worker agents have multi-agent, delegate, and workflows disabled by default. If you need multi-level orchestration, do it at the workflow DSL level.
 
+### ❌ Don't Use Nonexistent Worker Options
+
+The workflow DSL does not support per-worker `:model`, `:thinking-level`, `:max-tokens`, `:tool-execution-mode`, or `:timeout`. Model, thinking level, output token limit, sandbox behavior, and session behavior come from the surrounding configuration. Worker tool calls execute in parallel by default when the model emits multiple tool calls in the same turn.
+
 ### ❌ Don't Write Unbounded Loops
 
 Loops must always have a maximum iteration count and a clear exit condition.
@@ -363,7 +375,7 @@ You can also use tool calls:
 - `workflow_status` — check status
 - `workflow_cancel` — cancel a run
 
-`workflow_run` accepts an optional `timeoutSeconds` parameter. Omit it to use the default tool timeout, set a positive value for long bounded workflows, or set `0` only for intentional continuous workflows that should not be interrupted by the agent-level deadline. In Gateway mode, `requestTimeoutSeconds` is still an outer HTTP request deadline and must also be sized for long-running requests.
+`workflow_run` accepts an optional `timeoutSeconds` parameter. Omit it to use the default tool timeout, set a positive value for long bounded workflows, or set `0` only for intentional continuous workflows that should not be interrupted by the agent-level deadline. This is separate from worker `:max-iterations` and is not an `(agent ...)` option. In Gateway mode, `requestTimeoutSeconds` is still an outer HTTP request deadline and must also be sized for long-running requests.
 
 ---
 

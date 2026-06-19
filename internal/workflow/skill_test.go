@@ -32,6 +32,8 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"references/06-master-slave-team.md",
 		"workflow, phase, and agent names must be string literals.",
 		"Every non-trivial worker should set :max-iterations explicitly.",
+		"Do not rely on hidden defaults for safety-sensitive workers",
+		"workflow_run timeoutSeconds explicitly",
 		"Status checker agents used for loop control must return exactly one token",
 	} {
 		if !strings.Contains(content, want) {
@@ -48,6 +50,13 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"The first argument of agent must be a string literal.",
 		"defun only supports fixed parameter lists.",
 		"(workflow \"auth audit\"",
+		"Hidden Defaults and Inherited Settings",
+		"(concurrency n) defaults to 5 when omitted",
+		":mode defaults to the parent agent mode",
+		"workflow workers cannot spawn subagents",
+		"There are no DSL options for :model",
+		"workflow_run Timeout",
+		"timeoutSeconds to 0 only for intentional",
 		"Agent Iteration Budgets",
 		":max-iterations 100",
 		"Loop Status Rules",

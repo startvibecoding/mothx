@@ -476,15 +476,19 @@ Workflow 脚本必须使用受支持的 Elisp 子集。不要用 JSON DSL 描述
 | 参数名 | 类型 | 必填 | 描述 |
 |--------|------|------|------|
 | `source` | string | ✓ | Elisp workflow 源码。顶层表单应为 `(workflow "name" ...)`。 |
+| `timeoutSeconds` | integer | - | 整个 workflow run 的工具级超时。省略时使用默认工具超时；有明确上限的长 workflow 可设置正数秒数；只有确实需要持续运行、且不希望有 agent 级 deadline 时才设置为 `0`。 |
 
 请求示例：
 ```json
 {
-  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"审计 internal/gateway 的认证风险\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"审计 internal/hermes 的认证风险\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :prompt (concat (results \"scan\") \"\\n交叉验证结论并列出具体风险。\"))))"
+  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"审计 internal/gateway 的认证风险\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"审计 internal/hermes 的认证风险\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 80 :prompt (concat (results \"scan\") \"\\n交叉验证结论并列出具体风险。\"))))",
+  "timeoutSeconds": 900
 }
 ```
 
 当前支持的 workflow builtin 包括 `workflow`、`phase`、`parallel`、`series`、`agent`、`concurrency`、`result`、`results` 和 `log`。Worker agent 通过任务 prompt 接收动态 workflow 上下文，因此父 Agent 的 system prompt 和 tool definitions 在构造后保持冻结。
+
+重要默认值：`concurrency` 默认 5；`:mode` 默认继承父 agent mode；省略 `:tools` 时使用该 worker mode 的默认工具集；省略、`0` 或负数的 `:max-iterations` 默认 50 次 worker-agent 循环。Worker agent 不能 spawn 子 agent、delegate 或启动嵌套 workflow；DSL 也没有 per-worker `:timeout`、`:model`、`:thinking-level` 或 `:max-tokens` 选项。
 
 更多 workflow 模式的详细用法和最佳实践请参考 [Workflow 模式](workflow.md) 文档。
 

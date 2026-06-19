@@ -476,15 +476,19 @@ Workflow scripts must use the supported Elisp subset. Do not describe workflow s
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `source` | string | ✓ | Elisp workflow source. The top-level form should be `(workflow "name" ...)`. |
+| `timeoutSeconds` | integer | - | Tool-level timeout for the whole workflow run. Omit to use the default tool timeout, set a positive number for bounded long workflows, or set `0` only for intentional continuous workflows with no agent-level deadline. |
 
 Example payload:
 ```json
 {
-  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"Audit internal/gateway auth risks\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :prompt \"Audit internal/hermes auth risks\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :prompt (concat (results \"scan\") \"\\nReconcile the findings and list concrete risks.\"))))"
+  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"Audit internal/gateway auth risks\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"Audit internal/hermes auth risks\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 80 :prompt (concat (results \"scan\") \"\\nReconcile the findings and list concrete risks.\"))))",
+  "timeoutSeconds": 900
 }
 ```
 
 Supported workflow builtins include `workflow`, `phase`, `parallel`, `series`, `agent`, `concurrency`, `result`, `results`, and `log`. Worker agents receive dynamic workflow context through their task prompt, so the parent system prompt and tool definitions remain frozen after agent construction.
+
+Important defaults: `concurrency` defaults to 5, `:mode` inherits the parent agent mode, omitted `:tools` uses the default tool set for the worker mode, and omitted/zero/negative `:max-iterations` defaults to 50 worker-agent loop iterations. Worker agents cannot spawn subagents, delegate, or start nested workflows, and the DSL has no per-worker `:timeout`, `:model`, `:thinking-level`, or `:max-tokens` options.
 
 For detailed usage and best practices of workflow mode, see the [Workflow Mode](workflow.md) documentation.
 

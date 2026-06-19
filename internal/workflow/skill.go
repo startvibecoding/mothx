@@ -13,7 +13,10 @@ const defaultSkillContent = `# Workflow Elisp
 Use this skill when authoring workflow_run source for dynamic workflow mode.
 
 The workflow_run source must be one complete raw Elisp form. Do not wrap it in
-Markdown fences.
+Markdown fences. When invoking workflow_run for long workflows, set the tool
+parameter timeoutSeconds explicitly: omit it for the default tool timeout, use a
+positive number of seconds for bounded long runs, and use 0 only for intentional
+continuous workflows with no agent-level deadline.
 
 ## Progressive References
 
@@ -50,9 +53,18 @@ that pattern.
   &rest, &body, or any argument marker beginning with &.
 - Tool lists must be quoted string lists: '("read" "grep" "find").
 - Every agent needs a bounded prompt, expected output, and stop condition.
+- Do not rely on hidden defaults for safety-sensitive workers: set :mode,
+  :tools, :max-iterations, and workflow_run timeoutSeconds explicitly when
+  permissions, tool scope, or duration matter.
 - Every non-trivial worker should set :max-iterations explicitly. The default
-  is 50, which is only suitable for small bounded tasks. Use 80-120 for broad
-  read-only scans and 150-250 for edit/test/verification workers.
+  is 50 worker-agent loop iterations. This caps the worker's model/tool/result
+  turns; hitting it fails that worker with max_iterations. It is only suitable
+  for small bounded tasks. Use 80-120 for broad read-only scans and 150-250 for
+  edit/test/verification workers.
+- For long workflows, set workflow_run timeoutSeconds explicitly. Omit it for
+  the default tool timeout, set a positive seconds value for bounded long runs,
+  and set 0 only for intentional continuous workflows with no agent-level
+  deadline.
 - Status checker agents used for loop control must return exactly one token
   such as DONE or NEEDS_WORK, with no rationale or suffix.
 - Do not simulate loops by writing many numbered phases. Use while only when a
@@ -124,10 +136,41 @@ Invalid examples:
             (results "scan")
             "\nVerify the evidence, reject weak claims, and list final risks."))))
 
+## Hidden Defaults and Inherited Settings
+
+- (concurrency n) defaults to 5 when omitted. It limits concurrent worker agents,
+  not the total number of workers.
+- :mode defaults to the parent agent mode; if the parent mode is unavailable, it
+  defaults to "agent". Use :mode "plan" explicitly for read-only workers.
+- :work-dir defaults to the current process working directory. Set it explicitly
+  for cross-directory workflows.
+- :tools omitted means the worker receives the default tool set for its mode, but
+  workflow workers cannot spawn subagents, delegate, or start nested workflows.
+  Prefer explicit :tools lists for bounded workers.
+- :max-iterations omitted, 0, or negative falls back to 50 worker-agent loop
+  iterations.
+- There are no DSL options for :model, :thinking-level, :max-tokens,
+  :tool-execution-mode, or per-worker :timeout. These are inherited from the
+  surrounding configuration or fixed defaults.
+- Worker tool calls execute in parallel by default when the model emits multiple
+  tool calls in the same turn.
+
+## workflow_run Timeout
+
+workflow_run has a tool-level timeout separate from worker :max-iterations. It is
+a tool parameter, not an (agent ...) DSL option. Omit timeoutSeconds to use the
+default tool timeout, set a positive number of seconds for bounded long
+workflows, and set timeoutSeconds to 0 only for intentional continuous workflows
+that should not have an agent-level deadline. Gateway mode may still have an
+outer request timeout.
+
 ## Agent Iteration Budgets
 
-The default per-worker :max-iterations is 50. That is a safety limit for small
-workers, not a good default for broad audits or repair loops. Set it explicitly:
+The default per-worker :max-iterations is 50 worker-agent loop iterations. It
+caps the worker's repeated model/tool/result turns; if the worker hits this
+limit before producing a final answer, that worker fails with max_iterations and
+can fail the phase/workflow. It is a safety limit for small workers, not a good
+default for broad audits or repair loops. Set it explicitly:
 
 - Small read-only check: 50
 - Broad scan, inventory, or audit: 80-120
@@ -152,7 +195,11 @@ a separate worker result or a final summary phase instead.
 - Parentheses and strings are balanced.
 - Every agent option is a keyword/value pair.
 - Every agent has :prompt.
+- :mode, :tools, and :max-iterations are explicit whenever permissions, tool
+  scope, or duration matter.
 - :tools uses quoted list syntax exactly like '("read" "grep").
+- workflow_run timeoutSeconds is explicit for long workflows; it is a tool
+  parameter, not an (agent ...) option.
 - :max-iterations is explicit for broad scans, edit workers, verification
   workers, and loop workers.
 - Prior outputs are referenced with (result "phase.agent") or (results "phase").
