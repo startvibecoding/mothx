@@ -75,6 +75,7 @@ func (h *AgentHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, 
 				ApprovalArgs: ev.ApprovalArgs,
 			})
 		}
+		internalagent.ForwardChildAgentEvent(runCtx, h.ParentEventCh, a.ID(), ev)
 		switch ev.Type {
 		case agentpkg.EventDone:
 			completed = true

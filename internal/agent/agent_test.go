@@ -33,6 +33,11 @@ type compactionReplayProvider struct {
 	calls  []provider.ChatParams
 }
 
+type workflowRunToolProvider struct {
+	models []*provider.Model
+	calls  []provider.ChatParams
+}
+
 func newRecordingToolProvider() *recordingToolProvider {
 	return &recordingToolProvider{
 		models: []*provider.Model{{ID: "model1", Name: "Model 1"}},
@@ -131,6 +136,48 @@ func (p *compactionReplayProvider) GetModel(id string) *provider.Model {
 	return nil
 }
 
+func (p *workflowRunToolProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.calls = append(p.calls, provider.ChatParams{
+		Messages: cloneMessages(params.Messages),
+		Tools:    append([]provider.ToolDefinition(nil), params.Tools...),
+	})
+
+	ch := make(chan provider.StreamEvent, 3)
+	callNumber := len(p.calls)
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamStart}
+		if callNumber == 1 {
+			ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: &provider.ToolCallBlock{
+				ID:        "workflow_call_1",
+				Name:      "workflow_run",
+				Arguments: []byte(`{"source":"(workflow \"slow\")"}`),
+			}}
+		} else {
+			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "workflow complete"}
+		}
+		ch <- provider.StreamEvent{Type: provider.StreamDone}
+	}()
+	return ch
+}
+
+func (p *workflowRunToolProvider) Name() string {
+	return "workflow-run-tool"
+}
+
+func (p *workflowRunToolProvider) Models() []*provider.Model {
+	return p.models
+}
+
+func (p *workflowRunToolProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.models {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
 type fixedBashTool struct{}
 
 func (fixedBashTool) Name() string { return "bash" }
@@ -165,6 +212,33 @@ type timeoutBashTool struct {
 
 func (t timeoutBashTool) ExecutionTimeout(params map[string]any) (time.Duration, bool) {
 	return t.timeout, true
+}
+
+type blockingWorkflowRunTool struct {
+	delay time.Duration
+}
+
+func (blockingWorkflowRunTool) Name() string { return "workflow_run" }
+
+func (blockingWorkflowRunTool) Description() string { return "fake workflow_run for tests" }
+
+func (blockingWorkflowRunTool) PromptSnippet() string { return "fake workflow_run" }
+
+func (blockingWorkflowRunTool) PromptGuidelines() []string { return nil }
+
+func (blockingWorkflowRunTool) Parameters() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"source":{"type":"string"}}}`)
+}
+
+func (t blockingWorkflowRunTool) Execute(ctx context.Context, params map[string]any) (tools.ToolResult, error) {
+	timer := time.NewTimer(t.delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return tools.ToolResult{}, ctx.Err()
+	case <-timer.C:
+		return tools.NewTextToolResult(`{"id":"run-1","status":"done"}`), nil
+	}
 }
 
 func TestToolExecutionContextUsesToolTimeoutOverride(t *testing.T) {
@@ -561,6 +635,67 @@ func TestToolResultIsIncludedInNextProviderTurn(t *testing.T) {
 	}
 	if !foundToolResult {
 		t.Fatalf("second provider call did not include bash tool result: %#v", recorder.calls[1].Messages)
+	}
+}
+
+func TestWorkflowRunWaitDoesNotConsumeMainAgentIterations(t *testing.T) {
+	delay := 75 * time.Millisecond
+	recorder := &workflowRunToolProvider{
+		models: []*provider.Model{{ID: "model1", Name: "Model 1"}},
+	}
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+	registry.Register(blockingWorkflowRunTool{delay: delay})
+
+	cfg := AgentLoopConfig{
+		Config: Config{
+			Provider: recorder,
+			Model:    recorder.Models()[0],
+			Mode:     "yolo",
+		},
+		ToolExecutionMode: "sequential",
+		MaxIterations:     2,
+	}
+
+	a := NewWithLoopConfig(cfg, registry)
+	start := time.Now()
+	var turnStarts int
+	var toolStarted bool
+	var toolEnded bool
+	var runErr error
+	for ev := range a.Run(context.Background(), "run workflow") {
+		switch ev.Type {
+		case EventTurnStart:
+			turnStarts++
+		case EventToolExecutionStart:
+			if ev.ToolName == "workflow_run" {
+				toolStarted = true
+			}
+		case EventToolExecutionEnd:
+			if ev.ToolName == "workflow_run" {
+				toolEnded = true
+			}
+		case EventError:
+			runErr = ev.Error
+		}
+	}
+	elapsed := time.Since(start)
+
+	if runErr != nil {
+		t.Fatalf("Run() error = %v", runErr)
+	}
+	if elapsed < delay {
+		t.Fatalf("workflow_run did not block long enough: elapsed %s, delay %s", elapsed, delay)
+	}
+	if len(recorder.calls) != 2 {
+		t.Fatalf("expected exactly 2 provider calls, got %d", len(recorder.calls))
+	}
+	if turnStarts != 2 {
+		t.Fatalf("expected exactly 2 main-agent turns, got %d", turnStarts)
+	}
+	if !toolStarted || !toolEnded {
+		t.Fatalf("expected workflow_run tool start/end events, started=%v ended=%v", toolStarted, toolEnded)
 	}
 }
 

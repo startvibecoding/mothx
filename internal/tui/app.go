@@ -146,6 +146,7 @@ type App struct {
 	toolModalOpen         bool
 	toolModalOffset       int
 	toolModalPinnedBottom bool
+	toolModalActive       int
 
 	// Compact tool display mode
 	compactMode bool
@@ -194,11 +195,13 @@ type App struct {
 	questionQueue      []pendingQuestion
 
 	// Multi-agent / delegate state
-	multiAgent   bool
-	delegateMode bool
-	workflows    bool
-	activeAgent  agentpkg.AgentID
-	agentMgr     *agent.AgentManager
+	multiAgent         bool
+	delegateMode       bool
+	workflows          bool
+	activeAgent        agentpkg.AgentID
+	agentMgr           *agent.AgentManager
+	agentActivities    map[agentpkg.AgentID]*agentActivity
+	agentActivityOrder []agentpkg.AgentID
 
 	// Cron state
 	cronStore cron.CronStore
@@ -286,6 +289,7 @@ func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *c
 		delegateMode:        delegateMode,
 		workflows:           workflows,
 		agentMgr:            agentMgr,
+		agentActivities:     make(map[agentpkg.AgentID]*agentActivity),
 		cronStore:           cronStore,
 		scheduler:           scheduler,
 	}
@@ -506,6 +510,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			case msg.Type == tea.KeyDown:
 				a.scrollToolModal(1)
+				return a, nil
+			case msg.Type == tea.KeyLeft:
+				a.switchToolModalTarget(-1)
+				return a, nil
+			case msg.Type == tea.KeyRight:
+				a.switchToolModalTarget(1)
 				return a, nil
 			case msg.Type == tea.KeyPgUp:
 				a.scrollToolModal(-a.toolModalPageSize())
@@ -860,6 +870,9 @@ func (a *App) View() string {
 	// 3. Loading indicator (spinner + timer + tokens when thinking)
 	if loading := renderLoadingIndicator(a.isThinking, a.spinnerIndex, a.timer.Elapsed(), 0, a.width); loading != "" {
 		parts = append(parts, loading)
+	}
+	if activity := a.renderActivitySummary(a.width); activity != "" {
+		parts = append(parts, activity)
 	}
 
 	// 4. Auth dialog or input field

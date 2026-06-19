@@ -31,6 +31,8 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"references/00-core-rules.md",
 		"references/06-master-slave-team.md",
 		"workflow, phase, and agent names must be string literals.",
+		"Every non-trivial worker should set :max-iterations explicitly.",
+		"Status checker agents used for loop control must return exactly one token",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("skill content missing %q", want)
@@ -46,6 +48,9 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"The first argument of agent must be a string literal.",
 		"defun only supports fixed parameter lists.",
 		"(workflow \"auth audit\"",
+		"Agent Iteration Budgets",
+		":max-iterations 100",
+		"Loop Status Rules",
 	} {
 		if !strings.Contains(core, want) {
 			t.Fatalf("core reference missing %q", want)
@@ -73,6 +78,8 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"# Bounded While Loops",
 		"(while (and (< i 3)",
 		"Single responsibility",
+		":max-iterations 150",
+		"Return exactly one token: DONE or NEEDS_WORK. No other text.",
 	} {
 		if !strings.Contains(loops, want) {
 			t.Fatalf("loop reference missing %q", want)

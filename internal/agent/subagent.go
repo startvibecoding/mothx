@@ -148,6 +148,7 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 				ApprovalArgs: e.ApprovalArgs,
 			})
 		}
+		ForwardChildAgentEvent(runCtx, parentEventCh, a.ID(), e)
 		if e.Type == agentpkg.EventToolCall {
 			toolCallCount++
 			if e.ToolName != "" {
@@ -302,6 +303,7 @@ func (t *SubAgentSpawnTool) Execute(ctx context.Context, params map[string]any) 
 					ApprovalArgs: e.ApprovalArgs,
 				})
 			}
+			ForwardChildAgentEvent(runCtx, parentEventCh, a.ID(), e)
 			switch e.Type {
 			case agentpkg.EventDone:
 				t.manager.MarkDone(a.ID(), lastAssistantResponse(a))
@@ -336,6 +338,47 @@ func sendParentEvent(ctx context.Context, ch chan<- Event, ev Event) (ok bool) {
 	case ch <- ev:
 		return true
 	case <-ctx.Done():
+		return false
+	}
+}
+
+// ForwardChildAgentEvent forwards child-agent activity to the parent event
+// stream so frontends can render background progress without mixing child
+// output into the main transcript.
+func ForwardChildAgentEvent(ctx context.Context, ch chan<- Event, childID agentpkg.AgentID, e agentpkg.Event) bool {
+	if ch == nil {
+		return false
+	}
+	ev := Event{
+		Type:          EventType(e.Type),
+		AgentID:       childID,
+		TextDelta:     e.TextDelta,
+		ThinkDelta:    e.ThinkDelta,
+		ToolCallID:    e.ToolCallID,
+		ToolName:      e.ToolName,
+		ToolArgs:      e.ToolArgs,
+		ToolResult:    e.ToolResult,
+		ToolError:     e.ToolError,
+		StatusMessage: e.StatusMessage,
+		Done:          e.Done,
+		StopReason:    e.StopReason,
+		Error:         e.Error,
+	}
+	if ev.ToolName == "" && e.ToolCall != nil {
+		ev.ToolName = e.ToolCall.Name
+	}
+	switch e.Type {
+	case agentpkg.EventTextDelta,
+		agentpkg.EventThinkDelta,
+		agentpkg.EventToolCall,
+		agentpkg.EventToolExecutionStart,
+		agentpkg.EventToolExecutionEnd,
+		agentpkg.EventToolResult,
+		agentpkg.EventStatus,
+		agentpkg.EventDone,
+		agentpkg.EventError:
+		return sendParentEvent(ctx, ch, ev)
+	default:
 		return false
 	}
 }
@@ -482,6 +525,7 @@ func (t *SubAgentSendTool) Execute(ctx context.Context, params map[string]any) (
 					ApprovalArgs: e.ApprovalArgs,
 				})
 			}
+			ForwardChildAgentEvent(runCtx, parentEventCh, a.ID(), e)
 			switch e.Type {
 			case agentpkg.EventDone:
 				t.manager.MarkDone(a.ID(), lastAssistantResponse(a))

@@ -1,6 +1,10 @@
 package tui
 
-import "time"
+import (
+	"time"
+
+	agentpkg "github.com/startvibecoding/vibecoding/agent"
+)
 
 // resetTranscriptState clears rendered conversation bookkeeping without
 // changing session/provider configuration.
@@ -14,6 +18,8 @@ func (a *App) resetTranscriptState() {
 	a.assistantDirty = make(map[int]bool)
 	a.thinkRaw = make(map[int]string)
 	a.printedMessageIdx = make(map[int]bool)
+	a.agentActivities = make(map[agentpkg.AgentID]*agentActivity)
+	a.agentActivityOrder = nil
 	a.currentAssistantIdx = -1
 	a.currentThinkIdx = -1
 	a.closeToolModal()

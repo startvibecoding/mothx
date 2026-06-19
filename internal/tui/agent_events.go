@@ -10,6 +10,12 @@ import (
 )
 
 func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
+	if a.isBackgroundAgentEvent(event) {
+		a.recordAgentActivity(event)
+		a.scheduleRender()
+		return a.listenAgentEvents()
+	}
+
 	switch event.Type {
 	case agent.EventTextDelta:
 		if a.currentAssistantIdx >= 0 && a.currentAssistantIdx < len(a.messages) {

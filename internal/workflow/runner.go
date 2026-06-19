@@ -18,6 +18,7 @@ type Runner struct {
 	Active      *ActiveRegistry
 	Concurrency int
 	Now         func() time.Time
+	Progress    func(ProgressEvent)
 }
 
 // Run evaluates a workflow source string.
@@ -100,6 +101,12 @@ func (rt *runtime) specialWorkflow(ctx *elispvm.EvalContext, args []elispvm.Expr
 	if err := rt.save(ctx.Context); err != nil {
 		return nil, err
 	}
+	rt.emitProgress(ProgressEvent{
+		RunID:   rt.state.ID,
+		Name:    name,
+		Status:  StatusRunning,
+		Message: fmt.Sprintf("workflow %q started", name),
+	})
 	if err := rt.registerActive(); err != nil {
 		return nil, err
 	}
@@ -280,6 +287,7 @@ func (rt *runtime) fnLog(_ *elispvm.EvalContext, args []elispvm.Value) (elispvm.
 	rt.state.Logs = append(rt.state.Logs, WorkflowLog{Time: rt.runner.now(), Message: msg})
 	rt.state.UpdatedAt = rt.runner.now()
 	rt.mu.Unlock()
+	rt.emitProgress(ProgressEvent{Status: StatusRunning, Message: msg})
 	return elispvm.String(msg), nil
 }
 
@@ -298,6 +306,12 @@ func (rt *runtime) runAgent(ctx context.Context, task AgentTask) (AgentResult, e
 	}
 	started := rt.runner.now()
 	rt.recordTaskStart(key)
+	rt.emitProgress(ProgressEvent{
+		Phase:   task.Phase,
+		Task:    task.Name,
+		Status:  StatusRunning,
+		Message: fmt.Sprintf("task %s started", key),
+	})
 	result, err := rt.runner.Host.RunAgent(ctx, task)
 	finished := rt.runner.now()
 	if result.Key == "" {
@@ -319,6 +333,12 @@ func (rt *runtime) runAgent(ctx context.Context, task AgentTask) (AgentResult, e
 		result.Status = StatusDone
 	}
 	rt.recordResult(result)
+	rt.emitProgress(ProgressEvent{
+		Phase:   task.Phase,
+		Task:    task.Name,
+		Status:  result.Status,
+		Message: fmt.Sprintf("task %s %s", key, result.Status),
+	})
 	if err := rt.save(ctx); err != nil {
 		return result, err
 	}
@@ -343,7 +363,13 @@ func (rt *runtime) startPhase(name string) int {
 	defer rt.mu.Unlock()
 	rt.state.Phases = append(rt.state.Phases, PhaseState{Name: name, Status: StatusRunning, StartedAt: now})
 	rt.state.UpdatedAt = now
-	return len(rt.state.Phases) - 1
+	idx := len(rt.state.Phases) - 1
+	rt.emitProgressLocked(ProgressEvent{
+		Phase:   name,
+		Status:  StatusRunning,
+		Message: fmt.Sprintf("phase %q started", name),
+	})
+	return idx
 }
 
 func (rt *runtime) finishPhase(idx int, status string, msg string) {
@@ -354,6 +380,11 @@ func (rt *runtime) finishPhase(idx int, status string, msg string) {
 		rt.state.Phases[idx].Status = status
 		rt.state.Phases[idx].FinishedAt = now
 		rt.state.Phases[idx].Error = msg
+		rt.emitProgressLocked(ProgressEvent{
+			Phase:   rt.state.Phases[idx].Name,
+			Status:  status,
+			Message: fmt.Sprintf("phase %q %s", rt.state.Phases[idx].Name, status),
+		})
 	}
 	rt.state.UpdatedAt = now
 }
@@ -386,6 +417,36 @@ func (rt *runtime) finish(status string, msg string) {
 	rt.state.Error = msg
 	rt.state.UpdatedAt = now
 	rt.state.FinishedAt = now
+	message := fmt.Sprintf("workflow %s", status)
+	if msg != "" {
+		message += ": " + msg
+	}
+	rt.emitProgressLocked(ProgressEvent{Status: status, Message: message})
+}
+
+func (rt *runtime) emitProgress(ev ProgressEvent) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	rt.emitProgressLocked(ev)
+}
+
+func (rt *runtime) emitProgressLocked(ev ProgressEvent) {
+	if rt.runner == nil || rt.runner.Progress == nil {
+		return
+	}
+	if ev.RunID == "" {
+		ev.RunID = rt.state.ID
+	}
+	if ev.Name == "" {
+		ev.Name = rt.state.Name
+	}
+	if ev.Phase == "" {
+		ev.Phase = rt.phase
+	}
+	if ev.Time.IsZero() {
+		ev.Time = rt.runner.now()
+	}
+	rt.runner.Progress(ev)
 }
 
 func (rt *runtime) snapshot() *RunState {

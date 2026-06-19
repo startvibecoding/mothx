@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/tools"
@@ -117,7 +118,43 @@ func (t *RunTool) Execute(ctx context.Context, params map[string]any) (tools.Too
 		ParentEventCh: parentEventCh,
 		ParentRunCtx:  parentRunCtx,
 	}
-	state, err := (&Runner{Host: host, Store: t.store, Active: t.active}).Run(ctx, source)
+	runner := &Runner{
+		Host:   host,
+		Store:  t.store,
+		Active: t.active,
+		Progress: func(ev ProgressEvent) {
+			if parentEventCh == nil || ev.RunID == "" {
+				return
+			}
+			msg := strings.TrimSpace(ev.Message)
+			if msg == "" {
+				msg = strings.TrimSpace(strings.Join([]string{ev.Phase, ev.Task, ev.Status}, " "))
+			}
+			sendCtx := parentRunCtx
+			if sendCtx == nil {
+				sendCtx = ctx
+			}
+			eventType := agentpkg.EventStatus
+			var eventErr error
+			if ev.Phase == "" && ev.Task == "" {
+				switch ev.Status {
+				case StatusDone:
+					eventType = agentpkg.EventDone
+				case StatusError, StatusCanceled:
+					eventType = agentpkg.EventError
+					if msg != "" {
+						eventErr = fmt.Errorf("%s", msg)
+					}
+				}
+			}
+			_ = internalagent.ForwardChildAgentEvent(sendCtx, parentEventCh, agentpkg.AgentID("workflow:"+ev.RunID), agentpkg.Event{
+				Type:          eventType,
+				StatusMessage: msg,
+				Error:         eventErr,
+			})
+		},
+	}
+	state, err := runner.Run(ctx, source)
 	if err != nil {
 		if errors.Is(err, context.Canceled) && state != nil {
 			return runToolResult(state), nil

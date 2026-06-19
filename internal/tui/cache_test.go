@@ -1439,6 +1439,116 @@ func TestOpenLatestToolModalRequiresContent(t *testing.T) {
 	}
 }
 
+func TestBackgroundAgentEventRecordsActivityOnly(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
+	a.messages = []string{"main"}
+
+	a.handleAgentEvent(agent.Event{
+		Type:      agent.EventTextDelta,
+		AgentID:   "sub-1",
+		TextDelta: "subagent progress",
+	})
+
+	if len(a.messages) != 1 || a.messages[0] != "main" {
+		t.Fatalf("background event changed main messages: %#v", a.messages)
+	}
+	act := a.agentActivities["sub-1"]
+	if act == nil {
+		t.Fatal("missing subagent activity")
+	}
+	if !strings.Contains(act.LastText, "subagent progress") {
+		t.Fatalf("activity LastText = %q", act.LastText)
+	}
+}
+
+func TestSubAgentApprovalStillShowsPrompt(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
+
+	a.handleAgentEvent(agent.Event{
+		Type:         agent.EventToolApprovalRequest,
+		AgentID:      "sub-1",
+		ApprovalID:   "approval-1",
+		ApprovalTool: "bash",
+		ApprovalArgs: map[string]any{"cmd": "make test"},
+	})
+
+	if !a.waitingForApproval {
+		t.Fatal("waitingForApproval = false, want true")
+	}
+	if a.currentApproval.agentID != "sub-1" {
+		t.Fatalf("approval agentID = %q, want sub-1", a.currentApproval.agentID)
+	}
+}
+
+func TestToolModalDefaultsMainAndSwitchesToSubAgent(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
+	a.messages = []string{"main transcript"}
+	a.recordAgentActivity(agent.Event{
+		Type:          agent.EventToolCall,
+		AgentID:       "sub-1",
+		ToolName:      "grep",
+		ToolArgs:      map[string]any{"pattern": "workflow"},
+		StatusMessage: "ignored",
+	})
+
+	if !a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal = false, want true")
+	}
+	if a.toolModalActive != 0 {
+		t.Fatalf("toolModalActive = %d, want main index 0", a.toolModalActive)
+	}
+	main := stripANSI(a.renderExpandedTranscript())
+	if !strings.Contains(main, "main transcript") || strings.Contains(main, "grep") {
+		t.Fatalf("main modal content = %q", main)
+	}
+
+	a.switchToolModalTarget(1)
+	sub := stripANSI(a.renderExpandedTranscript())
+	if !strings.Contains(sub, "sub-1") || !strings.Contains(sub, "grep") {
+		t.Fatalf("subagent modal content = %q", sub)
+	}
+}
+
+func TestToolModalHeightFitsTerminalWithoutCroppingTop(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.ready = true
+	a.width = 80
+	a.height = 24
+	a.messages = []string{strings.Join([]string{
+		"line 1",
+		"line 2",
+		"line 3",
+		"line 4",
+		"line 5",
+		"line 6",
+		"line 7",
+		"line 8",
+		"line 9",
+		"line 10",
+		"line 11",
+		"line 12",
+		"line 13",
+		"line 14",
+		"line 15",
+		"line 16",
+		"line 17",
+		"line 18",
+		"line 19",
+		"line 20",
+	}, "\n")}
+
+	if !a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal = false, want true")
+	}
+	view := a.View()
+	if got := lipgloss.Height(view); got != a.height {
+		t.Fatalf("View() height = %d, want %d", got, a.height)
+	}
+	if plain := stripANSI(view); !strings.Contains(plain, "Agent details") {
+		t.Fatalf("modal top was cropped from view:\n%s", plain)
+	}
+}
+
 func TestShowNextQuestionTracksCurrentQuestionAndClearResetsIt(t *testing.T) {
 	a := &App{questionQueue: []pendingQuestion{{questionID: "q1", question: "Pick?", options: []string{"A", "B"}}}}
 	a.showNextQuestion()

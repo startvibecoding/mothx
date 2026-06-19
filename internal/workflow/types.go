@@ -67,6 +67,17 @@ type RunState struct {
 	Error      string                 `json:"error,omitempty"`
 }
 
+// ProgressEvent captures a lightweight workflow lifecycle update.
+type ProgressEvent struct {
+	RunID   string
+	Name    string
+	Phase   string
+	Task    string
+	Status  string
+	Message string
+	Time    time.Time
+}
+
 // Host runs workflow worker-agent tasks.
 type Host interface {
 	RunAgent(ctx context.Context, task AgentTask) (AgentResult, error)

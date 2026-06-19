@@ -50,6 +50,11 @@ that pattern.
   &rest, &body, or any argument marker beginning with &.
 - Tool lists must be quoted string lists: '("read" "grep" "find").
 - Every agent needs a bounded prompt, expected output, and stop condition.
+- Every non-trivial worker should set :max-iterations explicitly. The default
+  is 50, which is only suitable for small bounded tasks. Use 80-120 for broad
+  read-only scans and 150-250 for edit/test/verification workers.
+- Status checker agents used for loop control must return exactly one token
+  such as DONE or NEEDS_WORK, with no rationale or suffix.
 - Do not simulate loops by writing many numbered phases. Use while only when a
   bounded runtime loop is actually required.
 `
@@ -103,18 +108,42 @@ Invalid examples:
           (agent "gateway"
             :mode "plan"
             :tools '("read" "grep" "find")
+            :max-iterations 100
             :prompt "Audit internal/gateway authentication risks. Return file:line evidence.")
           (agent "hermes"
             :mode "plan"
             :tools '("read" "grep" "find")
+            :max-iterations 100
             :prompt "Audit internal/hermes authentication risks. Return file:line evidence.")))
       (phase "verify"
         (agent "cross-check"
           :mode "plan"
           :tools '("read" "grep")
+          :max-iterations 80
           :prompt (concat
             (results "scan")
             "\nVerify the evidence, reject weak claims, and list final risks."))))
+
+## Agent Iteration Budgets
+
+The default per-worker :max-iterations is 50. That is a safety limit for small
+workers, not a good default for broad audits or repair loops. Set it explicitly:
+
+- Small read-only check: 50
+- Broad scan, inventory, or audit: 80-120
+- Synthesis over several prior results: 80-120
+- Edit/test/fix worker: 150-250
+- Final validation that runs multiple commands: 100-150
+
+If a worker may need many tools, prefer a larger :max-iterations over making the
+prompt vague. Keep the prompt bounded and tell the worker exactly when to stop.
+
+## Loop Status Rules
+
+When a result drives control flow with string=, the producing agent must return
+exactly the compared token. Do not ask for "DONE - reason" or "NEEDS_WORK plus
+evidence" if the workflow later checks (string= status "DONE"). Put evidence in
+a separate worker result or a final summary phase instead.
 
 ## Generation Checklist
 
@@ -124,6 +153,8 @@ Invalid examples:
 - Every agent option is a keyword/value pair.
 - Every agent has :prompt.
 - :tools uses quoted list syntax exactly like '("read" "grep").
+- :max-iterations is explicit for broad scans, edit workers, verification
+  workers, and loop workers.
 - Prior outputs are referenced with (result "phase.agent") or (results "phase").
 `,
 	"references/01-research.md": `# Research and Investigation Workflows
@@ -320,15 +351,17 @@ Every while loop must have:
             (agent "worker"
               :mode "agent"
               :tools '("read" "grep" "edit")
+              :max-iterations 150
               :prompt (concat
                 "Iteration " (format "%s" i) ". Fix only the highest-confidence issue. "
-                "Return DONE if no issue remains, otherwise NEEDS_WORK plus evidence."))
+                "Return a concise change summary and remaining risk. Do not return the loop status."))
             (agent "checker"
               :mode "plan"
               :tools '("read" "grep")
+              :max-iterations 80
               :prompt (concat
                 (result "iteration.worker")
-                "\nCheck whether the objective is complete. Return exactly DONE or NEEDS_WORK.")))
+                "\nCheck whether the objective is complete. Return exactly one token: DONE or NEEDS_WORK. No other text.")))
           (setq status (result "iteration.checker"))
           (setq i (+ i 1)))
         (phase "final"
