@@ -22,6 +22,10 @@ import (
 type contextKey int
 
 const (
+	defaultToolExecutionTimeout = 5 * time.Minute
+)
+
+const (
 	// agentIDKey is the context key for the current agent's ID.
 	agentIDKey contextKey = iota
 	// agentEventChanKey is the context key for the current agent's event channel.
@@ -415,6 +419,30 @@ func stripImageContent(messages []provider.Message) []provider.Message {
 	return result
 }
 
+func estimateTextTokens(s string) int {
+	return (len(s) + 3) / 4
+}
+
+func estimateToolDefinitionTokens(tools []provider.ToolDefinition) int {
+	if len(tools) == 0 {
+		return 0
+	}
+	data, err := json.Marshal(tools)
+	if err != nil {
+		return 0
+	}
+	return estimateTextTokens(string(data))
+}
+
+func estimateChatRequestTokens(systemPrompt string, messages []provider.Message, tools []provider.ToolDefinition) int {
+	total := estimateTextTokens(systemPrompt)
+	total += estimateToolDefinitionTokens(tools)
+	for _, msg := range messages {
+		total += ctxpkg.EstimateTokens(msg)
+	}
+	return total
+}
+
 // buildSessionContextMessage builds the [session context] message with dynamic information.
 // This implements Rule R2.3 from LLM_Agent_Cache.md: dynamic info goes into a separate message.
 // The message is marked as SystemInjected so cache markers skip it.
@@ -440,6 +468,123 @@ func (a *Agent) buildSessionContextMessage() provider.Message {
 	)
 
 	return provider.NewSystemInjectedUserMessage(context)
+}
+
+func (a *Agent) outputReserveTokens() int {
+	reserve := a.config.MaxTokens
+	if reserve <= 0 && a.config.Model != nil {
+		reserve = a.config.Model.MaxTokens
+	}
+	if reserve <= 0 {
+		reserve = 16384
+	}
+	if a.config.Model != nil && a.config.Model.ContextWindow > 0 && reserve >= a.config.Model.ContextWindow {
+		return a.config.Model.ContextWindow / 2
+	}
+	return reserve
+}
+
+func (a *Agent) requestTokenBudget() (budget int, reserve int, contextWindow int, ok bool) {
+	if a.config.Model == nil || a.config.Model.ContextWindow <= 0 {
+		return 0, 0, 0, false
+	}
+	contextWindow = a.config.Model.ContextWindow
+	reserve = a.outputReserveTokens()
+	budget = contextWindow - reserve
+	if budget <= 0 {
+		budget = contextWindow / 2
+	}
+	return budget, reserve, contextWindow, true
+}
+
+func (a *Agent) buildRequestMessages(sessionContextMsg provider.Message) []provider.Message {
+	a.mu.RLock()
+	allMessages := make([]provider.Message, 0, len(a.messages)+1)
+	allMessages = append(allMessages, sessionContextMsg)
+	allMessages = append(allMessages, a.messages...)
+	a.mu.RUnlock()
+
+	if !a.supportsImages() {
+		allMessages = stripImageContent(allMessages)
+	}
+	return allMessages
+}
+
+func isContextGuardToolResult(msg provider.Message) bool {
+	return msg.Role == "toolResult" && strings.HasPrefix(msg.Content, "[Context guard]")
+}
+
+func contextGuardToolResult(msg provider.Message, estimatedTokens, budgetTokens, contextWindow, reserveTokens int) provider.Message {
+	toolName := msg.ToolName
+	if toolName == "" {
+		toolName = "tool"
+	}
+	content := fmt.Sprintf("[Context guard] The %q tool output was omitted because sending it would exceed the model context window (estimated request: %d tokens; input budget: %d tokens; context window: %d; reserved for output: %d). Retry with a narrower scope: use read with offset/limit, grep/find with path/include/maxResults, or request smaller chunks and summarize incrementally.", toolName, estimatedTokens, budgetTokens, contextWindow, reserveTokens)
+	return provider.Message{
+		Role:       "toolResult",
+		Content:    content,
+		ToolCallID: msg.ToolCallID,
+		ToolName:   msg.ToolName,
+		IsError:    true,
+		Timestamp:  msg.Timestamp,
+	}
+}
+
+func (a *Agent) replaceLargestToolResultForContext(estimatedTokens, budgetTokens, contextWindow, reserveTokens int) (string, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	bestIndex := -1
+	bestTokens := 0
+	for i, msg := range a.messages {
+		if msg.Role != "toolResult" || isContextGuardToolResult(msg) {
+			continue
+		}
+		tokens := ctxpkg.EstimateTokens(msg)
+		if tokens > bestTokens {
+			bestIndex = i
+			bestTokens = tokens
+		}
+	}
+	if bestIndex < 0 {
+		return "", false
+	}
+
+	original := a.messages[bestIndex]
+	a.messages[bestIndex] = contextGuardToolResult(original, estimatedTokens, budgetTokens, contextWindow, reserveTokens)
+	if a.context != nil {
+		if len(a.context.Messages) == len(a.messages) {
+			a.context.Messages[bestIndex] = a.messages[bestIndex]
+		} else {
+			a.context.Messages = a.messages
+		}
+	}
+	return original.ToolName, true
+}
+
+func (a *Agent) prepareRequestMessages(sessionContextMsg provider.Message, ch chan<- Event) ([]provider.Message, error) {
+	budgetTokens, reserveTokens, contextWindow, ok := a.requestTokenBudget()
+	if !ok {
+		return a.buildRequestMessages(sessionContextMsg), nil
+	}
+
+	for attempts := 0; attempts < 16; attempts++ {
+		messages := a.buildRequestMessages(sessionContextMsg)
+		estimatedTokens := estimateChatRequestTokens(a.frozenSystemPrompt, messages, a.frozenToolDefs)
+		if estimatedTokens <= budgetTokens {
+			return messages, nil
+		}
+		toolName, replaced := a.replaceLargestToolResultForContext(estimatedTokens, budgetTokens, contextWindow, reserveTokens)
+		if !replaced {
+			return nil, fmt.Errorf("estimated request tokens %d exceed input budget %d for context window %d (reserved output: %d). Narrow the request or reduce context before retrying", estimatedTokens, budgetTokens, contextWindow, reserveTokens)
+		}
+		if toolName == "" {
+			toolName = "tool"
+		}
+		ch <- Event{Type: EventStatus, StatusMessage: fmt.Sprintf("Context guard omitted oversized %s output; asking model to retry with a narrower scope.", toolName)}
+	}
+
+	return nil, fmt.Errorf("estimated request still exceeds context after omitting oversized tool outputs")
 }
 
 // selectCacheMarkers selects the last 2 non-injected messages for cache control markers.
@@ -750,17 +895,13 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		// Build session context message with dynamic info (R2.3)
 		sessionContextMsg := a.buildSessionContextMessage()
 
-		// Build message list: session context + history messages
-		// Session context is marked as system_injected, so cache markers skip it
-		a.mu.RLock()
-		allMessages := make([]provider.Message, 0, len(a.messages)+1)
-		allMessages = append(allMessages, sessionContextMsg)
-		allMessages = append(allMessages, a.messages...)
-		a.mu.RUnlock()
-
-		// Strip image content if model doesn't support it
-		if !a.supportsImages() {
-			allMessages = stripImageContent(allMessages)
+		// Build and guard message list before sending. Session context is
+		// system_injected, so cache markers skip it.
+		allMessages, err := a.prepareRequestMessages(sessionContextMsg, ch)
+		if err != nil {
+			ch <- Event{Type: EventError, Error: err, StopReason: "context_limit"}
+			ch <- a.agentEndEvent()
+			return
 		}
 
 		// Select cache markers (dual-marker rolling buffer, R3.1-R3.3)
@@ -1236,7 +1377,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	}
 
 	// Execute tool with timeout
-	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	toolCtx, cancel := toolExecutionContext(ctx, tool, params)
 	defer cancel()
 
 	// Inject agent ID, event channel, and mode into context for sub-agent tools
@@ -1308,6 +1449,19 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	}
 
 	return provider.NewToolResultMessageWithContents(tc.ID, tc.Name, resultContent, resultContents, isError)
+}
+
+func toolExecutionContext(ctx context.Context, tool tools.Tool, params map[string]any) (context.Context, context.CancelFunc) {
+	timeout := defaultToolExecutionTimeout
+	if provider, ok := tool.(tools.ExecutionTimeoutProvider); ok {
+		if custom, override := provider.ExecutionTimeout(params); override {
+			timeout = custom
+		}
+	}
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
 }
 
 // GetMessages returns a copy of the current message history.

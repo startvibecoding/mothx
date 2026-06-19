@@ -242,6 +242,19 @@ func TestEstimateTokensImage(t *testing.T) {
 	}
 }
 
+func TestEstimateTokensLargeImageUsesPayloadSize(t *testing.T) {
+	msg := provider.Message{
+		Role: "user",
+		Contents: []provider.ContentBlock{
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: strings.Repeat("a", 20000)}},
+		},
+	}
+	result := EstimateTokens(msg)
+	if result != 5000 {
+		t.Errorf("EstimateTokens(large image) = %d, want 5000", result)
+	}
+}
+
 func TestEstimateTokensThinking(t *testing.T) {
 	msg := provider.Message{
 		Role: "assistant",

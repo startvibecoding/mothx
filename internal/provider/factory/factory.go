@@ -99,7 +99,7 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			}
 			return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
 		}
-		return p, model, nil
+		return p, applyModelOverrides(model, settings), nil
 	}
 
 	var p provider.Provider
@@ -136,7 +136,23 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 		}
 		return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
 	}
-	return p, model, nil
+	return p, applyModelOverrides(model, settings), nil
+}
+
+func applyModelOverrides(model *provider.Model, settings *config.Settings) *provider.Model {
+	if model == nil {
+		return nil
+	}
+	overridden := *model
+	overridden.Input = append([]string(nil), model.Input...)
+	if model.Compat != nil {
+		compat := *model.Compat
+		overridden.Compat = &compat
+	}
+	if settings != nil && settings.MaxContextTokens > 0 {
+		overridden.ContextWindow = settings.MaxContextTokens
+	}
+	return &overridden
 }
 
 // modelIDs returns a comma-separated list of model IDs for error messages.

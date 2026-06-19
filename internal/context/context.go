@@ -30,8 +30,14 @@ func EstimateTokens(msg provider.Message) int {
 					chars += len(block.ToolCall.Arguments)
 				}
 			case "image":
-				// Estimate images as ~4800 chars (~1200 tokens)
-				chars += 4800
+				// Estimate images with a minimum visual-token cost, plus base64
+				// payload size when available. Large inline images can otherwise
+				// evade request-size guards.
+				imageChars := 4800
+				if block.Image != nil && len(block.Image.Data) > imageChars {
+					imageChars = len(block.Image.Data)
+				}
+				chars += imageChars
 			}
 		}
 	} else if msg.Content != "" {

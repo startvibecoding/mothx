@@ -149,6 +149,51 @@ func (fixedBashTool) Execute(ctx context.Context, params map[string]any) (tools.
 	return tools.NewTextToolResult("bash output visible to the next model turn"), nil
 }
 
+type hugeBashTool struct {
+	fixedBashTool
+	output string
+}
+
+func (t hugeBashTool) Execute(ctx context.Context, params map[string]any) (tools.ToolResult, error) {
+	return tools.NewTextToolResult(t.output), nil
+}
+
+type timeoutBashTool struct {
+	fixedBashTool
+	timeout time.Duration
+}
+
+func (t timeoutBashTool) ExecutionTimeout(params map[string]any) (time.Duration, bool) {
+	return t.timeout, true
+}
+
+func TestToolExecutionContextUsesToolTimeoutOverride(t *testing.T) {
+	parent := context.Background()
+
+	defaultCtx, defaultCancel := toolExecutionContext(parent, fixedBashTool{}, nil)
+	defer defaultCancel()
+	if _, ok := defaultCtx.Deadline(); !ok {
+		t.Fatal("expected default tool execution deadline")
+	}
+
+	customCtx, customCancel := toolExecutionContext(parent, timeoutBashTool{timeout: 2 * time.Second}, nil)
+	defer customCancel()
+	deadline, ok := customCtx.Deadline()
+	if !ok {
+		t.Fatal("expected custom tool execution deadline")
+	}
+	remaining := time.Until(deadline)
+	if remaining <= 0 || remaining > 3*time.Second {
+		t.Fatalf("custom deadline remaining = %s, want about 2s", remaining)
+	}
+
+	noDeadlineCtx, noDeadlineCancel := toolExecutionContext(parent, timeoutBashTool{timeout: 0}, nil)
+	defer noDeadlineCancel()
+	if _, ok := noDeadlineCtx.Deadline(); ok {
+		t.Fatal("expected no agent-level deadline when tool timeout is zero")
+	}
+}
+
 func newLoopingToolProvider() *loopingToolProvider {
 	return &loopingToolProvider{
 		models: []*provider.Model{{ID: "model1", Name: "Model 1"}},
@@ -519,6 +564,57 @@ func TestToolResultIsIncludedInNextProviderTurn(t *testing.T) {
 	}
 }
 
+func TestOversizedToolResultIsOmittedBeforeNextProviderTurn(t *testing.T) {
+	recorder := &recordingToolProvider{
+		models: []*provider.Model{{
+			ID:            "model1",
+			Name:          "Model 1",
+			ContextWindow: 12000,
+			MaxTokens:     512,
+		}},
+	}
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+	registry.Register(hugeBashTool{output: strings.Repeat("x", 60000)})
+
+	cfg := AgentLoopConfig{
+		Config: Config{
+			Provider:  recorder,
+			Model:     recorder.Models()[0],
+			Mode:      "yolo",
+			MaxTokens: 512,
+		},
+		ToolExecutionMode: "sequential",
+		MaxIterations:     2,
+	}
+
+	a := NewWithLoopConfig(cfg, registry)
+	for range a.Run(context.Background(), "run bash") {
+	}
+
+	if len(recorder.calls) != 2 {
+		t.Fatalf("expected 2 provider calls, got %d", len(recorder.calls))
+	}
+
+	var guardMessage string
+	for _, msg := range recorder.calls[1].Messages {
+		if msg.Role == "toolResult" && msg.ToolName == "bash" {
+			guardMessage = messageTextForTest(msg)
+			if strings.Contains(guardMessage, strings.Repeat("x", 1000)) {
+				t.Fatal("second provider call included oversized raw tool result")
+			}
+			break
+		}
+	}
+	if !strings.Contains(guardMessage, "[Context guard]") {
+		t.Fatalf("second provider call missing context guard tool result: %#v", recorder.calls[1].Messages)
+	}
+	if !strings.Contains(guardMessage, "offset/limit") || !strings.Contains(guardMessage, "maxResults") {
+		t.Fatalf("context guard did not instruct the model to narrow scope: %q", guardMessage)
+	}
+}
+
 func messageTextForTest(msg provider.Message) string {
 	if msg.Content != "" || len(msg.Contents) == 0 {
 		return msg.Content
@@ -600,14 +696,15 @@ func TestShouldStopAfterTurnDoneIncludesFinalMetadata(t *testing.T) {
 		{Type: provider.StreamDone, StopReason: "tool_use"},
 	}
 	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
-		{ID: "model1", Name: "Model 1", ContextWindow: 1000},
+		{ID: "model1", Name: "Model 1", ContextWindow: 50000, MaxTokens: 512},
 	}, responses)
 
 	cfg := AgentLoopConfig{
 		Config: Config{
-			Provider: mockProvider,
-			Model:    mockProvider.Models()[0],
-			Mode:     "agent",
+			Provider:  mockProvider,
+			Model:     mockProvider.Models()[0],
+			Mode:      "agent",
+			MaxTokens: 512,
 		},
 		ToolExecutionMode: "sequential",
 		MaxIterations:     2,

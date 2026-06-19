@@ -224,3 +224,40 @@ func TestCreateFallbackToFirstModel(t *testing.T) {
 		t.Fatalf("model = %#v, want first model %s", model2, available[0].ID)
 	}
 }
+
+func TestCreateAppliesMaxContextTokensOverride(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"custom-provider": {
+				APIKey:  "fake-key",
+				BaseURL: "https://api.openai.com/v1",
+				API:     "openai-chat",
+				Models: []config.ModelConfig{
+					{ID: "model-one", Name: "Model One", ContextWindow: 100000},
+				},
+			},
+		},
+		MaxContextTokens: 12345,
+	}
+
+	_, model, err := Create(settings, "custom-provider", "model-one")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if model.ContextWindow != 12345 {
+		t.Fatalf("ContextWindow = %d, want 12345", model.ContextWindow)
+	}
+}
+
+func TestCreateAppliesMaxContextTokensOverrideForBuiltinProvider(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.MaxContextTokens = 54321
+
+	_, model, err := Create(settings, "openai", "gpt-4o")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if model.ContextWindow != 54321 {
+		t.Fatalf("ContextWindow = %d, want 54321", model.ContextWindow)
+	}
+}
