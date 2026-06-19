@@ -20,15 +20,15 @@ Markdown fences.
 Start with the loaded core rules. Load scenario files only when the task matches
 that pattern.
 
-### 1. Core Rules and Skeletons (references/00-core-rules.md) [已加载]
-### 2. Research and Investigation Workflows (references/01-research.md) [待按需加载]
-### 3. Serial and Parallel Composition (references/02-serial-parallel.md) [待按需加载]
-### 4. Decision Routing and Branching (references/03-decision-routing.md) [待按需加载]
-### 5. Continuous Loops and Iterative Tasks (references/04-continuous-loops.md) [待按需加载]
-### 6. Horizontal Multi-Agent Collaboration (references/05-horizontal-collaboration.md) [待按需加载]
-### 7. Master-Slave Small Team Workflows (references/06-master-slave-team.md) [待按需加载]
-### 8. Evaluator-Optimizer and Critic Loops (references/07-evaluator-optimizer.md) [待按需加载]
-### 9. Governance and Human Checkpoints (references/08-governance-checkpoints.md) [待按需加载]
+### 1. Core Rules and Skeletons (references/00-core-rules.md) [loaded]
+### 2. Research and Investigation Workflows (references/01-research.md) [load on demand]
+### 3. Serial and Parallel Composition (references/02-serial-parallel.md) [load on demand]
+### 4. Decision Routing and Branching (references/03-decision-routing.md) [load on demand]
+### 5. Continuous Loops and Iterative Tasks (references/04-continuous-loops.md) [load on demand]
+### 6. Horizontal Multi-Agent Collaboration (references/05-horizontal-collaboration.md) [load on demand]
+### 7. Master-Slave Small Team Workflows (references/06-master-slave-team.md) [load on demand]
+### 8. Evaluator-Optimizer and Critic Loops (references/07-evaluator-optimizer.md) [load on demand]
+### 9. Governance and Human Checkpoints (references/08-governance-checkpoints.md) [load on demand]
 
 ## Pattern Selection
 
