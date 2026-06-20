@@ -1,6 +1,41 @@
 # 更新日志
 
 
+## v0.1.46
+
+### ✨ 新功能
+
+- **Workflow Lint 工具**
+  - 新增 `workflow_lint`，可在不运行 worker agents 的情况下验证 workflow Elisp DSL。
+  - Lint 会检查 Elisp 语法、workflow/phase/agent 表单、关键字参数、必需 prompt，以及 result 引用。
+  - 将 lint 工具与 workflow run/status/cancel 工具一起注册，并更新 workflow prompt 指引：非平凡的生成或修改后 workflow 应先 lint 再执行。
+
+### 🐛 Bug 修复
+
+- **并发文件写入**
+  - 新增进程级内存文件锁管理器，默认 tool registry 共享同一个管理器。
+  - `write` 和 `edit` 在读取和修改文件前会获取按文件粒度的锁，避免多个 agent 并发写同一目标文件时互相交错覆盖。
+  - 等待锁时支持 context 取消和 deadline；等待被中断时会报告当前锁持有者。
+
+### 🔧 重构
+
+- **命名 Workflow Worker Agents**
+  - Workflow worker agent 现在使用由 DSL agent 名称派生的确定性 ID（`agent-<name>`），改善事件归属和后台 agent 可见性。
+  - Workflow skill 指引已记录该 ID 映射，并建议在同一个 workflow 内保持 agent 名称唯一。
+
+### 📚 文档
+
+- 澄清 Ctrl+O 详情弹窗中的按键提示，包括切换目标、翻页、滚动和关闭。
+- 记录 TUI scrollback 的取舍：已完成 transcript block 会打印到原生终端 scrollback，以保证选择和历史滚动稳定；用户输入仍应按 block 打印，而不是无缓存流式输出，避免干扰 Bubble Tea 的 live view 重绘。
+
+### 🧪 测试
+
+- 新增 workflow lint 测试，覆盖有效 source 收集和缺失 result 引用错误。
+- 新增 workflow 集成测试，验证 DSL agent 名称会反映到运行时 worker agent ID。
+- 新增文件锁测试，覆盖等待/取消行为、默认管理器共享，以及 `write`/`edit` 的 context 处理。
+
+---
+
 ## v0.1.45
 
 ### ✨ 新功能
@@ -41,7 +76,6 @@
 - 新增 Workflow 模式使用指南和最佳实践文档（中英文），覆盖快速入门、核心概念、常见模式和避坑指南。
 - 同步各文档页面的 workflow 引用：在功能概览中新增动态 Workflow 章节，在使用场景中新增 workflow 编排场景，并从工具参考文档添加交叉链接。
 - 在 `workflow-elisp` skill 和文档中澄清 workflow 隐式默认值与限制：worker `:max-iterations` 默认值和失败行为、`workflow_run timeoutSeconds`、`concurrency` 默认值、继承的 `:mode`、默认 `:tools`、当前工作目录行为、禁用嵌套编排，以及不支持的 per-worker 选项。
-- 记录 TUI scrollback 的取舍：已完成 transcript block 会打印到原生终端 scrollback，以保证选择和历史滚动稳定；用户输入仍应按 block 打印，而不是无缓存流式输出，避免干扰 Bubble Tea 的 live view 重绘。
 
 ### 🧪 测试
 

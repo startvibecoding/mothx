@@ -1,6 +1,41 @@
 # Changelog
 
 
+## v0.1.46
+
+### ✨ Features
+
+- **Workflow Lint Tool**
+  - Added `workflow_lint` to validate workflow Elisp DSL without running worker agents.
+  - Linting checks Elisp syntax, workflow/phase/agent forms, keyword arguments, required prompts, and result references.
+  - Registered the lint tool alongside workflow run/status/cancel tools and updated workflow prompt guidance to lint non-trivial generated or edited workflows before execution.
+
+### 🐛 Bug Fixes
+
+- **Concurrent File Writes**
+  - Added a process-wide in-memory file lock manager shared by default tool registries.
+  - `write` and `edit` now acquire per-file locks before reading and modifying files, preventing concurrent agents from interleaving writes to the same target.
+  - Lock waits honor context cancellation/deadlines and report the current owner when interrupted.
+
+### 🔧 Refactoring
+
+- **Named Workflow Worker Agents**
+  - Workflow worker agents now use deterministic IDs derived from DSL agent names (`agent-<name>`), improving event attribution and background agent visibility.
+  - Workflow skill guidance now documents the ID mapping and recommends unique agent names within a workflow.
+
+### 📚 Documentation
+
+- Clarified Ctrl+O details modal key hints for target switching, paging, scrolling, and closing.
+- Documented the TUI scrollback trade-off: completed transcript blocks are printed to native terminal scrollback for stable selection/history, while user input should remain block-printed rather than unbuffered streaming to avoid interfering with Bubble Tea live rendering.
+
+### 🧪 Tests
+
+- Added workflow lint tests for valid source collection and missing result reference errors.
+- Added workflow integration coverage verifying DSL agent names are reflected in runtime worker agent IDs.
+- Added file lock tests for wait/cancel behavior, shared default managers, and `write`/`edit` context handling.
+
+---
+
 ## v0.1.45
 
 ### ✨ Features
@@ -41,7 +76,6 @@
 - Added Workflow mode usage guide and best practices documentation (EN/ZH) covering quick start, core concepts, common patterns, and pitfalls.
 - Synced workflow references across docs pages: added Dynamic Workflows section to features overview, workflow orchestration scenario to use cases, and cross-links from tools references.
 - Clarified workflow hidden defaults and limits in the `workflow-elisp` skill and docs: worker `:max-iterations` default/failure behavior, `workflow_run timeoutSeconds`, `concurrency` default, inherited `:mode`, default `:tools`, current work directory behavior, disabled nested orchestration, and unsupported per-worker options.
-- Documented the TUI scrollback trade-off: completed transcript blocks are printed to native terminal scrollback for stable selection/history, while user input should remain block-printed rather than unbuffered streaming to avoid interfering with Bubble Tea live rendering.
 
 ### 🧪 Tests
 
