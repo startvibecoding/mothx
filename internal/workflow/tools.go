@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
@@ -24,6 +26,7 @@ func RegisterTools(registry *tools.Registry, manager *internalagent.AgentManager
 		store = DefaultStore()
 	}
 	active := DefaultActiveRegistry()
+	registry.Register(NewLintTool())
 	registry.Register(NewRunToolWithActive(manager, store, active))
 	registry.Register(NewStatusTool(store))
 	registry.Register(NewCancelTool(active))
@@ -31,6 +34,121 @@ func RegisterTools(registry *tools.Registry, manager *internalagent.AgentManager
 
 func DefaultStore() Store {
 	return NewFileStore(filepath.Join(config.ConfigDir(), "workflows", "runs"))
+}
+
+type LintTool struct{}
+
+func NewLintTool() *LintTool { return &LintTool{} }
+
+func (t *LintTool) Name() string { return "workflow_lint" }
+func (t *LintTool) Description() string {
+	return "Validate workflow Elisp DSL syntax and references without running worker agents."
+}
+func (t *LintTool) PromptSnippet() string {
+	return "Validate workflow Elisp DSL before workflow_run"
+}
+func (t *LintTool) PromptGuidelines() []string {
+	return []string{
+		"Use workflow_lint before workflow_run when generating or modifying non-trivial workflow DSL.",
+		"workflow_lint validates Elisp syntax, workflow/phase/agent forms, keyword arguments, required prompts, and result references without invoking worker agents.",
+	}
+}
+func (t *LintTool) Parameters() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"source": {
+				"type": "string",
+				"description": "Complete raw Elisp workflow DSL source to validate. Do not pass Markdown fences."
+			}
+		},
+		"required": ["source"]
+	}`)
+}
+func (t *LintTool) Execute(ctx context.Context, params map[string]any) (tools.ToolResult, error) {
+	source, _ := params["source"].(string)
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return tools.ToolResult{}, fmt.Errorf("source is required")
+	}
+	result := lintWorkflowSource(ctx, source)
+	data, _ := json.Marshal(result)
+	return tools.NewTextToolResult(string(data)), nil
+}
+
+type lintResult struct {
+	Valid   bool     `json:"valid"`
+	Status  string   `json:"status"`
+	Error   string   `json:"error,omitempty"`
+	Tasks   []string `json:"tasks,omitempty"`
+	Results []string `json:"results,omitempty"`
+}
+
+type lintHost struct {
+	mu    sync.Mutex
+	tasks []string
+}
+
+func (h *lintHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, error) {
+	key := task.Name
+	if task.Phase != "" {
+		key = task.Phase + "." + task.Name
+	}
+	h.mu.Lock()
+	h.tasks = append(h.tasks, key)
+	h.mu.Unlock()
+	return AgentResult{
+		Key:    key,
+		Name:   task.Name,
+		Phase:  task.Phase,
+		Status: StatusDone,
+		Result: "__workflow_lint_placeholder__",
+	}, nil
+}
+
+func lintWorkflowSource(ctx context.Context, source string) lintResult {
+	host := &lintHost{}
+	runner := &Runner{Host: host, Active: NewActiveRegistry(), Concurrency: 100}
+	state, err := runner.Run(ctx, source)
+	res := lintResult{
+		Valid: err == nil,
+		Tasks: sortedStrings(host.tasks),
+	}
+	if state != nil {
+		res.Status = state.Status
+		res.Results = sortedResultKeys(state.Results)
+	}
+	if res.Status == "" {
+		if err != nil {
+			res.Status = StatusError
+		} else {
+			res.Status = StatusDone
+		}
+	}
+	if err != nil {
+		res.Error = err.Error()
+	}
+	return res
+}
+
+func sortedResultKeys(results map[string]AgentResult) []string {
+	if len(results) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(results))
+	for key := range results {
+		keys = append(keys, key)
+	}
+	return sortedStrings(keys)
+}
+
+func sortedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := append([]string(nil), values...)
+	sort.Strings(out)
+	return out
 }
 
 type RunTool struct {
@@ -59,6 +177,7 @@ func (t *RunTool) PromptSnippet() string {
 }
 func (t *RunTool) PromptGuidelines() []string {
 	return []string{
+		"Use workflow_lint before workflow_run when generating or modifying non-trivial workflow DSL.",
 		"Use workflow_run for multi-phase tasks with independent worker-agent branches and fan-in verification.",
 		"Write workflow DSL using plain Elisp syntax; do not use Markdown code fences.",
 		"Before calling workflow_run, ensure the source is one complete (workflow \"name\" ...) form with balanced parentheses and closed double-quoted strings.",

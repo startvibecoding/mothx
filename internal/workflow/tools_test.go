@@ -17,7 +17,7 @@ func TestRegisterToolsRegistersOnlyWorkflowTools(t *testing.T) {
 
 	RegisterTools(registry, manager, &memoryStore{})
 
-	for _, name := range []string{"workflow_run", "workflow_status", "workflow_cancel"} {
+	for _, name := range []string{"workflow_lint", "workflow_run", "workflow_status", "workflow_cancel"} {
 		if _, ok := registry.Get(name); !ok {
 			t.Fatalf("expected %s to be registered", name)
 		}
@@ -29,6 +29,57 @@ func TestRegisterToolsRegistersOnlyWorkflowTools(t *testing.T) {
 	}
 }
 
+func TestLintToolValidatesWorkflowSourceWithoutRunningAgents(t *testing.T) {
+	tool := NewLintTool()
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"source": `
+			(workflow "lint me"
+			  (phase "scan"
+			    (agent "handler-audit"
+			      :mode "plan"
+			      :tools '("read" "grep")
+			      :prompt "Audit handler."))
+			  (phase "verify"
+			    (agent "cross-check"
+			      :mode "plan"
+			      :prompt (concat (result "scan.handler-audit") "\nVerify."))))`,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var parsed lintResult
+	if err := json.Unmarshal([]byte(result.Text), &parsed); err != nil {
+		t.Fatalf("parse lint result: %v", err)
+	}
+	if !parsed.Valid || parsed.Status != StatusDone {
+		t.Fatalf("lint result = %#v, want valid done", parsed)
+	}
+	if !equalStrings(parsed.Tasks, []string{"scan.handler-audit", "verify.cross-check"}) {
+		t.Fatalf("tasks = %#v", parsed.Tasks)
+	}
+	if !equalStrings(parsed.Results, []string{"scan.handler-audit", "verify.cross-check"}) {
+		t.Fatalf("results = %#v", parsed.Results)
+	}
+}
+
+func TestLintToolReportsWorkflowErrors(t *testing.T) {
+	result, err := NewLintTool().Execute(context.Background(), map[string]any{
+		"source": `(workflow "bad" (phase "verify" (agent "check" :prompt (result "scan.missing"))))`,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	var parsed lintResult
+	if err := json.Unmarshal([]byte(result.Text), &parsed); err != nil {
+		t.Fatalf("parse lint result: %v", err)
+	}
+	if parsed.Valid {
+		t.Fatalf("lint result valid = true, want false: %#v", parsed)
+	}
+	if !strings.Contains(parsed.Error, `workflow result "scan.missing" not found`) {
+		t.Fatalf("error = %q", parsed.Error)
+	}
+}
 func TestRunToolPromptGuidelinesRequireCompleteElispSource(t *testing.T) {
 	tool := NewRunTool(nil, nil)
 	guidelines := strings.Join(tool.PromptGuidelines(), "\n")

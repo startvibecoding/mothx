@@ -12,6 +12,59 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 )
 
+func TestAgentHostUsesDSLNameForAgentID(t *testing.T) {
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1", ContextWindow: 4096, MaxTokens: 1024},
+	}, []provider.StreamEvent{
+		{Type: provider.StreamStart},
+		{Type: provider.StreamTextDelta, TextDelta: "audit complete"},
+		{Type: provider.StreamDone},
+	})
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
+	factory := internalagent.NewAgentFactoryWithOptions(
+		mockProvider,
+		mockProvider.Models()[0],
+		settings,
+		sandboxMgr,
+		"",
+		nil,
+		ctxpkg.CompactionSettings{},
+		nil,
+		internalagent.AgentFactoryOptions{WorkflowsEnabled: true},
+	)
+	manager := internalagent.NewAgentManager(factory)
+	events := make(chan internalagent.Event, 10)
+	host := &AgentHost{Manager: manager, ParentMode: "plan", ParentEventCh: events}
+
+	_, err := host.RunAgent(context.Background(), AgentTask{
+		Name:   "handler-audit",
+		Mode:   "plan",
+		Tools:  []string{"read"},
+		Prompt: "Audit the handler.",
+	})
+	if err != nil {
+		t.Fatalf("RunAgent() error = %v", err)
+	}
+
+	want := "agent-handler-audit"
+	found := false
+	for {
+		select {
+		case ev := <-events:
+			if string(ev.AgentID) == want {
+				found = true
+			}
+		default:
+			if !found {
+				t.Fatalf("expected forwarded event from %s", want)
+			}
+			return
+		}
+	}
+}
+
 func TestWorkflowRunToolReadOnlyAuditEndToEnd(t *testing.T) {
 	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
 		{ID: "model1", Name: "Model 1", ContextWindow: 4096, MaxTokens: 1024},

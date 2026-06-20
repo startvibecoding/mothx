@@ -46,6 +46,7 @@ func (h *AgentHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, 
 	}
 
 	a, err := h.Manager.Create(internalagent.AgentOptions{
+		ID:                workflowAgentID(task.Name),
 		ParentID:          h.ParentID,
 		Mode:              mode,
 		WorkDir:           task.WorkDir,
@@ -105,6 +106,14 @@ func (h *AgentHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, 
 		return result, runErr
 	}
 	return result, nil
+}
+
+func workflowAgentID(name string) agentpkg.AgentID {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return agentpkg.AgentID("agent-" + name)
 }
 
 func buildTaskPrompt(task AgentTask) string {

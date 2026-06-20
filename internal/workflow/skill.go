@@ -10,7 +10,9 @@ const SkillName = "workflow-elisp"
 
 const defaultSkillContent = `# Workflow Elisp
 
-Use this skill when authoring workflow_run source for dynamic workflow mode.
+Use this skill when authoring workflow_run source for dynamic workflow mode. Before
+running a non-trivial workflow, call workflow_lint on the raw source first; only
+call workflow_run after lint returns valid=true.
 
 The workflow_run source must be one complete raw Elisp form. Do not wrap it in
 Markdown fences. When invoking workflow_run for long workflows, set the tool
@@ -48,7 +50,15 @@ that pattern.
 
 ## Non-Negotiable Constraints
 
+- Use workflow_lint before workflow_run for non-trivial generated or edited
+  workflow source. It validates Elisp syntax, workflow/phase/agent forms,
+  keyword arguments, required prompts, and result references without running
+  worker agents.
 - workflow, phase, and agent names must be string literals.
+- Each agent literal name becomes the runtime worker agent ID with an "agent-"
+  prefix, for example (agent "handler-audit" ...) runs as
+  agent-handler-audit. Keep agent names unique within a workflow, especially
+  inside parallel branches.
 - defun and defmacro only support fixed parameter lists. Do not use &optional,
   &rest, &body, or any argument marker beginning with &.
 - Tool lists must be quoted string lists: '("read" "grep" "find").
@@ -81,6 +91,12 @@ var defaultReferenceFiles = map[string]string{
 - The first argument of agent must be a string literal.
 - Do not generate workflow, phase, or agent names with variables, function calls,
   concat, format, let bindings, or other expressions.
+- An agent literal name also determines the runtime worker agent ID: the ID is
+  "agent-" plus the literal name. For example, (agent "handler-audit" ...)
+  starts worker agent agent-handler-audit.
+- Keep agent names unique within a workflow. Duplicate names overwrite result
+  keys, and duplicate names running concurrently can collide on the worker agent
+  ID.
 - defun only supports fixed parameter lists. Do not use &optional, &rest, &key,
   &body, &allow-other-keys, or any parameter marker beginning with &.
 - defmacro only supports fixed parameter lists. Do not use &optional, &rest,
@@ -99,6 +115,8 @@ Invalid examples:
 
 ## Supported Workflow Forms
 
+- workflow_lint validates raw workflow source without invoking worker agents.
+- workflow_run executes the workflow after lint passes.
 - (workflow "name" body...) defines one workflow run.
 - (concurrency n) sets the maximum number of concurrent worker agents.
 - (phase "name" body...) groups sequential phases and records phase state.
@@ -190,8 +208,10 @@ a separate worker result or a final summary phase instead.
 
 ## Generation Checklist
 
+- Run workflow_lint on non-trivial workflow source before workflow_run.
 - Source starts with (workflow "literal-name" ...).
 - Every phase and agent has a literal string name.
+- Agent names are unique and suitable for the agent-<name> runtime worker ID.
 - Parentheses and strings are balanced.
 - Every agent option is a keyword/value pair.
 - Every agent has :prompt.
