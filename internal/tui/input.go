@@ -141,6 +141,9 @@ func (a *App) cycleMode() {
 			Enabled:          a.settings.Compaction.Enabled,
 			ReserveTokens:    a.settings.Compaction.ReserveTokens,
 			KeepRecentTokens: a.settings.Compaction.KeepRecentTokens,
+			Tokenizer:        a.settings.Compaction.Tokenizer,
+			TokenizerModel:   a.settings.Compaction.TokenizerModel,
+			Template:         a.settings.Compaction.Template,
 		}
 		if compactionSettings.ReserveTokens == 0 {
 			compactionSettings.ReserveTokens = 16384
@@ -263,6 +266,9 @@ func (a *App) processInput(input string) tea.Cmd {
 			Enabled:          a.settings.Compaction.Enabled,
 			ReserveTokens:    a.settings.Compaction.ReserveTokens,
 			KeepRecentTokens: a.settings.Compaction.KeepRecentTokens,
+			Tokenizer:        a.settings.Compaction.Tokenizer,
+			TokenizerModel:   a.settings.Compaction.TokenizerModel,
+			Template:         a.settings.Compaction.Template,
 		}
 		if compactionSettings.ReserveTokens == 0 {
 			compactionSettings.ReserveTokens = 16384

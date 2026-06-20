@@ -13,6 +13,26 @@ type compactRecordingProvider struct {
 	lastChat provider.ChatParams
 }
 
+type fixedTokenEstimator struct {
+	tokensByContent map[string]int
+	defaultTokens   int
+}
+
+func (e fixedTokenEstimator) EstimateTokens(msg provider.Message) int {
+	if v, ok := e.tokensByContent[msg.Content]; ok {
+		return v
+	}
+	return e.defaultTokens
+}
+
+func (e fixedTokenEstimator) EstimateMessagesTokens(messages []provider.Message) int {
+	total := 0
+	for _, msg := range messages {
+		total += e.EstimateTokens(msg)
+	}
+	return total
+}
+
 func (p *compactRecordingProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
 	p.lastChat = params
 	ch := make(chan provider.StreamEvent, 2)
@@ -171,6 +191,23 @@ func TestEstimateContextTokens(t *testing.T) {
 	}
 }
 
+func TestEstimateContextTokensWithEstimator(t *testing.T) {
+	messages := []provider.Message{
+		{Role: "user", Content: "already counted"},
+		{Role: "assistant", Content: "response", Usage: &provider.Usage{Input: 100, Output: 50, TotalTokens: 150}},
+		{Role: "user", Content: "trailing"},
+	}
+	estimator := fixedTokenEstimator{tokensByContent: map[string]int{"trailing": 42}, defaultTokens: 1}
+
+	tokens, lastUsageIndex := EstimateContextTokensWithEstimator(messages, estimator)
+	if lastUsageIndex != 1 {
+		t.Errorf("lastUsageIndex = %d, want 1", lastUsageIndex)
+	}
+	if tokens != 192 {
+		t.Errorf("tokens = %d, want 192", tokens)
+	}
+}
+
 func TestShouldCompact(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -226,6 +263,115 @@ func TestFindCutPoint(t *testing.T) {
 	cutPoint := FindCutPoint(messages, 0, len(messages), 10)
 	if cutPoint.FirstKeptIndex < 0 || cutPoint.FirstKeptIndex >= len(messages) {
 		t.Errorf("FirstKeptIndex out of range: %d", cutPoint.FirstKeptIndex)
+	}
+}
+
+func TestFindCutPointWithEstimator(t *testing.T) {
+	messages := []provider.Message{
+		{Role: "user", Content: "old"},
+		{Role: "assistant", Content: "old response"},
+		{Role: "user", Content: "recent"},
+		{Role: "assistant", Content: "recent response"},
+	}
+	estimator := fixedTokenEstimator{
+		tokensByContent: map[string]int{
+			"old":             1,
+			"old response":    1,
+			"recent":          40,
+			"recent response": 40,
+		},
+		defaultTokens: 1,
+	}
+
+	cutPoint := FindCutPointWithEstimator(messages, 0, len(messages), 40, estimator)
+	if cutPoint.FirstKeptIndex != 3 {
+		t.Errorf("FirstKeptIndex = %d, want 3", cutPoint.FirstKeptIndex)
+	}
+	if !cutPoint.IsSplitTurn || cutPoint.TurnStartIndex != 2 {
+		t.Errorf("cutPoint split turn = (%v, %d), want (true, 2)", cutPoint.IsSplitTurn, cutPoint.TurnStartIndex)
+	}
+}
+
+func TestResolveCompressionTemplate(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		wantName string
+		wantText string
+	}{
+		{name: "default empty", template: "", wantName: "default", wantText: "structured context checkpoint"},
+		{name: "code", template: "code", wantName: "code", wantText: "structured coding checkpoint"},
+		{name: "conversation", template: "conversation", wantName: "conversation", wantText: "conversation checkpoint"},
+		{name: "unknown fallback", template: "missing", wantName: "default", wantText: "structured context checkpoint"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			template := ResolveCompressionTemplate(tt.template)
+			if template.Name != tt.wantName {
+				t.Fatalf("Name = %q, want %q", template.Name, tt.wantName)
+			}
+			if !strings.Contains(template.Instruction, tt.wantText) {
+				t.Fatalf("Instruction = %q, want text %q", template.Instruction, tt.wantText)
+			}
+		})
+	}
+}
+
+func TestCompactUsesConfiguredTemplate(t *testing.T) {
+	p := &compactRecordingProvider{
+		models: []*provider.Model{{ID: "m", Name: "m", MaxTokens: 1024}},
+	}
+	messages := []provider.Message{
+		{Role: "user", Content: strings.Repeat("old ", 80)},
+		{Role: "assistant", Content: strings.Repeat("old response ", 80)},
+		{Role: "user", Content: "recent"},
+	}
+
+	_, err := Compact(
+		context.Background(),
+		messages,
+		p,
+		p.models[0],
+		"system",
+		nil,
+		CompactionSettings{ReserveTokens: 1024, KeepRecentTokens: 1, Template: "code"},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("Compact() error = %v", err)
+	}
+	got := p.lastChat.Messages[len(p.lastChat.Messages)-1].Content
+	if !strings.Contains(got, "structured coding checkpoint") {
+		t.Fatalf("compression instruction = %q, want code template", got)
+	}
+}
+
+func TestGenerateSummaryUsesConfiguredUpdateTemplate(t *testing.T) {
+	p := &compactRecordingProvider{
+		models: []*provider.Model{{ID: "m", Name: "m", MaxTokens: 1024}},
+	}
+
+	_, err := GenerateSummaryInsertThenCompressWithTemplate(
+		context.Background(),
+		[]provider.Message{{Role: "user", Content: "new information"}},
+		p,
+		p.models[0],
+		"system",
+		nil,
+		"## Goal\nprevious",
+		512,
+		ResolveCompressionTemplate("code"),
+	)
+	if err != nil {
+		t.Fatalf("GenerateSummaryInsertThenCompressWithTemplate() error = %v", err)
+	}
+	got := p.lastChat.Messages[len(p.lastChat.Messages)-1].Content
+	if !strings.Contains(got, "existing coding checkpoint summary") {
+		t.Fatalf("update instruction = %q, want code update template", got)
+	}
+	if !strings.Contains(got, "## Goal\nprevious") {
+		t.Fatalf("update instruction missing previous summary: %q", got)
 	}
 }
 

@@ -138,6 +138,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		Enabled:          s.settings.Compaction.Enabled,
 		ReserveTokens:    s.settings.Compaction.ReserveTokens,
 		KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        s.settings.Compaction.Tokenizer,
+		TokenizerModel:   s.settings.Compaction.TokenizerModel,
+		Template:         s.settings.Compaction.Template,
 	}
 	if compactionSettings.ReserveTokens == 0 {
 		compactionSettings.ReserveTokens = 16384
@@ -503,6 +506,9 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 			Enabled:          s.settings.Compaction.Enabled,
 			ReserveTokens:    s.settings.Compaction.ReserveTokens,
 			KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+			Tokenizer:        s.settings.Compaction.Tokenizer,
+			TokenizerModel:   s.settings.Compaction.TokenizerModel,
+			Template:         s.settings.Compaction.Template,
 		}
 		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,

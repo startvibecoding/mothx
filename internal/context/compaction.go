@@ -18,9 +18,12 @@ func abs(x int) int {
 
 // CompactionSettings holds compaction configuration.
 type CompactionSettings struct {
-	Enabled          bool `json:"enabled"`
-	ReserveTokens    int  `json:"reserveTokens"`
-	KeepRecentTokens int  `json:"keepRecentTokens"`
+	Enabled          bool   `json:"enabled"`
+	ReserveTokens    int    `json:"reserveTokens"`
+	KeepRecentTokens int    `json:"keepRecentTokens"`
+	Tokenizer        string `json:"tokenizer,omitempty"`
+	TokenizerModel   string `json:"tokenizerModel,omitempty"`
+	Template         string `json:"template,omitempty"`
 
 	// Idle compression settings (R5.1-R5.5)
 	// When enabled, triggers compression during idle periods to maintain cache warmth.
@@ -84,6 +87,14 @@ func FindTurnStartIndex(messages []provider.Message, entryIndex, startIndex int)
 
 // FindCutPoint finds the cut point that keeps approximately keepRecentTokens.
 func FindCutPoint(messages []provider.Message, startIndex, endIndex, keepRecentTokens int) CutPointResult {
+	return FindCutPointWithEstimator(messages, startIndex, endIndex, keepRecentTokens, GenericTokenEstimator{})
+}
+
+// FindCutPointWithEstimator finds the cut point using the supplied token estimator.
+func FindCutPointWithEstimator(messages []provider.Message, startIndex, endIndex, keepRecentTokens int, estimator TokenEstimator) CutPointResult {
+	if estimator == nil {
+		estimator = GenericTokenEstimator{}
+	}
 	cutPoints := FindValidCutPoints(messages, startIndex, endIndex)
 
 	if len(cutPoints) == 0 {
@@ -95,7 +106,7 @@ func FindCutPoint(messages []provider.Message, startIndex, endIndex, keepRecentT
 	cutIndex := cutPoints[0] // Default: keep from first message
 
 	for i := endIndex - 1; i >= startIndex; i-- {
-		messageTokens := EstimateTokens(messages[i])
+		messageTokens := estimator.EstimateTokens(messages[i])
 		accumulatedTokens += messageTokens
 
 		if accumulatedTokens >= keepRecentTokens {
@@ -216,9 +227,16 @@ func truncateString(s string, maxLen int) string {
 	return util.TruncateWithSuffix(s, maxLen, "...")
 }
 
-// compressionInstruction is the instruction injected into the conversation for Insert-then-Compress.
+// CompressionTemplate contains instructions for initial and update compaction.
+type CompressionTemplate struct {
+	Name              string
+	Instruction       string
+	UpdateInstruction string
+}
+
+// defaultCompressionInstruction is injected into the conversation for Insert-then-Compress.
 // This implements Rule R4.2: the compression instruction is a system_injected message.
-const compressionInstruction = `Please create a structured context checkpoint summary of our conversation so far.
+const defaultCompressionInstruction = `Please create a structured context checkpoint summary of our conversation so far.
 
 Use this EXACT format:
 
@@ -251,8 +269,8 @@ Use this EXACT format:
 
 Keep each section concise. Preserve exact file paths, function names, and error messages.`
 
-// updateCompressionInstruction is used when there's an existing summary to update.
-const updateCompressionInstruction = `Please update the existing summary with new information from our conversation.
+// defaultUpdateCompressionInstruction is used when there's an existing summary to update.
+const defaultUpdateCompressionInstruction = `Please update the existing summary with new information from our conversation.
 
 <existing-summary>
 %s
@@ -268,6 +286,118 @@ RULES:
 
 Use the same EXACT format as the existing summary.`
 
+const codeCompressionInstruction = `Please create a structured coding checkpoint summary of our work so far.
+
+Use this EXACT format:
+
+## Goal
+[What coding task is being solved?]
+
+## Constraints & Preferences
+- [User requirements, repo conventions, safety constraints]
+- Or "(none)" if none were mentioned
+
+## Code Changes
+### Done
+- [x] [Completed code or docs changes with exact file paths]
+
+### In Progress
+- [ ] [Current implementation or review state]
+
+### Not Started
+- [ ] [Planned but untouched follow-up work]
+
+## Technical Decisions
+- **[Decision]**: [Reason and affected files/functions]
+
+## Verification
+- [Commands run and results]
+- [Commands not run and why]
+
+## Next Steps
+1. [Ordered continuation steps]
+
+## Critical Context
+- [Exact file paths, function names, errors, API contracts, or examples needed to continue]
+- Or "(none)" if not applicable
+
+Keep each section concise. Preserve exact file paths, function names, commands, and error messages.`
+
+const codeUpdateCompressionInstruction = `Please update the existing coding checkpoint summary with new information from our conversation.
+
+<existing-summary>
+%s
+</existing-summary>
+
+RULES:
+- PRESERVE all still-relevant code changes, file paths, function names, commands, and error messages
+- ADD new implementation progress, verification results, and technical decisions
+- UPDATE Done/In Progress/Not Started based on what changed
+- REMOVE stale next steps only when they are clearly completed or no longer relevant
+- Keep the same EXACT format as the existing summary.`
+
+const conversationCompressionInstruction = `Please create a concise conversation checkpoint summary of our conversation so far.
+
+Use this EXACT format:
+
+## Objective
+[What the user wants]
+
+## Preferences
+- [User preferences or constraints]
+- Or "(none)" if none were mentioned
+
+## Discussion So Far
+- [Important points and outcomes]
+
+## Decisions
+- **[Decision]**: [Brief rationale]
+
+## Open Items
+1. [What remains unresolved or should happen next]
+
+## Critical Details
+- [Exact names, values, references, or examples needed to continue]
+- Or "(none)" if not applicable
+
+Keep it concise and preserve exact identifiers, paths, commands, and error messages.`
+
+const conversationUpdateCompressionInstruction = `Please update the existing conversation checkpoint summary with new information.
+
+<existing-summary>
+%s
+</existing-summary>
+
+RULES:
+- PRESERVE still-relevant objective, preferences, decisions, and critical details
+- ADD new outcomes and open items from the new messages
+- UPDATE stale open items when completed
+- Keep the same EXACT format as the existing summary.`
+
+// ResolveCompressionTemplate returns a built-in compression template.
+func ResolveCompressionTemplate(name string) CompressionTemplate {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "code":
+		return CompressionTemplate{
+			Name:              "code",
+			Instruction:       codeCompressionInstruction,
+			UpdateInstruction: codeUpdateCompressionInstruction,
+		}
+	case "conversation":
+		return CompressionTemplate{
+			Name:              "conversation",
+			Instruction:       conversationCompressionInstruction,
+			UpdateInstruction: conversationUpdateCompressionInstruction,
+		}
+	default:
+		return CompressionTemplate{
+			Name:              "default",
+			Instruction:       defaultCompressionInstruction,
+			UpdateInstruction: defaultUpdateCompressionInstruction,
+		}
+	}
+}
+
 // GenerateSummaryInsertThenCompress generates a summary using Insert-then-Compress pattern.
 // This implements Rule R4.1-R4.2: use the SAME system prompt and tools, not a separate call.
 // The compression instruction is injected as a system_injected user message at the end of the conversation.
@@ -281,12 +411,35 @@ func GenerateSummaryInsertThenCompress(
 	previousSummary string,
 	maxTokens int,
 ) (string, error) {
+	return GenerateSummaryInsertThenCompressWithTemplate(
+		ctx, messages, p, model, systemPrompt, tools,
+		previousSummary, maxTokens, ResolveCompressionTemplate(""),
+	)
+}
+
+// GenerateSummaryInsertThenCompressWithTemplate generates a summary using the
+// supplied compression template.
+func GenerateSummaryInsertThenCompressWithTemplate(
+	ctx context.Context,
+	messages []provider.Message,
+	p provider.Provider,
+	model *provider.Model,
+	systemPrompt string,
+	tools []provider.ToolDefinition,
+	previousSummary string,
+	maxTokens int,
+	template CompressionTemplate,
+) (string, error) {
+	if template.Instruction == "" || template.UpdateInstruction == "" {
+		template = ResolveCompressionTemplate("")
+	}
+
 	// Build compression instruction
 	var instruction string
 	if previousSummary != "" {
-		instruction = fmt.Sprintf(updateCompressionInstruction, previousSummary)
+		instruction = fmt.Sprintf(template.UpdateInstruction, previousSummary)
 	} else {
-		instruction = compressionInstruction
+		instruction = template.Instruction
 	}
 
 	// Create the compression instruction message (system_injected)
@@ -369,13 +522,11 @@ func Compact(
 		return nil, fmt.Errorf("no messages to compact")
 	}
 
-	tokensBefore := 0
-	for _, msg := range messages {
-		tokensBefore += EstimateTokens(msg)
-	}
+	estimator := ResolveTokenEstimator(settings, model)
+	tokensBefore := estimator.EstimateMessagesTokens(messages)
 
 	// Find cut point - keep recent messages, summarize older ones
-	cutPoint := FindCutPoint(messages, 0, len(messages), settings.KeepRecentTokens)
+	cutPoint := FindCutPointWithEstimator(messages, 0, len(messages), settings.KeepRecentTokens, estimator)
 
 	// Messages to summarize (will be discarded after summary)
 	messagesToSummarize := messages[:cutPoint.FirstKeptIndex]
@@ -395,10 +546,11 @@ func Compact(
 	}
 
 	// Generate summary using Insert-then-Compress (R4.1-R4.2)
-	summary, err := GenerateSummaryInsertThenCompress(
+	summary, err := GenerateSummaryInsertThenCompressWithTemplate(
 		ctx, messagesToSummarize, p, model,
 		systemPrompt, tools,
 		previousSummary, maxTokens,
+		ResolveCompressionTemplate(settings.Template),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("generate summary: %w", err)

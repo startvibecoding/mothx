@@ -1,8 +1,6 @@
 package context
 
-import (
-	"github.com/startvibecoding/vibecoding/internal/provider"
-)
+import "github.com/startvibecoding/vibecoding/internal/provider"
 
 // ContextUsage holds the current context usage information.
 type ContextUsage struct {
@@ -11,40 +9,9 @@ type ContextUsage struct {
 	Percent       *float64 // Usage percentage, nil if unknown
 }
 
-// EstimateTokens estimates token count for a message using chars/4 heuristic.
-// This is conservative (overestimates tokens).
+// EstimateTokens estimates token count for a message using the default estimator.
 func EstimateTokens(msg provider.Message) int {
-	chars := 0
-
-	if len(msg.Contents) > 0 {
-		// Rich content blocks take precedence; avoid double-counting with Content.
-		for _, block := range msg.Contents {
-			switch block.Type {
-			case "text":
-				chars += len(block.Text)
-			case "thinking":
-				chars += len(block.Thinking)
-			case "toolCall":
-				if block.ToolCall != nil {
-					chars += len(block.ToolCall.Name)
-					chars += len(block.ToolCall.Arguments)
-				}
-			case "image":
-				// Estimate images with a minimum visual-token cost, plus base64
-				// payload size when available. Large inline images can otherwise
-				// evade request-size guards.
-				imageChars := 4800
-				if block.Image != nil && len(block.Image.Data) > imageChars {
-					imageChars = len(block.Image.Data)
-				}
-				chars += imageChars
-			}
-		}
-	} else if msg.Content != "" {
-		chars += len(msg.Content)
-	}
-
-	return (chars + 3) / 4 // ceil(chars/4)
+	return GenericTokenEstimator{}.EstimateTokens(msg)
 }
 
 // CalculateContextTokens calculates total context tokens from usage.
@@ -62,6 +29,15 @@ func CalculateContextTokens(usage *provider.Usage) int {
 // EstimateContextTokens estimates context tokens from messages.
 // Uses the last assistant's usage when available, then estimates trailing messages.
 func EstimateContextTokens(messages []provider.Message) (tokens int, lastUsageIndex int) {
+	return EstimateContextTokensWithEstimator(messages, GenericTokenEstimator{})
+}
+
+// EstimateContextTokensWithEstimator estimates context tokens using provider
+// usage when available, then the supplied estimator for trailing messages.
+func EstimateContextTokensWithEstimator(messages []provider.Message, estimator TokenEstimator) (tokens int, lastUsageIndex int) {
+	if estimator == nil {
+		estimator = GenericTokenEstimator{}
+	}
 	lastUsageIndex = -1
 	usageTokens := 0
 
@@ -82,17 +58,13 @@ func EstimateContextTokens(messages []provider.Message) (tokens int, lastUsageIn
 	if lastUsageIndex >= 0 {
 		trailingTokens := 0
 		for i := lastUsageIndex + 1; i < len(messages); i++ {
-			trailingTokens += EstimateTokens(messages[i])
+			trailingTokens += estimator.EstimateTokens(messages[i])
 		}
 		return usageTokens + trailingTokens, lastUsageIndex
 	}
 
 	// No usage data, estimate all messages
-	total := 0
-	for _, msg := range messages {
-		total += EstimateTokens(msg)
-	}
-	return total, -1
+	return estimator.EstimateMessagesTokens(messages), -1
 }
 
 // ShouldCompact checks if compaction should trigger based on context usage.

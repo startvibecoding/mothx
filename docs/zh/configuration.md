@@ -86,6 +86,8 @@ VibeCoding 使用两个配置文件:
     "enabled": true,
     "reserveTokens": 16384,
     "keepRecentTokens": 20000,
+    "tokenizer": "auto",
+    "template": "default",
     "idleCompressionEnabled": false,
     "idleTimeoutSeconds": 90,
     "idleMinTokensForCompress": 150000
@@ -524,9 +526,12 @@ VibeCoding 会自动搜索并加载以下文件:
 | `enabled` | bool | `true` | 启用自动上下文压缩 |
 | `reserveTokens` | int | `16384` | 为模型响应保留的 token |
 | `keepRecentTokens` | int | `20000` | 保留的最近消息 token 数 |
-| `idleCompressionEnabled` | bool | `false` | 启用空闲期间主动压缩 |
-| `idleTimeoutSeconds` | int | `90` | 用户空闲多少秒后触发空闲压缩 |
-| `idleMinTokensForCompress` | int | `150000` | 空闲压缩的最低上下文 token 阈值 |
+| `tokenizer` | string | `"auto"` | token 估算器选择器。目前 `auto` 和 `generic` 都使用内置 chars/4 估算器 |
+| `tokenizerModel` | string | `""` | 预留的模型提示，用于后续模型专用 token 估算器 |
+| `template` | string | `"default"` | 压缩摘要模板：`default`、`code` 或 `conversation` |
+| `idleCompressionEnabled` | bool | `false` | 预留/弃用字段。为兼容旧配置继续解析；当前不会触发空闲压缩 |
+| `idleTimeoutSeconds` | int | `90` | 预留/弃用的空闲压缩设置 |
+| `idleMinTokensForCompress` | int | `150000` | 预留/弃用的空闲压缩设置 |
 
 ```json
 {
@@ -534,20 +539,24 @@ VibeCoding 会自动搜索并加载以下文件:
     "enabled": true,
     "reserveTokens": 16384,
     "keepRecentTokens": 20000,
-    "idleCompressionEnabled": true,
+    "tokenizer": "auto",
+    "template": "code",
+    "idleCompressionEnabled": false,
     "idleTimeoutSeconds": 90,
     "idleMinTokensForCompress": 150000
   }
 }
 ```
 
+#### 压缩模板
+
+- **`default`**: 通用结构化 checkpoint，包含目标、进度、决策、下一步和关键上下文。
+- **`code`**: 面向编码任务，强调文件路径、代码变更、验证命令和技术决策。
+- **`conversation`**: 面向非代码对话的简洁讨论 checkpoint。
+
 #### 空闲压缩
 
-启用后，VibeCoding 会在用户空闲期间（例如阅读输出或思考下一个提示时）主动压缩上下文。这可以减少下一次请求的延迟，因为上下文已经变小了。
-
-- **`idleCompressionEnabled`**: 默认关闭。如果你经常进行长对话，建议开启。
-- **`idleTimeoutSeconds`**: 上次交互后等待多久触发空闲压缩。默认 90 秒。
-- **`idleMinTokensForCompress`**: 只有当前上下文超过此阈值时才会触发空闲压缩。默认 150,000 token。
+空闲压缩设置目前仅为兼容旧配置而解析，不会触发主动压缩。除非需要保留已有配置文件，否则建议不设置或保持为 `false`。
 
 ---
 
@@ -1114,7 +1123,7 @@ export DEEPSEEK_API_KEY=sk-...
 }
 ```
 
-### 为长会话启用空闲压缩
+### 使用代码压缩模板
 
 ```json
 {
@@ -1122,9 +1131,8 @@ export DEEPSEEK_API_KEY=sk-...
     "enabled": true,
     "reserveTokens": 16384,
     "keepRecentTokens": 20000,
-    "idleCompressionEnabled": true,
-    "idleTimeoutSeconds": 60,
-    "idleMinTokensForCompress": 100000
+    "tokenizer": "auto",
+    "template": "code"
   }
 }
 ```

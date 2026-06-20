@@ -86,6 +86,8 @@ Project-level configuration overrides global configuration. When both exist, sca
     "enabled": true,
     "reserveTokens": 16384,
     "keepRecentTokens": 20000,
+    "tokenizer": "auto",
+    "template": "default",
     "idleCompressionEnabled": false,
     "idleTimeoutSeconds": 90,
     "idleMinTokensForCompress": 150000
@@ -524,9 +526,12 @@ Context compaction (compression) configuration for managing long conversations. 
 | `enabled` | bool | `true` | Enable automatic context compaction |
 | `reserveTokens` | int | `16384` | Tokens reserved for the model's response |
 | `keepRecentTokens` | int | `20000` | Recent message tokens to keep uncompacted |
-| `idleCompressionEnabled` | bool | `false` | Enable proactive compression during idle periods |
-| `idleTimeoutSeconds` | int | `90` | Seconds of user inactivity before idle compression triggers |
-| `idleMinTokensForCompress` | int | `150000` | Minimum context tokens before idle compression is worthwhile |
+| `tokenizer` | string | `"auto"` | Token estimator selector. Currently `auto` and `generic` use the built-in chars/4 estimator |
+| `tokenizerModel` | string | `""` | Optional model hint for future model-specific token estimators |
+| `template` | string | `"default"` | Compression summary template: `default`, `code`, or `conversation` |
+| `idleCompressionEnabled` | bool | `false` | Reserved/deprecated. Parsed for compatibility; idle compaction is not currently active |
+| `idleTimeoutSeconds` | int | `90` | Reserved/deprecated idle compaction setting |
+| `idleMinTokensForCompress` | int | `150000` | Reserved/deprecated idle compaction setting |
 
 ```json
 {
@@ -534,20 +539,24 @@ Context compaction (compression) configuration for managing long conversations. 
     "enabled": true,
     "reserveTokens": 16384,
     "keepRecentTokens": 20000,
-    "idleCompressionEnabled": true,
+    "tokenizer": "auto",
+    "template": "code",
+    "idleCompressionEnabled": false,
     "idleTimeoutSeconds": 90,
     "idleMinTokensForCompress": 150000
   }
 }
 ```
 
+#### Compression Templates
+
+- **`default`**: General structured checkpoint with goal, progress, decisions, next steps, and critical context.
+- **`code`**: Coding-oriented checkpoint that emphasizes file paths, code changes, verification, and technical decisions.
+- **`conversation`**: Concise discussion checkpoint for non-code conversations.
+
 #### Idle Compression
 
-When enabled, VibeCoding proactively compresses the context during periods of inactivity (e.g., while you're reading output or thinking about your next prompt). This reduces latency for your next request because the context is already smaller.
-
-- **`idleCompressionEnabled`**: Off by default. Turn it on if you frequently have long conversations.
-- **`idleTimeoutSeconds`**: How long VibeCoding waits after the last interaction before triggering idle compression. Default: 90 seconds.
-- **`idleMinTokensForCompress`**: Idle compression only triggers if the current context exceeds this threshold. Default: 150,000 tokens.
+Idle compaction settings are currently parsed for backward compatibility but do not trigger proactive compression. Leave them unset or `false` unless you are preserving an existing config file.
 
 ---
 
@@ -1114,7 +1123,7 @@ Use `headers` to attach custom HTTP headers to every request for a provider. Hea
 }
 ```
 
-### Enable Idle Compression for Long Sessions
+### Use the Code Compaction Template
 
 ```json
 {
@@ -1122,9 +1131,8 @@ Use `headers` to attach custom HTTP headers to every request for a provider. Hea
     "enabled": true,
     "reserveTokens": 16384,
     "keepRecentTokens": 20000,
-    "idleCompressionEnabled": true,
-    "idleTimeoutSeconds": 60,
-    "idleMinTokensForCompress": 100000
+    "tokenizer": "auto",
+    "template": "code"
   }
 }
 ```

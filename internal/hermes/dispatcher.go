@@ -123,6 +123,9 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 			Enabled:          settings.Compaction.Enabled,
 			ReserveTokens:    settings.Compaction.ReserveTokens,
 			KeepRecentTokens: settings.Compaction.KeepRecentTokens,
+			Tokenizer:        settings.Compaction.Tokenizer,
+			TokenizerModel:   settings.Compaction.TokenizerModel,
+			Template:         settings.Compaction.Template,
 		}
 		if compactionSettings.ReserveTokens == 0 {
 			compactionSettings.ReserveTokens = 16384

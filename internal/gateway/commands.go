@@ -199,6 +199,9 @@ func (s *Server) cmdDelegate(sess *GatewaySession, parts []string) *CommandResul
 				Enabled:          s.settings.Compaction.Enabled,
 				ReserveTokens:    s.settings.Compaction.ReserveTokens,
 				KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+				Tokenizer:        s.settings.Compaction.Tokenizer,
+				TokenizerModel:   s.settings.Compaction.TokenizerModel,
+				Template:         s.settings.Compaction.Template,
 			}
 			extraContext := sess.ExtraContext
 			if extraContext == "" {

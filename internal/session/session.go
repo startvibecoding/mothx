@@ -344,6 +344,17 @@ func (m *Manager) AppendCompaction(summary, firstKeptEntryID string, tokensBefor
 		return "", err
 	}
 
+	summaryVersion := 1
+	previousCompactionID := ""
+	if previous, ok := latestCompactionLocked(m.entries); ok {
+		previousCompactionID = previous.ID
+		if previous.SummaryVersion > 0 {
+			summaryVersion = previous.SummaryVersion + 1
+		} else {
+			summaryVersion = 2
+		}
+	}
+
 	id := GenerateID()
 	entry := CompactionEntry{
 		EntryBase: EntryBase{
@@ -352,9 +363,12 @@ func (m *Manager) AppendCompaction(summary, firstKeptEntryID string, tokensBefor
 			ParentID:  m.leafID,
 			Timestamp: time.Now(),
 		},
-		Summary:        summary,
-		FirstKeptEntry: firstKeptEntryID,
-		TokensBefore:   tokensBefore,
+		Summary:              summary,
+		FirstKeptEntry:       firstKeptEntryID,
+		TokensBefore:         tokensBefore,
+		SummaryVersion:       summaryVersion,
+		PreviousCompactionID: previousCompactionID,
+		LastSummarizedEntry:  lastSummarizedEntryIDLocked(m.entries, firstKeptEntryID),
 	}
 
 	if err := m.writeEntry(entry); err != nil {
@@ -364,6 +378,34 @@ func (m *Manager) AppendCompaction(summary, firstKeptEntryID string, tokensBefor
 	m.entries = append(m.entries, entry)
 	m.leafID = &id
 	return id, nil
+}
+
+func latestCompactionLocked(entries []interface{}) (CompactionEntry, bool) {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if entry, ok := entries[i].(CompactionEntry); ok {
+			return entry, true
+		}
+	}
+	return CompactionEntry{}, false
+}
+
+func lastSummarizedEntryIDLocked(entries []interface{}, firstKeptEntryID string) string {
+	if firstKeptEntryID == "" {
+		return ""
+	}
+	state := buildReplayState(entries)
+	for i, id := range state.entryIDs {
+		if id != firstKeptEntryID {
+			continue
+		}
+		for j := i - 1; j >= 0; j-- {
+			if state.entryIDs[j] != "" {
+				return state.entryIDs[j]
+			}
+		}
+		return ""
+	}
+	return ""
 }
 
 // AppendSessionInfo records session metadata (e.g. display name).
@@ -424,6 +466,13 @@ func (m *Manager) GetLeafID() *string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.leafID
+}
+
+// GetLatestCompaction returns the newest compaction entry in the current session.
+func (m *Manager) GetLatestCompaction() (CompactionEntry, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return latestCompactionLocked(m.entries)
 }
 
 // GetFile returns the session file path.

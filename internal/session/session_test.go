@@ -202,6 +202,69 @@ func TestAppendCompaction(t *testing.T) {
 	if len(m.entries) != 1 {
 		t.Errorf("expected 1 entry, got %d", len(m.entries))
 	}
+
+	entry, ok := m.entries[0].(CompactionEntry)
+	if !ok {
+		t.Fatalf("entry type = %T, want CompactionEntry", m.entries[0])
+	}
+	if entry.SummaryVersion != 1 {
+		t.Errorf("SummaryVersion = %d, want 1", entry.SummaryVersion)
+	}
+}
+
+func TestAppendCompactionMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	m.Init()
+
+	_, _ = m.AppendMessage(provider.NewUserMessage("old user"))
+	oldAssistantID, _ := m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}}))
+	recentUserID, _ := m.AppendMessage(provider.NewUserMessage("recent user"))
+
+	firstCompactionID, err := m.AppendCompaction("summary one", recentUserID, 100)
+	if err != nil {
+		t.Fatalf("AppendCompaction() error = %v", err)
+	}
+	first, ok := m.GetLatestCompaction()
+	if !ok {
+		t.Fatal("expected latest compaction")
+	}
+	if first.ID != firstCompactionID {
+		t.Errorf("latest compaction ID = %q, want %q", first.ID, firstCompactionID)
+	}
+	if first.SummaryVersion != 1 {
+		t.Errorf("first SummaryVersion = %d, want 1", first.SummaryVersion)
+	}
+	if first.PreviousCompactionID != "" {
+		t.Errorf("first PreviousCompactionID = %q, want empty", first.PreviousCompactionID)
+	}
+	if first.LastSummarizedEntry != oldAssistantID {
+		t.Errorf("first LastSummarizedEntry = %q, want %q", first.LastSummarizedEntry, oldAssistantID)
+	}
+
+	nextUserID, _ := m.AppendMessage(provider.NewUserMessage("next user"))
+	secondCompactionID, err := m.AppendCompaction("summary two", nextUserID, 200)
+	if err != nil {
+		t.Fatalf("second AppendCompaction() error = %v", err)
+	}
+	second, ok := m.GetLatestCompaction()
+	if !ok {
+		t.Fatal("expected latest compaction after second append")
+	}
+	if second.ID != secondCompactionID {
+		t.Errorf("latest compaction ID = %q, want %q", second.ID, secondCompactionID)
+	}
+	if second.SummaryVersion != 2 {
+		t.Errorf("second SummaryVersion = %d, want 2", second.SummaryVersion)
+	}
+	if second.PreviousCompactionID != firstCompactionID {
+		t.Errorf("second PreviousCompactionID = %q, want %q", second.PreviousCompactionID, firstCompactionID)
+	}
+	if second.LastSummarizedEntry != recentUserID {
+		t.Errorf("second LastSummarizedEntry = %q, want %q", second.LastSummarizedEntry, recentUserID)
+	}
 }
 
 func TestGetHeader(t *testing.T) {

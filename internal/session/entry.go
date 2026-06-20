@@ -65,9 +65,12 @@ type ThinkingLevelChangeEntry struct {
 // CompactionEntry records a context compaction.
 type CompactionEntry struct {
 	EntryBase
-	Summary        string `json:"summary"`
-	FirstKeptEntry string `json:"firstKeptEntryId"`
-	TokensBefore   int    `json:"tokensBefore"`
+	Summary              string `json:"summary"`
+	FirstKeptEntry       string `json:"firstKeptEntryId"`
+	TokensBefore         int    `json:"tokensBefore"`
+	SummaryVersion       int    `json:"summaryVersion,omitempty"`
+	PreviousCompactionID string `json:"previousCompactionId,omitempty"`
+	LastSummarizedEntry  string `json:"lastSummarizedEntryId,omitempty"`
 }
 
 // BranchSummaryEntry records a branch switch summary.

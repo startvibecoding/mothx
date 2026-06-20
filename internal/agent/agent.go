@@ -434,11 +434,14 @@ func estimateToolDefinitionTokens(tools []provider.ToolDefinition) int {
 	return estimateTextTokens(string(data))
 }
 
-func estimateChatRequestTokens(systemPrompt string, messages []provider.Message, tools []provider.ToolDefinition) int {
+func estimateChatRequestTokens(systemPrompt string, messages []provider.Message, tools []provider.ToolDefinition, estimator ctxpkg.TokenEstimator) int {
+	if estimator == nil {
+		estimator = ctxpkg.GenericTokenEstimator{}
+	}
 	total := estimateTextTokens(systemPrompt)
 	total += estimateToolDefinitionTokens(tools)
 	for _, msg := range messages {
-		total += ctxpkg.EstimateTokens(msg)
+		total += estimator.EstimateTokens(msg)
 	}
 	return total
 }
@@ -534,13 +537,14 @@ func (a *Agent) replaceLargestToolResultForContext(estimatedTokens, budgetTokens
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
 	bestIndex := -1
 	bestTokens := 0
 	for i, msg := range a.messages {
 		if msg.Role != "toolResult" || isContextGuardToolResult(msg) {
 			continue
 		}
-		tokens := ctxpkg.EstimateTokens(msg)
+		tokens := estimator.EstimateTokens(msg)
 		if tokens > bestTokens {
 			bestIndex = i
 			bestTokens = tokens
@@ -568,9 +572,10 @@ func (a *Agent) prepareRequestMessages(sessionContextMsg provider.Message, ch ch
 		return a.buildRequestMessages(sessionContextMsg), nil
 	}
 
+	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
 	for attempts := 0; attempts < 16; attempts++ {
 		messages := a.buildRequestMessages(sessionContextMsg)
-		estimatedTokens := estimateChatRequestTokens(a.frozenSystemPrompt, messages, a.frozenToolDefs)
+		estimatedTokens := estimateChatRequestTokens(a.frozenSystemPrompt, messages, a.frozenToolDefs, estimator)
 		if estimatedTokens <= budgetTokens {
 			return messages, nil
 		}
@@ -1527,7 +1532,8 @@ func (a *Agent) GetContextUsage() *ctxpkg.ContextUsage {
 		return nil
 	}
 
-	tokens, _ := ctxpkg.EstimateContextTokens(a.messages)
+	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
+	tokens, _ := ctxpkg.EstimateContextTokensWithEstimator(a.messages, estimator)
 	percent := float64(tokens) / float64(contextWindow) * 100
 
 	return &ctxpkg.ContextUsage{
@@ -1570,7 +1576,8 @@ func (a *Agent) ShouldCompact() bool {
 	if contextWindow <= 0 {
 		return false
 	}
-	tokens, _ := ctxpkg.EstimateContextTokens(a.messages)
+	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
+	tokens, _ := ctxpkg.EstimateContextTokensWithEstimator(a.messages, estimator)
 	return ctxpkg.ShouldCompact(tokens, contextWindow, a.config.CompactionSettings.ReserveTokens)
 }
 
@@ -1602,10 +1609,17 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 
 	// Get previous summary if exists
 	previousSummary := ""
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role == "user" && strings.HasPrefix(msgs[i].Content, "## Goal") {
-			previousSummary = msgs[i].Content
-			break
+	if a.config.Session != nil {
+		if compaction, ok := a.config.Session.GetLatestCompaction(); ok {
+			previousSummary = compaction.Summary
+		}
+	}
+	if previousSummary == "" {
+		for i := len(msgs) - 1; i >= 0; i-- {
+			if msgs[i].SystemInjected && msgs[i].Role == "user" && strings.HasPrefix(msgs[i].Content, "## Goal") {
+				previousSummary = msgs[i].Content
+				break
+			}
 		}
 	}
 

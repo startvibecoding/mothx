@@ -120,9 +120,12 @@ type ContextFilesSettings struct {
 }
 
 type CompactionSettings struct {
-	Enabled          bool `json:"enabled"`
-	ReserveTokens    int  `json:"reserveTokens"`
-	KeepRecentTokens int  `json:"keepRecentTokens"`
+	Enabled          bool   `json:"enabled"`
+	ReserveTokens    int    `json:"reserveTokens"`
+	KeepRecentTokens int    `json:"keepRecentTokens"`
+	Tokenizer        string `json:"tokenizer,omitempty"`
+	TokenizerModel   string `json:"tokenizerModel,omitempty"`
+	Template         string `json:"template,omitempty"`
 
 	// Idle compression settings (R5.1-R5.5)
 	IdleCompressionEnabled   bool `json:"idleCompressionEnabled,omitempty"`   // R5.1: off by default
