@@ -9,6 +9,7 @@
 # Variables
 BINARY_NAME=vibecoding
 VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+PRE_VERSION=$(if $(filter %-pre,$(VERSION)),$(VERSION),$(VERSION)-pre)
 LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X github.com/startvibecoding/vibecoding/internal/ua.Version=$(VERSION)"
 GOBUILD_FLAGS=-trimpath
 DIST_DIR=dist
@@ -285,7 +286,9 @@ npm-publish-all: npm-version npm-packages
 	@echo "Published all packages!"
 
 # Publish pre-release
-npm-publish-pre: npm-version npm-packages
+npm-publish-pre:
+	./scripts/sync-npm-version.sh $(PRE_VERSION)
+	$(MAKE) npm-packages VERSION=$(PRE_VERSION)
 	@echo "Publishing platform packages (pre-release)..."
 	@for d in npm/packages/*/; do \
 		if [ -f "$$d/package.json" ]; then \

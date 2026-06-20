@@ -376,6 +376,63 @@ func TestGetMessagesAppliesCompaction(t *testing.T) {
 	}
 }
 
+func TestGetMessagesCompactionClearsStaleUsage(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	m.Init()
+
+	_, _ = m.AppendMessage(provider.NewUserMessage("old user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}}))
+	recentUserID, _ := m.AppendMessage(provider.NewUserMessage("recent user"))
+	recentAssistant := provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant"}})
+	recentAssistant.Usage = &provider.Usage{Input: 1000, Output: 50, TotalTokens: 1050}
+	_, _ = m.AppendMessage(recentAssistant)
+	_, _ = m.AppendCompaction("## Goal\ncompacted", recentUserID, 1000)
+
+	messages := m.GetMessages()
+	if len(messages) != 3 {
+		t.Fatalf("messages len = %d, want 3", len(messages))
+	}
+	if messages[2].Usage != nil {
+		t.Fatalf("kept assistant usage = %#v, want nil stale usage", messages[2].Usage)
+	}
+}
+
+func TestGetMessagesAppliesMultipleCompactions(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	m.Init()
+
+	_, _ = m.AppendMessage(provider.NewUserMessage("old user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}}))
+	recentUserID, _ := m.AppendMessage(provider.NewUserMessage("recent user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant"}}))
+	_, _ = m.AppendCompaction("## Goal\nsummary one", recentUserID, 100)
+	nextUserID, _ := m.AppendMessage(provider.NewUserMessage("next user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "next assistant"}}))
+	_, _ = m.AppendCompaction("## Goal\nsummary two", nextUserID, 80)
+
+	messages := m.GetMessages()
+	if len(messages) != 3 {
+		t.Fatalf("messages len = %d, want 3", len(messages))
+	}
+	if !messages[0].SystemInjected || messages[0].Content != "## Goal\nsummary two" {
+		t.Fatalf("first message = %#v, want latest summary", messages[0])
+	}
+	for _, msg := range messages[1:] {
+		if msg.Content == "## Goal\nsummary one" || msg.Content == "recent user" {
+			t.Fatalf("old compacted content still present in replay: %#v", msg)
+		}
+	}
+	if messages[1].Content != "next user" {
+		t.Fatalf("first kept message = %#v, want next user", messages[1])
+	}
+}
+
 func TestOpen(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")

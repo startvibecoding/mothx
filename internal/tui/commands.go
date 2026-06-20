@@ -439,6 +439,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			msgs := a.agent.GetMessages()
 			if len(msgs) < 2 {
 				a.addCommandError("Nothing to compact: conversation is too short.")
+			} else if !a.agent.CanCompact() {
+				a.addCommandError("Nothing to compact: only recent context is available to keep.")
 			} else {
 				return a.startManualCompaction()
 			}

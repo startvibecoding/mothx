@@ -104,6 +104,12 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 	}
 
 	a := agent.New(agentCfg, registry)
+	if sess != nil {
+		replayState := sess.GetReplayState()
+		if len(replayState.Messages) > 0 {
+			a.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
+		}
+	}
 	if (multiAgent || delegateMode || workflows) && agentMgr != nil {
 		agentMgr.Register(agent.NewAgentAdapter(a))
 	}

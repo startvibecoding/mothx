@@ -44,6 +44,24 @@ func DefaultCompactionSettings() CompactionSettings {
 	}
 }
 
+// NormalizeCompactionSettings applies runtime defaults for zero-valued limits.
+func NormalizeCompactionSettings(settings CompactionSettings) CompactionSettings {
+	defaults := DefaultCompactionSettings()
+	if settings.ReserveTokens == 0 {
+		settings.ReserveTokens = defaults.ReserveTokens
+	}
+	if settings.KeepRecentTokens == 0 {
+		settings.KeepRecentTokens = defaults.KeepRecentTokens
+	}
+	if settings.IdleTimeoutSeconds == 0 {
+		settings.IdleTimeoutSeconds = defaults.IdleTimeoutSeconds
+	}
+	if settings.IdleMinTokensForCompress == 0 {
+		settings.IdleMinTokensForCompress = defaults.IdleMinTokensForCompress
+	}
+	return settings
+}
+
 // CompactionResult holds the result of a compaction operation.
 type CompactionResult struct {
 	Summary        string
@@ -137,6 +155,29 @@ func FindCutPointWithEstimator(messages []provider.Message, startIndex, endIndex
 		TurnStartIndex: turnStartIndex,
 		IsSplitTurn:    !isUserMessage && turnStartIndex != -1,
 	}
+}
+
+func messagesToSummarizeForCompaction(messages []provider.Message, settings CompactionSettings, estimator TokenEstimator, previousSummary string) ([]provider.Message, CutPointResult) {
+	cutPoint := FindCutPointWithEstimator(messages, 0, len(messages), settings.KeepRecentTokens, estimator)
+
+	messagesToSummarize := messages[:cutPoint.FirstKeptIndex]
+	if cutPoint.IsSplitTurn && cutPoint.TurnStartIndex >= 0 {
+		messagesToSummarize = messages[:cutPoint.TurnStartIndex]
+	}
+	messagesToSummarize = stripLeadingPreviousSummary(messagesToSummarize, previousSummary)
+
+	return messagesToSummarize, cutPoint
+}
+
+// HasCompactableMessages reports whether compaction would have older messages
+// to summarize after preserving the configured recent context.
+func HasCompactableMessages(messages []provider.Message, model *provider.Model, settings CompactionSettings, previousSummary string) bool {
+	if len(messages) == 0 {
+		return false
+	}
+	estimator := ResolveTokenEstimator(settings, model)
+	messagesToSummarize, _ := messagesToSummarizeForCompaction(messages, settings, estimator, previousSummary)
+	return len(messagesToSummarize) > 0
 }
 
 // SerializeConversation serializes messages to text for summarization.
@@ -526,14 +567,7 @@ func Compact(
 	tokensBefore := estimator.EstimateMessagesTokens(messages)
 
 	// Find cut point - keep recent messages, summarize older ones
-	cutPoint := FindCutPointWithEstimator(messages, 0, len(messages), settings.KeepRecentTokens, estimator)
-
-	// Messages to summarize (will be discarded after summary)
-	messagesToSummarize := messages[:cutPoint.FirstKeptIndex]
-	if cutPoint.IsSplitTurn && cutPoint.TurnStartIndex >= 0 {
-		messagesToSummarize = messages[:cutPoint.TurnStartIndex]
-	}
-	messagesToSummarize = stripLeadingPreviousSummary(messagesToSummarize, previousSummary)
+	messagesToSummarize, cutPoint := messagesToSummarizeForCompaction(messages, settings, estimator, previousSummary)
 
 	if len(messagesToSummarize) == 0 {
 		return nil, fmt.Errorf("nothing to compact")

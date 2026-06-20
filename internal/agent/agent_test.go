@@ -1603,6 +1603,9 @@ func TestSetForceCompact_ShouldCompactReturnsTrue(t *testing.T) {
 		Provider: mockProvider,
 		Model:    mockProvider.Models()[0],
 		Mode:     "agent",
+		CompactionSettings: ctxpkg.CompactionSettings{
+			KeepRecentTokens: 1,
+		},
 	}
 
 	a := New(cfg, registry)
@@ -1611,6 +1614,8 @@ func TestSetForceCompact_ShouldCompactReturnsTrue(t *testing.T) {
 	a.LoadHistoryMessages([]provider.Message{
 		provider.NewUserMessage("Hello"),
 		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "Hi there"}}),
+		provider.NewUserMessage("Second turn"),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "Second response"}}),
 	})
 
 	// Without force, ShouldCompact should be false (context is tiny)
@@ -1652,6 +1657,99 @@ func TestSetForceCompact_NoMessagesDoesNotForce(t *testing.T) {
 	a.SetForceCompact()
 	if a.ShouldCompact() {
 		t.Fatal("ShouldCompact should be false with force but no messages")
+	}
+}
+
+func TestShouldCompact_OverThresholdButNoCompactableMessages(t *testing.T) {
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1", ContextWindow: 100},
+	}, nil)
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+
+	cfg := Config{
+		Provider: mockProvider,
+		Model:    mockProvider.Models()[0],
+		Mode:     "agent",
+		CompactionSettings: ctxpkg.CompactionSettings{
+			Enabled:          true,
+			ReserveTokens:    10,
+			KeepRecentTokens: 20,
+		},
+	}
+
+	a := New(cfg, registry)
+	a.LoadHistoryMessages([]provider.Message{
+		provider.NewUserMessage("current request"),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: strings.Repeat("x", 500)}}),
+	})
+
+	if a.ShouldCompact() {
+		t.Fatal("ShouldCompact should be false when only the current turn would be kept")
+	}
+}
+
+func TestCompactClearsKeptMessageUsage(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+	sess := session.New(tmpDir, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+
+	p := newCompactionReplayProvider()
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(tmpDir, sb)
+	a := New(Config{
+		Provider: p,
+		Model:    p.models[0],
+		Mode:     "agent",
+		Session:  sess,
+		CompactionSettings: ctxpkg.CompactionSettings{
+			Enabled:          true,
+			ReserveTokens:    256,
+			KeepRecentTokens: 1,
+		},
+	}, registry)
+
+	history := []provider.Message{
+		provider.NewUserMessage("old user context"),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant context"}}),
+		provider.NewUserMessage("recent user context"),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant context"}}),
+	}
+	history[3].Usage = &provider.Usage{Input: 1000, Output: 50, TotalTokens: 1050}
+	for _, msg := range history {
+		if _, err := sess.AppendMessage(msg); err != nil {
+			t.Fatalf("AppendMessage() error = %v", err)
+		}
+	}
+	a.LoadHistoryState(sess.GetReplayState().Messages, sess.GetReplayState().EntryIDs)
+
+	eventCh := make(chan Event, 32)
+	go func() {
+		defer close(eventCh)
+		if err := a.Compact(context.Background(), eventCh); err != nil {
+			t.Errorf("Compact() error = %v", err)
+		}
+	}()
+	for range eventCh {
+	}
+
+	messages := a.GetMessages()
+	if len(messages) != 3 {
+		t.Fatalf("messages len = %d, want 3", len(messages))
+	}
+	if messages[2].Usage != nil {
+		t.Fatalf("kept assistant usage = %#v, want nil stale usage", messages[2].Usage)
+	}
+	usage := a.GetContextUsage()
+	if usage == nil {
+		t.Fatal("expected context usage")
+	}
+	if usage.Tokens >= 1050 {
+		t.Fatalf("context usage tokens = %d, still using stale assistant usage", usage.Tokens)
 	}
 }
 

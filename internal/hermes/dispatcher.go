@@ -392,21 +392,27 @@ func (d *Dispatcher) RemoveSession(key string) {
 func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approvalHandler agentApprovalHandler) (*agent.Agent, func(error)) {
 	workDir := sess.WorkDir
 	extraContext := d.buildExtraContext(workDir)
+	compactionSettings := ctxpkg.NormalizeCompactionSettings(ctxpkg.CompactionSettings{
+		Enabled:          d.settings.Compaction.Enabled,
+		ReserveTokens:    d.settings.Compaction.ReserveTokens,
+		KeepRecentTokens: d.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        d.settings.Compaction.Tokenizer,
+		TokenizerModel:   d.settings.Compaction.TokenizerModel,
+		Template:         d.settings.Compaction.Template,
+	})
 
 	agentCfg := agent.Config{
-		Provider:      d.provider,
-		Model:         d.model,
-		Mode:          sess.Mode,
-		ThinkingLevel: provider.ThinkingLevel(d.settings.DefaultThinkingLevel),
-		SandboxMgr:    sandbox.NewManager(workDir),
-		Settings:      d.settings,
-		Session:       sess.Manager,
-		ExtraContext:  extraContext,
-		CompactionSettings: ctxpkg.CompactionSettings{
-			Enabled: d.settings.Compaction.Enabled,
-		},
-		MultiAgent:      d.multiAgent,
-		ApprovalHandler: approvalHandler,
+		Provider:           d.provider,
+		Model:              d.model,
+		Mode:               sess.Mode,
+		ThinkingLevel:      provider.ThinkingLevel(d.settings.DefaultThinkingLevel),
+		SandboxMgr:         sandbox.NewManager(workDir),
+		Settings:           d.settings,
+		Session:            sess.Manager,
+		ExtraContext:       extraContext,
+		CompactionSettings: compactionSettings,
+		MultiAgent:         d.multiAgent,
+		ApprovalHandler:    approvalHandler,
 	}
 
 	a := agent.NewWithLoopConfig(agent.AgentLoopConfig{
@@ -779,8 +785,23 @@ func (d *Dispatcher) handleCommand(msg messaging.InboundMessage) (string, error)
 		}
 		sess.Lock()
 		defer sess.Unlock()
-		if sess.Manager != nil && len(sess.Manager.GetMessages()) < 2 {
+		if sess.Manager == nil || len(sess.Manager.GetMessages()) < 2 {
 			return "Nothing to compact: conversation is too short.", nil
+		}
+		previousSummary := ""
+		if compaction, ok := sess.Manager.GetLatestCompaction(); ok {
+			previousSummary = compaction.Summary
+		}
+		compactionSettings := ctxpkg.NormalizeCompactionSettings(ctxpkg.CompactionSettings{
+			Enabled:          d.settings.Compaction.Enabled,
+			ReserveTokens:    d.settings.Compaction.ReserveTokens,
+			KeepRecentTokens: d.settings.Compaction.KeepRecentTokens,
+			Tokenizer:        d.settings.Compaction.Tokenizer,
+			TokenizerModel:   d.settings.Compaction.TokenizerModel,
+			Template:         d.settings.Compaction.Template,
+		})
+		if !ctxpkg.HasCompactableMessages(sess.Manager.GetReplayState().Messages, d.model, compactionSettings, previousSummary) {
+			return "Nothing to compact: only recent context is available to keep.", nil
 		}
 		sess.ForceCompact = true
 		return "✅ Context compaction will be triggered on the next message.", nil

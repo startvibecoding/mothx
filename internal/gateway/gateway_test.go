@@ -749,12 +749,15 @@ func TestCommands_CompactTooShort(t *testing.T) {
 
 func TestCommands_CompactSetsFlag(t *testing.T) {
 	srv := newTestServer(t)
+	srv.settings.Compaction.KeepRecentTokens = 1
 	sess := &GatewaySession{ID: "test-sess", WorkDir: t.TempDir()}
 	mgr := session.New(sess.WorkDir, t.TempDir())
 	mgr.Init()
-	// Append 2 messages so conversation is long enough
-	mgr.AppendMessage(provider.NewUserMessage("hello"))
-	mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "hi"}}))
+	// Append enough history so there is an older turn to summarize.
+	mgr.AppendMessage(provider.NewUserMessage("old hello"))
+	mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old hi"}}))
+	mgr.AppendMessage(provider.NewUserMessage("recent hello"))
+	mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent hi"}}))
 	sess.Manager = mgr
 
 	result := srv.cmdCompact(sess)
@@ -769,6 +772,30 @@ func TestCommands_CompactSetsFlag(t *testing.T) {
 	}
 	if !strings.Contains(result.Message, "compaction") {
 		t.Errorf("expected compaction confirmation, got %q", result.Message)
+	}
+}
+
+func TestCommands_CompactNoCompactableMessages(t *testing.T) {
+	srv := newTestServer(t)
+	sess := &GatewaySession{ID: "test-sess", WorkDir: t.TempDir()}
+	mgr := session.New(sess.WorkDir, t.TempDir())
+	mgr.Init()
+	mgr.AppendMessage(provider.NewUserMessage("hello"))
+	mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "hi"}}))
+	sess.Manager = mgr
+
+	result := srv.cmdCompact(sess)
+	if result == nil {
+		t.Fatal("expected result")
+	}
+	if !result.Error {
+		t.Fatal("expected error for non-compactable conversation")
+	}
+	if sess.ForceCompact {
+		t.Fatal("ForceCompact should not be set for non-compactable conversation")
+	}
+	if !strings.Contains(result.Message, "only recent context") {
+		t.Errorf("expected only recent context message, got %q", result.Message)
 	}
 }
 

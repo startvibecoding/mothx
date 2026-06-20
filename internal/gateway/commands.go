@@ -235,8 +235,23 @@ func (s *Server) cmdCompact(sess *GatewaySession) *CommandResult {
 	}
 
 	// Check if there are enough messages to compact
-	if sess.Manager != nil && len(sess.Manager.GetMessages()) < 2 {
+	if sess.Manager == nil || len(sess.Manager.GetMessages()) < 2 {
 		return &CommandResult{Message: "Nothing to compact: conversation is too short.", Error: true}
+	}
+	previousSummary := ""
+	if compaction, ok := sess.Manager.GetLatestCompaction(); ok {
+		previousSummary = compaction.Summary
+	}
+	compactionSettings := ctxpkg.NormalizeCompactionSettings(ctxpkg.CompactionSettings{
+		Enabled:          s.settings.Compaction.Enabled,
+		ReserveTokens:    s.settings.Compaction.ReserveTokens,
+		KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        s.settings.Compaction.Tokenizer,
+		TokenizerModel:   s.settings.Compaction.TokenizerModel,
+		Template:         s.settings.Compaction.Template,
+	})
+	if !ctxpkg.HasCompactableMessages(sess.Manager.GetReplayState().Messages, s.model, compactionSettings, previousSummary) {
+		return &CommandResult{Message: "Nothing to compact: only recent context is available to keep.", Error: true}
 	}
 
 	// Set the force flag so the next agent run triggers compaction

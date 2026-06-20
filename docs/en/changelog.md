@@ -15,6 +15,12 @@
   - Linting checks Elisp syntax, workflow/phase/agent forms, keyword arguments, required prompts, and result references.
   - Registered the lint tool alongside workflow run/status/cancel tools and updated workflow prompt guidance to lint non-trivial generated or edited workflows before execution.
 
+- **Configurable Context Compaction**
+  - Added compaction settings for `tokenizer`, `tokenizerModel`, and `template`, wired through CLI, print mode, ACP, Gateway, Hermes, TUI mode switches, and delegated agent factories.
+  - Added built-in compression summary templates: `default`, `code`, and `conversation`, so long sessions can preserve task-appropriate checkpoints.
+  - Introduced a token estimator abstraction while preserving the existing generic chars/4 estimator for `auto` and `generic`.
+  - Compaction entries now record summary version, previous compaction ID, and last summarized entry ID for better session replay/debugging.
+
 ### 🐛 Bug Fixes
 
 - **Concurrent File Writes**
@@ -31,12 +37,14 @@
 ### 📚 Documentation
 
 - Updated Workflow mode docs, tool reference, and the `workflow-elisp` skill to document `:key`, keyed result lookup, and bounded while-loop patterns.
+- Documented context compaction `tokenizer`, `tokenizerModel`, and `template` settings, including the built-in template choices and the current reserved/deprecated status of idle compaction settings.
 - Clarified Ctrl+O details modal key hints for target switching, paging, scrolling, and closing.
 - Documented the TUI scrollback trade-off: completed transcript blocks are printed to native terminal scrollback for stable selection/history, while user input should remain block-printed rather than unbuffered streaming to avoid interfering with Bubble Tea live rendering.
 
 ### 🧪 Tests
 
 - Added workflow runner, lint, integration, and skill coverage for keyed repeated agents and keyed result lookup.
+- Added context compaction tests for custom token estimators, template resolution, configured summary prompts, and compaction metadata.
 - Added workflow lint tests for valid source collection and missing result reference errors.
 - Added workflow integration coverage verifying DSL agent names are reflected in runtime worker agent IDs.
 - Added file lock tests for wait/cancel behavior, shared default managers, and `write`/`edit` context handling.

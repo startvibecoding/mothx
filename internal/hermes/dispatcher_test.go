@@ -2,10 +2,12 @@ package hermes
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/hermes/hooks"
+	"github.com/startvibecoding/vibecoding/internal/messaging"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -119,5 +121,132 @@ func TestBuildAgentLoadsReplayState(t *testing.T) {
 	}
 	if !foundRecentUser {
 		t.Fatal("hermes agent lost recent user message from replay state")
+	}
+}
+
+func TestBuildAgentUsesCompactionSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	p := newRecordingHermesProvider()
+	settings := config.DefaultSettings()
+	settings.Compaction.KeepRecentTokens = 1
+
+	mgr := session.New(tmpDir, t.TempDir())
+	if err := mgr.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	_, _ = mgr.AppendMessage(provider.NewUserMessage("old user context"))
+	_, _ = mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant context"}}))
+	_, _ = mgr.AppendMessage(provider.NewUserMessage("recent user context"))
+	_, _ = mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant context"}}))
+
+	d := &Dispatcher{
+		cfg:      DefaultHermesConfig(),
+		settings: settings,
+		hooksMgr: hooks.NewManager("", ""),
+		provider: p,
+		model:    p.models[0],
+	}
+	sess := &HermesSession{
+		ID:       "hermes/ws/test-user",
+		Platform: "ws",
+		UserID:   "test-user",
+		WorkDir:  tmpDir,
+		Manager:  mgr,
+		Registry: tools.NewRegistry(tmpDir, sandbox.NewNoneSandbox()),
+		Mode:     "agent",
+	}
+
+	a, cleanup := d.buildAgent(context.Background(), sess, nil)
+	defer cleanup(nil)
+
+	if !a.CanCompact() {
+		t.Fatal("agent should use Hermes compaction keepRecent settings")
+	}
+}
+
+func TestCompactCommandOnlySetsFlagWhenCompactable(t *testing.T) {
+	tmpDir := t.TempDir()
+	p := newRecordingHermesProvider()
+	settings := config.DefaultSettings()
+	settings.Compaction.KeepRecentTokens = 1
+
+	mgr := session.New(tmpDir, t.TempDir())
+	if err := mgr.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	_, _ = mgr.AppendMessage(provider.NewUserMessage("old user context"))
+	_, _ = mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant context"}}))
+	_, _ = mgr.AppendMessage(provider.NewUserMessage("recent user context"))
+	_, _ = mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "recent assistant context"}}))
+
+	sess := &HermesSession{
+		ID:       sessionKey("ws", "test-user"),
+		Platform: "ws",
+		UserID:   "test-user",
+		WorkDir:  tmpDir,
+		Manager:  mgr,
+		Registry: tools.NewRegistry(tmpDir, sandbox.NewNoneSandbox()),
+		Mode:     "agent",
+	}
+	d := &Dispatcher{
+		cfg:      DefaultHermesConfig(),
+		settings: settings,
+		hooksMgr: hooks.NewManager("", ""),
+		provider: p,
+		model:    p.models[0],
+		sessions: map[string]*HermesSession{sess.ID: sess},
+	}
+
+	reply, err := d.handleCommand(messaging.InboundMessage{Platform: "ws", UserID: "test-user", Text: "/compact"})
+	if err != nil {
+		t.Fatalf("handleCommand() error = %v", err)
+	}
+	if !strings.Contains(reply, "compaction") {
+		t.Fatalf("reply = %q, want compaction confirmation", reply)
+	}
+	if !sess.ForceCompact {
+		t.Fatal("ForceCompact should be set for compactable conversation")
+	}
+}
+
+func TestCompactCommandDoesNotSetFlagWhenOnlyRecentContext(t *testing.T) {
+	tmpDir := t.TempDir()
+	p := newRecordingHermesProvider()
+	settings := config.DefaultSettings()
+
+	mgr := session.New(tmpDir, t.TempDir())
+	if err := mgr.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	_, _ = mgr.AppendMessage(provider.NewUserMessage("hello"))
+	_, _ = mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "hi"}}))
+
+	sess := &HermesSession{
+		ID:       sessionKey("ws", "test-user"),
+		Platform: "ws",
+		UserID:   "test-user",
+		WorkDir:  tmpDir,
+		Manager:  mgr,
+		Registry: tools.NewRegistry(tmpDir, sandbox.NewNoneSandbox()),
+		Mode:     "agent",
+	}
+	d := &Dispatcher{
+		cfg:      DefaultHermesConfig(),
+		settings: settings,
+		hooksMgr: hooks.NewManager("", ""),
+		provider: p,
+		model:    p.models[0],
+		sessions: map[string]*HermesSession{sess.ID: sess},
+	}
+
+	reply, err := d.handleCommand(messaging.InboundMessage{Platform: "ws", UserID: "test-user", Text: "/compact"})
+	if err != nil {
+		t.Fatalf("handleCommand() error = %v", err)
+	}
+	if !strings.Contains(reply, "only recent context") {
+		t.Fatalf("reply = %q, want only recent context message", reply)
+	}
+	if sess.ForceCompact {
+		t.Fatal("ForceCompact should not be set for non-compactable conversation")
 	}
 }

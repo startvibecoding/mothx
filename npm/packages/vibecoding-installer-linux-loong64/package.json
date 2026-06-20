@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer-linux-loong64",
-  "version": "0.1.45",
+  "version": "0.1.45-pre",
   "description": "VibeCoding native binary for linux-loong64",
   "os": ["linux"],
   "cpu": ["loong64"],

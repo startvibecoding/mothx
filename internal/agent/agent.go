@@ -223,6 +223,14 @@ func cloneMessages(messages []provider.Message) []provider.Message {
 	return cloned
 }
 
+func cloneMessagesWithoutUsage(messages []provider.Message) []provider.Message {
+	cloned := cloneMessages(messages)
+	for i := range cloned {
+		cloned[i].Usage = nil
+	}
+	return cloned
+}
+
 func cloneMessage(msg provider.Message) provider.Message {
 	cloned := msg
 	if len(msg.Contents) > 0 {
@@ -676,6 +684,7 @@ func applyCacheMarkers(messages []provider.Message, markers [2]int) []provider.M
 
 // New creates a new agent.
 func New(cfg Config, registry *tools.Registry) *Agent {
+	cfg.CompactionSettings = ctxpkg.NormalizeCompactionSettings(cfg.CompactionSettings)
 	loopConfig := AgentLoopConfig{
 		Config:            cfg,
 		ToolExecutionMode: "parallel",
@@ -708,6 +717,7 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 
 // NewWithLoopConfig creates a new agent with custom loop configuration.
 func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
+	cfg.CompactionSettings = ctxpkg.NormalizeCompactionSettings(cfg.CompactionSettings)
 	if cfg.MaxIterations == 0 {
 		cfg.MaxIterations = 200
 	}
@@ -1549,17 +1559,43 @@ func (a *Agent) SetForceCompact() {
 	atomic.StoreInt32(&a.forceCompact, 1)
 }
 
+func (a *Agent) previousCompactionSummary(messages []provider.Message) string {
+	if a.config.Session != nil {
+		if compaction, ok := a.config.Session.GetLatestCompaction(); ok {
+			return compaction.Summary
+		}
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].SystemInjected && messages[i].Role == "user" && strings.HasPrefix(messages[i].Content, "## Goal") {
+			return messages[i].Content
+		}
+	}
+	return ""
+}
+
+// CanCompact reports whether the current conversation has older messages that
+// can be summarized while preserving the configured recent context.
+func (a *Agent) CanCompact() bool {
+	a.mu.RLock()
+	model := a.config.Model
+	settings := a.config.CompactionSettings
+	msgs := make([]provider.Message, len(a.messages))
+	copy(msgs, a.messages)
+	a.mu.RUnlock()
+
+	if model == nil {
+		return false
+	}
+	return ctxpkg.HasCompactableMessages(msgs, model, settings, a.previousCompactionSummary(msgs))
+}
+
 // ShouldCompact checks if compaction should trigger.
 // Returns true if context exceeds the threshold OR if forced via SetForceCompact.
 func (a *Agent) ShouldCompact() bool {
 	// Check force flag first (consumes it)
 	if atomic.CompareAndSwapInt32(&a.forceCompact, 1, 0) {
-		// Force compaction requested — still need a model and some messages
-		a.mu.RLock()
-		hasModel := a.config.Model != nil
-		hasMsgs := len(a.messages) >= 2
-		a.mu.RUnlock()
-		if hasModel && hasMsgs {
+		// Force compaction requested — still need a model and compactable history.
+		if a.CanCompact() {
 			return true
 		}
 	}
@@ -1578,7 +1614,10 @@ func (a *Agent) ShouldCompact() bool {
 	}
 	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
 	tokens, _ := ctxpkg.EstimateContextTokensWithEstimator(a.messages, estimator)
-	return ctxpkg.ShouldCompact(tokens, contextWindow, a.config.CompactionSettings.ReserveTokens)
+	if !ctxpkg.ShouldCompact(tokens, contextWindow, a.config.CompactionSettings.ReserveTokens) {
+		return false
+	}
+	return ctxpkg.HasCompactableMessages(a.messages, a.config.Model, a.config.CompactionSettings, a.previousCompactionSummary(a.messages))
 }
 
 // Compact performs context compaction using Insert-then-Compress pattern (R4.1-R4.4).
@@ -1607,21 +1646,7 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	msgIDs := append([]string(nil), a.messageIDs...)
 	a.mu.RUnlock()
 
-	// Get previous summary if exists
-	previousSummary := ""
-	if a.config.Session != nil {
-		if compaction, ok := a.config.Session.GetLatestCompaction(); ok {
-			previousSummary = compaction.Summary
-		}
-	}
-	if previousSummary == "" {
-		for i := len(msgs) - 1; i >= 0; i-- {
-			if msgs[i].SystemInjected && msgs[i].Role == "user" && strings.HasPrefix(msgs[i].Content, "## Goal") {
-				previousSummary = msgs[i].Content
-				break
-			}
-		}
-	}
+	previousSummary := a.previousCompactionSummary(msgs)
 
 	// Use Insert-then-Compress with the SAME system prompt and tools (R4.1)
 	result, err := ctxpkg.Compact(compactCtx, msgs, a.config.Provider, a.config.Model,
@@ -1640,7 +1665,8 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	}
 	a.mu.Lock()
 	summaryMsg := provider.NewSystemInjectedUserMessage(result.Summary)
-	a.messages = append([]provider.Message{summaryMsg}, msgs[result.FirstKeptIndex:]...)
+	keptMessages := cloneMessagesWithoutUsage(msgs[result.FirstKeptIndex:])
+	a.messages = append([]provider.Message{summaryMsg}, keptMessages...)
 	a.messageIDs = append([]string{""}, msgIDs[result.FirstKeptIndex:]...)
 	a.context.Messages = a.messages
 	a.mu.Unlock()

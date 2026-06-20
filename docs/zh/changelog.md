@@ -15,6 +15,12 @@
   - Lint 会检查 Elisp 语法、workflow/phase/agent 表单、关键字参数、必需 prompt，以及 result 引用。
   - 将 lint 工具与 workflow run/status/cancel 工具一起注册，并更新 workflow prompt 指引：非平凡的生成或修改后 workflow 应先 lint 再执行。
 
+- **可配置上下文压缩**
+  - 新增 `tokenizer`、`tokenizerModel` 和 `template` 压缩配置，并贯通 CLI、print 模式、ACP、Gateway、Hermes、TUI 模式切换和 delegate agent factory。
+  - 新增内置压缩摘要模板：`default`、`code` 和 `conversation`，长会话可按任务类型保留更合适的 checkpoint。
+  - 引入 token 估算器抽象，同时保持 `auto` 和 `generic` 使用现有 chars/4 通用估算器。
+  - Compaction entry 现在记录 summary version、previous compaction ID 和 last summarized entry ID，便于 session replay 与调试。
+
 ### 🐛 Bug 修复
 
 - **并发文件写入**
@@ -31,12 +37,14 @@
 ### 📚 文档
 
 - 更新 Workflow 模式文档、工具参考和 `workflow-elisp` skill，记录 `:key`、keyed 结果读取，以及有界 while 循环写法。
+- 记录 context compaction 的 `tokenizer`、`tokenizerModel` 和 `template` 配置，包括内置模板选项，以及 idle compaction 设置当前为预留/弃用字段的状态。
 - 澄清 Ctrl+O 详情弹窗中的按键提示，包括切换目标、翻页、滚动和关闭。
 - 记录 TUI scrollback 的取舍：已完成 transcript block 会打印到原生终端 scrollback，以保证选择和历史滚动稳定；用户输入仍应按 block 打印，而不是无缓存流式输出，避免干扰 Bubble Tea 的 live view 重绘。
 
 ### 🧪 测试
 
 - 新增 workflow runner、lint、集成和 skill 覆盖，验证 keyed 重复 agent 和 keyed result 查询。
+- 新增 context compaction 测试，覆盖自定义 token estimator、模板解析、配置化摘要 prompt，以及 compaction metadata。
 - 新增 workflow lint 测试，覆盖有效 source 收集和缺失 result 引用错误。
 - 新增 workflow 集成测试，验证 DSL agent 名称会反映到运行时 worker agent ID。
 - 新增文件锁测试，覆盖等待/取消行为、默认管理器共享，以及 `write`/`edit` 的 context 处理。

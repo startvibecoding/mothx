@@ -523,7 +523,9 @@ func applyCompactionEntry(state *replayState, entry CompactionEntry) {
 	nextMessages := make([]provider.Message, 0, 1+len(state.messages[firstKept:]))
 	nextMessages = append(nextMessages, summary)
 	for _, msg := range state.messages[firstKept:] {
-		nextMessages = append(nextMessages, cloneMessage(msg))
+		cloned := cloneMessage(msg)
+		cloned.Usage = nil
+		nextMessages = append(nextMessages, cloned)
 	}
 
 	nextEntryIDs := make([]string, 0, 1+len(state.entryIDs[firstKept:]))
