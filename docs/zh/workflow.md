@@ -68,7 +68,10 @@ Gateway 和 ACP 也支持 workflow 模式，在对应配置中开启即可。
 ### 结果传递
 
 - `(result "phase.agent")`：获取某个 agent 的结果
+- `(result "phase.agent" :key "r0")` 或 `(result-key "phase.agent" "r0")`：获取重复 agent 的指定实例结果
+- `(result-latest "phase.agent")`：获取某个逻辑 agent 的最新结果
 - `(results "phase")`：获取某个阶段所有 agent 的结果，拼接为带标题的文本
+- `(results "phase.agent")`：获取某个逻辑 agent 的所有 keyed 历史结果
 
 ---
 
@@ -102,6 +105,7 @@ Gateway 和 ACP 也支持 workflow 模式，在对应配置中开启即可。
 | 选项 | 类型 | 说明 |
 |------|------|------|
 | `:prompt` | string | **必填**，任务描述 |
+| `:key` | string | 重复逻辑 agent 的可选实例 key，尤其用于 `while` 循环。可以是字符串表达式，例如 `(format "r%s" i)`。结果 key 会保存为 `phase.agent[key]` |
 | `:mode` | string | 运行模式：`plan` / `agent` / `yolo`，默认继承父 agent；不可用时默认 `agent` |
 | `:tools` | string list | 可用工具列表，用 `'("read" "grep")` 语法。省略时使用当前 mode 的默认工具集，但 worker 不能 spawn 子 agent、delegate 或启动嵌套 workflow |
 | `:work-dir` | string | 工作目录，默认是当前进程工作目录 |
@@ -211,18 +215,24 @@ Gateway 和 ACP 也支持 workflow 模式，在对应配置中开启即可。
 ```elisp
 (workflow "bounded fix loop"
   (concurrency 1)
-  (let ((i 0) (status "NEEDS_WORK"))
+  (let ((i 0)
+        (status "NEEDS_WORK")
+        (last-worker ""))
     (while (and (< i 3) (not (string= status "DONE")))
       (phase "iteration"
         (agent "worker" :mode "agent" :tools '("read" "grep" "edit")
-          :prompt (concat "Iteration " (format "%s" i) ". Fix the highest-confidence issue. Return DONE or NEEDS_WORK."))
+          :key (format "r%s" i)
+          :prompt (concat "Iteration " (format "%s" i) ". Fix the highest-confidence issue."))
+        (setq last-worker (result-latest "iteration.worker"))
         (agent "checker" :mode "plan" :tools '("read" "grep")
-          :prompt (concat (result "iteration.worker") "\nCheck if complete. Return DONE or NEEDS_WORK.")))
-      (setq status (result "iteration.checker"))
+          :key (format "r%s" i)
+          :prompt (concat last-worker "\nCheck if complete. Return DONE or NEEDS_WORK.")))
+      (setq status (result-latest "iteration.checker"))
       (setq i (+ i 1)))
     (phase "final"
       (agent "summary" :mode "plan"
-        :prompt (concat "Final status: " status "\nSummarize changes and residual risk.")))))
+        :prompt (concat "Final status: " status "\nLast worker result:\n" last-worker
+          "\nSummarize changes and residual risk.")))))
 ```
 
 ### 5. 专家评审团
@@ -325,6 +335,14 @@ Gateway 和 ACP 也支持 workflow 模式，在对应配置中开启即可。
 
 ;; 正确
 (phase "scan" ...)
+```
+
+对于重复 worker，保持 `agent` 名称为字面量，把轮次身份放到 `:key`：
+
+```elisp
+(agent "worker"
+  :key (format "r%s" i)
+  :prompt "...")
 ```
 
 ### ❌ 不要在 :tools 里用未加引号的列表

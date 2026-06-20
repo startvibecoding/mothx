@@ -65,6 +65,12 @@ func TestAgentHostUsesDSLNameForAgentID(t *testing.T) {
 	}
 }
 
+func TestWorkflowAgentIDIncludesInstanceKey(t *testing.T) {
+	if got, want := workflowAgentID("handler-audit", "r1"), "agent-handler-audit[r1]"; string(got) != want {
+		t.Fatalf("workflowAgentID() = %q, want %q", got, want)
+	}
+}
+
 func TestWorkflowRunToolReadOnlyAuditEndToEnd(t *testing.T) {
 	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
 		{ID: "model1", Name: "Model 1", ContextWindow: 4096, MaxTokens: 1024},

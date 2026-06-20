@@ -59,6 +59,9 @@ that pattern.
   prefix, for example (agent "handler-audit" ...) runs as
   agent-handler-audit. Keep agent names unique within a workflow, especially
   inside parallel branches.
+- In while loops or dynamic repeated execution, keep the literal agent name
+  stable and set :key to a unique instance key such as (format "r%s" i). Keyed
+  results are stored as phase.agent[key].
 - defun and defmacro only support fixed parameter lists. Do not use &optional,
   &rest, &body, or any argument marker beginning with &.
 - Tool lists must be quoted string lists: '("read" "grep" "find").
@@ -78,7 +81,7 @@ that pattern.
 - Status checker agents used for loop control must return exactly one token
   such as DONE or NEEDS_WORK, with no rationale or suffix.
 - Do not simulate loops by writing many numbered phases. Use while only when a
-  bounded runtime loop is actually required.
+  bounded runtime loop is actually required, and use :key for repeated agents.
 `
 
 var defaultReferenceFiles = map[string]string{
@@ -97,6 +100,9 @@ var defaultReferenceFiles = map[string]string{
 - Keep agent names unique within a workflow. Duplicate names overwrite result
   keys, and duplicate names running concurrently can collide on the worker agent
   ID.
+- If a repeated worker is intentional, keep the agent name literal and stable,
+  then add :key with a unique runtime string. For example, inside a while loop:
+  :key (format "r%s" i). The stored result key becomes phase.agent[r0].
 - defun only supports fixed parameter lists. Do not use &optional, &rest, &key,
   &body, &allow-other-keys, or any parameter marker beginning with &.
 - defmacro only supports fixed parameter lists. Do not use &optional, &rest,
@@ -122,11 +128,16 @@ Invalid examples:
 - (phase "name" body...) groups sequential phases and records phase state.
 - (parallel expr...) evaluates independent branches concurrently.
 - (series expr...) evaluates branches sequentially.
-- (agent "name" :prompt "..." [:mode "plan|agent|yolo"] [:work-dir "..."]
-  [:tools '("read" "grep")] [:max-iterations n]
+- (agent "name" :prompt "..." [:key "instance-key"]
+  [:mode "plan|agent|yolo"] [:work-dir "..."] [:tools '("read" "grep")]
+  [:max-iterations n]
   [:system-prompt-extra "..."]) runs one worker agent and returns its final text.
 - (result "phase.agent") returns one prior worker result.
+- (result "phase.agent" :key "r0") or (result-key "phase.agent" "r0") returns
+  one keyed worker result.
+- (result-latest "phase.agent") returns the newest result for a logical worker.
 - (results "phase") returns all results from a prior phase as text.
+- (results "phase.agent") returns all keyed results for a logical worker.
 - (log "message" ...) appends a workflow log entry.
 
 ## Minimal Valid Skeleton
@@ -162,6 +173,9 @@ Invalid examples:
   defaults to "agent". Use :mode "plan" explicitly for read-only workers.
 - :work-dir defaults to the current process working directory. Set it explicitly
   for cross-directory workflows.
+- :key is optional. Use it for repeated logical workers, especially inside while
+  loops. It may be a string expression, but it must evaluate to a string without
+  brackets or leading/trailing whitespace.
 - :tools omitted means the worker receives the default tool set for its mode, but
   workflow workers cannot spawn subagents, delegate, or start nested workflows.
   Prefer explicit :tools lists for bounded workers.
@@ -212,6 +226,8 @@ a separate worker result or a final summary phase instead.
 - Source starts with (workflow "literal-name" ...).
 - Every phase and agent has a literal string name.
 - Agent names are unique and suitable for the agent-<name> runtime worker ID.
+- Repeated logical agents use :key for unique instances instead of dynamic agent
+  names.
 - Parentheses and strings are balanced.
 - Every agent option is a keyword/value pair.
 - Every agent has :prompt.
@@ -222,7 +238,8 @@ a separate worker result or a final summary phase instead.
   parameter, not an (agent ...) option.
 - :max-iterations is explicit for broad scans, edit workers, verification
   workers, and loop workers.
-- Prior outputs are referenced with (result "phase.agent") or (results "phase").
+- Prior outputs are referenced with (result "phase.agent"), (result-key
+  "phase.agent" "r0"), (result-latest "phase.agent"), or (results "phase").
 `,
 	"references/01-research.md": `# Research and Investigation Workflows
 
@@ -405,6 +422,7 @@ Every while loop must have:
 - A hard iteration limit.
 - A state variable updated inside the loop.
 - A clear stop condition.
+- A unique :key for repeated logical agents, usually (format "r%s" i).
 - A final phase that summarizes the last state.
 
 ## Bounded Test-Fix Loop
@@ -412,24 +430,28 @@ Every while loop must have:
     (workflow "bounded fix loop"
       (concurrency 1)
       (let ((i 0)
-            (status "NEEDS_WORK"))
+            (status "NEEDS_WORK")
+            (last-worker ""))
         (while (and (< i 3) (not (string= status "DONE")))
           (phase "iteration"
             (agent "worker"
+              :key (format "r%s" i)
               :mode "agent"
               :tools '("read" "grep" "edit")
               :max-iterations 150
               :prompt (concat
                 "Iteration " (format "%s" i) ". Fix only the highest-confidence issue. "
                 "Return a concise change summary and remaining risk. Do not return the loop status."))
+            (setq last-worker (result-latest "iteration.worker"))
             (agent "checker"
+              :key (format "r%s" i)
               :mode "plan"
               :tools '("read" "grep")
               :max-iterations 80
               :prompt (concat
-                (result "iteration.worker")
+                last-worker
                 "\nCheck whether the objective is complete. Return exactly one token: DONE or NEEDS_WORK. No other text.")))
-          (setq status (result "iteration.checker"))
+          (setq status (result-latest "iteration.checker"))
           (setq i (+ i 1)))
         (phase "final"
           (agent "summary"
@@ -437,12 +459,15 @@ Every while loop must have:
             :prompt (concat
               "Loop stopped after bounded iterations. Final checker status: "
               status
+              "\nLast worker result:\n"
+              last-worker
               "\nSummarize changes, evidence, and residual risk.")))))
 
-Important: repeated phase and agent literal names overwrite result keys from
-prior iterations. Use this pattern when you only need the latest iteration. If
-you need a full history, make the worker or checker include a compact history in
-its latest response.
+Important: agent names must still be literal strings. Do not write
+(agent (concat "worker-" i) ...). Use :key for the per-round instance identity.
+Use (result-key "iteration.worker" "r0") for a specific round,
+(result-latest "iteration.worker") for the newest round, and
+(results "iteration.worker") for the full keyed history.
 `,
 	"references/05-horizontal-collaboration.md": `# Horizontal Multi-Agent Collaboration
 

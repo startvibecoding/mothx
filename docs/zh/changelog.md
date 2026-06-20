@@ -5,6 +5,11 @@
 
 ### ✨ 新功能
 
+- **Workflow Agent 实例 Key**
+  - 新增重复逻辑 workflow agent 的 `:key`，有界 `while` 循环可以保持 agent 名称为字面量，同时将每轮结果保存为 `phase.agent[key]`。
+  - 新增 `result-key`、`result-latest`，并支持 `(result "phase.agent" :key "r0")`，用于显式读取 keyed 结果或最新实例结果。
+  - Keyed workflow worker 使用带实例的运行时 ID，例如 `agent-worker[r0]`，避免循环中的重复 worker 碰撞，同时保留稳定的逻辑 agent 名称。
+
 - **Workflow Lint 工具**
   - 新增 `workflow_lint`，可在不运行 worker agents 的情况下验证 workflow Elisp DSL。
   - Lint 会检查 Elisp 语法、workflow/phase/agent 表单、关键字参数、必需 prompt，以及 result 引用。
@@ -25,11 +30,13 @@
 
 ### 📚 文档
 
+- 更新 Workflow 模式文档、工具参考和 `workflow-elisp` skill，记录 `:key`、keyed 结果读取，以及有界 while 循环写法。
 - 澄清 Ctrl+O 详情弹窗中的按键提示，包括切换目标、翻页、滚动和关闭。
 - 记录 TUI scrollback 的取舍：已完成 transcript block 会打印到原生终端 scrollback，以保证选择和历史滚动稳定；用户输入仍应按 block 打印，而不是无缓存流式输出，避免干扰 Bubble Tea 的 live view 重绘。
 
 ### 🧪 测试
 
+- 新增 workflow runner、lint、集成和 skill 覆盖，验证 keyed 重复 agent 和 keyed result 查询。
 - 新增 workflow lint 测试，覆盖有效 source 收集和缺失 result 引用错误。
 - 新增 workflow 集成测试，验证 DSL agent 名称会反映到运行时 worker agent ID。
 - 新增文件锁测试，覆盖等待/取消行为、默认管理器共享，以及 `write`/`edit` 的 context 处理。

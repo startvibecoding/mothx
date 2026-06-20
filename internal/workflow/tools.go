@@ -90,19 +90,17 @@ type lintHost struct {
 }
 
 func (h *lintHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, error) {
-	key := task.Name
-	if task.Phase != "" {
-		key = task.Phase + "." + task.Name
-	}
+	key := taskStorageKey(task.Phase, task.Name, task.InstanceKey)
 	h.mu.Lock()
 	h.tasks = append(h.tasks, key)
 	h.mu.Unlock()
 	return AgentResult{
-		Key:    key,
-		Name:   task.Name,
-		Phase:  task.Phase,
-		Status: StatusDone,
-		Result: "__workflow_lint_placeholder__",
+		Key:         key,
+		Name:        task.Name,
+		Phase:       task.Phase,
+		InstanceKey: task.InstanceKey,
+		Status:      StatusDone,
+		Result:      "__workflow_lint_placeholder__",
 	}, nil
 }
 
@@ -182,6 +180,7 @@ func (t *RunTool) PromptGuidelines() []string {
 		"Write workflow DSL using plain Elisp syntax; do not use Markdown code fences.",
 		"Before calling workflow_run, ensure the source is one complete (workflow \"name\" ...) form with balanced parentheses and closed double-quoted strings.",
 		"Use quoted string lists for tools, for example :tools '(\"read\" \"grep\").",
+		"Use :key for repeated logical agents, especially inside while loops; keyed results are stored as phase.agent[key].",
 		"Keep worker prompts explicit and bounded; use result to pass prior phase outputs into later phases.",
 		"Set timeoutSeconds to the expected workflow duration; use 0 only for intentional continuous workflows that must not hit the default tool deadline.",
 	}

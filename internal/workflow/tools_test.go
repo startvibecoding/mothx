@@ -36,13 +36,14 @@ func TestLintToolValidatesWorkflowSourceWithoutRunningAgents(t *testing.T) {
 			(workflow "lint me"
 			  (phase "scan"
 			    (agent "handler-audit"
+			      :key "r0"
 			      :mode "plan"
 			      :tools '("read" "grep")
 			      :prompt "Audit handler."))
 			  (phase "verify"
 			    (agent "cross-check"
 			      :mode "plan"
-			      :prompt (concat (result "scan.handler-audit") "\nVerify."))))`,
+			      :prompt (concat (result-key "scan.handler-audit" "r0") "\nVerify."))))`,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -54,10 +55,10 @@ func TestLintToolValidatesWorkflowSourceWithoutRunningAgents(t *testing.T) {
 	if !parsed.Valid || parsed.Status != StatusDone {
 		t.Fatalf("lint result = %#v, want valid done", parsed)
 	}
-	if !equalStrings(parsed.Tasks, []string{"scan.handler-audit", "verify.cross-check"}) {
+	if !equalStrings(parsed.Tasks, []string{"scan.handler-audit[r0]", "verify.cross-check"}) {
 		t.Fatalf("tasks = %#v", parsed.Tasks)
 	}
-	if !equalStrings(parsed.Results, []string{"scan.handler-audit", "verify.cross-check"}) {
+	if !equalStrings(parsed.Results, []string{"scan.handler-audit[r0]", "verify.cross-check"}) {
 		t.Fatalf("results = %#v", parsed.Results)
 	}
 }

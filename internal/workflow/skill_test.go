@@ -35,6 +35,7 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"Do not rely on hidden defaults for safety-sensitive workers",
 		"workflow_run timeoutSeconds explicitly",
 		"Status checker agents used for loop control must return exactly one token",
+		"use :key for repeated agents",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("skill content missing %q", want)
@@ -60,6 +61,8 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"Agent Iteration Budgets",
 		":max-iterations 100",
 		"Loop Status Rules",
+		"(result-key \"phase.agent\" \"r0\")",
+		":key (format \"r%s\" i)",
 	} {
 		if !strings.Contains(core, want) {
 			t.Fatalf("core reference missing %q", want)
@@ -88,6 +91,8 @@ func TestEnsureProjectSkillCreatesWorkflowSkill(t *testing.T) {
 		"(while (and (< i 3)",
 		"Single responsibility",
 		":max-iterations 150",
+		":key (format \"r%s\" i)",
+		"(result-latest \"iteration.worker\")",
 		"Return exactly one token: DONE or NEEDS_WORK. No other text.",
 	} {
 		if !strings.Contains(loops, want) {

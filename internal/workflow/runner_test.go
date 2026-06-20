@@ -106,6 +106,86 @@ func TestRunnerExecutesPhasesAndResults(t *testing.T) {
 	}
 }
 
+func TestRunnerSupportsAgentInstanceKeysInLoops(t *testing.T) {
+	host := &fakeHost{}
+	r := &Runner{Host: host, Concurrency: 1, Now: fixedClock()}
+
+	state, err := r.Run(context.Background(), `
+		(workflow "loop keys"
+		  (concurrency 1)
+		  (let ((i 0))
+		    (while (< i 2)
+		      (phase "iteration"
+		        (agent "worker"
+		          :key (format "r%s" i)
+		          :mode "plan"
+		          :prompt (concat "round " (format "%s" i))))
+		      (setq i (+ i 1))))
+		  (phase "verify"
+		    (agent "checker"
+		      :mode "plan"
+		      :prompt (concat
+		        (result-key "iteration.worker" "r0")
+		        "\n"
+		        (result "iteration.worker" :key "r1")
+		        "\nLATEST:\n"
+		        (result-latest "iteration.worker")
+		        "\nALL:\n"
+		        (results "iteration.worker")))))`)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if state.Status != StatusDone {
+		t.Fatalf("status = %s", state.Status)
+	}
+	for _, key := range []string{"iteration.worker[r0]", "iteration.worker[r1]", "verify.checker"} {
+		if _, ok := state.Results[key]; !ok {
+			t.Fatalf("missing result %s in %#v", key, state.Results)
+		}
+	}
+	if state.Results["iteration.worker"].Result != "" {
+		t.Fatalf("unexpected unkeyed worker result: %#v", state.Results["iteration.worker"])
+	}
+	checker := findTask(host.tasks, "checker")
+	if checker == nil {
+		t.Fatal("checker task not found")
+	}
+	for _, want := range []string{
+		"worker:round 0",
+		"worker:round 1",
+		"LATEST:\nworker:round 1",
+		"iteration.worker[r0]:",
+		"iteration.worker[r1]:",
+	} {
+		if !strings.Contains(checker.Prompt, want) {
+			t.Fatalf("checker prompt missing %q:\n%s", want, checker.Prompt)
+		}
+	}
+	if got := state.Phases[0].Tasks; !equalStrings(got, []string{"iteration.worker[r0]"}) {
+		t.Fatalf("first iteration tasks = %#v", got)
+	}
+	if got := state.Phases[1].Tasks; !equalStrings(got, []string{"iteration.worker[r1]"}) {
+		t.Fatalf("second iteration tasks = %#v", got)
+	}
+}
+
+func TestRunnerRejectsInvalidAgentInstanceKey(t *testing.T) {
+	r := &Runner{Host: &fakeHost{}, Now: fixedClock()}
+	state, err := r.Run(context.Background(), `
+		(workflow "bad key"
+		  (phase "scan"
+		    (agent "worker" :key "r[0]" :prompt "bad")))`)
+	if err == nil {
+		t.Fatal("expected invalid key error")
+	}
+	if !strings.Contains(err.Error(), ":key") {
+		t.Fatalf("error = %q, want :key", err.Error())
+	}
+	if state.Status != StatusError {
+		t.Fatalf("status = %s, want error", state.Status)
+	}
+}
+
 func TestRunnerReportsMissingResult(t *testing.T) {
 	r := &Runner{Host: &fakeHost{}, Now: fixedClock()}
 	state, err := r.Run(context.Background(), `

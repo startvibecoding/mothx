@@ -16,6 +16,7 @@ const (
 type AgentTask struct {
 	Name              string   `json:"name"`
 	Phase             string   `json:"phase,omitempty"`
+	InstanceKey       string   `json:"instanceKey,omitempty"`
 	Prompt            string   `json:"prompt"`
 	Mode              string   `json:"mode,omitempty"`
 	WorkDir           string   `json:"workDir,omitempty"`
@@ -26,15 +27,16 @@ type AgentTask struct {
 
 // AgentResult captures the completed worker-agent output.
 type AgentResult struct {
-	Key        string    `json:"key"`
-	Name       string    `json:"name"`
-	Phase      string    `json:"phase,omitempty"`
-	Status     string    `json:"status"`
-	Result     string    `json:"result,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	StartedAt  time.Time `json:"startedAt"`
-	FinishedAt time.Time `json:"finishedAt,omitempty"`
-	Duration   string    `json:"duration,omitempty"`
+	Key         string    `json:"key"`
+	Name        string    `json:"name"`
+	Phase       string    `json:"phase,omitempty"`
+	InstanceKey string    `json:"instanceKey,omitempty"`
+	Status      string    `json:"status"`
+	Result      string    `json:"result,omitempty"`
+	Error       string    `json:"error,omitempty"`
+	StartedAt   time.Time `json:"startedAt"`
+	FinishedAt  time.Time `json:"finishedAt,omitempty"`
+	Duration    string    `json:"duration,omitempty"`
 }
 
 // PhaseState captures runtime state for a workflow phase.

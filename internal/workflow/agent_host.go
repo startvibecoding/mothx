@@ -46,7 +46,7 @@ func (h *AgentHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, 
 	}
 
 	a, err := h.Manager.Create(internalagent.AgentOptions{
-		ID:                workflowAgentID(task.Name),
+		ID:                workflowAgentID(task.Name, task.InstanceKey),
 		ParentID:          h.ParentID,
 		Mode:              mode,
 		WorkDir:           task.WorkDir,
@@ -93,12 +93,13 @@ func (h *AgentHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, 
 	}
 
 	result := AgentResult{
-		Name:       task.Name,
-		Phase:      task.Phase,
-		Status:     StatusDone,
-		Result:     lastAssistantResponse(a),
-		StartedAt:  started,
-		FinishedAt: time.Now(),
+		Name:        task.Name,
+		Phase:       task.Phase,
+		InstanceKey: task.InstanceKey,
+		Status:      StatusDone,
+		Result:      lastAssistantResponse(a),
+		StartedAt:   started,
+		FinishedAt:  time.Now(),
 	}
 	if runErr != nil {
 		result.Status = StatusError
@@ -108,15 +109,27 @@ func (h *AgentHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, 
 	return result, nil
 }
 
-func workflowAgentID(name string) agentpkg.AgentID {
+func workflowAgentID(name string, instanceKey string) agentpkg.AgentID {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
+	}
+	if instanceKey != "" {
+		name = resultStorageKey(name, strings.TrimSpace(instanceKey))
 	}
 	return agentpkg.AgentID("agent-" + name)
 }
 
 func buildTaskPrompt(task AgentTask) string {
+	if task.InstanceKey != "" {
+		return fmt.Sprintf(`Workflow task: %s
+Instance key: %s
+Phase: %s
+
+%s
+
+Return a concise final result with evidence and risks.`, task.Name, task.InstanceKey, task.Phase, strings.TrimSpace(task.Prompt))
+	}
 	return fmt.Sprintf(`Workflow task: %s
 Phase: %s
 

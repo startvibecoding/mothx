@@ -5,6 +5,11 @@
 
 ### ✨ Features
 
+- **Workflow Agent Instance Keys**
+  - Added `:key` for repeated logical workflow agents, so bounded `while` loops can keep literal agent names while storing per-round results as `phase.agent[key]`.
+  - Added `result-key` and `result-latest`, plus `(result "phase.agent" :key "r0")`, for explicit keyed result lookup and latest-instance lookup.
+  - Keyed workflow workers use instance-aware runtime IDs such as `agent-worker[r0]`, preventing repeated loop workers from colliding while preserving the logical agent name.
+
 - **Workflow Lint Tool**
   - Added `workflow_lint` to validate workflow Elisp DSL without running worker agents.
   - Linting checks Elisp syntax, workflow/phase/agent forms, keyword arguments, required prompts, and result references.
@@ -25,11 +30,13 @@
 
 ### 📚 Documentation
 
+- Updated Workflow mode docs, tool reference, and the `workflow-elisp` skill to document `:key`, keyed result lookup, and bounded while-loop patterns.
 - Clarified Ctrl+O details modal key hints for target switching, paging, scrolling, and closing.
 - Documented the TUI scrollback trade-off: completed transcript blocks are printed to native terminal scrollback for stable selection/history, while user input should remain block-printed rather than unbuffered streaming to avoid interfering with Bubble Tea live rendering.
 
 ### 🧪 Tests
 
+- Added workflow runner, lint, integration, and skill coverage for keyed repeated agents and keyed result lookup.
 - Added workflow lint tests for valid source collection and missing result reference errors.
 - Added workflow integration coverage verifying DSL agent names are reflected in runtime worker agent IDs.
 - Added file lock tests for wait/cancel behavior, shared default managers, and `write`/`edit` context handling.

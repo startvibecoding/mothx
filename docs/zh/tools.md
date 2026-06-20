@@ -486,9 +486,9 @@ Workflow 脚本必须使用受支持的 Elisp 子集。不要用 JSON DSL 描述
 }
 ```
 
-当前支持的 workflow builtin 包括 `workflow`、`phase`、`parallel`、`series`、`agent`、`concurrency`、`result`、`results` 和 `log`。Worker agent 通过任务 prompt 接收动态 workflow 上下文，因此父 Agent 的 system prompt 和 tool definitions 在构造后保持冻结。
+当前支持的 workflow builtin 包括 `workflow`、`phase`、`parallel`、`series`、`agent`、`concurrency`、`result`、`result-key`、`result-latest`、`results` 和 `log`。Worker agent 通过任务 prompt 接收动态 workflow 上下文，因此父 Agent 的 system prompt 和 tool definitions 在构造后保持冻结。
 
-重要默认值：`concurrency` 默认 5；`:mode` 默认继承父 agent mode；省略 `:tools` 时使用该 worker mode 的默认工具集；省略、`0` 或负数的 `:max-iterations` 默认 50 次 worker-agent 循环。Worker agent 不能 spawn 子 agent、delegate 或启动嵌套 workflow；DSL 也没有 per-worker `:timeout`、`:model`、`:thinking-level` 或 `:max-tokens` 选项。
+重要默认值：`concurrency` 默认 5；`:mode` 默认继承父 agent mode；省略 `:tools` 时使用该 worker mode 的默认工具集；省略、`0` 或负数的 `:max-iterations` 默认 50 次 worker-agent 循环。循环中重复的逻辑 agent 应使用 `:key`，keyed 结果会保存为 `phase.agent[key]`，可用 `result-key` 或 `result-latest` 读取。Worker agent 不能 spawn 子 agent、delegate 或启动嵌套 workflow；DSL 也没有 per-worker `:timeout`、`:model`、`:thinking-level` 或 `:max-tokens` 选项。
 
 更多 workflow 模式的详细用法和最佳实践请参考 [Workflow 模式](workflow.md) 文档。
 

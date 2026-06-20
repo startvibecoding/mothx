@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -77,8 +78,10 @@ func (rt *runtime) register(e *elispvm.Evaluator) {
 	e.RegisterSpecial("parallel", rt.specialParallel)
 	e.RegisterSpecial("series", rt.specialSeries)
 	e.RegisterSpecial("agent", rt.specialAgent)
+	e.RegisterSpecial("result", rt.specialResult)
 	e.RegisterFunc("concurrency", rt.fnConcurrency)
-	e.RegisterFunc("result", rt.fnResult)
+	e.RegisterFunc("result-key", rt.fnResultKey)
+	e.RegisterFunc("result-latest", rt.fnResultLatest)
 	e.RegisterFunc("results", rt.fnResults)
 	e.RegisterFunc("log", rt.fnLog)
 }
@@ -235,21 +238,116 @@ func (rt *runtime) fnConcurrency(_ *elispvm.EvalContext, args []elispvm.Value) (
 	return elispvm.Number(limit), nil
 }
 
-func (rt *runtime) fnResult(_ *elispvm.EvalContext, args []elispvm.Value) (elispvm.Value, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("result expects 1 argument")
+func (rt *runtime) specialResult(ctx *elispvm.EvalContext, args []elispvm.Expr) (elispvm.Value, error) {
+	if len(args) != 1 && len(args) != 3 {
+		return nil, fmt.Errorf("result expects 1 argument or :key with a value")
 	}
-	key, ok := args[0].(elispvm.String)
+	keyValue, err := ctx.Eval(args[0])
+	if err != nil {
+		return nil, err
+	}
+	key, ok := keyValue.(elispvm.String)
 	if !ok {
 		return nil, fmt.Errorf("result expects a string key")
 	}
-	rt.mu.Lock()
-	result, ok := rt.state.Results[string(key)]
-	rt.mu.Unlock()
+	instanceKey := ""
+	if len(args) == 3 {
+		option, ok := args[1].(elispvm.Symbol)
+		if !ok || string(option) != ":key" {
+			return nil, fmt.Errorf("result optional argument must be :key")
+		}
+		value, err := ctx.Eval(args[2])
+		if err != nil {
+			return nil, err
+		}
+		keyValue, ok := value.(elispvm.String)
+		if !ok {
+			return nil, fmt.Errorf("result :key expects a string")
+		}
+		instanceKey = string(keyValue)
+		if err := validateInstanceKey(instanceKey); err != nil {
+			return nil, fmt.Errorf("result :key %w", err)
+		}
+	}
+	result, ok := rt.lookupResult(string(key), instanceKey)
+	if !ok {
+		if instanceKey != "" {
+			return nil, fmt.Errorf("workflow result %q with key %q not found", string(key), instanceKey)
+		}
+		return nil, fmt.Errorf("workflow result %q not found", string(key))
+	}
+	return elispvm.String(result.Result), nil
+}
+
+func (rt *runtime) fnResultKey(_ *elispvm.EvalContext, args []elispvm.Value) (elispvm.Value, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("result-key expects a result key and instance key")
+	}
+	key, ok := args[0].(elispvm.String)
+	if !ok {
+		return nil, fmt.Errorf("result-key expects a string result key")
+	}
+	instanceKey, ok := args[1].(elispvm.String)
+	if !ok {
+		return nil, fmt.Errorf("result-key expects a string instance key")
+	}
+	if err := validateInstanceKey(string(instanceKey)); err != nil {
+		return nil, fmt.Errorf("result-key instance key %w", err)
+	}
+	result, ok := rt.lookupResult(string(key), string(instanceKey))
+	if !ok {
+		return nil, fmt.Errorf("workflow result %q with key %q not found", string(key), string(instanceKey))
+	}
+	return elispvm.String(result.Result), nil
+}
+
+func (rt *runtime) fnResultLatest(_ *elispvm.EvalContext, args []elispvm.Value) (elispvm.Value, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("result-latest expects 1 argument")
+	}
+	key, ok := args[0].(elispvm.String)
+	if !ok {
+		return nil, fmt.Errorf("result-latest expects a string key")
+	}
+	result, ok := rt.latestResultForBase(string(key))
 	if !ok {
 		return nil, fmt.Errorf("workflow result %q not found", string(key))
 	}
 	return elispvm.String(result.Result), nil
+}
+
+func (rt *runtime) lookupResult(baseKey string, instanceKey string) (AgentResult, bool) {
+	if instanceKey != "" {
+		return rt.resultByStorageKey(resultStorageKey(baseKey, instanceKey))
+	}
+	if result, ok := rt.resultByStorageKey(baseKey); ok {
+		return result, true
+	}
+	return rt.latestResultForBase(baseKey)
+}
+
+func (rt *runtime) resultByStorageKey(key string) (AgentResult, bool) {
+	rt.mu.Lock()
+	result, ok := rt.state.Results[key]
+	rt.mu.Unlock()
+	return result, ok
+}
+
+func (rt *runtime) latestResultForBase(baseKey string) (AgentResult, bool) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	var latest AgentResult
+	found := false
+	for _, result := range rt.state.Results {
+		if !resultMatchesBase(result, baseKey) {
+			continue
+		}
+		if !found || result.StartedAt.After(latest.StartedAt) || result.FinishedAt.After(latest.FinishedAt) {
+			latest = result
+			found = true
+		}
+	}
+	return latest, found
 }
 
 func (rt *runtime) fnResults(_ *elispvm.EvalContext, args []elispvm.Value) (elispvm.Value, error) {
@@ -260,19 +358,30 @@ func (rt *runtime) fnResults(_ *elispvm.EvalContext, args []elispvm.Value) (elis
 	if !ok {
 		return nil, fmt.Errorf("results expects a phase name string")
 	}
-	prefix := string(phase) + "."
+	query := string(phase)
+	prefix := query + "."
 	rt.mu.Lock()
-	defer rt.mu.Unlock()
-	var out strings.Builder
+	matches := make([]AgentResult, 0)
 	for _, res := range rt.state.Results {
-		if res.Phase == string(phase) || strings.HasPrefix(res.Key, prefix) {
-			if out.Len() > 0 {
-				out.WriteString("\n\n")
-			}
-			out.WriteString(res.Key)
-			out.WriteString(":\n")
-			out.WriteString(res.Result)
+		if res.Phase == query || strings.HasPrefix(res.Key, prefix) || resultMatchesBase(res, query) {
+			matches = append(matches, res)
 		}
+	}
+	rt.mu.Unlock()
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].StartedAt.Equal(matches[j].StartedAt) {
+			return matches[i].Key < matches[j].Key
+		}
+		return matches[i].StartedAt.Before(matches[j].StartedAt)
+	})
+	var out strings.Builder
+	for _, res := range matches {
+		if out.Len() > 0 {
+			out.WriteString("\n\n")
+		}
+		out.WriteString(res.Key)
+		out.WriteString(":\n")
+		out.WriteString(res.Result)
 	}
 	return elispvm.String(out.String()), nil
 }
@@ -292,6 +401,9 @@ func (rt *runtime) fnLog(_ *elispvm.EvalContext, args []elispvm.Value) (elispvm.
 }
 
 func (rt *runtime) runAgent(ctx context.Context, task AgentTask) (AgentResult, error) {
+	if err := validateInstanceKey(task.InstanceKey); err != nil {
+		return AgentResult{}, fmt.Errorf("agent %q :key: %w", task.Name, err)
+	}
 	sem := rt.semaphore()
 	select {
 	case sem <- struct{}{}:
@@ -300,10 +412,7 @@ func (rt *runtime) runAgent(ctx context.Context, task AgentTask) (AgentResult, e
 	}
 	defer func() { <-sem }()
 
-	key := task.Name
-	if task.Phase != "" {
-		key = task.Phase + "." + task.Name
-	}
+	key := taskStorageKey(task.Phase, task.Name, task.InstanceKey)
 	started := rt.runner.now()
 	rt.recordTaskStart(key)
 	rt.emitProgress(ProgressEvent{
@@ -319,6 +428,7 @@ func (rt *runtime) runAgent(ctx context.Context, task AgentTask) (AgentResult, e
 	}
 	result.Name = task.Name
 	result.Phase = task.Phase
+	result.InstanceKey = task.InstanceKey
 	if result.StartedAt.IsZero() {
 		result.StartedAt = started
 	}
@@ -536,6 +646,15 @@ func applyAgentOption(task *AgentTask, key string, value elispvm.Value) error {
 			return fmt.Errorf(":max-iterations expects a number")
 		}
 		task.MaxIterations = int(float64(v))
+	case ":key":
+		v, ok := value.(elispvm.String)
+		if !ok {
+			return fmt.Errorf(":key expects a string")
+		}
+		if err := validateInstanceKey(string(v)); err != nil {
+			return fmt.Errorf(":key %w", err)
+		}
+		task.InstanceKey = string(v)
 	case ":system-prompt-extra":
 		v, ok := value.(elispvm.String)
 		if !ok {
@@ -544,6 +663,45 @@ func applyAgentOption(task *AgentTask, key string, value elispvm.Value) error {
 		task.SystemPromptExtra = string(v)
 	default:
 		return fmt.Errorf("unknown agent option %s", key)
+	}
+	return nil
+}
+
+func taskStorageKey(phase string, name string, instanceKey string) string {
+	base := name
+	if phase != "" {
+		base = phase + "." + name
+	}
+	return resultStorageKey(base, instanceKey)
+}
+
+func resultStorageKey(baseKey string, instanceKey string) string {
+	if instanceKey == "" {
+		return baseKey
+	}
+	return baseKey + "[" + instanceKey + "]"
+}
+
+func resultBaseKey(result AgentResult) string {
+	if result.Phase == "" {
+		return result.Name
+	}
+	return result.Phase + "." + result.Name
+}
+
+func resultMatchesBase(result AgentResult, baseKey string) bool {
+	return resultBaseKey(result) == baseKey || result.Key == baseKey
+}
+
+func validateInstanceKey(key string) error {
+	if key == "" {
+		return nil
+	}
+	if strings.TrimSpace(key) != key {
+		return fmt.Errorf("must not have leading or trailing whitespace")
+	}
+	if strings.ContainsAny(key, "[]\n\r\t") {
+		return fmt.Errorf("must not contain brackets or control whitespace")
 	}
 	return nil
 }

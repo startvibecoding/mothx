@@ -68,7 +68,10 @@ This workflow has two phases:
 ### Result Passing
 
 - `(result "phase.agent")`: get one agent's result
+- `(result "phase.agent" :key "r0")` or `(result-key "phase.agent" "r0")`: get a keyed repeated agent result
+- `(result-latest "phase.agent")`: get the newest result for a logical agent
 - `(results "phase")`: get all results from a phase, concatenated as titled text
+- `(results "phase.agent")`: get all keyed results for one logical agent
 
 ---
 
@@ -102,6 +105,7 @@ For analyzability and safety, the following names must be direct string literals
 | Option | Type | Description |
 |--------|------|-------------|
 | `:prompt` | string | **Required**. Task description. |
+| `:key` | string | Optional instance key for repeated logical agents, especially inside `while` loops. May be a string expression such as `(format "r%s" i)`. Stored result keys become `phase.agent[key]`. |
 | `:mode` | string | Run mode: `plan` / `agent` / `yolo`. Defaults to the parent agent's mode; if unavailable, defaults to `agent`. |
 | `:tools` | string list | Available tools. Use `'("read" "grep")` syntax. If omitted, the worker gets the default tool set for its mode, but cannot spawn subagents, delegate, or start nested workflows. |
 | `:work-dir` | string | Working directory. Defaults to the current process working directory. |
@@ -211,18 +215,24 @@ Test-fix loop with a maximum iteration count.
 ```elisp
 (workflow "bounded fix loop"
   (concurrency 1)
-  (let ((i 0) (status "NEEDS_WORK"))
+  (let ((i 0)
+        (status "NEEDS_WORK")
+        (last-worker ""))
     (while (and (< i 3) (not (string= status "DONE")))
       (phase "iteration"
         (agent "worker" :mode "agent" :tools '("read" "grep" "edit")
-          :prompt (concat "Iteration " (format "%s" i) ". Fix the highest-confidence issue. Return DONE or NEEDS_WORK."))
+          :key (format "r%s" i)
+          :prompt (concat "Iteration " (format "%s" i) ". Fix the highest-confidence issue."))
+        (setq last-worker (result-latest "iteration.worker"))
         (agent "checker" :mode "plan" :tools '("read" "grep")
-          :prompt (concat (result "iteration.worker") "\nCheck if complete. Return DONE or NEEDS_WORK.")))
-      (setq status (result "iteration.checker"))
+          :key (format "r%s" i)
+          :prompt (concat last-worker "\nCheck if complete. Return DONE or NEEDS_WORK.")))
+      (setq status (result-latest "iteration.checker"))
       (setq i (+ i 1)))
     (phase "final"
       (agent "summary" :mode "plan"
-        :prompt (concat "Final status: " status "\nSummarize changes and residual risk.")))))
+        :prompt (concat "Final status: " status "\nLast worker result:\n" last-worker
+          "\nSummarize changes and residual risk.")))))
 ```
 
 ### 5. Expert Panel
@@ -325,6 +335,14 @@ For simple sequential tasks or anything a single agent can handle, regular conve
 
 ;; CORRECT
 (phase "scan" ...)
+```
+
+For repeated workers, keep the `agent` name literal and put the round identity in `:key`:
+
+```elisp
+(agent "worker"
+  :key (format "r%s" i)
+  :prompt "...")
 ```
 
 ### ❌ Don't Use Unquoted Lists in :tools
