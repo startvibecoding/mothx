@@ -65,6 +65,12 @@ func (t *WriteTool) Execute(ctx context.Context, params map[string]any) (ToolRes
 		return ToolResult{}, fmt.Errorf("invalid path: %w", err)
 	}
 
+	release, err := t.registry.acquireFileLock(ctx, path, t.Name())
+	if err != nil {
+		return ToolResult{}, err
+	}
+	defer release()
+
 	oldContent := ""
 	if data, err := os.ReadFile(path); err == nil {
 		oldContent = string(data)

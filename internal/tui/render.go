@@ -303,7 +303,7 @@ func (a *App) renderFooter() string {
 			leftLine3 = fmt.Sprintf(" last %s", formatDuration(a.lastDuration))
 		}
 		if a.toolModalOpen {
-			leftLine3 += " | Esc/Ctrl+O:close PgUp/PgDn:scroll"
+			leftLine3 += " | Left/Right:switch PgUp/PgDn:page Up/Down:scroll Esc/Ctrl+O:close"
 		} else {
 			leftLine3 += " | Tab:mode Esc:abort Ctrl+O:details Ctrl+G:compact"
 		}

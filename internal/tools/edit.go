@@ -80,6 +80,12 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		return ToolResult{}, fmt.Errorf("invalid path: %w", err)
 	}
 
+	release, err := t.registry.acquireFileLock(ctx, path, t.Name())
+	if err != nil {
+		return ToolResult{}, err
+	}
+	defer release()
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("read file: %w", err)

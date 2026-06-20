@@ -72,6 +72,7 @@ func commandHelpText() string {
 		"  Ctrl+O            - Open latest tool details",
 		"  Ctrl+G            - Toggle compact tool display",
 		"  Up/Down           - Move in multiline input; history at boundaries",
-		"  PgUp/PgDn         - Page tool details when modal is open",
+		"  Left/Right       - Switch detail target when Ctrl+O modal is open",
+		"  PgUp/PgDn         - Page details when Ctrl+O modal is open",
 	}, "\n")
 }

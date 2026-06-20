@@ -267,7 +267,7 @@ func (a *App) renderToolModalWithAvailableHeight(availableHeight int) string {
 	if len(lines) == 0 {
 		position = "lines 0-0/0"
 	}
-	title := fmt.Sprintf("Agent details  %s  Left/Right PgUp/PgDn Up/Down Esc", position)
+	title := fmt.Sprintf("Agent details  %s  Left/Right:switch target  PgUp/PgDn:page  Up/Down:scroll  Esc:close", position)
 	tabs := a.renderToolModalTabs(targets, width-2)
 	header := title
 	if tabs != "" {

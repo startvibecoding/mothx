@@ -41,6 +41,7 @@
 - 新增 Workflow 模式使用指南和最佳实践文档（中英文），覆盖快速入门、核心概念、常见模式和避坑指南。
 - 同步各文档页面的 workflow 引用：在功能概览中新增动态 Workflow 章节，在使用场景中新增 workflow 编排场景，并从工具参考文档添加交叉链接。
 - 在 `workflow-elisp` skill 和文档中澄清 workflow 隐式默认值与限制：worker `:max-iterations` 默认值和失败行为、`workflow_run timeoutSeconds`、`concurrency` 默认值、继承的 `:mode`、默认 `:tools`、当前工作目录行为、禁用嵌套编排，以及不支持的 per-worker 选项。
+- 记录 TUI scrollback 的取舍：已完成 transcript block 会打印到原生终端 scrollback，以保证选择和历史滚动稳定；用户输入仍应按 block 打印，而不是无缓存流式输出，避免干扰 Bubble Tea 的 live view 重绘。
 
 ### 🧪 测试
 

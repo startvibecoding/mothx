@@ -159,6 +159,7 @@ type Registry struct {
 	workDir    string
 	jobManager *JobManager
 	skillsMgr  *skills.Manager
+	fileLocks  *FileLockManager
 }
 
 // NewRegistry creates a new tool registry.
@@ -168,6 +169,7 @@ func NewRegistry(workDir string, sb sandbox.Sandbox) *Registry {
 		workDir:    workDir,
 		sandbox:    sb,
 		jobManager: NewJobManager(),
+		fileLocks:  DefaultFileLockManager(),
 	}
 }
 
@@ -175,19 +177,25 @@ func NewRegistry(workDir string, sb sandbox.Sandbox) *Registry {
 type RegistryConfig struct {
 	WorkDir        string
 	Sandbox        sandbox.Sandbox
-	ToolFilter     []string        // optional: only register these tools (empty = all)
-	SkillsMgr      *skills.Manager // optional: skills manager for skill_ref tool
-	EnablePlanTool *bool           // optional: defaults to true when nil
+	ToolFilter     []string         // optional: only register these tools (empty = all)
+	SkillsMgr      *skills.Manager  // optional: skills manager for skill_ref tool
+	EnablePlanTool *bool            // optional: defaults to true when nil
+	FileLocks      *FileLockManager // optional: defaults to process-wide manager
 }
 
 // NewRegistryWithConfig creates a Registry with the given config.
 func NewRegistryWithConfig(cfg RegistryConfig) *Registry {
+	fileLocks := cfg.FileLocks
+	if fileLocks == nil {
+		fileLocks = DefaultFileLockManager()
+	}
 	r := &Registry{
 		tools:      make(map[string]Tool),
 		workDir:    cfg.WorkDir,
 		sandbox:    cfg.Sandbox,
 		jobManager: NewJobManager(),
 		skillsMgr:  cfg.SkillsMgr,
+		fileLocks:  fileLocks,
 	}
 	enablePlanTool := true
 	if cfg.EnablePlanTool != nil {
@@ -206,6 +214,21 @@ func (r *Registry) JobManager() *JobManager {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.jobManager
+}
+
+// FileLocks returns the registry's in-memory file lock manager.
+func (r *Registry) FileLocks() *FileLockManager {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.fileLocks
+}
+
+func (r *Registry) acquireFileLock(ctx context.Context, path, owner string) (func(), error) {
+	mgr := r.FileLocks()
+	if mgr == nil {
+		return func() {}, nil
+	}
+	return mgr.Acquire(ctx, path, owner)
 }
 
 // Register adds a tool to the registry.
