@@ -23,12 +23,21 @@
 
 ### 🐛 Bug Fixes
 
+- **Context Compaction Replay**
+  - Print mode now restores replayed session history before running the agent, preserving prior conversation context.
+  - Manual and forced compaction now check for genuinely compactable older history instead of compacting only recent context.
+  - Replayed compacted messages strip stale usage metadata from kept messages to avoid leaking obsolete token accounting into future runs.
+
 - **Concurrent File Writes**
   - Added a process-wide in-memory file lock manager shared by default tool registries.
   - `write` and `edit` now acquire per-file locks before reading and modifying files, preventing concurrent agents from interleaving writes to the same target.
   - Lock waits honor context cancellation/deadlines and report the current owner when interrupted.
 
 ### 🔧 Refactoring
+
+- **Pre-release Packaging**
+  - `npm-publish-pre` now syncs and builds npm packages with a `-pre` version suffix before publishing pre-release packages.
+  - Updated npm package metadata and optional platform dependency versions to the pre-release version.
 
 - **Named Workflow Worker Agents**
   - Workflow worker agents now use deterministic IDs derived from DSL agent names (`agent-<name>`), improving event attribution and background agent visibility.
@@ -44,7 +53,8 @@
 ### 🧪 Tests
 
 - Added workflow runner, lint, integration, and skill coverage for keyed repeated agents and keyed result lookup.
-- Added context compaction tests for custom token estimators, template resolution, configured summary prompts, and compaction metadata.
+- Added context compaction tests for custom token estimators, template resolution, configured summary prompts, compaction metadata, compactability checks, and session replay usage cleanup.
+- Added Gateway and Hermes coverage for `/compact` when only recent context can be kept.
 - Added workflow lint tests for valid source collection and missing result reference errors.
 - Added workflow integration coverage verifying DSL agent names are reflected in runtime worker agent IDs.
 - Added file lock tests for wait/cancel behavior, shared default managers, and `write`/`edit` context handling.

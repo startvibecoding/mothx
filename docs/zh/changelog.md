@@ -23,12 +23,21 @@
 
 ### 🐛 Bug 修复
 
+- **Context Compaction Replay**
+  - Print 模式现在会在运行 agent 前恢复 session replay 历史，保留此前对话上下文。
+  - 手动和强制 compaction 现在会检查是否真的存在可压缩的旧历史，避免只剩近期上下文时仍触发压缩。
+  - Replay 已压缩消息时会移除保留消息中的旧 usage metadata，避免过期 token 统计泄漏到后续运行。
+
 - **并发文件写入**
   - 新增进程级内存文件锁管理器，默认 tool registry 共享同一个管理器。
   - `write` 和 `edit` 在读取和修改文件前会获取按文件粒度的锁，避免多个 agent 并发写同一目标文件时互相交错覆盖。
   - 等待锁时支持 context 取消和 deadline；等待被中断时会报告当前锁持有者。
 
 ### 🔧 重构
+
+- **预发布包发布**
+  - `npm-publish-pre` 现在会先同步并使用 `-pre` 版本后缀构建 npm packages，再发布预发布包。
+  - 更新 npm package metadata 和各平台 optional dependency 版本为预发布版本。
 
 - **命名 Workflow Worker Agents**
   - Workflow worker agent 现在使用由 DSL agent 名称派生的确定性 ID（`agent-<name>`），改善事件归属和后台 agent 可见性。
@@ -44,7 +53,8 @@
 ### 🧪 测试
 
 - 新增 workflow runner、lint、集成和 skill 覆盖，验证 keyed 重复 agent 和 keyed result 查询。
-- 新增 context compaction 测试，覆盖自定义 token estimator、模板解析、配置化摘要 prompt，以及 compaction metadata。
+- 新增 context compaction 测试，覆盖自定义 token estimator、模板解析、配置化摘要 prompt、compaction metadata、可压缩性检查，以及 session replay usage 清理。
+- 新增 Gateway 和 Hermes 测试覆盖 `/compact` 在只剩近期上下文可保留时的行为。
 - 新增 workflow lint 测试，覆盖有效 source 收集和缺失 result 引用错误。
 - 新增 workflow 集成测试，验证 DSL agent 名称会反映到运行时 worker agent ID。
 - 新增文件锁测试，覆盖等待/取消行为、默认管理器共享，以及 `write`/`edit` 的 context 处理。
