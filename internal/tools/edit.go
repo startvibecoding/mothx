@@ -84,7 +84,12 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	if err != nil {
 		return ToolResult{}, err
 	}
-	defer release()
+	locked := true
+	defer func() {
+		if locked {
+			release()
+		}
+	}()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -162,6 +167,8 @@ func (t *EditTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	if err := writeFileAtomic(path, []byte(content)); err != nil {
 		return ToolResult{}, fmt.Errorf("write file: %w", err)
 	}
+	release()
+	locked = false
 
 	diff := BuildFileDiff(path, originalContent, content)
 	return NewDiffToolResult(fmt.Sprintf("Applied %d edit(s) to %s\n%s", len(edits), path, formatFileDiffSummary(diff)), diff), nil

@@ -69,19 +69,20 @@ func (t *WriteTool) Execute(ctx context.Context, params map[string]any) (ToolRes
 	if err != nil {
 		return ToolResult{}, err
 	}
-	defer release()
 
 	oldContent := ""
 	if data, err := os.ReadFile(path); err == nil {
 		oldContent = string(data)
 	}
-	diff := BuildFileDiff(path, oldContent, content)
 
 	// Write file atomically, preserving existing permissions
-	if err := writeFileAtomic(path, []byte(content)); err != nil {
-		return ToolResult{}, fmt.Errorf("write file: %w", err)
+	writeErr := writeFileAtomic(path, []byte(content))
+	release()
+	if writeErr != nil {
+		return ToolResult{}, fmt.Errorf("write file: %w", writeErr)
 	}
 
+	diff := BuildFileDiff(path, oldContent, content)
 	return NewDiffToolResult(fmt.Sprintf("File written: %s (%d bytes)\n%s", path, len(content), formatFileDiffSummary(diff)), diff), nil
 }
 

@@ -235,8 +235,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		return NewTextToolResult(fmt.Sprintf("Started background job [%d] (PID: %d): %s\nUse 'jobs' tool to check status or 'kill' to stop.", job.ID, job.PID, command)), nil
 	}
 
-	// Synchronous mode (1 GB output limit per stream)
-	const maxSyncOutput = 1 << 30 // 1 GB
+	// Synchronous output is returned to the model truncated to 50 KB below, so
+	// keep only a bounded prefix while still draining the process pipes.
+	const maxSyncOutput = 1 << 20 // 1 MB per stream
 	stdout := newLimitedBuffer(maxSyncOutput)
 	stderr := newLimitedBuffer(maxSyncOutput)
 	cmd.Stdout = stdout

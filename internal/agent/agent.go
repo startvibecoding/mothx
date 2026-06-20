@@ -1142,7 +1142,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			if threshold <= 0 {
 				threshold = 0.55 // default 55%
 			}
-			if ctx := a.GetContextUsage(); ctx != nil && ctx.Percent != nil {
+			if ctx := contextUsage; ctx != nil && ctx.Percent != nil {
 				if *ctx.Percent >= threshold*100 {
 					contextPressureFired = true
 					warnMsg := fmt.Sprintf(
