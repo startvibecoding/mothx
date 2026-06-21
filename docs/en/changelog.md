@@ -5,6 +5,11 @@
 
 ### 🐛 Bug Fixes
 
+- **TUI Approval Details Visibility in Live View**
+  - Fixed queued approval requests not showing details in the live transcript while waiting for user input.
+  - The current approval message index is now tracked so it stays visible during the approval prompt.
+  - Index is properly cleared after approval is answered and reset on state/clear paths.
+
 - **TUI Tool Modal Performance and Display**
   - Added line-level caching for tool modal rendered output to avoid re-parsing the full transcript on every render.
   - Added per-entry caching for expanded tool results to avoid repeated formatting.
