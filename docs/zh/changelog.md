@@ -3,6 +3,15 @@
 
 ## v0.1.47
 
+### ✨ 新功能
+
+- **扩展模型目录**
+  - Anthropic 新增模型：Claude Opus 4.8、Claude Opus 4.1、Claude Opus 4、Claude Sonnet 4.0、Claude Haiku 4.5、Claude Fable 5，以及 Claude 3 系列遗留模型。
+  - OpenAI 新增模型：GPT-5.5、GPT-5.5 Pro、GPT-5.4 系列、GPT-5.3 Codex/Spark、GPT-5.2 Pro/Codex、GPT-5.1 Codex 系列、GPT-4.1 系列、o4-mini、o3/o3-pro/o3-deep-research、o1-pro，以及 GPT-4 系列遗留模型。
+  - OpenRouter 新增模型：Claude Sonnet 4.6/4.5、Claude Opus 4.8、Claude Haiku 4.5、GPT-5.5/5.5 Pro/5.4、Gemini 3.5 Flash/2.5 Pro、DeepSeek V4 Flash/Pro、Qwen 3.7 Plus、Kimi K2.7 Code、MiniMax M3、Llama 4 Scout、GLM 5/5.2、Grok 4.3、GPT-OSS-120B（免费）。
+  - Vercel AI Gateway 新增模型：Claude Sonnet 4.6/4.5、Claude Opus 4.8、Claude Haiku 4.5、GPT-5.5/5.4、Gemini 3.5 Flash、DeepSeek V4 Flash/Pro、Qwen3.6 Plus、MiniMax M3、Kimi K2.7 Code、Grok 4.3、GLM 5.2。
+  - Anthropic 和 OpenAI 模型列表重新排序，最新模型排在前面。
+
 ### 🐛 Bug 修复
 
 - **TUI 审批详情在实时视图中可见性**

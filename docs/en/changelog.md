@@ -3,6 +3,15 @@
 
 ## v0.1.47
 
+### ✨ Features
+
+- **Expanded Model Catalog**
+  - Added new Anthropic models: Claude Opus 4.8, Claude Opus 4.1, Claude Opus 4, Claude Sonnet 4.0, Claude Haiku 4.5, Claude Fable 5, and legacy Claude 3 series models.
+  - Added new OpenAI models: GPT-5.5, GPT-5.5 Pro, GPT-5.4 series, GPT-5.3 Codex/Spark, GPT-5.2 Pro/Codex, GPT-5.1 Codex variants, GPT-4.1 series, o4-mini, o3/o3-pro/o3-deep-research, o1-pro, and legacy GPT-4 variants.
+  - Added OpenRouter provider models: Claude Sonnet 4.6/4.5, Claude Opus 4.8, Claude Haiku 4.5, GPT-5.5/5.5 Pro/5.4, Gemini 3.5 Flash/2.5 Pro, DeepSeek V4 Flash/Pro, Qwen 3.7 Plus, Kimi K2.7 Code, MiniMax M3, Llama 4 Scout, GLM 5/5.2, Grok 4.3, and GPT-OSS-120B (free).
+  - Added Vercel AI Gateway models: Claude Sonnet 4.6/4.5, Claude Opus 4.8, Claude Haiku 4.5, GPT-5.5/5.4, Gemini 3.5 Flash, DeepSeek V4 Flash/Pro, Qwen3.6 Plus, MiniMax M3, Kimi K2.7 Code, Grok 4.3, and GLM 5.2.
+  - Reordered Anthropic and OpenAI model lists to show newest models first.
+
 ### 🐛 Bug Fixes
 
 - **TUI Approval Details Visibility in Live View**
