@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v0.1.47
+
+### 🐛 Bug Fixes
+
+- **TUI Tool Modal Performance and Display**
+  - Added line-level caching for tool modal rendered output to avoid re-parsing the full transcript on every render.
+  - Added per-entry caching for expanded tool results to avoid repeated formatting.
+  - `invalidateToolModalCache()` is now called at all transcript state mutation points to keep the cache consistent.
+  - Fixed edit tool results duplicating diff excerpts in the expanded view by extracting a dedicated edit header formatter.
+  - Tool modals now open at the top (offset 0) instead of scrolling to the bottom.
+
+### 🧪 Tests
+
+- Added regression test verifying expanded edit output does not duplicate diff excerpts.
+
+---
+
 ## v0.1.46
 
 ### ✨ Features
