@@ -1511,6 +1511,46 @@ func TestSubAgentApprovalStillShowsPrompt(t *testing.T) {
 	}
 }
 
+func TestQueuedApprovalShowsNextDetailsInLiveView(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.program = tea.NewProgram(a)
+
+	a.handleAgentEvent(agent.Event{
+		Type:         agent.EventToolApprovalRequest,
+		ApprovalID:   "approval-1",
+		ApprovalTool: "bash",
+		ApprovalArgs: map[string]any{"command": "echo first"},
+	})
+	a.handleAgentEvent(agent.Event{
+		Type:         agent.EventToolApprovalRequest,
+		ApprovalID:   "approval-2",
+		ApprovalTool: "bash",
+		ApprovalArgs: map[string]any{"command": "echo second"},
+	})
+
+	firstLive := stripANSI(a.renderLiveTranscriptContent())
+	if !strings.Contains(firstLive, "echo first") {
+		t.Fatalf("first approval details missing from live view: %q", firstLive)
+	}
+	if strings.Contains(firstLive, "echo second") {
+		t.Fatalf("queued approval shown before current approval is answered: %q", firstLive)
+	}
+
+	a.input.SetValue("y")
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+
+	nextLive := stripANSI(a.renderLiveTranscriptContent())
+	if !strings.Contains(nextLive, "Approval required: bash") || !strings.Contains(nextLive, "echo second") {
+		t.Fatalf("next approval details missing from live view: %q", nextLive)
+	}
+	if strings.Contains(nextLive, "echo first") {
+		t.Fatalf("answered approval still shown in live view: %q", nextLive)
+	}
+	if got, want := a.pendingApprovalID, "approval-2"; got != want {
+		t.Fatalf("pendingApprovalID = %q, want %q", got, want)
+	}
+}
+
 func TestToolModalDefaultsMainAndSwitchesToSubAgent(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
 	a.messages = []string{"main transcript"}

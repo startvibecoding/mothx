@@ -192,6 +192,7 @@ type App struct {
 	waitingForApproval bool
 	pendingApprovalID  string
 	currentApproval    pendingApproval
+	currentApprovalIdx int
 	approvalQueue      []pendingApproval
 
 	// Question state
@@ -286,6 +287,7 @@ func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *c
 		renderInterval:      16 * time.Millisecond, // ~60fps
 		currentAssistantIdx: -1,
 		currentThinkIdx:     -1,
+		currentApprovalIdx:  -1,
 		printedMessageIdx:   make(map[int]bool),
 		thinkRaw:            make(map[int]string),
 		assistantRaw:        make(map[int]string),
@@ -584,6 +586,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Check if waiting for approval
 			if a.waitingForApproval {
 				approved := strings.ToLower(input) == "y" || strings.ToLower(input) == "yes"
+				approvalIdx := a.currentApprovalIdx
+				if approvalIdx >= 0 {
+					a.printMessageOnce(approvalIdx)
+				}
 				a.handleApprovalResponse(a.pendingApprovalID, approved)
 				if approved {
 					a.addMessage(statusStyle.Render("✅ Approved"))
@@ -597,6 +603,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.waitingForApproval = false
 					a.pendingApprovalID = ""
 					a.currentApproval = pendingApproval{}
+					a.currentApprovalIdx = -1
 				}
 				a.input.Reset()
 				a.resetInputHistoryNavigation()
@@ -1013,7 +1020,8 @@ func (a *App) renderLiveTranscriptContent() string {
 		if a.printedMessageIdx[idx] {
 			continue
 		}
-		if idx != a.currentThinkIdx && idx != a.currentAssistantIdx {
+		isCurrentApproval := a.waitingForApproval && a.currentApprovalIdx >= 0 && idx == a.currentApprovalIdx
+		if idx != a.currentThinkIdx && idx != a.currentAssistantIdx && !isCurrentApproval {
 			continue
 		}
 		rendered := strings.TrimRight(a.renderMessageAt(idx), "\n")

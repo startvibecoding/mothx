@@ -23,6 +23,7 @@ func (a *App) resetTranscriptState() {
 	a.agentActivityOrder = nil
 	a.currentAssistantIdx = -1
 	a.currentThinkIdx = -1
+	a.currentApprovalIdx = -1
 	a.closeToolModal()
 }
 

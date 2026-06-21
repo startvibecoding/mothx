@@ -14,6 +14,8 @@ func (a *App) showNextApproval() {
 	if len(a.approvalQueue) == 0 {
 		a.waitingForApproval = false
 		a.pendingApprovalID = ""
+		a.currentApproval = pendingApproval{}
+		a.currentApprovalIdx = -1
 		return
 	}
 	next := a.approvalQueue[0]
@@ -22,7 +24,10 @@ func (a *App) showNextApproval() {
 	a.pendingApprovalID = next.approvalID
 	a.waitingForApproval = true
 
-	a.addMessage(a.renderApprovalRequest(next, len(a.approvalQueue)))
+	a.invalidateToolModalCache()
+	a.currentApprovalIdx = len(a.messages)
+	a.messages = append(a.messages, a.renderApprovalRequest(next, len(a.approvalQueue)))
+	a.updateViewportContentWithFollow(true)
 	a.scheduleRender()
 }
 
@@ -30,6 +35,7 @@ func (a *App) clearApprovalState() {
 	a.waitingForApproval = false
 	a.pendingApprovalID = ""
 	a.currentApproval = pendingApproval{}
+	a.currentApprovalIdx = -1
 	a.approvalQueue = a.approvalQueue[:0]
 }
 
