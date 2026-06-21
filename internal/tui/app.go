@@ -83,6 +83,7 @@ type toolResult struct {
 	fullContent string         // Full content for expanded view
 	diff        *tools.FileDiff
 	msgIndex    int // Index in a.messages where this tool message lives
+	expanded    string
 }
 
 // App is the main TUI application.
@@ -147,6 +148,11 @@ type App struct {
 	toolModalOffset       int
 	toolModalPinnedBottom bool
 	toolModalActive       int
+	toolModalCacheValid   bool
+	toolModalCacheActive  int
+	toolModalCacheVersion int
+	toolModalVersion      int
+	toolModalCacheLines   []string
 
 	// Compact tool display mode
 	compactMode bool
@@ -460,6 +466,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if oldWidth != a.width {
 			a.configureMarkdownRenderer()
 			a.markAssistantRenderedDirty()
+			a.invalidateToolModalCache()
 		}
 
 		a.updateViewportContent()

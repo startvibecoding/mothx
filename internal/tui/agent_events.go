@@ -18,6 +18,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	switch event.Type {
 	case agent.EventTextDelta:
+		a.invalidateToolModalCache()
 		if a.currentAssistantIdx >= 0 && a.currentAssistantIdx < len(a.messages) {
 			a.assistantRaw[a.currentAssistantIdx] += event.TextDelta
 		} else {
@@ -31,6 +32,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventThinkDelta:
+		a.invalidateToolModalCache()
 		if a.thinkRaw == nil {
 			a.thinkRaw = make(map[int]string)
 		}
@@ -58,6 +60,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventTurnStart:
+		a.invalidateToolModalCache()
 		// Reserve display slots before streaming deltas arrive so later tool output
 		// cannot shift the assistant message index underneath us.
 		a.currentAssistantIdx = len(a.messages)
@@ -67,6 +70,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventToolCall:
 		if event.ToolCall != nil {
+			a.invalidateToolModalCache()
 			a.commitActiveStream()
 			// Store tool args for later display
 			msgIdx := len(a.messages) // Will be the index after append
@@ -82,6 +86,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventToolResult:
+		a.invalidateToolModalCache()
 		// Find the matching tool result entry and update it
 		foundIdx := -1
 		for j := len(a.toolResults) - 1; j >= 0; j-- {
@@ -89,6 +94,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				foundIdx = j
 				a.toolResults[j].fullContent = event.ToolResult
 				a.toolResults[j].diff = event.ToolDiff
+				a.toolResults[j].expanded = ""
 
 				// Create summary based on tool type
 				switch event.ToolName {
@@ -171,6 +177,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventTurnEnd:
+		a.invalidateToolModalCache()
 		if event.ContextUsage != nil {
 			a.contextUsage = event.ContextUsage
 		}
@@ -186,6 +193,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventDone:
+		a.invalidateToolModalCache()
 		a.isThinking = false
 		a.finishRequestTimer()
 		if event.ContextUsage != nil {

@@ -49,6 +49,7 @@ func (a *App) recordAgentActivity(event agent.Event) {
 	if event.AgentID == "" {
 		return
 	}
+	a.invalidateToolModalCache()
 	if a.agentActivities == nil {
 		a.agentActivities = make(map[agentpkg.AgentID]*agentActivity)
 	}

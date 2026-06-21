@@ -17,6 +17,7 @@ import (
 )
 
 func (a *App) addMessage(msg string) {
+	a.invalidateToolModalCache()
 	idx := len(a.messages)
 	a.messages = append(a.messages, msg)
 	a.printMessageOnce(idx)

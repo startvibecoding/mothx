@@ -9,6 +9,7 @@ import (
 // resetTranscriptState clears rendered conversation bookkeeping without
 // changing session/provider configuration.
 func (a *App) resetTranscriptState() {
+	a.invalidateToolModalCache()
 	a.messages = nil
 	a.toolResults = nil
 	a.liveContent = ""

@@ -107,6 +107,37 @@ func TestRenderExpandedBashToolResultKeepsDetailsRaw(t *testing.T) {
 	}
 }
 
+func TestRenderExpandedEditToolResultDoesNotDuplicateDiffExcerpt(t *testing.T) {
+	app := &App{}
+	got := stripANSI(app.renderExpandedToolResult(toolResult{
+		toolName: "edit",
+		toolArgs: map[string]any{"path": "file.go"},
+		diff: &tools.FileDiff{
+			Path:    "file.go",
+			Added:   1,
+			Deleted: 1,
+			Unified: strings.Join([]string{
+				"--- file.go",
+				"+++ file.go",
+				"@@ -1,1 +1,1 @@",
+				"-old line",
+				"+new line",
+				"",
+			}, "\n"),
+		},
+	}))
+
+	if !strings.Contains(got, "• Edited file.go (+1 -1)") {
+		t.Fatalf("expanded edit output missing header: %q", got)
+	}
+	if count := strings.Count(got, "-old line"); count != 1 {
+		t.Fatalf("expanded edit output duplicated diff excerpt, count=%d:\n%s", count, got)
+	}
+	if count := strings.Count(got, "+new line"); count != 1 {
+		t.Fatalf("expanded edit output duplicated diff excerpt, count=%d:\n%s", count, got)
+	}
+}
+
 func TestNormalizeHistoryLineEndingsOnlyCollapsesCRLF(t *testing.T) {
 	got := normalizeHistoryLineEndings("a\r\nb\rc")
 	want := "a\nb\rc"

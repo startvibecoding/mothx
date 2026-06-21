@@ -23,7 +23,7 @@ func (a *App) openLatestToolModal() bool {
 	a.toolModalOpen = true
 	a.toolModalPinnedBottom = true
 	a.toolModalActive = 0
-	a.toolModalOffset = a.maxToolModalOffset()
+	a.toolModalOffset = 0
 	return true
 }
 
@@ -32,6 +32,12 @@ func (a *App) closeToolModal() {
 	a.toolModalOffset = 0
 	a.toolModalPinnedBottom = false
 	a.toolModalActive = 0
+}
+
+func (a *App) invalidateToolModalCache() {
+	a.toolModalVersion++
+	a.toolModalCacheValid = false
+	a.toolModalCacheLines = nil
 }
 
 func formatToolModalContent(result toolResult) string {
@@ -54,11 +60,13 @@ func formatToolModalContent(result toolResult) string {
 }
 
 func (a *App) renderExpandedTranscript() string {
-	targets := a.toolModalTargets()
-	if a.toolModalActive > 0 && a.toolModalActive < len(targets) {
-		return a.renderAgentActivity(targets[a.toolModalActive].AgentID)
-	}
+	return strings.Join(a.toolModalLines(a.toolModalTargets()), "\n")
+}
 
+func (a *App) buildToolModalLines(targets []toolModalTarget) []string {
+	if a.toolModalActive > 0 && a.toolModalActive < len(targets) {
+		return strings.Split(a.renderAgentActivity(targets[a.toolModalActive].AgentID), "\n")
+	}
 	var parts []string
 	for i := range a.messages {
 		msg := a.renderExpandedMessageAt(i)
@@ -67,9 +75,30 @@ func (a *App) renderExpandedTranscript() string {
 		}
 	}
 	if len(parts) == 0 {
-		return "(no conversation yet)"
+		return []string{"(no conversation yet)"}
 	}
-	return strings.Join(parts, "\n\n")
+	lines := make([]string, 0, len(parts)*2)
+	for i, part := range parts {
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, strings.Split(part, "\n")...)
+	}
+	return lines
+}
+
+func (a *App) toolModalLines(targets []toolModalTarget) []string {
+	if a.toolModalCacheValid &&
+		a.toolModalCacheActive == a.toolModalActive &&
+		a.toolModalCacheVersion == a.toolModalVersion {
+		return a.toolModalCacheLines
+	}
+	lines := a.buildToolModalLines(targets)
+	a.toolModalCacheLines = lines
+	a.toolModalCacheActive = a.toolModalActive
+	a.toolModalCacheVersion = a.toolModalVersion
+	a.toolModalCacheValid = true
+	return lines
 }
 
 func (a *App) toolModalTargets() []toolModalTarget {
@@ -201,7 +230,7 @@ func (a *App) renderToolModalTabs(targets []toolModalTarget, width int) string {
 func (a *App) renderExpandedMessageAt(idx int) string {
 	for i, tr := range a.toolResults {
 		if tr.msgIndex == idx {
-			return a.renderExpandedToolResult(a.toolResults[i])
+			return a.renderExpandedToolResultAt(i)
 		}
 	}
 	if _, ok := a.assistantRaw[idx]; ok {
@@ -216,19 +245,62 @@ func (a *App) renderExpandedMessageAt(idx int) string {
 	return ""
 }
 
+func (a *App) renderExpandedToolResultAt(idx int) string {
+	if idx < 0 || idx >= len(a.toolResults) {
+		return ""
+	}
+	if a.toolResults[idx].expanded != "" {
+		return a.toolResults[idx].expanded
+	}
+	expanded := formatExpandedToolResult(a.toolResults[idx])
+	a.toolResults[idx].expanded = expanded
+	return expanded
+}
+
 func (a *App) renderExpandedToolResult(result toolResult) string {
+	return formatExpandedToolResult(result)
+}
+
+func formatExpandedToolResult(result toolResult) string {
 	content := formatToolHeader(result)
 	if result.toolName == "edit" {
-		content = formatEditedToolResult(result)
+		content = formatExpandedEditHeader(result)
 	}
 	details := formatToolModalContent(result)
-	if strings.TrimSpace(details) != "" {
-		content += "\n" + details
-	}
 	if result.toolName == "bash" {
 		return toolStyle.Render(formatToolHeader(result)) + "\n" + details
 	}
+	if result.toolName == "edit" {
+		if strings.TrimSpace(details) != "" {
+			return toolStyle.Render(content) + "\n" + details
+		}
+		return toolStyle.Render(content)
+	}
+	if strings.TrimSpace(details) != "" {
+		content += "\n" + details
+	}
 	return toolStyle.Render(content)
+}
+
+func formatExpandedEditHeader(result toolResult) string {
+	path := toolPath(result.toolArgs)
+	if result.diff != nil && result.diff.Path != "" {
+		path = result.diff.Path
+	}
+	if path == "" {
+		path = "(unknown)"
+	}
+
+	summary := result.summary
+	if result.diff != nil {
+		summary = fmt.Sprintf("(+%d -%d)", result.diff.Added, result.diff.Deleted)
+	}
+
+	header := fmt.Sprintf("• Edited %s", path)
+	if summary != "" {
+		header += " " + summary
+	}
+	return header
 }
 
 func (a *App) renderToolModal() string {
@@ -246,9 +318,8 @@ func (a *App) renderToolModalWithAvailableHeight(availableHeight int) string {
 	}
 	targets := a.toolModalTargets()
 	height := a.toolModalPageSizeFor(targets, availableHeight)
-	contentText := a.renderExpandedTranscript()
-	lines := strings.Split(contentText, "\n")
-	maxOffset := a.maxToolModalOffset()
+	lines := a.toolModalLines(targets)
+	maxOffset := maxToolModalOffsetFor(lines, height)
 	if a.toolModalPinnedBottom {
 		a.toolModalOffset = maxOffset
 	}
@@ -291,7 +362,7 @@ func (a *App) switchToolModalTarget(delta int) {
 		a.toolModalActive = 0
 	}
 	a.toolModalPinnedBottom = true
-	a.toolModalOffset = a.maxToolModalOffset()
+	a.toolModalOffset = 0
 }
 
 func (a *App) scrollToolModal(delta int) {
@@ -299,10 +370,11 @@ func (a *App) scrollToolModal(delta int) {
 	if a.toolModalOffset < 0 {
 		a.toolModalOffset = 0
 	}
-	if maxOffset := a.maxToolModalOffset(); a.toolModalOffset > maxOffset {
+	maxOffset := a.maxToolModalOffset()
+	if a.toolModalOffset > maxOffset {
 		a.toolModalOffset = maxOffset
 	}
-	a.toolModalPinnedBottom = a.toolModalOffset == a.maxToolModalOffset()
+	a.toolModalPinnedBottom = a.toolModalOffset == maxOffset
 }
 
 func (a *App) toolModalPageSize() int {
@@ -333,8 +405,12 @@ func toolModalVerticalFrame() int {
 }
 
 func (a *App) maxToolModalOffset() int {
-	lines := strings.Split(a.renderExpandedTranscript(), "\n")
-	maxOffset := len(lines) - a.toolModalPageSize()
+	targets := a.toolModalTargets()
+	return maxToolModalOffsetFor(a.toolModalLines(targets), a.toolModalPageSize())
+}
+
+func maxToolModalOffsetFor(lines []string, pageSize int) int {
+	maxOffset := len(lines) - pageSize
 	if maxOffset < 0 {
 		return 0
 	}
