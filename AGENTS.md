@@ -150,8 +150,3 @@ Examples:
 Common commands:
 - `make build`
 - `make test`
-
-## Versioning Note
-
-Current version: `v0.1.44`
-Next version: `v0.1.45`
