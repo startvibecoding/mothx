@@ -6,12 +6,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const vibeLogo = ` _    ___ __       
-| |  / (_) /_  ___ 
-| | / / / __ \/ _ \
-| |/ / / /_/ /  __/
-|___/_/_.___/\___/ 
-                   `
+const vibeLogo = `   _    ___ __        
+  | |  / (_) /_  ___   
+  | | / / / __ \/ _ \  
+  | |/ / / /_/ /  __/  
+  |___/_/_.___/\___/   `
 
 func asciiLogoWidth() int {
 	lines := strings.Split(vibeLogo, "\n")
@@ -55,8 +54,11 @@ func renderHeader(width int, version string, providerName string, modelName stri
 		infoPanel = infoStyle.Render(infoContent)
 	}
 
+	boxHeight := lipgloss.Height(infoPanel)
 	logoStyled := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("86")).
+		Height(boxHeight).
+		AlignVertical(lipgloss.Center).
 		MarginRight(gap).
 		Render(vibeLogo)
 	return lipgloss.JoinHorizontal(lipgloss.Top, logoStyled, infoPanel)
