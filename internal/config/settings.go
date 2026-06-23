@@ -35,6 +35,7 @@ type Settings struct {
 	Theme                string                     `json:"theme,omitempty"`
 	Retry                RetrySettings              `json:"retry"`
 	Approval             ApprovalSettings           `json:"approval"`
+	UpdateCheck          *bool                      `json:"updateCheck,omitempty"` // nil/true = check npm for updates on startup, false = disabled
 }
 
 type ProviderConfig struct {
@@ -758,6 +759,15 @@ func (s *Settings) IsPlanToolEnabled() bool {
 		return true
 	}
 	return *s.EnablePlanTool
+}
+
+// IsUpdateCheckEnabled reports whether startup update checks against the npm
+// registry are enabled. Defaults to true when unset.
+func (s *Settings) IsUpdateCheckEnabled() bool {
+	if s == nil || s.UpdateCheck == nil {
+		return true
+	}
+	return *s.UpdateCheck
 }
 
 func (s *Settings) IsWebSearchEnabled() bool {

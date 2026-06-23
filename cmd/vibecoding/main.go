@@ -26,6 +26,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/tui"
+	"github.com/startvibecoding/vibecoding/internal/update"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
@@ -250,6 +251,11 @@ func run(args []string, opts runOptions) error {
 	settings, settingsMeta, err := config.LoadSettingsWithMeta()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
+	}
+
+	// Kick off a non-blocking update check (refreshes local cache for next run).
+	if settings.IsUpdateCheckEnabled() {
+		update.CheckInBackground(version)
 	}
 	if opts.webSearch {
 		settings.WebSearch.Enabled = config.BoolPtr(true)
@@ -515,6 +521,9 @@ func run(args []string, opts runOptions) error {
 
 	// Print mode: non-interactive
 	if opts.print {
+		if notice := updateNotice(settings, version); notice != "" {
+			fmt.Fprintln(os.Stderr, notice)
+		}
 		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, opts.delegate, opts.workflows, agentMgr)
 	}
 
@@ -540,6 +549,12 @@ func run(args []string, opts runOptions) error {
 		}
 		initialMsg += fmt.Sprintf("Created default config: %s\nNo provider token configured yet. Run /auth to add a provider token and model.", settingsMeta.GlobalSettingsPath)
 	}
+	if notice := updateNotice(settings, version); notice != "" {
+		if initialMsg != "" {
+			initialMsg += "\n"
+		}
+		initialMsg += notice
+	}
 	if initialMsg != "" {
 		app.SetInitialMessage(initialMsg)
 	}
@@ -550,6 +565,13 @@ func run(args []string, opts runOptions) error {
 	}
 
 	return nil
+}
+
+func updateNotice(settings *config.Settings, version string) string {
+	if !settings.IsUpdateCheckEnabled() {
+		return ""
+	}
+	return update.CachedNotice(version)
 }
 
 // a2aDispatcherAdapter adapts a2a.A2AManager to tools.A2ADispatcher.
