@@ -64,6 +64,9 @@
 - **TUI Duplicate Transcript in Program-Backed Scrollback**
   - Cleared managed live content when a Bubble Tea program is active so completed transcript blocks printed to native scrollback via `Program.Println` are not duplicated in the live view.
 
+- **Sandbox Info Label**
+  - Removed redundant "YOLO mode" text from the "no sandbox" status display.
+
 ---
 
 ## v0.1.47

@@ -64,6 +64,9 @@
 - **TUI Program 模式下转录内容重复**
   - 当 Bubble Tea program 活跃时清空受管 liveContent，避免通过 `Program.Println` 打印到原生 scrollback 的已完成转录块在 live 视图中重复显示。
 
+- **Sandbox 状态标签**
+  - 移除"无沙箱"状态显示中多余的 "YOLO mode" 文本。
+
 ---
 
 ## v0.1.47
