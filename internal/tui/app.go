@@ -893,6 +893,10 @@ func (a *App) View() string {
 	if a.auth.Open {
 		parts = append(parts, a.renderAuthDialog())
 	} else {
+		inputGap := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("236")).
+			Render(strings.Repeat("▄", a.width))
+		parts = append(parts, inputGap)
 		parts = append(parts, a.input.View())
 		if suggestions := a.suggest.View(); suggestions != "" {
 			parts = append(parts, suggestions)

@@ -288,28 +288,27 @@ func (a *App) renderFooter() string {
 	rightStr := strings.Join(rightParts, " | ")
 	rightWidth := lipgloss.Width(rightStr)
 
-	// Build left column: mode + model, cwd, hints
-	leftLine1 := fmt.Sprintf(" %s | %s", modeStr, modelName)
-	leftLine2 := fmt.Sprintf(" %s", cwd)
+	// Build left column: mode | model | path (single line)
+	leftLine1 := fmt.Sprintf(" %s | %s | %s", modeStr, modelName, cwd)
 
-	// Third line: dynamic hints
-	var leftLine3 string
+	// Second line: dynamic hints
+	var leftLine2 string
 	if a.waitingForApproval {
-		leftLine3 = " " + a.renderApprovalFooterAlert()
+		leftLine2 = " " + a.renderApprovalFooterAlert()
 	} else if a.isThinking {
-		leftLine3 = " " + spinnerChars[a.spinnerIndex] + " " + formatDuration(a.timer.Elapsed()) + " · esc to cancel"
+		leftLine2 = " " + spinnerChars[a.spinnerIndex] + " " + formatDuration(a.timer.Elapsed()) + " · esc to cancel"
 	} else {
 		if a.lastDuration > 0 {
-			leftLine3 = fmt.Sprintf(" last %s", formatDuration(a.lastDuration))
+			leftLine2 = fmt.Sprintf(" last %s", formatDuration(a.lastDuration))
 		}
 		if a.toolModalOpen {
-			leftLine3 += " | Left/Right:switch PgUp/PgDn:page Up/Down:scroll Esc/Ctrl+O:close"
+			leftLine2 += " | Left/Right:switch PgUp/PgDn:page Up/Down:scroll Esc/Ctrl+O:close"
 		} else {
-			leftLine3 += " | Tab:mode Esc:abort Ctrl+O:details Ctrl+G:compact"
+			leftLine2 += " | Tab:mode Esc:abort Ctrl+O:details Ctrl+G:compact"
 		}
 	}
 
-	leftContent := leftLine1 + "\n" + leftLine2 + "\n" + leftLine3
+	leftContent := leftLine1 + "\n" + leftLine2
 
 	// Calculate left width (total width minus right column minus separator)
 	sepWidth := 2 // " |" separator

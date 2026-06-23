@@ -43,7 +43,7 @@ func New(width int) Model {
 		style: lipgloss.NewStyle().
 			Background(lipgloss.Color("236")).
 			Padding(0, 1),
-		cursorStyle: lipgloss.NewStyle().Reverse(true),
+		cursorStyle: lipgloss.NewStyle().Background(lipgloss.Color("236")).Reverse(true),
 	}
 }
 
@@ -405,7 +405,7 @@ func (m Model) renderEmptyLine() string {
 		return " "
 	}
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Background(lipgloss.Color("236"))
 	if !m.cursorOn {
 		return dimStyle.Render(m.placeholder)
 	}
