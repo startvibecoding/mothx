@@ -5,6 +5,10 @@
 
 ### ✨ Features
 
+- **Streaming Delta Builder Optimization**
+  - Replaced string concatenation with `strings.Builder` for accumulating assistant and thinking text deltas during streaming, avoiding O(n²) memory growth on long responses.
+  - Builders are finalized before printing on turn end, approval, and error events to ensure consistent output.
+
 - **New Provider: Mistral**
   - Added Mistral AI provider with models: Mistral Large, Mistral Medium 3.5, Mistral Small, Codestral, Devstral, Magistral Medium/Small, and Pixtral Large.
   - Uses OpenAI-compatible API endpoint `https://api.mistral.ai/v1`.
@@ -37,6 +41,12 @@
   - Aligned input box width with the gap divider above for consistent layout.
   - Set editor width to full terminal width to match gap divider.
   - Fixed double padding subtraction in editor Width calculation by using `m.width` for the final render Width.
+
+- **TUI `compactBashOutput` Trailing Whitespace**
+  - Fixed `compactBashOutput` writing the original untrimmed line instead of the trimmed version after blank-line dedup, which could preserve trailing whitespace.
+
+- **TUI Duplicate Transcript in Program-Backed Scrollback**
+  - Cleared managed live content when a Bubble Tea program is active so completed transcript blocks printed to native scrollback via `Program.Println` are not duplicated in the live view.
 
 ---
 

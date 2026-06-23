@@ -981,6 +981,33 @@ func TestHandleAgentEventReservesAssistantSlotBeforeTextDelta(t *testing.T) {
 	}
 }
 
+func TestStreamingAssistantDeltaUsesBuilderUntilTurnEnd(t *testing.T) {
+	a := &App{
+		messages:            []string{"You: hi"},
+		currentAssistantIdx: -1,
+		currentThinkIdx:     -1,
+		assistantRaw:        make(map[int]string),
+		assistantRendered:   make(map[int]string),
+		assistantDirty:      make(map[int]bool),
+	}
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventTextDelta, TextDelta: "Hello"})
+	a.handleAgentEvent(agent.Event{Type: agent.EventTextDelta, TextDelta: " world"})
+
+	if got, want := a.assistantRaw[a.currentAssistantIdx], "Hello world"; got != want {
+		t.Fatalf("assistantRaw = %q, want %q", got, want)
+	}
+	if _, ok := a.assistantBuilders[a.currentAssistantIdx]; !ok {
+		t.Fatal("assistant builder missing during active stream")
+	}
+
+	idx := a.currentAssistantIdx
+	a.handleAgentEvent(agent.Event{Type: agent.EventTurnEnd})
+	if _, ok := a.assistantBuilders[idx]; ok {
+		t.Fatal("assistant builder still retained after turn end")
+	}
+}
+
 func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
 	a := &App{
 		messages:            []string{"You: hi"},
@@ -1717,6 +1744,19 @@ func TestPrintMessageOnceQueuesMoreThanInitialBuffer(t *testing.T) {
 		if !a.printedMessageIdx[i] {
 			t.Fatalf("message %d was not marked printed after queueing", i)
 		}
+	}
+}
+
+func TestProgramBackedTranscriptDoesNotMaintainFullLiveContent(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.program = tea.NewProgram(a)
+
+	for i := 0; i < 20; i++ {
+		a.addMessage(fmt.Sprintf("line %03d", i))
+	}
+
+	if a.liveContent != "" {
+		t.Fatalf("liveContent = %q, want empty when program-backed scrollback is active", a.liveContent)
 	}
 }
 

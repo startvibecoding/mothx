@@ -57,15 +57,63 @@ func (a *App) printMessageOnce(idx int) {
 func (a *App) commitActiveStream() {
 	hadActive := a.currentThinkIdx >= 0 || a.currentAssistantIdx >= 0
 	if a.currentThinkIdx >= 0 {
+		a.finalizeThinkStream(a.currentThinkIdx)
 		a.printMessageOnce(a.currentThinkIdx)
 	}
 	if a.currentAssistantIdx >= 0 {
+		a.finalizeAssistantStream(a.currentAssistantIdx)
 		a.printMessageOnce(a.currentAssistantIdx)
 	}
 	if hadActive {
 		a.currentThinkIdx = -1
 		a.currentAssistantIdx = -1
 		a.updateViewportContentWithFollow(true)
+	}
+}
+
+func (a *App) appendAssistantDelta(idx int, delta string) {
+	if a.assistantBuilders == nil {
+		a.assistantBuilders = make(map[int]*strings.Builder)
+	}
+	b := a.assistantBuilders[idx]
+	if b == nil {
+		b = &strings.Builder{}
+		if existing := a.assistantRaw[idx]; existing != "" {
+			b.WriteString(existing)
+		}
+		a.assistantBuilders[idx] = b
+	}
+	b.WriteString(delta)
+	a.assistantRaw[idx] = b.String()
+}
+
+func (a *App) appendThinkDelta(idx int, delta string) {
+	if a.thinkBuilders == nil {
+		a.thinkBuilders = make(map[int]*strings.Builder)
+	}
+	b := a.thinkBuilders[idx]
+	if b == nil {
+		b = &strings.Builder{}
+		if existing := a.thinkRaw[idx]; existing != "" {
+			b.WriteString(existing)
+		}
+		a.thinkBuilders[idx] = b
+	}
+	b.WriteString(delta)
+	a.thinkRaw[idx] = b.String()
+}
+
+func (a *App) finalizeAssistantStream(idx int) {
+	if b := a.assistantBuilders[idx]; b != nil {
+		a.assistantRaw[idx] = b.String()
+		delete(a.assistantBuilders, idx)
+	}
+}
+
+func (a *App) finalizeThinkStream(idx int) {
+	if b := a.thinkBuilders[idx]; b != nil {
+		a.thinkRaw[idx] = b.String()
+		delete(a.thinkBuilders, idx)
 	}
 }
 

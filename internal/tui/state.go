@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"time"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
@@ -15,9 +16,11 @@ func (a *App) resetTranscriptState() {
 	a.liveContent = ""
 	a.currentPlan = nil
 	a.assistantRaw = make(map[int]string)
+	a.assistantBuilders = make(map[int]*strings.Builder)
 	a.assistantRendered = make(map[int]string)
 	a.assistantDirty = make(map[int]bool)
 	a.thinkRaw = make(map[int]string)
+	a.thinkBuilders = make(map[int]*strings.Builder)
 	a.printedMessageIdx = make(map[int]bool)
 	a.agentActivities = make(map[agentpkg.AgentID]*agentActivity)
 	a.agentActivityOrder = nil

@@ -5,6 +5,10 @@
 
 ### ✨ 新功能
 
+- **流式 Delta Builder 优化**
+  - 用 `strings.Builder` 替代字符串拼接来累积助手和思考文本 delta，避免长回复时 O(n²) 的内存增长。
+  - Builder 在轮次结束、审批和错误事件时先 finalize 再打印，确保输出一致性。
+
 - **新增 Provider: Mistral**
   - 新增 Mistral AI Provider，支持模型包括：Mistral Large、Mistral Medium 3.5、Mistral Small、Codestral、Devstral、Magistral Medium/Small 和 Pixtral Large。
   - 使用 OpenAI 兼容 API 端点 `https://api.mistral.ai/v1`。
@@ -37,6 +41,12 @@
   - 修复输入框宽度与上方分隔线不对齐的问题，布局更一致。
   - 编辑器宽度设为完整终端宽度以匹配分隔线。
   - 修复编辑器 Width 计算中双重 padding 扣减的问题，改用 `m.width` 作为最终渲染宽度。
+
+- **TUI `compactBashOutput` 尾部空白**
+  - 修复 `compactBashOutput` 在空行去重后写入原始未 trim 行而非 trim 后行的问题，避免保留尾部空白字符。
+
+- **TUI Program 模式下转录内容重复**
+  - 当 Bubble Tea program 活跃时清空受管 liveContent，避免通过 `Program.Println` 打印到原生 scrollback 的已完成转录块在 live 视图中重复显示。
 
 ---
 

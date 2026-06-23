@@ -20,10 +20,11 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	case agent.EventTextDelta:
 		a.invalidateToolModalCache()
 		if a.currentAssistantIdx >= 0 && a.currentAssistantIdx < len(a.messages) {
-			a.assistantRaw[a.currentAssistantIdx] += event.TextDelta
+			a.appendAssistantDelta(a.currentAssistantIdx, event.TextDelta)
 		} else {
 			a.currentAssistantIdx = len(a.messages)
-			a.assistantRaw[a.currentAssistantIdx] = event.TextDelta
+			a.assistantRaw[a.currentAssistantIdx] = ""
+			a.appendAssistantDelta(a.currentAssistantIdx, event.TextDelta)
 			// placeholder; actual display is built in updateViewportContent
 			a.messages = append(a.messages, "")
 		}
@@ -37,13 +38,14 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.thinkRaw = make(map[int]string)
 		}
 		if a.currentThinkIdx >= 0 && a.currentThinkIdx < len(a.messages) {
-			a.thinkRaw[a.currentThinkIdx] += event.ThinkDelta
+			a.appendThinkDelta(a.currentThinkIdx, event.ThinkDelta)
 		} else {
 			if a.currentAssistantIdx >= 0 &&
 				a.currentAssistantIdx == len(a.messages)-1 &&
 				a.assistantRaw[a.currentAssistantIdx] == "" {
 				a.currentThinkIdx = a.currentAssistantIdx
 				delete(a.assistantRaw, a.currentAssistantIdx)
+				delete(a.assistantBuilders, a.currentAssistantIdx)
 				delete(a.assistantRendered, a.currentAssistantIdx)
 				delete(a.assistantDirty, a.currentAssistantIdx)
 				a.currentAssistantIdx = len(a.messages)
@@ -54,7 +56,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 				a.currentThinkIdx = len(a.messages)
 				a.messages = append(a.messages, "")
 			}
-			a.thinkRaw[a.currentThinkIdx] = event.ThinkDelta
+			a.thinkRaw[a.currentThinkIdx] = ""
+			a.appendThinkDelta(a.currentThinkIdx, event.ThinkDelta)
 		}
 		a.scheduleRender()
 		return a.listenAgentEvents()
@@ -182,9 +185,11 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.contextUsage = event.ContextUsage
 		}
 		if a.currentThinkIdx >= 0 {
+			a.finalizeThinkStream(a.currentThinkIdx)
 			a.printMessageOnce(a.currentThinkIdx)
 		}
 		if a.currentAssistantIdx >= 0 {
+			a.finalizeAssistantStream(a.currentAssistantIdx)
 			a.printMessageOnce(a.currentAssistantIdx)
 		}
 		a.currentAssistantIdx = -1
@@ -200,9 +205,11 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.contextUsage = event.ContextUsage
 		}
 		if a.currentThinkIdx >= 0 {
+			a.finalizeThinkStream(a.currentThinkIdx)
 			a.printMessageOnce(a.currentThinkIdx)
 		}
 		if a.currentAssistantIdx >= 0 {
+			a.finalizeAssistantStream(a.currentAssistantIdx)
 			a.printMessageOnce(a.currentAssistantIdx)
 		}
 		a.currentAssistantIdx = -1

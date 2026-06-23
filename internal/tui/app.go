@@ -223,8 +223,10 @@ type App struct {
 	// Markdown rendering for assistant messages
 	mdRenderer        *gsm.Stream
 	assistantRaw      map[int]string // message index -> raw markdown content
+	assistantBuilders map[int]*strings.Builder
 	assistantRendered map[int]string // message index -> gsm-rendered content
 	assistantDirty    map[int]bool   // message index -> needs re-render
+	thinkBuilders     map[int]*strings.Builder
 
 	// Bubble Tea program used to marshal deferred renders back onto the UI goroutine.
 	program *tea.Program
@@ -290,7 +292,9 @@ func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *c
 		currentApprovalIdx:  -1,
 		printedMessageIdx:   make(map[int]bool),
 		thinkRaw:            make(map[int]string),
+		thinkBuilders:       make(map[int]*strings.Builder),
 		assistantRaw:        make(map[int]string),
+		assistantBuilders:   make(map[int]*strings.Builder),
 		assistantRendered:   make(map[int]string),
 		assistantDirty:      make(map[int]bool),
 		multiAgent:          multiAgent,
@@ -984,6 +988,10 @@ func (a *App) updateViewportContent() {
 }
 
 func (a *App) updateViewportContentWithFollow(_ bool) {
+	if a.program != nil {
+		a.liveContent = ""
+		return
+	}
 	content := a.renderTranscriptContent()
 	a.liveContent = content
 }

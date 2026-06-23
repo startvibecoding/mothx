@@ -274,7 +274,7 @@ func compactBashOutput(s string) string {
 			continue
 		}
 		prevBlank = false
-		sb.WriteString(line)
+		sb.WriteString(trimmed)
 		sb.WriteString("\n")
 	}
 	return strings.TrimSpace(sb.String())
