@@ -339,7 +339,7 @@ func (m Model) View() string {
 	}
 
 	view := strings.Join(renderedLines, "\n")
-	return m.style.Width(contentW).Render(view)
+	return m.style.Width(m.width).Render(view)
 }
 
 // cursorDisplayLine computes which display line the cursor is on,
