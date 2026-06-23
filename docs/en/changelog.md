@@ -1,6 +1,32 @@
 # Changelog
 
 
+## v1.0.1
+
+### ✨ Features
+
+- **New Provider: Mistral**
+  - Added Mistral AI provider with models: Mistral Large, Mistral Medium 3.5, Mistral Small, Codestral, Devstral, Magistral Medium/Small, and Pixtral Large.
+  - Uses OpenAI-compatible API endpoint `https://api.mistral.ai/v1`.
+
+- **New Provider: GitHub Copilot**
+  - Added GitHub Copilot provider with Claude Sonnet 4.6/4.5, Claude Opus 4.8, Claude Haiku 4.5, Claude Fable 5, GPT-5.5/5.4/5.2, Gemini 2.5 Pro, and Gemini 3.5 Flash models.
+  - Uses OpenAI-compatible API endpoint `https://api.individual.githubcopilot.com`.
+
+- **New Provider: Cloudflare AI Gateway**
+  - Added Cloudflare AI Gateway provider with Claude, GPT, Gemini, and Llama 4 Scout models.
+  - Supports routing through Cloudflare's AI Gateway with models from Anthropic, OpenAI, Google, and Meta.
+
+- **New Provider: Cloudflare Workers AI**
+  - Added Cloudflare Workers AI provider with Llama 4 Scout 17B, Llama 3.3 70B, Gemma 4 26B, Mistral Small 3.1 24B, GPT OSS 120B/20B, Kimi K2.7 Code, and GLM 5.2 models.
+  - Uses Cloudflare's Workers AI inference endpoints.
+
+- **New Provider: Amazon Bedrock**
+  - Added Amazon Bedrock provider with Claude Sonnet 4.6/4.5, Claude Opus 4.8, Claude Haiku 4.5, Claude Fable 5, Amazon Nova Pro/Micro/Lite, and DeepSeek V3.2/R1 models.
+  - Uses OpenAI-compatible cross-region inference endpoints.
+
+---
+
 ## v0.1.47
 
 ### ✨ Features

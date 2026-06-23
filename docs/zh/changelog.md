@@ -1,6 +1,32 @@
 # 更新日志
 
 
+## v1.0.1
+
+### ✨ 新功能
+
+- **新增 Provider: Mistral**
+  - 新增 Mistral AI Provider，支持模型包括：Mistral Large、Mistral Medium 3.5、Mistral Small、Codestral、Devstral、Magistral Medium/Small 和 Pixtral Large。
+  - 使用 OpenAI 兼容 API 端点 `https://api.mistral.ai/v1`。
+
+- **新增 Provider: GitHub Copilot**
+  - 新增 GitHub Copilot Provider，支持 Claude Sonnet 4.6/4.5、Claude Opus 4.8、Claude Haiku 4.5、Claude Fable 5、GPT-5.5/5.4/5.2、Gemini 2.5 Pro 和 Gemini 3.5 Flash 模型。
+  - 使用 OpenAI 兼容 API 端点 `https://api.individual.githubcopilot.com`。
+
+- **新增 Provider: Cloudflare AI Gateway**
+  - 新增 Cloudflare AI Gateway Provider，支持 Claude、GPT、Gemini 和 Llama 4 Scout 模型。
+  - 支持通过 Cloudflare AI Gateway 路由来自 Anthropic、OpenAI、Google 和 Meta 的模型。
+
+- **新增 Provider: Cloudflare Workers AI**
+  - 新增 Cloudflare Workers AI Provider，支持 Llama 4 Scout 17B、Llama 3.3 70B、Gemma 4 26B、Mistral Small 3.1 24B、GPT OSS 120B/20B、Kimi K2.7 Code 和 GLM 5.2 模型。
+  - 使用 Cloudflare Workers AI 推理端点。
+
+- **新增 Provider: Amazon Bedrock**
+  - 新增 Amazon Bedrock Provider，支持 Claude Sonnet 4.6/4.5、Claude Opus 4.8、Claude Haiku 4.5、Claude Fable 5、Amazon Nova Pro/Micro/Lite 以及 DeepSeek V3.2/R1 模型。
+  - 使用 OpenAI 兼容跨区域推理端点。
+
+---
+
 ## v0.1.47
 
 ### ✨ 新功能
