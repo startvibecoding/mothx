@@ -284,7 +284,7 @@ func (s *BwrapSandbox) buildEnv(opts ExecOpts) []string {
 // FormatSandboxInfo returns a human-readable description of the sandbox state.
 func FormatSandboxInfo(s Sandbox) string {
 	if s == nil || s.Level() == LevelNone {
-		return "🔓 No sandbox (YOLO mode)"
+		return "🔓 No sandbox"
 	}
 
 	available := "✓"
