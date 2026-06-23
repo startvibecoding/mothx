@@ -59,6 +59,12 @@ var (
 			BorderTop(true).
 			BorderForeground(lipgloss.Color("240"))
 
+	footerSepStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("237"))
+
+	footerTextStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
+
 	pasteMarkerStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("214")).
 				Bold(true)

@@ -289,7 +289,11 @@ func (a *App) renderFooter() string {
 	rightWidth := lipgloss.Width(rightStr)
 
 	// Build left column: mode | model | path (single line)
-	leftLine1 := fmt.Sprintf(" %s | %s | %s", modeStr, modelName, cwd)
+	// Color each text segment explicitly so the styled separator's ANSI reset
+	// does not strip the footer color from following segments.
+	sep := footerSepStyle.Render("|")
+	text := footerTextStyle.Render
+	leftLine1 := fmt.Sprintf(" %s %s %s %s %s", text(modeStr), sep, text(modelName), sep, text(cwd))
 
 	// Second line: dynamic hints
 	var leftLine2 string
