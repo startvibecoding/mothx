@@ -462,9 +462,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		a.ready = true
 
-		a.input = a.input.SetWidth(msg.Width - 4)
+		a.input = a.input.SetWidth(msg.Width - 2)
 		a.authInput = a.authInput.SetWidth(msg.Width - 8)
-		a.suggest = a.suggest.SetWidth(msg.Width - 4)
+		a.suggest = a.suggest.SetWidth(msg.Width - 2)
 		if oldWidth != a.width {
 			a.configureMarkdownRenderer()
 			a.markAssistantRenderedDirty()
