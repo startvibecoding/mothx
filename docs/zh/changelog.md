@@ -25,6 +25,19 @@
   - 新增 Amazon Bedrock Provider，支持 Claude Sonnet 4.6/4.5、Claude Opus 4.8、Claude Haiku 4.5、Claude Fable 5、Amazon Nova Pro/Micro/Lite 以及 DeepSeek V3.2/R1 模型。
   - 使用 OpenAI 兼容跨区域推理端点。
 
+- **紧凑 TUI 底栏与输入分隔线**
+  - 将 mode、model 和 path 合并为单行底栏（原来 3 行）。
+  - 在 transcript 和输入区域之间新增半块分隔线，增强视觉区分。
+  - 编辑器光标和 placeholder 样式新增背景色。
+  - npm 新增 postinstall 脚本，安装后显示快速开始信息。
+
+### 🐛 Bug 修复
+
+- **TUI 输入框宽度对齐**
+  - 修复输入框宽度与上方分隔线不对齐的问题，布局更一致。
+  - 编辑器宽度设为完整终端宽度以匹配分隔线。
+  - 修复编辑器 Width 计算中双重 padding 扣减的问题，改用 `m.width` 作为最终渲染宽度。
+
 ---
 
 ## v0.1.47

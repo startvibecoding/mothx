@@ -25,6 +25,19 @@
   - Added Amazon Bedrock provider with Claude Sonnet 4.6/4.5, Claude Opus 4.8, Claude Haiku 4.5, Claude Fable 5, Amazon Nova Pro/Micro/Lite, and DeepSeek V3.2/R1 models.
   - Uses OpenAI-compatible cross-region inference endpoints.
 
+- **Compact TUI Footer and Input Divider**
+  - Merged mode, model, and path onto a single footer line (was 3 lines).
+  - Added half-block divider between transcript and input area for visual separation.
+  - Applied background color to editor cursor and placeholder styles.
+  - Added npm postinstall script with quick start info.
+
+### 🐛 Bug Fixes
+
+- **TUI Input Box Width Alignment**
+  - Aligned input box width with the gap divider above for consistent layout.
+  - Set editor width to full terminal width to match gap divider.
+  - Fixed double padding subtraction in editor Width calculation by using `m.width` for the final render Width.
+
 ---
 
 ## v0.1.47
