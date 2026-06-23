@@ -55,6 +55,9 @@ func renderHeader(width int, version string, providerName string, modelName stri
 		infoPanel = infoStyle.Render(infoContent)
 	}
 
-	logoStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("86")).Render(vibeLogo)
+	logoStyled := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("86")).
+		MarginRight(gap).
+		Render(vibeLogo)
 	return lipgloss.JoinHorizontal(lipgloss.Top, logoStyled, infoPanel)
 }
