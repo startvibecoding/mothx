@@ -8,9 +8,20 @@ if (process.env.CI || process.env.npm_config_yes || process.env.VIBECODING_SKIP_
 const os = require('os');
 const path = require('path');
 
-const chalk = (s) => `\x1b[36m${s}\x1b[0m`;  // cyan
-const bold  = (s) => `\x1b[1m${s}\x1b[0m`;
-const dim   = (s) => `\x1b[2m${s}\x1b[0m`;
+const RESET  = '\x1b[0m';
+const BOLD   = '\x1b[1m';
+const DIM    = '\x1b[2m';
+const CYAN   = '\x1b[36m';
+const BRIGHT_CYAN = '\x1b[96m';
+const WHITE  = '\x1b[97m';
+
+const logo = [
+  ' _    ___ __       ',
+  '| |  / (_) /_  ___ ',
+  '| | / / / __ \\/ _ \\',
+  '| |/ / / /_/ /  __/',
+  '|___/_/_.___/\\___/ ',
+].join('\n');
 
 function configPath() {
   if (process.platform === 'win32') {
@@ -20,19 +31,34 @@ function configPath() {
   return path.join(os.homedir(), '.vibecoding', 'settings.json');
 }
 
+function pkgVersion() {
+  try {
+    return require('../package.json').version;
+  } catch {
+    return '';
+  }
+}
+
+const ver = pkgVersion();
+const verStr = ver ? ` ${DIM}v${ver}${RESET}` : '';
+
 console.log();
-console.log(`  ${bold('🚀 VibeCoding')} ${dim('— Terminal AI Coding Assistant')}`);
+console.log(`${BRIGHT_CYAN}${BOLD}${logo}${RESET}${verStr}`);
 console.log();
-console.log(`  ${bold('Quick Start')}`);
+console.log(`  ${BOLD}${WHITE}Your AI pair programmer, right in the terminal.${RESET}`);
 console.log();
-console.log(`    vibecoding                        ${dim('Start interactive mode')}`);
-console.log(`    vibecoding -P "hello world in Go" ${dim('One-shot mode')}`);
+console.log(`  ${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}`);
 console.log();
-console.log(`  ${bold('Setup')}`);
+console.log(`  ${BOLD}Quick Start${RESET}`);
 console.log();
-console.log(`    In TUI, type ${chalk('/auth')} to add API keys and switch providers`);
+console.log(`    vibecoding                          ${DIM}Interactive mode${RESET}`);
+console.log(`    vibecoding -P "write fizzbuzz in Go" ${DIM}One-shot mode${RESET}`);
 console.log();
-console.log(`  ${bold('Site')}    ${chalk('https://startvibecoding.work/')}`);
-console.log(`  ${bold('Src')}    ${chalk('https://github.com/startvibecoding/vibecoding')}`);
-console.log(`  ${bold('Config')}  ${dim(configPath())}`);
+console.log(`  ${BOLD}Setup${RESET}`);
+console.log();
+console.log(`    In TUI, type ${CYAN}${BOLD}/auth${RESET} to add API keys and switch providers`);
+console.log();
+console.log(`  ${BOLD}Docs${RESET}   ${CYAN}https://startvibecoding.work/${RESET}`);
+console.log(`  ${BOLD}Code${RESET}   ${CYAN}https://github.com/startvibecoding/vibecoding${RESET}`);
+console.log(`  ${BOLD}Config${RESET} ${DIM}${configPath()}${RESET}`);
 console.log();
