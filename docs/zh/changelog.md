@@ -1,7 +1,7 @@
 # 更新日志
 
 
-## Unreleased
+## v1.1.51
 
 ### ✨ 新功能
 
@@ -10,6 +10,12 @@
   - 网络检测在后台进行（最多每 24 小时一次），仅刷新本地缓存（`update-check.json`），前台不会因网络请求而阻塞。
   - 提醒会显示在 TUI 启动信息中，`--print` 模式下输出到 stderr，并提示执行 `npm install -g vibecoding-installer@latest`。
   - 可在配置文件 `settings.json` 中设置 `"updateCheck": false` 关闭，也可通过 `VIBECODING_NO_UPDATE_CHECK=1` 关闭；通过 `VIBECODING_NPM_REGISTRY` 覆盖 registry 地址。
+
+### 💅 优化
+
+- **TUI 头部与底部美化**
+  - 放大 ASCII logo 并在头部区域垂直居中显示。
+  - 弱化底部分隔线，并统一模式/模型/路径的配色，界面更清爽。
 
 ## v1.1.50
 

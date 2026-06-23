@@ -1,7 +1,7 @@
 # Changelog
 
 
-## Unreleased
+## v1.1.51
 
 ### ✨ Features
 
@@ -10,6 +10,12 @@
   - Network checks run in the background (at most once per 24h) and only refresh a local cache (`update-check.json`); the foreground never blocks on the network.
   - The reminder appears in the TUI initial message and on stderr in `--print` mode, suggesting `npm install -g vibecoding-installer@latest`.
   - Disable via config file with `"updateCheck": false` in `settings.json`, or with `VIBECODING_NO_UPDATE_CHECK=1`; override the registry with `VIBECODING_NPM_REGISTRY`.
+
+### 💅 Improvements
+
+- **TUI header and footer polish**
+  - Enlarged the ASCII logo and vertically centered it within the header.
+  - Dimmed the footer separator and unified the mode/model/path colors for a cleaner look.
 
 ## v1.1.50
 
