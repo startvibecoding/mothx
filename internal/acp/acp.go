@@ -50,6 +50,7 @@ type server struct {
 	wmu sync.Mutex
 
 	settings *config.Settings
+	allow    *config.AllowConfig
 	cwd      string
 
 	p provider.Provider
@@ -247,6 +248,7 @@ func Run(opts RunOptions) error {
 
 	srv := &server{
 		settings:   settings,
+		allow:      config.LoadAllow(),
 		cwd:        cwd,
 		multiAgent: opts.MultiAgent,
 		delegate:   opts.Delegate,
@@ -340,6 +342,7 @@ func Run(opts RunOptions) error {
 			MultiAgentEnabled: true,
 			DelegateEnabled:   opts.Delegate,
 			WorkflowsEnabled:  opts.Workflows,
+			Allow:             srv.allow,
 		})
 		srv.agentMgr = agent.NewAgentManager(srv.factory)
 	}
@@ -559,6 +562,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			MaxTokens:     s.settings.MaxOutputTokens,
 			SandboxMgr:    s.sbMgr,
 			Settings:      s.settings,
+			Allow:         s.allow,
 			Session:       rt.mgr,
 			ExtraContext:  s.extraContext,
 			CompactionSettings: ctxpkg.CompactionSettings{

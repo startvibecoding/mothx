@@ -91,6 +91,7 @@ type Config struct {
 	MaxTokens          int
 	SandboxMgr         *sandbox.Manager
 	Settings           *config.Settings
+	Allow              *config.AllowConfig // auto-approval (allow.json): autoEdit + editPaths
 	Session            *session.Manager
 	ExtraContext       string // extra context from files and skills
 	CompactionSettings ctxpkg.CompactionSettings
@@ -1704,6 +1705,16 @@ func (a *Agent) setMessageID(index int, id string) {
 // NeedsApproval checks if a tool call needs user approval based on the current mode.
 func (a *Agent) NeedsApproval(toolName string, args map[string]any) bool {
 	if (toolName == "write" || toolName == "edit") && a.config.Mode == "agent" {
+		// Auto-approve edits globally when AllowAutoEdit is on.
+		if a.config.Allow != nil && a.config.Allow.GetAutoEdit() {
+			return false
+		}
+		// Auto-approve edits whose path matches the allow.json whitelist.
+		if a.config.Allow != nil {
+			if p, ok := args["path"].(string); ok && a.config.Allow.MatchEditPath(p) {
+				return false
+			}
+		}
 		return a.config.Settings != nil &&
 			a.config.Settings.Approval.ConfirmBeforeWrite != nil &&
 			*a.config.Settings.Approval.ConfirmBeforeWrite

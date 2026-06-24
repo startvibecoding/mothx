@@ -387,6 +387,7 @@ func (f *hermesA2AFactory) CreateForA2A(workDir string, mode string) (*agent.Age
 		Mode:       mode,
 		SandboxMgr: sandbox.NewManager(workDir),
 		Settings:   f.dispatcher.settings,
+		Allow:      f.dispatcher.allow,
 	}, tools.NewRegistry(workDir, sandbox.NewManager(workDir).GetActive()))
 	return a, nil
 }

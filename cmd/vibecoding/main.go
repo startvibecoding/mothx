@@ -464,6 +464,7 @@ func run(args []string, opts runOptions) error {
 	var agentMgr *agent.AgentManager
 	var cronStore cron.CronStore
 	var cronScheduler *cron.Scheduler
+	allow := config.LoadAllow()
 	{
 		compactionSettings := ctxpkg.CompactionSettings{
 			Enabled:          settings.Compaction.Enabled,
@@ -484,6 +485,7 @@ func run(args []string, opts runOptions) error {
 			MultiAgentEnabled: true,
 			DelegateEnabled:   opts.delegate,
 			WorkflowsEnabled:  opts.workflows,
+			Allow:             allow,
 		})
 		agentMgr = agent.NewAgentManager(factory)
 
@@ -531,7 +533,7 @@ func run(args []string, opts runOptions) error {
 	// Clear any pending stdin input (e.g., terminal color queries)
 	clearStdin()
 
-	app := tui.NewAppWithWorkflows(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, opts.delegate, opts.workflows, agentMgr, cronStore, cronScheduler)
+	app := tui.NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, opts.delegate, opts.workflows, agentMgr, cronStore, cronScheduler, allow)
 	// Add context files info and session info as initial message
 	var initialMsg string
 	if contextFilesInfo != "" {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
@@ -48,6 +49,10 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 		return s.cmdCompact(sess)
 	case "/delegate":
 		return s.cmdDelegate(sess, parts)
+	case "/alloweditpath":
+		return s.cmdAllowEditPath(parts)
+	case "/allowautoedit":
+		return s.cmdAllowAutoEdit(parts)
 	case "/workflows":
 		return s.cmdWorkflows(parts)
 	case "/skill":
@@ -59,6 +64,15 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 	default:
 		return &CommandResult{Message: fmt.Sprintf("Unknown command: %s. Type /help for available commands.", cmd), Error: true}
 	}
+}
+
+func (s *Server) getAllow() *config.AllowConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.allow == nil {
+		s.allow = config.LoadAllow()
+	}
+	return s.allow
 }
 
 func (s *Server) cmdClear(sess *GatewaySession) *CommandResult {
@@ -214,6 +228,7 @@ func (s *Server) cmdDelegate(sess *GatewaySession, parts []string) *CommandResul
 			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 				MultiAgentEnabled: true,
 				DelegateEnabled:   true,
+				Allow:             s.getAllow(),
 			})
 			sess.AgentMgr = agent.NewAgentManager(factory)
 		}
@@ -227,6 +242,109 @@ func (s *Server) cmdDelegate(sess *GatewaySession, parts []string) *CommandResul
 	default:
 		return &CommandResult{Message: "Usage: /delegate [on|off|status]", Error: true}
 	}
+}
+
+func (s *Server) cmdAllowEditPath(parts []string) *CommandResult {
+	allow := s.getAllow()
+	if len(parts) < 2 {
+		paths := allow.EditPathList()
+		if len(paths) == 0 {
+			return &CommandResult{Message: "Auto-edit path whitelist is empty. Usage: /alloweditpath add|remove <glob>|clear"}
+		}
+		var sb strings.Builder
+		sb.WriteString("Auto-edit path whitelist (agent mode):\n")
+		for _, p := range paths {
+			sb.WriteString(fmt.Sprintf("  %s\n", p))
+		}
+		return &CommandResult{Message: strings.TrimRight(sb.String(), "\n")}
+	}
+	switch parts[1] {
+	case "add":
+		if len(parts) < 3 {
+			return &CommandResult{Message: "Usage: /alloweditpath add <glob>", Error: true}
+		}
+		glob := strings.Join(parts[2:], " ")
+		if !allow.AddEditPath(glob) {
+			return &CommandResult{Message: fmt.Sprintf("Already in whitelist: %s", glob)}
+		}
+		if err := allow.SaveProject(); err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to save allow.json: %v", err), Error: true}
+		}
+		return &CommandResult{Message: fmt.Sprintf("✅ Added to auto-edit whitelist: %s", glob)}
+	case "remove", "rm":
+		if len(parts) < 3 {
+			return &CommandResult{Message: "Usage: /alloweditpath remove <glob>", Error: true}
+		}
+		glob := strings.Join(parts[2:], " ")
+		if !allow.RemoveEditPath(glob) {
+			return &CommandResult{Message: fmt.Sprintf("Not in whitelist: %s", glob)}
+		}
+		if err := allow.SaveProject(); err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to save allow.json: %v", err), Error: true}
+		}
+		return &CommandResult{Message: fmt.Sprintf("✅ Removed from auto-edit whitelist: %s", glob)}
+	case "clear":
+		allow.ClearEditPaths()
+		if err := allow.SaveProject(); err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to save allow.json: %v", err), Error: true}
+		}
+		return &CommandResult{Message: "✅ Auto-edit path whitelist cleared"}
+	default:
+		return &CommandResult{Message: "Usage: /alloweditpath [add <glob>|remove <glob>|clear]", Error: true}
+	}
+}
+
+func (s *Server) cmdAllowAutoEdit(parts []string) *CommandResult {
+	allow := s.getAllow()
+	if len(parts) < 2 {
+		state := "OFF"
+		if allow.GetAutoEdit() {
+			state = "ON"
+		}
+		return &CommandResult{Message: fmt.Sprintf("Auto-edit (agent mode): %s\nUsage: /allowautoedit [on|off] [global]", state)}
+	}
+	globalScope := false
+	for _, p := range parts[2:] {
+		if p == "global" {
+			globalScope = true
+		}
+	}
+	var enable bool
+	switch parts[1] {
+	case "on":
+		enable = true
+	case "off":
+		enable = false
+	default:
+		return &CommandResult{Message: "Usage: /allowautoedit [on|off] [global]", Error: true}
+	}
+	var err error
+	scope := "project"
+	effective := enable
+	if globalScope {
+		scope = "global"
+		effective = allow.SetGlobalAutoEdit(enable)
+		err = allow.SaveGlobalAutoEditValue(enable)
+	} else {
+		allow.SetProjectAutoEdit(enable)
+		err = allow.SaveProject()
+	}
+	if err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Failed to save allow.json: %v", err), Error: true}
+	}
+	state := "OFF"
+	if enable {
+		state = "ON"
+	}
+	msg := fmt.Sprintf("✅ Auto-edit (agent mode): %s [%s]", state, scope)
+	if globalScope && effective != enable {
+		effectiveState := "OFF"
+		if effective {
+			effectiveState = "ON"
+		}
+		msg += fmt.Sprintf(" (effective here: %s due to project override)", effectiveState)
+	}
+	return &CommandResult{Message: msg}
 }
 
 func (s *Server) cmdCompact(sess *GatewaySession) *CommandResult {
@@ -367,6 +485,8 @@ func (s *Server) cmdHelp() *CommandResult {
   /sessions del <id>      - Delete a session
   /compact                - Trigger context compaction
   /delegate [on|off|status] - Toggle delegation mode
+  /alloweditpath [add <glob>|remove <glob>|clear] - Auto-edit path whitelist
+  /allowautoedit [on|off] [global] - Toggle full auto-edit in agent mode
   /workflows [list|show <id>|cancel <id>] - Inspect workflow runs
   /status                 - Show session status
   /skill <name>           - Activate a skill

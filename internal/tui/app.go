@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -97,6 +98,7 @@ type App struct {
 	provider     provider.Provider
 	model        *provider.Model
 	settings     *config.Settings
+	allow        *config.AllowConfig
 	session      *session.Manager
 	registry     *tools.Registry
 	sandboxInfo  string
@@ -159,6 +161,27 @@ type App struct {
 	toolModalCacheVersion int
 	toolModalVersion      int
 	toolModalCacheLines   []string
+
+	// /btw side-question floating layer
+	btwOpen     bool
+	btwActive   bool   // a /btw sub-agent is currently running
+	btwQuestion string // the side question being answered
+	btwAnswer   string // accumulated answer text (raw)
+	btwThink    string // latest think summary (raw, tail-truncated)
+	btwErr      error  // error if the side query failed
+	btwScroll   int    // scroll offset within the overlay
+	btwEventCh  <-chan agent.Event
+	btwCancel   context.CancelFunc
+
+	// /btw streaming render optimization (mirrors main-agent assistant rendering):
+	// accumulate deltas with a Builder, render markdown via a dedicated streaming
+	// renderer, and cache the wrapped output so View does not re-wrap every frame.
+	btwAnswerBuilder *strings.Builder
+	btwThinkBuilder  *strings.Builder
+	btwRenderer      *gsm.Stream
+	btwRendered      string // cached rendered+wrapped answer body
+	btwRenderWidth   int    // width the cache was built for
+	btwAnswerDirty   bool   // answer changed since last render
 
 	// Compact tool display mode
 	compactMode bool
@@ -260,6 +283,10 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 }
 
 func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
+	return NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sandboxInfo, extraContext, skillsMgr, initialMode, multiAgent, delegateMode, workflows, agentMgr, cronStore, scheduler, config.LoadAllow())
+}
+
+func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler, allow *config.AllowConfig) *App {
 	input := editor.New(80).SetPlaceholder("Type a message...").SetMaxLines(5)
 
 	// Determine initial mode: use provided mode, fall back to settings default
@@ -270,11 +297,15 @@ func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *c
 	if mode == "" {
 		mode = "agent"
 	}
+	if allow == nil {
+		allow = config.LoadAllow()
+	}
 
 	app := &App{
 		provider:            p,
 		model:               model,
 		settings:            settings,
+		allow:               allow,
 		session:             sess,
 		registry:            registry,
 		sandboxInfo:         sandboxInfo,
@@ -548,6 +579,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if handled, cmd := a.handleAuthKey(msg); handled {
 			return a, cmd
 		}
+		if a.btwOpen {
+			switch {
+			case msg.Type == tea.KeyEsc || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
+				a.closeBtw()
+				a.scheduleRender()
+				return a, nil
+			case msg.Type == tea.KeyUp:
+				a.scrollBtw(-1)
+				return a, nil
+			case msg.Type == tea.KeyDown:
+				a.scrollBtw(1)
+				return a, nil
+			case msg.Type == tea.KeyPgUp:
+				a.scrollBtw(-10)
+				return a, nil
+			case msg.Type == tea.KeyPgDown:
+				a.scrollBtw(10)
+				return a, nil
+			}
+			return a, nil
+		}
 		if a.toolModalOpen {
 			switch {
 			case msg.Type == tea.KeyEsc || msg.Type == tea.KeyCtrlO || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
@@ -786,6 +838,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentEventMsg:
 		return a, a.handleAgentEvent(msg.event)
 
+	case btwStreamStartMsg:
+		a.btwEventCh = msg.eventCh
+		return a, a.listenBtwEvents()
+
+	case btwEventMsg:
+		return a, a.handleBtwEvent(msg.event)
+
+	case btwDoneMsg:
+		a.btwActive = false
+		a.btwEventCh = nil
+		if msg.err != nil {
+			a.btwErr = msg.err
+		}
+		a.scheduleRender()
+		return a, nil
+
 	case agentDoneMsg:
 		a.isThinking = false
 		a.manualCompactionActive = false
@@ -899,6 +967,9 @@ func (a *App) View() string {
 	footer := a.renderFooter()
 	if a.toolModalOpen {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderToolModal(), footer))
+	}
+	if a.btwOpen {
+		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderBtwOverlay(), footer))
 	}
 
 	var parts []string

@@ -19,6 +19,7 @@ type AgentFactory struct {
 	provider           provider.Provider
 	model              *provider.Model
 	settings           *config.Settings
+	allow              *config.AllowConfig
 	sandboxMgr         *sandbox.Manager
 	extraContext       string
 	skillsMgr          *skills.Manager
@@ -50,6 +51,7 @@ type AgentFactoryOptions struct {
 	MultiAgentEnabled bool
 	DelegateEnabled   bool
 	WorkflowsEnabled  bool
+	Allow             *config.AllowConfig
 }
 
 // NewAgentFactoryWithOptions creates a factory with explicit behavior flags.
@@ -64,10 +66,15 @@ func NewAgentFactoryWithOptions(
 	approvalHandler func(toolCallID, toolName string, args map[string]any) bool,
 	opts AgentFactoryOptions,
 ) *AgentFactory {
+	allow := opts.Allow
+	if allow == nil {
+		allow = config.LoadAllow()
+	}
 	return &AgentFactory{
 		provider:           provider,
 		model:              model,
 		settings:           settings,
+		allow:              allow,
 		sandboxMgr:         sandboxMgr,
 		extraContext:       extraContext,
 		skillsMgr:          skillsMgr,
@@ -197,6 +204,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		}(),
 		SandboxMgr:         f.sandboxMgr,
 		Settings:           f.settings,
+		Allow:              f.allow,
 		Session:            sess,
 		ExtraContext:       extraContext,
 		CompactionSettings: f.compactionSettings,

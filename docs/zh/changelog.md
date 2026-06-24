@@ -1,6 +1,18 @@
 # 更新日志
 
 
+## Unreleased
+
+### ✨ 新功能
+
+- **Mode 边界增强：`/btw` 旁路问答 + 可编辑路径白名单 + 全自动编辑**
+  - 新增 `/btw <问题>`：在不中断主任务的前提下，继承主任务对话历史（只读）快速启动一个一次性 sub-agent 回答临时问题。答案显示在临时浮动层，不写回主 session，不增加主任务上下文窗口占用与 token 统计；sub-agent 仅拥有只读工具（read/grep/find/ls/skill_ref）。主历史过长时会自动裁剪注入快照以控制旁路开销。
+  - 新增 `/alloweditpath [add <glob>|remove <glob>|clear]`：维护可编辑路径白名单（支持 `**`/`*` 通配符），agent 模式下命中白名单的 `write`/`edit` 无需逐次申请、自动放行。
+  - 新增 `/allowautoedit [on|off] [global]`：打开 agent 模式下的全自动编辑（相当于只有 bash 需要申请权限）。
+  - 白名单与全自动开关落盘到独立的 `allow.json`：`/alloweditpath` 与默认的 `/allowautoedit` 写项目级 `.vibe/allow.json`；`/allowautoedit on global` 写全局 `allow.json`。加载顺序为全局→项目覆盖（`editPaths` 仅项目级）。新会话启动时自动载入。
+  - 仅放宽审批层，不改变 sandbox / allowedWorkDirs 物理边界，也不改变 plan / yolo 语义。
+
+
 ## v1.1.51
 
 ### ✨ 新功能

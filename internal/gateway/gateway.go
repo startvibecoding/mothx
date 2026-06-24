@@ -43,6 +43,7 @@ type Server struct {
 
 	cfg      *GatewayConfig
 	settings *config.Settings
+	allow    *config.AllowConfig
 	version  string
 
 	provider   provider.Provider
@@ -170,6 +171,7 @@ func Run(opts RunOptions, version string) error {
 	srv := &Server{
 		cfg:          gCfg,
 		settings:     settings,
+		allow:        config.LoadAllow(),
 		version:      version,
 		provider:     p,
 		model:        model,

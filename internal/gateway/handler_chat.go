@@ -189,6 +189,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		MaxTokens:          maxTokens,
 		SandboxMgr:         s.sandboxMgr,
 		Settings:           s.settings,
+		Allow:              s.getAllow(),
 		Session:            sess.Manager,
 		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,
@@ -514,6 +515,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 			MultiAgentEnabled: true,
 			DelegateEnabled:   s.cfg.EnableDelegate,
 			WorkflowsEnabled:  s.cfg.EnableWorkflows,
+			Allow:             s.getAllow(),
 		})
 		sess.AgentMgr = agent.NewAgentManager(factory)
 	}

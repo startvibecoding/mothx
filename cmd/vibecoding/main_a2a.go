@@ -103,6 +103,7 @@ func newA2ACommand() *cobra.Command {
 			// For now, we use a simple factory that wraps the agent creation
 			factory := &simpleAgentFactory{
 				settings: settings,
+				allow:    config.LoadAllow(),
 				provider: providerName,
 				model:    modelID,
 				workDir:  cfg.GetWorkDir(),
@@ -260,6 +261,7 @@ func newA2ACommand() *cobra.Command {
 // This bridges the a2a package to the agent package.
 type simpleAgentFactory struct {
 	settings *config.Settings
+	allow    *config.AllowConfig
 	provider string
 	model    string
 	workDir  string
@@ -287,6 +289,7 @@ func (f *simpleAgentFactory) CreateForA2A(workDir string, mode string) (*agent.A
 		Mode:       mode,
 		SandboxMgr: sbMgr,
 		Settings:   f.settings,
+		Allow:      f.allow,
 	}, tools.NewRegistry(workDir, sbMgr.GetActive()))
 
 	return a, nil

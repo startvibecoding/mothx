@@ -37,6 +37,7 @@ type Dispatcher struct {
 	mu         sync.RWMutex
 	cfg        *HermesConfig
 	settings   *config.Settings
+	allow      *config.AllowConfig
 	version    string
 	sessionDir string
 	security   *Security
@@ -103,6 +104,7 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 	d := &Dispatcher{
 		cfg:              cfg,
 		settings:         settings,
+		allow:            config.LoadAllow(),
 		version:          version,
 		sessionDir:       settings.GetSessionDir(),
 		security:         NewSecurity(cfg),
@@ -135,7 +137,10 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 		}
 
 		// Extra context will be loaded per-session in resolveSession; use empty here
-		factory := agent.NewAgentFactory(p, model, settings, sandbox.NewManager("."), "", nil, compactionSettings, nil)
+		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sandbox.NewManager("."), "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
+			MultiAgentEnabled: true,
+			Allow:             d.allow,
+		})
 		d.agentMgr = agent.NewAgentManager(factory)
 	}
 
@@ -408,6 +413,7 @@ func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approv
 		ThinkingLevel:      provider.ThinkingLevel(d.settings.DefaultThinkingLevel),
 		SandboxMgr:         sandbox.NewManager(workDir),
 		Settings:           d.settings,
+		Allow:              d.allow,
 		Session:            sess.Manager,
 		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,

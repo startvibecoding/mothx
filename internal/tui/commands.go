@@ -129,6 +129,130 @@ func (a *App) handleDelegateCommand(parts []string) {
 	}
 }
 
+// handleAllowEditPathCommand manages the auto-edit path whitelist (allow.json).
+func (a *App) handleAllowEditPathCommand(parts []string) {
+	if a.allow == nil {
+		a.allow = config.LoadAllow()
+	}
+	if len(parts) < 2 {
+		paths := a.allow.EditPathList()
+		if len(paths) == 0 {
+			a.addCommandStatus("Auto-edit path whitelist is empty. Usage: /alloweditpath add|remove <glob>|clear")
+			return
+		}
+		var sb strings.Builder
+		sb.WriteString("Auto-edit path whitelist (agent mode):\n")
+		for _, p := range paths {
+			sb.WriteString(fmt.Sprintf("  %s\n", p))
+		}
+		a.addCommandStatus(strings.TrimRight(sb.String(), "\n"))
+		return
+	}
+	switch parts[1] {
+	case "add":
+		if len(parts) < 3 {
+			a.addCommandStatus("Usage: /alloweditpath add <glob>")
+			return
+		}
+		glob := strings.Join(parts[2:], " ")
+		if !a.allow.AddEditPath(glob) {
+			a.addCommandStatus(fmt.Sprintf("Already in whitelist: %s", glob))
+			return
+		}
+		if err := a.allow.SaveProject(); err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to save allow.json: %v", err))
+			return
+		}
+		a.addCommandStatus(fmt.Sprintf("\u2705 Added to auto-edit whitelist: %s", glob))
+	case "remove", "rm":
+		if len(parts) < 3 {
+			a.addCommandStatus("Usage: /alloweditpath remove <glob>")
+			return
+		}
+		glob := strings.Join(parts[2:], " ")
+		if !a.allow.RemoveEditPath(glob) {
+			a.addCommandStatus(fmt.Sprintf("Not in whitelist: %s", glob))
+			return
+		}
+		if err := a.allow.SaveProject(); err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to save allow.json: %v", err))
+			return
+		}
+		a.addCommandStatus(fmt.Sprintf("\u2705 Removed from auto-edit whitelist: %s", glob))
+	case "clear":
+		a.allow.ClearEditPaths()
+		if err := a.allow.SaveProject(); err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to save allow.json: %v", err))
+			return
+		}
+		a.addCommandStatus("\u2705 Auto-edit path whitelist cleared")
+	default:
+		a.addCommandError("Usage: /alloweditpath [add <glob>|remove <glob>|clear]")
+	}
+}
+
+// handleAllowAutoEditCommand toggles full auto-edit in agent mode (allow.json).
+// With a trailing "global" argument the autoEdit flag is persisted to the
+// global allow.json instead of the project one.
+func (a *App) handleAllowAutoEditCommand(parts []string) {
+	if a.allow == nil {
+		a.allow = config.LoadAllow()
+	}
+	if len(parts) < 2 {
+		state := "OFF"
+		if a.allow.GetAutoEdit() {
+			state = "ON"
+		}
+		a.addCommandStatus(fmt.Sprintf("Auto-edit (agent mode): %s", state))
+		a.addCommandStatus("Usage: /allowautoedit [on|off] [global]")
+		return
+	}
+	globalScope := false
+	for _, p := range parts[2:] {
+		if p == "global" {
+			globalScope = true
+		}
+	}
+	var enable bool
+	switch parts[1] {
+	case "on":
+		enable = true
+	case "off":
+		enable = false
+	default:
+		a.addCommandError("Usage: /allowautoedit [on|off] [global]")
+		return
+	}
+	var err error
+	scope := "project"
+	effective := enable
+	if globalScope {
+		scope = "global"
+		effective = a.allow.SetGlobalAutoEdit(enable)
+		err = a.allow.SaveGlobalAutoEditValue(enable)
+	} else {
+		a.allow.SetProjectAutoEdit(enable)
+		err = a.allow.SaveProject()
+	}
+	if err != nil {
+		a.addCommandError(fmt.Sprintf("Failed to save allow.json: %v", err))
+		return
+	}
+	state := "OFF"
+	if enable {
+		state = "ON"
+	}
+	msg := fmt.Sprintf("\u2705 Auto-edit (agent mode): %s [%s]", state, scope)
+	if globalScope && effective != enable {
+		effectiveState := "OFF"
+		if effective {
+			effectiveState = "ON"
+		}
+		msg += fmt.Sprintf(" (effective here: %s due to project override)", effectiveState)
+	}
+	a.addCommandStatus(msg)
+}
+
 func (a *App) destroyAgent(id agentpkg.AgentID) {
 	if a.agent != nil && id == a.agent.ID() {
 		a.addCommandError("Cannot destroy the main agent")
@@ -473,6 +597,12 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleAgentCommand(parts)
 	case "/delegate":
 		a.handleDelegateCommand(parts)
+	case "/alloweditpath":
+		a.handleAllowEditPathCommand(parts)
+	case "/allowautoedit":
+		a.handleAllowAutoEditCommand(parts)
+	case "/btw":
+		return a.handleBtwCommand(cmd)
 	case "/cron":
 		a.handleCronCommand(parts)
 	case "/workflows":

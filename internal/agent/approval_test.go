@@ -23,6 +23,55 @@ func newApprovalTestAgent(t *testing.T, mode string, approval config.ApprovalSet
 	}, registry)
 }
 
+func newApprovalTestAgentWithAllow(t *testing.T, mode string, approval config.ApprovalSettings, allow *config.AllowConfig) *Agent {
+	t.Helper()
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{{ID: "model1", Name: "Model 1"}}, nil)
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+	registry.RegisterDefaults()
+	return New(Config{
+		Provider: mockProvider,
+		Model:    mockProvider.Models()[0],
+		Mode:     mode,
+		Settings: &config.Settings{Approval: approval},
+		Allow:    allow,
+	}, registry)
+}
+
+func TestNeedsApproval_AllowAutoEditSkipsApproval(t *testing.T) {
+	confirm := true
+	allow := &config.AllowConfig{AutoEdit: true}
+	a := newApprovalTestAgentWithAllow(t, "agent", config.ApprovalSettings{ConfirmBeforeWrite: &confirm}, allow)
+	if a.NeedsApproval("write", map[string]any{"path": "any/file.go"}) {
+		t.Fatal("write should not require approval when AllowAutoEdit is on")
+	}
+	if a.NeedsApproval("edit", map[string]any{"path": "any/file.go"}) {
+		t.Fatal("edit should not require approval when AllowAutoEdit is on")
+	}
+}
+
+func TestNeedsApproval_AllowEditPathWhitelist(t *testing.T) {
+	confirm := true
+	allow := &config.AllowConfig{EditPaths: []string{"internal/**"}}
+	a := newApprovalTestAgentWithAllow(t, "agent", config.ApprovalSettings{ConfirmBeforeWrite: &confirm}, allow)
+	if a.NeedsApproval("edit", map[string]any{"path": "internal/agent/agent.go"}) {
+		t.Fatal("whitelisted path should not require approval")
+	}
+	if !a.NeedsApproval("edit", map[string]any{"path": "cmd/main.go"}) {
+		t.Fatal("non-whitelisted path should still require approval")
+	}
+}
+
+func TestNeedsApproval_AllowEditPathPlanModeUnaffected(t *testing.T) {
+	allow := &config.AllowConfig{AutoEdit: true, EditPaths: []string{"**"}}
+	a := newApprovalTestAgentWithAllow(t, "plan", config.ApprovalSettings{}, allow)
+	// In plan mode write/edit are not gated by NeedsApproval here (read-only enforced elsewhere),
+	// but ensure the allow rules only short-circuit in agent mode by checking bash unaffected.
+	if a.NeedsApproval("bash", map[string]any{"command": "ls"}) {
+		t.Fatal("plan mode bash should not require approval")
+	}
+}
+
 func TestNeedsApproval_NonBashNeverNeedsApproval(t *testing.T) {
 	a := newApprovalTestAgent(t, "agent", config.ApprovalSettings{})
 	if a.NeedsApproval("read", map[string]any{"path": "README.md"}) {

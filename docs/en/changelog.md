@@ -1,6 +1,18 @@
 # Changelog
 
 
+## Unreleased
+
+### ✨ Features
+
+- **Mode boundary enhancements: `/btw` side questions + editable-path whitelist + full auto-edit**
+  - Added `/btw <question>`: answer a quick side question without interrupting the main task. It inherits the main conversation history (read-only) into a one-shot sub-agent. The answer is shown in a temporary floating overlay, never written back to the main session, and does not consume the main task's context window or token budget. The sub-agent is read-only (read/grep/find/ls/skill_ref). A long main history is automatically truncated when injected to keep the side query lightweight.
+  - Added `/alloweditpath [add <glob>|remove <glob>|clear]`: an auto-edit path whitelist (supports `**`/`*` globs). In agent mode, `write`/`edit` whose path matches the whitelist auto-approve without prompting.
+  - Added `/allowautoedit [on|off] [global]`: full auto-edit in agent mode (effectively only bash still needs approval).
+  - The whitelist and the auto-edit flag persist to a dedicated `allow.json`: `/alloweditpath` and `/allowautoedit` (default) write the project-level `.vibe/allow.json`; `/allowautoedit on global` writes the global `allow.json`. Loading is global→project override (`editPaths` is project-only). It is auto-loaded on startup.
+  - These only relax the approval layer; sandbox / allowedWorkDirs boundaries and plan / yolo semantics are unchanged.
+
+
 ## v1.1.51
 
 ### ✨ Features

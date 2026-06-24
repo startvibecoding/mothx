@@ -95,6 +95,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		ThinkingLevel:      thinkingLevel,
 		MaxTokens:          settings.MaxOutputTokens,
 		Settings:           settings,
+		Allow:              config.LoadAllow(),
 		Session:            sess,
 		ExtraContext:       extraContext,
 		CompactionSettings: compactionSettings,
