@@ -392,6 +392,35 @@ func (a *App) LoadHistoryMessages() {
 	}
 }
 
+// computeContextUsage estimates context usage from the current session's
+// messages and the active model. Returns nil when usage cannot be computed
+// (no model, no context window, or no session/messages).
+func (a *App) computeContextUsage() *ctxpkg.ContextUsage {
+	if a.model == nil || a.model.ContextWindow <= 0 || a.session == nil {
+		return nil
+	}
+	messages := a.session.GetMessages()
+	if len(messages) == 0 {
+		return nil
+	}
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:          a.settings.Compaction.Enabled,
+		ReserveTokens:    a.settings.Compaction.ReserveTokens,
+		KeepRecentTokens: a.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        a.settings.Compaction.Tokenizer,
+		TokenizerModel:   a.settings.Compaction.TokenizerModel,
+		Template:         a.settings.Compaction.Template,
+	}
+	estimator := ctxpkg.ResolveTokenEstimator(compactionSettings, a.model)
+	tokens, _ := ctxpkg.EstimateContextTokensWithEstimator(messages, estimator)
+	percent := float64(tokens) / float64(a.model.ContextWindow) * 100
+	return &ctxpkg.ContextUsage{
+		Tokens:        tokens,
+		ContextWindow: a.model.ContextWindow,
+		Percent:       &percent,
+	}
+}
+
 // Init implements tea.Model.
 func (a *App) Init() tea.Cmd {
 	var cmds []tea.Cmd

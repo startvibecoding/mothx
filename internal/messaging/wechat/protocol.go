@@ -57,7 +57,10 @@ func AuthHeaders(token string) http.Header {
 
 func randomWechatUIN() string {
 	var buf [4]byte
-	rand.Read(buf[:])
+	if _, err := rand.Read(buf[:]); err != nil {
+		// Fall back to a time-based value if the system RNG is unavailable.
+		binary.BigEndian.PutUint32(buf[:], uint32(time.Now().UnixNano()))
+	}
 	val := binary.BigEndian.Uint32(buf[:])
 	return base64.StdEncoding.EncodeToString([]byte(strconv.FormatUint(uint64(val), 10)))
 }
@@ -98,13 +101,18 @@ func (c *Client) PollQRStatus(ctx context.Context, baseURL, qrcode string) (*QRS
 	}
 	defer resp.Body.Close()
 	var result QRStatusResponse
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("get_qrcode_status decode: %w", err)
+	}
 	return &result, nil
 }
 
 // apiPost sends a POST to the iLink API and parses the response.
 func (c *Client) apiPost(ctx context.Context, baseURL, endpoint, token string, body interface{}, timeout time.Duration) (json.RawMessage, error) {
-	data, _ := json.Marshal(body)
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("apiPost marshal %s: %w", endpoint, err)
+	}
 	u := baseURL + endpoint
 	httpCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

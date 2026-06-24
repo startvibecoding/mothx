@@ -142,7 +142,9 @@ func Login(ctx context.Context, client *Client, opts LoginOptions) (*Credentials
 					currentPollBaseURL = "https://" + status.RedirectHost
 					fmt.Fprintf(os.Stderr, "IDC redirect → %s\n", status.RedirectHost)
 				}
-				time.Sleep(2 * time.Second)
+				if err := sleepCtx(ctx, 2*time.Second); err != nil {
+					return nil, err
+				}
 				continue
 			}
 
@@ -150,7 +152,23 @@ func Login(ctx context.Context, client *Client, opts LoginOptions) (*Credentials
 				break
 			}
 
-			time.Sleep(2 * time.Second)
+			if err := sleepCtx(ctx, 2*time.Second); err != nil {
+				return nil, err
+			}
 		}
+	}
+}
+
+// sleepCtx waits for d or until ctx is cancelled, whichever comes first.
+// It returns ctx.Err() if the context is cancelled so polling loops can abort
+// promptly instead of blocking for the full duration.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }

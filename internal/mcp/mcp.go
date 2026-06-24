@@ -277,6 +277,11 @@ func newMCPStdioClient(ctx context.Context, cfg ServerConfig, callbacks Callback
 	}
 	go client.readLoop(stdout)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				client.closePending(fmt.Errorf("MCP server %q wait panic: %v", cfg.Name, r))
+			}
+		}()
 		_ = cmd.Wait()
 		client.closePending(fmt.Errorf("MCP server %q exited", cfg.Name))
 	}()

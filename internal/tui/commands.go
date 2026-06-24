@@ -733,6 +733,9 @@ func (a *App) sessionsSet(id string) {
 
 	// Load history messages from the new session
 	a.LoadHistoryMessages()
+	// Recompute context usage so the status bar reflects the switched session
+	// immediately instead of waiting for the next agent turn.
+	a.contextUsage = a.computeContextUsage()
 	a.updateViewportContent()
 	for idx := range a.messages {
 		a.printMessageOnce(idx)

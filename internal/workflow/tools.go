@@ -72,7 +72,10 @@ func (t *LintTool) Execute(ctx context.Context, params map[string]any) (tools.To
 		return tools.ToolResult{}, fmt.Errorf("source is required")
 	}
 	result := lintWorkflowSource(ctx, source)
-	data, _ := json.Marshal(result)
+	data, err := json.Marshal(result)
+	if err != nil {
+		return tools.ToolResult{}, fmt.Errorf("marshal lint result: %w", err)
+	}
 	return tools.NewTextToolResult(string(data)), nil
 }
 
@@ -275,21 +278,24 @@ func (t *RunTool) Execute(ctx context.Context, params map[string]any) (tools.Too
 	state, err := runner.Run(ctx, source)
 	if err != nil {
 		if errors.Is(err, context.Canceled) && state != nil {
-			return runToolResult(state), nil
+			return runToolResult(state)
 		}
 		return tools.ToolResult{}, err
 	}
-	return runToolResult(state), nil
+	return runToolResult(state)
 }
 
-func runToolResult(state *RunState) tools.ToolResult {
-	data, _ := json.Marshal(map[string]any{
+func runToolResult(state *RunState) (tools.ToolResult, error) {
+	data, err := json.Marshal(map[string]any{
 		"id":      state.ID,
 		"name":    state.Name,
 		"status":  state.Status,
 		"results": summarizeResults(state),
 	})
-	return tools.NewTextToolResult(string(data))
+	if err != nil {
+		return tools.ToolResult{}, fmt.Errorf("marshal workflow run result: %w", err)
+	}
+	return tools.NewTextToolResult(string(data)), nil
 }
 
 type StatusTool struct {
@@ -325,14 +331,20 @@ func (t *StatusTool) Execute(ctx context.Context, params map[string]any) (tools.
 		if err != nil {
 			return tools.ToolResult{}, err
 		}
-		data, _ := json.Marshal(runs)
+		data, err := json.Marshal(runs)
+		if err != nil {
+			return tools.ToolResult{}, fmt.Errorf("marshal workflow runs: %w", err)
+		}
 		return tools.NewTextToolResult(string(data)), nil
 	}
 	state, err := t.store.Load(ctx, id)
 	if err != nil {
 		return tools.ToolResult{}, err
 	}
-	data, _ := json.Marshal(state)
+	data, err := json.Marshal(state)
+	if err != nil {
+		return tools.ToolResult{}, fmt.Errorf("marshal workflow state: %w", err)
+	}
 	return tools.NewTextToolResult(string(data)), nil
 }
 
@@ -374,10 +386,13 @@ func (t *CancelTool) Execute(ctx context.Context, params map[string]any) (tools.
 	if !t.active.Cancel(id) {
 		return tools.ToolResult{}, fmt.Errorf("workflow run %q is not active", id)
 	}
-	data, _ := json.Marshal(map[string]any{
+	data, err := json.Marshal(map[string]any{
 		"id":     id,
 		"status": StatusCanceled,
 	})
+	if err != nil {
+		return tools.ToolResult{}, fmt.Errorf("marshal cancel result: %w", err)
+	}
 	return tools.NewTextToolResult(string(data)), nil
 }
 

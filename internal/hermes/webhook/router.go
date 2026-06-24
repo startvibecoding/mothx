@@ -99,8 +99,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			Action string `json:"action"`
 			Type   string `json:"type"`
 		}
-		json.Unmarshal(body, &generic)
-		if generic.Action != "" {
+		if err := json.Unmarshal(body, &generic); err != nil {
+			log.Printf("[webhook] Failed to parse body for event type on %s: %v", path, err)
+		} else if generic.Action != "" {
 			eventType = generic.Action
 		} else if generic.Type != "" {
 			eventType = generic.Type

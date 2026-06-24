@@ -518,6 +518,11 @@ func applyCompactionEntry(state *replayState, entry CompactionEntry) {
 	if firstKept < 0 {
 		return
 	}
+	// Guard against message/entryID slices that may be out of sync to avoid
+	// slicing out of bounds below.
+	if firstKept > len(state.messages) || firstKept > len(state.entryIDs) {
+		return
+	}
 
 	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
 	nextMessages := make([]provider.Message, 0, 1+len(state.messages[firstKept:]))
