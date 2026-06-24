@@ -192,6 +192,29 @@ vibecoding doctor
   Result: All 15 checks passed
 ```
 
+### `systeminit` - 项目 AGENTS.md 生成器
+
+生成或刷新项目 `AGENTS.md` 文件，记录项目规范供 AI Agent 使用。
+
+```
+vibecoding systeminit [guidance...]
+```
+
+此 CLI 子命令以非交互方式运行。在 TUI 和 ACP 中，`/systeminit` 以交互方式运行，会先使用 `question` 工具提问几个澄清问题，再生成文件。
+
+| 参数 | 描述 |
+|------|------|
+| `guidance...` | 可选的附加指导（例如 `用中文提问我，用英文写 AGENTS.md`） |
+
+示例：
+```bash
+# 以默认行为生成 AGENTS.md
+vibecoding systeminit
+
+# 自定义指导生成
+vibecoding systeminit 用中文提问我，用英文写
+```
+
 ## 使用示例
 
 ### 基本使用
@@ -367,6 +390,11 @@ vibecoding acp --sandbox --mode agent
 | `/think` | 循环切换思考级别 |
 | `/compact` | 触发上下文压缩 |
 | `/delegate [on\|off\|status]` | 切换或查看 Delegate 模式 |
+| `/systeminit [guidance]` | 生成或刷新项目 `AGENTS.md` |
+| `/reload` | 以新 session 重启（TUI） |
+| `/btw <问题>` | 不中断主任务提问旁路问题 |
+| `/alloweditpath [add <glob>\|remove <glob>\|clear]` | 管理可编辑路径白名单 |
+| `/allowautoedit [on\|off] [global]` | 切换 Agent 模式全自动编辑 |
 | `/agent list` | 在多 Agent 模式下列出子 Agent |
 | `/agent switch <id>` | 切换活跃子 Agent |
 | `/agent destroy <id>` | 销毁子 Agent |

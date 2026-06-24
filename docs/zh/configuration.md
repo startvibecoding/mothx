@@ -145,6 +145,7 @@ VibeCoding 使用两个配置文件:
 | `retry` | object | *(见下文)* | API 调用重试设置 |
 | `approval` | object | *(见下文)* | Bash 命令审批设置 |
 | `webSearch` | object | *(见下文)* | Hosted web search 设置 |
+| `updateCheck` | bool | `true` | 启用 npm 版本更新检测通知 |
 
 ---
 
@@ -1018,6 +1019,8 @@ export DEEPSEEK_API_KEY=sk-...
 | `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |
 | `VIBECODING_THINKING` | `defaultThinkingLevel` | `export VIBECODING_THINKING=high` |
 | `VIBECODING_DEBUG` | 启用 provider 级请求/响应调试输出 | `export VIBECODING_DEBUG=1` |
+| `VIBECODING_NO_UPDATE_CHECK` | 禁用版本更新检测 | `export VIBECODING_NO_UPDATE_CHECK=1` |
+| `VIBECODING_NPM_REGISTRY` | 覆盖 npm registry 地址 | `export VIBECODING_NPM_REGISTRY=https://registry.npmjs.org` |
 
 ---
 

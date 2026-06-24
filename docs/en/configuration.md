@@ -145,6 +145,7 @@ Project-level configuration overrides global configuration. When both exist, sca
 | `retry` | object | *(see below)* | API call retry settings |
 | `approval` | object | *(see below)* | Bash command approval settings |
 | `webSearch` | object | *(see below)* | Hosted web search settings |
+| `updateCheck` | bool | `true` | Enable npm-based update notifications |
 
 ---
 
@@ -1018,6 +1019,8 @@ These environment variables override settings at runtime:
 | `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |
 | `VIBECODING_THINKING` | `defaultThinkingLevel` | `export VIBECODING_THINKING=high` |
 | `VIBECODING_DEBUG` | Enable provider-level request/response debug output | `export VIBECODING_DEBUG=1` |
+| `VIBECODING_NO_UPDATE_CHECK` | Disable update check | `export VIBECODING_NO_UPDATE_CHECK=1` |
+| `VIBECODING_NPM_REGISTRY` | Override npm registry for update checks | `export VIBECODING_NPM_REGISTRY=https://registry.npmjs.org` |
 
 ---
 

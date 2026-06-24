@@ -365,6 +365,16 @@ workflow_cancel   # 取消 workflow 运行
 | `Tab` | 切换模式 |
 | `Esc` | 中止当前操作 |
 
+### 斜杠命令
+
+| 命令 | 描述 |
+|------|------|
+| `/systeminit [guidance]` | 生成或刷新项目 `AGENTS.md` |
+| `/reload` | 以新 session 重启（TUI） |
+| `/btw <问题>` | 不中断主任务提问旁路问题 |
+| `/alloweditpath [add\|remove\|clear] <glob>` | 管理可编辑路径白名单 |
+| `/allowautoedit [on\|off] [global]` | 切换 Agent 模式全自动编辑 |
+
 ---
 
 ## 🔒 安全可控
@@ -444,6 +454,12 @@ vibecoding doctor
 - **会话**：检查会话存储
 - **技能**：检查技能加载
 - **上下文文件**：检查 AGENTS.md、CLAUDE.md 等
+
+### 版本更新通知
+
+VibeCoding 会通过 npm registry 检测是否有新版本，并在启动时给出非阻塞的更新提醒。检测在后台进行（最多每 24 小时一次），前台不会阻塞。
+
+可通过 `settings.json` 中设置 `"updateCheck": false` 关闭，或通过 `VIBECODING_NO_UPDATE_CHECK=1` 关闭。
 
 ---
 

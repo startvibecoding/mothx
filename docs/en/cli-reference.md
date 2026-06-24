@@ -151,6 +151,31 @@ Diagnose your VibeCoding environment: OS info, config files, providers, models, 
 vibecoding doctor
 ```
 
+See the `doctor` section above for details.
+
+### `systeminit` - Project AGENTS.md Generator
+
+Generate or refresh a project `AGENTS.md` file that documents project conventions for AI agents.
+
+```
+vibecoding systeminit [guidance...]
+```
+
+This CLI subcommand runs non-interactively. In TUI and ACP, `/systeminit` runs interactively and uses the `question` tool to ask clarifying questions before generating the file.
+
+| Argument | Description |
+|----------|-------------|
+| `guidance...` | Optional trailing guidance (e.g., `ask me in Chinese, write AGENTS.md in English`) |
+
+Examples:
+```bash
+# Generate AGENTS.md with default behavior
+vibecoding systeminit
+
+# Generate with custom guidance
+vibecoding systeminit ask me in Chinese, write in English
+```
+
 Checks performed:
 - **Environment**: OS/arch, Go version, shell, home/working directory
 - **Configuration Files**: Validates settings, gateway, and MCP config files with parse checks
@@ -336,6 +361,11 @@ Commands available during interactive sessions:
 | `/think` | Cycle thinking level |
 | `/compact` | Trigger context compaction |
 | `/delegate [on\|off\|status]` | Toggle or show delegate mode |
+| `/systeminit [guidance]` | Generate or refresh project `AGENTS.md` |
+| `/reload` | Restart with a fresh session (TUI) |
+| `/btw <question>` | Ask a side question without interrupting main task |
+| `/alloweditpath [add <glob>\|remove <glob>\|clear]` | Manage auto-edit path whitelist |
+| `/allowautoedit [on\|off] [global]` | Toggle full auto-edit in agent mode |
 | `/agent list` | List sub-agents in multi-agent mode |
 | `/agent switch <id>` | Switch the active sub-agent |
 | `/agent destroy <id>` | Destroy a sub-agent |

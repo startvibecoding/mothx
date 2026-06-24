@@ -3,6 +3,11 @@
 
 ## v1.1.51
 
+### 🐛 Bug 修复
+
+- **ACP Systeminit Plan Mode 写权限**
+  - 修复 ACP systeminit 在 plan 模式下允许文件写入，使 TUI/ACP 可在使用 `/systeminit` 生成 `AGENTS.md` 时不受模式限制错误影响。
+
 ### ✨ 新功能
 
 - **`/systeminit` 与 `/reload` 指令**

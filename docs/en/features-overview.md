@@ -365,6 +365,16 @@ See the [Workflow Mode](workflow.md) documentation for full syntax and best prac
 | `Tab` | Switch mode |
 | `Esc` | Abort current operation |
 
+### Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/systeminit [guidance]` | Generate or refresh project `AGENTS.md` |
+| `/reload` | Restart with fresh session (TUI only) |
+| `/btw <question>` | Ask a side question without interrupting main task |
+| `/alloweditpath [add\|remove\|clear] <glob>` | Manage auto-edit path whitelist |
+| `/allowautoedit [on\|off] [global]` | Toggle full auto-edit in agent mode |
+
 ---
 
 ## 🔒 Security Control
@@ -444,6 +454,12 @@ vibecoding doctor
 - **Sessions**: Check session storage
 - **Skills**: Check skill loading
 - **Context files**: Check AGENTS.md, CLAUDE.md, etc.
+
+### Update Notifications
+
+VibeCoding checks for newer releases via npm registry and shows a non-blocking reminder at startup when an update is available. Checks run in the background (at most once per 24h) and never block the foreground.
+
+Disable via `settings.json` with `"updateCheck": false`, or via `VIBECODING_NO_UPDATE_CHECK=1`.
 
 ---
 
