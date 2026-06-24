@@ -15,6 +15,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/session"
+	"github.com/startvibecoding/vibecoding/internal/systeminit"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
@@ -455,6 +456,50 @@ func (a *App) handleWorkflowsCommand(parts []string) {
 	}
 }
 
+// handleSystemInitCommand generates (or refreshes) a project AGENTS.md. In
+// plan mode it first switches to agent mode (AGENTS.md needs write access). In
+// interactive modes (plan/agent) the agent is told to use the question tool to
+// clarify project conventions with the user before writing the file.
+func (a *App) handleSystemInitCommand(cmd string) tea.Cmd {
+	if a.isThinking {
+		a.addCommandError("Cannot run /systeminit while the agent is running.")
+		return nil
+	}
+	if a.manualCompactionActive {
+		a.addCommandError("Cannot run /systeminit while context compaction is running.")
+		return nil
+	}
+	extra := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(cmd), "/systeminit"))
+	if a.mode == "plan" {
+		a.mode = "agent"
+		a.resetAgent(fmt.Errorf("systeminit requires write access"))
+		a.addCommandStatus("Switched to AGENT mode for /systeminit (AGENTS.md needs write access).")
+	}
+	// The question tool is only available in plan/agent modes, so only request
+	// interactive clarification when not in yolo mode.
+	interactive := a.mode != "yolo"
+	if interactive {
+		a.addCommandStatus("\U0001F6E0 /systeminit: analyzing the project; I'll ask a few questions, then write AGENTS.md.")
+	} else {
+		a.addCommandStatus("\U0001F6E0 /systeminit: analyzing the project and writing AGENTS.md...")
+	}
+	return a.submitAgentPrompt(systeminit.Prompt(interactive, extra))
+}
+
+// handleReloadCommand starts a brand-new session and re-execs the process so
+// the next run behaves exactly like a freshly started program (config, context
+// files, skills, and MCP are all reloaded).
+func (a *App) handleReloadCommand() tea.Cmd {
+	if a.isThinking && a.agent != nil {
+		a.abortAndResetAgent("reload")
+		a.isThinking = false
+		a.finishRequestTimer()
+	}
+	a.reloadRequested = true
+	a.addCommandStatus("\u21bb Reloading: starting a fresh process with a new session...")
+	return tea.Quit
+}
+
 func (a *App) handleCommand(cmd string) tea.Cmd {
 	parts := strings.Fields(cmd)
 	if len(parts) == 0 {
@@ -603,6 +648,10 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleAllowAutoEditCommand(parts)
 	case "/btw":
 		return a.handleBtwCommand(cmd)
+	case "/systeminit":
+		return a.handleSystemInitCommand(cmd)
+	case "/reload":
+		return a.handleReloadCommand()
 	case "/cron":
 		a.handleCronCommand(parts)
 	case "/workflows":

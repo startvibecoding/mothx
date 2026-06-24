@@ -311,58 +311,7 @@ func (a *App) processInput(input string) tea.Cmd {
 		return a.handleCommand(input)
 	}
 
-	if a.agent == nil {
-		compactionSettings := ctxpkg.CompactionSettings{
-			Enabled:          a.settings.Compaction.Enabled,
-			ReserveTokens:    a.settings.Compaction.ReserveTokens,
-			KeepRecentTokens: a.settings.Compaction.KeepRecentTokens,
-			Tokenizer:        a.settings.Compaction.Tokenizer,
-			TokenizerModel:   a.settings.Compaction.TokenizerModel,
-			Template:         a.settings.Compaction.Template,
-		}
-		if compactionSettings.ReserveTokens == 0 {
-			compactionSettings.ReserveTokens = 16384
-		}
-		if compactionSettings.KeepRecentTokens == 0 {
-			compactionSettings.KeepRecentTokens = 20000
-		}
-
-		agentCfg := agent.Config{
-			ID:                 agentpkg.AgentID("agent-master"),
-			Provider:           a.provider,
-			Model:              a.model,
-			Mode:               a.mode,
-			ThinkingLevel:      provider.ThinkingLevel(a.settings.DefaultThinkingLevel),
-			MaxTokens:          a.settings.MaxOutputTokens,
-			Settings:           a.settings,
-			Allow:              a.allow,
-			Session:            a.session,
-			ExtraContext:       a.extraContext,
-			CompactionSettings: compactionSettings,
-			MultiAgent:         a.multiAgent,
-			DelegateMode:       a.delegateMode,
-			Workflows:          a.workflows,
-		}
-		a.agent = agent.New(agentCfg, a.registry)
-		a.registerManagedAgent()
-
-		// Load history messages from session if available and not yet loaded
-		a.sessionMu.Lock()
-		agentHistoryLoaded := a.agentHistoryLoaded
-		a.sessionMu.Unlock()
-		if a.session != nil && !agentHistoryLoaded {
-			a.sessionMu.Lock()
-			replayState := a.session.GetReplayState()
-			a.sessionMu.Unlock()
-
-			if len(replayState.Messages) > 0 {
-				a.agent.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
-				a.sessionMu.Lock()
-				a.agentHistoryLoaded = true
-				a.sessionMu.Unlock()
-			}
-		}
-	}
+	a.ensureAgent()
 
 	a.registerManagedAgent()
 
@@ -372,6 +321,82 @@ func (a *App) processInput(input string) tea.Cmd {
 			input:      input,
 			eventCh:    a.agent.Run(ctx, input),
 			compacting: false,
+		}
+	}
+}
+
+// submitAgentPrompt runs the agent with an internally-generated prompt (e.g.
+// /systeminit) without echoing the raw prompt text as a "You:" message.
+func (a *App) submitAgentPrompt(prompt string) tea.Cmd {
+	if a.manualCompactionActive {
+		a.addCommandError("Cannot run while context compaction is running.")
+		return nil
+	}
+	a.ensureAgent()
+	a.registerManagedAgent()
+	ctx := context.Background()
+	return func() tea.Msg {
+		return agentStreamStartMsg{
+			input:      "",
+			eventCh:    a.agent.Run(ctx, prompt),
+			compacting: false,
+		}
+	}
+}
+
+// ensureAgent lazily constructs the main agent and loads session history.
+func (a *App) ensureAgent() {
+	if a.agent != nil {
+		return
+	}
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:          a.settings.Compaction.Enabled,
+		ReserveTokens:    a.settings.Compaction.ReserveTokens,
+		KeepRecentTokens: a.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        a.settings.Compaction.Tokenizer,
+		TokenizerModel:   a.settings.Compaction.TokenizerModel,
+		Template:         a.settings.Compaction.Template,
+	}
+	if compactionSettings.ReserveTokens == 0 {
+		compactionSettings.ReserveTokens = 16384
+	}
+	if compactionSettings.KeepRecentTokens == 0 {
+		compactionSettings.KeepRecentTokens = 20000
+	}
+
+	agentCfg := agent.Config{
+		ID:                 agentpkg.AgentID("agent-master"),
+		Provider:           a.provider,
+		Model:              a.model,
+		Mode:               a.mode,
+		ThinkingLevel:      provider.ThinkingLevel(a.settings.DefaultThinkingLevel),
+		MaxTokens:          a.settings.MaxOutputTokens,
+		Settings:           a.settings,
+		Allow:              a.allow,
+		Session:            a.session,
+		ExtraContext:       a.extraContext,
+		CompactionSettings: compactionSettings,
+		MultiAgent:         a.multiAgent,
+		DelegateMode:       a.delegateMode,
+		Workflows:          a.workflows,
+	}
+	a.agent = agent.New(agentCfg, a.registry)
+	a.registerManagedAgent()
+
+	// Load history messages from session if available and not yet loaded
+	a.sessionMu.Lock()
+	agentHistoryLoaded := a.agentHistoryLoaded
+	a.sessionMu.Unlock()
+	if a.session != nil && !agentHistoryLoaded {
+		a.sessionMu.Lock()
+		replayState := a.session.GetReplayState()
+		a.sessionMu.Unlock()
+
+		if len(replayState.Messages) > 0 {
+			a.agent.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
+			a.sessionMu.Lock()
+			a.agentHistoryLoaded = true
+			a.sessionMu.Unlock()
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
+	"github.com/startvibecoding/vibecoding/internal/systeminit"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/tui"
 	"github.com/startvibecoding/vibecoding/internal/update"
@@ -207,7 +209,31 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	rootCmd.AddCommand(newHermesCommand())
 	rootCmd.AddCommand(newA2ACommand())
 	rootCmd.AddCommand(newDoctorCommand())
+	rootCmd.AddCommand(newSystemInitCommand(runFn, &flagProvider, &flagModel))
 	return rootCmd
+}
+
+// newSystemInitCommand creates the `systeminit` subcommand which generates a
+// project AGENTS.md non-interactively (CLI/print mode).
+func newSystemInitCommand(runFn func([]string, runOptions) error, flagProvider, flagModel *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "systeminit [guidance...]",
+		Short: "Generate a project AGENTS.md for AI agents",
+		Long:  "Analyze the current project and write an AGENTS.md guide. Non-interactive; in the TUI use the /systeminit command for an interactive, question-driven setup.\n\nOptional trailing text is passed as extra guidance, e.g. `vibecoding systeminit write AGENTS.md in English`.",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runFn(nil, runOptions{
+				provider:        *flagProvider,
+				model:           *flagModel,
+				print:           true,
+				systemInit:      true,
+				systemInitExtra: strings.Join(args, " "),
+			})
+		},
+	}
+	cmd.Flags().StringVarP(flagProvider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
+	cmd.Flags().StringVarP(flagModel, "model", "m", "", "Model ID")
+	return cmd
 }
 
 type runOptions struct {
@@ -227,6 +253,8 @@ type runOptions struct {
 	workflows       bool
 	webSearch       bool
 	enableA2AMaster bool
+	systemInit      bool
+	systemInitExtra string
 }
 
 func run(args []string, opts runOptions) error {
@@ -319,6 +347,14 @@ func run(args []string, opts runOptions) error {
 	}
 	if mode == "" {
 		mode = "agent"
+	}
+
+	// /systeminit on the CLI is non-interactive: force print mode and yolo so
+	// the agent can write AGENTS.md without prompting for approval.
+	if opts.systemInit {
+		mode = "yolo"
+		opts.print = true
+		args = []string{systeminit.Prompt(false, opts.systemInitExtra)}
 	}
 
 	// Determine thinking level
@@ -421,8 +457,12 @@ func run(args []string, opts runOptions) error {
 	registry := tools.NewRegistry(cwd, sbMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(settings.IsPlanToolEnabled())
 
-	// Register question tool for interactive plan mode (TUI only)
-	registry.Register(tools.NewQuestionTool(registry))
+	// Register the interactive question tool for TUI sessions (plan/agent modes).
+	// Print mode is non-interactive, so it must not expose a tool that blocks
+	// waiting for a user answer.
+	if !opts.print {
+		registry.Register(tools.NewQuestionTool(registry))
+	}
 
 	// Register skill reference tool if skills are available
 	if skillsMgr != nil {
@@ -566,7 +606,58 @@ func run(args []string, opts runOptions) error {
 		return fmt.Errorf("run TUI: %w", err)
 	}
 
+	if app.ReloadRequested() {
+		return reexecFresh()
+	}
+
 	return nil
+}
+
+// reexecFresh restarts the program as a fresh process with a brand-new session
+// (session-continuation flags are stripped). Used by the /reload command.
+func reexecFresh() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("reload: locate executable: %w", err)
+	}
+	args := filterReloadArgs(os.Args[1:])
+	cmd := exec.Command(exe, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return fmt.Errorf("reload: %w", err)
+	}
+	os.Exit(0)
+	return nil
+}
+
+// filterReloadArgs removes session-continuation flags so a reload starts fresh.
+func filterReloadArgs(args []string) []string {
+	out := make([]string, 0, len(args))
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		switch arg {
+		case "-c", "--continue":
+			continue
+		case "-r", "--resume", "--session":
+			skipNext = true
+			continue
+		}
+		if strings.HasPrefix(arg, "--resume=") || strings.HasPrefix(arg, "--session=") {
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out
 }
 
 func updateNotice(settings *config.Settings, version string) string {

@@ -100,7 +100,7 @@ Built-in tools include:
 - `read`, `write`, `edit`
 - `bash`, `jobs`, `kill`
 - `grep`, `find`, `ls`
-- `plan`, `question` (TUI plan mode only)
+- `plan`, `question` (TUI plan/agent modes only)
 - `skill_ref`
 
 `grep` and `find` are backed by embedded `rg` and `fd` binaries in `internal/vendored/`. On unsupported architectures (e.g., loong64), they automatically fall back to system `grep` / `find`.
@@ -108,10 +108,14 @@ Built-in tools include:
 ## Modes and Safety
 
 - `plan`: read-only tools + `question` (interactive, TUI only)
-- `agent`: file edits allowed; `bash` usually requires approval
-- `yolo`: all tools auto-execute
+- `agent`: file edits allowed; `bash` usually requires approval; `question` available (interactive, TUI only)
+- `yolo`: all tools auto-execute (no `question`)
 
-The `question` tool is only registered in TUI + plan mode. It uses the `QuestionHandler` optional interface (type assertion) to avoid polluting the public `Agent` interface. Gateway/Hermes/ACP never register or expose it.
+The `question` tool is registered for interactive TUI sessions (not print mode) and for the ACP server, and exposed in `plan` and `agent` modes via `Registry.ModeTools` (excluded in `yolo`). It uses the `QuestionHandler` optional interface (type assertion) to avoid polluting the public `Agent` interface. TUI shows it inline; ACP surfaces questions through the `session/request_permission` channel. Gateway/Hermes never register or expose it.
+
+The `/systeminit` command (TUI, ACP, and the `vibecoding systeminit` CLI subcommand) generates or refreshes a project `AGENTS.md`. In interactive surfaces (TUI/ACP) the agent is told to use the `question` tool to clarify conventions first; on the CLI it runs non-interactively in yolo+print. The shared instruction prompt lives in `internal/systeminit`.
+
+The TUI `/reload` command re-execs the process with session-continuation flags stripped, giving a fresh process with a new session.
 
 When changing code, prefer the least risky approach that satisfies the request.
 

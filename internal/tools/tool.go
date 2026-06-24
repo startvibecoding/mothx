@@ -418,8 +418,15 @@ func (r *Registry) ModeTools(mode string) []provider.ToolDefinition {
 			}
 		}
 		return defs
+	case "agent":
+		// Agent mode: all tools, including the interactive question tool.
+		var defs []provider.ToolDefinition
+		for _, t := range r.All() {
+			defs = append(defs, ToolDefinition(t))
+		}
+		return defs
 	default:
-		// Agent/YOLO: all tools except question (TUI-plan only)
+		// YOLO (and unattended modes): all tools except question (interactive only)
 		var defs []provider.ToolDefinition
 		for _, t := range r.All() {
 			if t.Name() == "question" {

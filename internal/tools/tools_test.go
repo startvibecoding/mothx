@@ -924,7 +924,7 @@ func TestQuestionToolMetadata(t *testing.T) {
 	}
 }
 
-func TestQuestionTool_InPlanModeOnly(t *testing.T) {
+func TestQuestionTool_InPlanAndAgentModes(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)
 	r.RegisterDefaults()
@@ -944,8 +944,8 @@ func TestQuestionTool_InPlanModeOnly(t *testing.T) {
 	for _, td := range agentTools {
 		agentNames[td.Name] = true
 	}
-	if agentNames["question"] {
-		t.Error("did not expect 'question' in agent mode")
+	if !agentNames["question"] {
+		t.Error("expected 'question' in agent mode")
 	}
 
 	yoloTools := r.ModeTools("yolo")

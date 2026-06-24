@@ -24,6 +24,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
+	"github.com/startvibecoding/vibecoding/internal/systeminit"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
@@ -396,6 +397,10 @@ func createProvider(settings *config.Settings, providerName, modelID string) (pr
 func (s *server) newToolRegistry() *tools.Registry {
 	registry := tools.NewRegistry(s.cwd, s.sbMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
+	// The interactive question tool is exposed in plan/agent modes (see
+	// Registry.ModeTools) so the agent can ask the user clarifying questions,
+	// e.g. during /systeminit. ACP surfaces questions via request_permission.
+	registry.Register(tools.NewQuestionTool(registry))
 	if s.skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(s.skillsMgr))
 	}
@@ -527,6 +532,12 @@ func (s *server) handlePrompt(req rpcRequest) {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "empty prompt"})
 		return
 	}
+	// Expand the /systeminit slash command into the full instruction prompt.
+	// In ACP the question tool is available, so use the interactive variant.
+	if fields := strings.Fields(strings.TrimSpace(userText)); len(fields) > 0 && fields[0] == systeminit.Command {
+		extra := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(userText), systeminit.Command))
+		userText = systeminit.Prompt(true, extra)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	promptKey := mcp.RawIDKey(req.ID)
 	rt.cancelMu.Lock()
@@ -599,6 +610,8 @@ func (s *server) handlePrompt(req rpcRequest) {
 		for ev := range events {
 			s.handleAgentEvent(rt.id, ev)
 			switch ev.Type {
+			case agentpkg.EventQuestionRequest:
+				go s.handleQuestion(rt, ev)
 			case agentpkg.EventDone:
 				stopReason = normalizeStopReason(ev.StopReason)
 			case agentpkg.EventError:
@@ -927,6 +940,70 @@ func parseJSONRawToMap(raw json.RawMessage) map[string]any {
 		return nil
 	}
 	return m
+}
+
+// handleQuestion answers an agent question (e.g. from /systeminit) by surfacing
+// it to the ACP client as a permission-style request with the question's
+// options, then routing the chosen answer back to the agent.
+func (s *server) handleQuestion(rt *sessionRuntime, ev agentpkg.Event) {
+	qh, ok := rt.agent.(agentpkg.QuestionHandler)
+	if !ok {
+		return
+	}
+	answer := s.requestQuestion(rt.id, ev.QuestionText, ev.QuestionOptions, ev.QuestionContext)
+	qh.HandleQuestionResponse(ev.QuestionID, answer)
+}
+
+// requestQuestion sends a multiple-choice question to the ACP client using the
+// request_permission channel (the only interactive primitive available) and
+// returns the selected option text, or empty if cancelled/timed out.
+func (s *server) requestQuestion(sessionID, question string, options []string, explanation string) string {
+	id := s.nextRequestID()
+	ch := make(chan json.RawMessage, 1)
+	s.mu.Lock()
+	s.pending[id] = ch
+	s.mu.Unlock()
+
+	opts := make([]permissionOption, 0, len(options))
+	for i, o := range options {
+		opts = append(opts, permissionOption{
+			OptionID: fmt.Sprintf("qopt-%d", i),
+			Name:     o,
+			Kind:     "allow_once",
+		})
+	}
+	title := question
+	if strings.TrimSpace(explanation) != "" {
+		title = question + "\n" + explanation
+	}
+	if err := s.notifyRequest(id, "session/request_permission", requestPermissionRequest{
+		SessionID: sessionID,
+		ToolCall: permissionToolCall{
+			ToolCallID: id,
+			Title:      title,
+			Kind:       "other",
+			Status:     "pending",
+		},
+		Options: opts,
+	}); err != nil {
+		s.deletePending(id)
+		return ""
+	}
+	select {
+	case <-time.After(5 * time.Minute):
+		s.deletePending(id)
+		return ""
+	case resp := <-ch:
+		var out permissionResult
+		_ = json.Unmarshal(resp, &out)
+		if out.Outcome != nil && out.Outcome.Outcome == "selected" {
+			var idx int
+			if _, err := fmt.Sscanf(out.Outcome.OptionID, "qopt-%d", &idx); err == nil && idx >= 0 && idx < len(options) {
+				return options[idx]
+			}
+		}
+		return ""
+	}
 }
 
 func (s *server) requestPermission(sessionID, toolCallID, toolName string, args map[string]any) bool {

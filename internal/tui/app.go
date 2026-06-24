@@ -259,7 +259,14 @@ type App struct {
 
 	// Bubble Tea program used to marshal deferred renders back onto the UI goroutine.
 	program *tea.Program
+
+	// reloadRequested is set by /reload to ask main to re-exec the process after
+	// the TUI exits, giving a clean "fresh process" with a brand-new session.
+	reloadRequested bool
 }
+
+// ReloadRequested reports whether the user asked to reload via /reload.
+func (a *App) ReloadRequested() bool { return a.reloadRequested }
 
 // pendingApproval holds a queued approval request.
 type pendingApproval struct {

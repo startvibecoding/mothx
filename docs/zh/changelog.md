@@ -1,9 +1,14 @@
 # 更新日志
 
 
-## Unreleased
+## v1.1.51
 
 ### ✨ 新功能
+
+- **`/systeminit` 与 `/reload` 指令**
+  - 新增 `/systeminit`：生成或刷新项目级 `AGENTS.md`。在 TUI、ACP 以及 `vibecoding systeminit` CLI 子命令中均可用。TUI 与 ACP 下会启发式地使用 `question` 工具先向用户提问几个关键问题，再生成更优质的 `AGENTS.md`；CLI 为非交互式直接生成。支持传入附加说明，例如 `/systeminit 用中文提问我，用英文写 AGENTS.md`。
+  - `question` 工具现在在 `agent` 模式下也可用（以前仅 plan），并为 ACP 服务器注册，ACP 通过 `session/request_permission` 通道呈现问题。
+  - 新增 `/reload`（TUI）：以全新进程重启并开启新 session，重新加载配置、上下文文件、skills 与 MCP，等同于重新启动程序。
 
 - **Mode 边界增强：`/btw` 旁路问答 + 可编辑路径白名单 + 全自动编辑**
   - 新增 `/btw <问题>`：在不中断主任务的前提下，继承主任务对话历史（只读）快速启动一个一次性 sub-agent 回答临时问题。答案显示在临时浮动层，不写回主 session，不增加主任务上下文窗口占用与 token 统计；sub-agent 仅拥有只读工具（read/grep/find/ls/skill_ref）。主历史过长时会自动裁剪注入快照以控制旁路开销。
@@ -11,11 +16,6 @@
   - 新增 `/allowautoedit [on|off] [global]`：打开 agent 模式下的全自动编辑（相当于只有 bash 需要申请权限）。
   - 白名单与全自动开关落盘到独立的 `allow.json`：`/alloweditpath` 与默认的 `/allowautoedit` 写项目级 `.vibe/allow.json`；`/allowautoedit on global` 写全局 `allow.json`。加载顺序为全局→项目覆盖（`editPaths` 仅项目级）。新会话启动时自动载入。
   - 仅放宽审批层，不改变 sandbox / allowedWorkDirs 物理边界，也不改变 plan / yolo 语义。
-
-
-## v1.1.51
-
-### ✨ 新功能
 
 - **基于 npm 接口的版本更新检测**
   - VibeCoding 现在会通过 npm registry（`vibecoding-installer`）检测是否有新版本，并在启动时给出非阻塞的更新提醒。

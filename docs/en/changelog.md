@@ -1,9 +1,14 @@
 # Changelog
 
 
-## Unreleased
+## v1.1.51
 
 ### ✨ Features
+
+- **`/systeminit` and `/reload` commands**
+  - Added `/systeminit` to generate or refresh a project `AGENTS.md` for AI agents. Available in the TUI, ACP, and as the `vibecoding systeminit` CLI subcommand. In the TUI and ACP the agent heuristically uses the `question` tool to ask a few clarifying questions first, then writes a higher-quality `AGENTS.md`; the CLI runs non-interactively. Optional trailing guidance is supported, e.g. `/systeminit ask me in Chinese, write AGENTS.md in English`.
+  - The `question` tool is now also available in `agent` mode (previously plan-only) and is registered for the ACP server, which surfaces questions via the `session/request_permission` channel.
+  - Added `/reload` (TUI): restarts as a fresh process with a brand-new session, reloading config, context files, skills, and MCP — equivalent to relaunching the program.
 
 - **Mode boundary enhancements: `/btw` side questions + editable-path whitelist + full auto-edit**
   - Added `/btw <question>`: answer a quick side question without interrupting the main task. It inherits the main conversation history (read-only) into a one-shot sub-agent. The answer is shown in a temporary floating overlay, never written back to the main session, and does not consume the main task's context window or token budget. The sub-agent is read-only (read/grep/find/ls/skill_ref). A long main history is automatically truncated when injected to keep the side query lightweight.
@@ -11,11 +16,6 @@
   - Added `/allowautoedit [on|off] [global]`: full auto-edit in agent mode (effectively only bash still needs approval).
   - The whitelist and the auto-edit flag persist to a dedicated `allow.json`: `/alloweditpath` and `/allowautoedit` (default) write the project-level `.vibe/allow.json`; `/allowautoedit on global` writes the global `allow.json`. Loading is global→project override (`editPaths` is project-only). It is auto-loaded on startup.
   - These only relax the approval layer; sandbox / allowedWorkDirs boundaries and plan / yolo semantics are unchanged.
-
-
-## v1.1.51
-
-### ✨ Features
 
 - **Update notifications via npm registry**
   - VibeCoding now checks the npm registry (`vibecoding-installer`) for newer releases and shows a non-blocking reminder at startup when an update is available.
