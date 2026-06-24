@@ -532,11 +532,17 @@ func (s *server) handlePrompt(req rpcRequest) {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "empty prompt"})
 		return
 	}
+	effectiveMode := s.mode
 	// Expand the /systeminit slash command into the full instruction prompt.
 	// In ACP the question tool is available, so use the interactive variant.
+	// /systeminit must also be able to write AGENTS.md, so upgrade plan mode to
+	// agent for this prompt only.
 	if fields := strings.Fields(strings.TrimSpace(userText)); len(fields) > 0 && fields[0] == systeminit.Command {
 		extra := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(userText), systeminit.Command))
 		userText = systeminit.Prompt(true, extra)
+		if effectiveMode == "plan" {
+			effectiveMode = "agent"
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	promptKey := mcp.RawIDKey(req.ID)
@@ -555,7 +561,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 	if s.agentMgr != nil {
 		var err error
 		a, err = s.agentMgr.Create(agent.AgentOptions{
-			Mode:    s.mode,
+			Mode:    effectiveMode,
 			Model:   s.m,
 			Session: rt.mgr,
 		})
@@ -568,7 +574,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 		inner := agent.New(agent.Config{
 			Provider:      s.p,
 			Model:         s.m,
-			Mode:          s.mode,
+			Mode:          effectiveMode,
 			ThinkingLevel: s.thinkingLevel,
 			MaxTokens:     s.settings.MaxOutputTokens,
 			SandboxMgr:    s.sbMgr,
