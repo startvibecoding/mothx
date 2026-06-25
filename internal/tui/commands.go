@@ -768,7 +768,7 @@ func (a *App) getCurrentSessionID() string {
 		return ""
 	}
 	base := filepath.Base(file)
-	base = strings.TrimSuffix(base, ".jsonl")
+	base = strings.TrimSuffix(base, ".db")
 	if idx := strings.Index(base, "_"); idx >= 0 {
 		return base[idx+1:]
 	}
@@ -892,7 +892,7 @@ func (a *App) sessionsSet(id string) {
 	}
 
 	// Open the session
-	newSess, err := session.Open(match.Path)
+	newSess, err := session.OpenByID(cwd, sessionDir, match.ID)
 	if err != nil {
 		a.addCommandError(fmt.Sprintf("Error opening session: %v", err))
 		return

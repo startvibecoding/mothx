@@ -68,9 +68,10 @@ func TestInit(t *testing.T) {
 		t.Error("expected non-empty ID")
 	}
 
-	// Check file was created
-	if _, err := os.Stat(m.file); os.IsNotExist(err) {
-		t.Error("expected session file to exist")
+	// Check database was created
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Error("expected sessions.db to exist")
 	}
 }
 
@@ -133,8 +134,9 @@ func TestAppendMessageAutoInitializesSession(t *testing.T) {
 	if m.GetFile() == "" {
 		t.Fatal("expected session file to be initialized")
 	}
-	if _, err := os.Stat(m.GetFile()); err != nil {
-		t.Fatalf("expected session file to exist: %v", err)
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("expected sessions.db to exist: %v", err)
 	}
 }
 
@@ -462,7 +464,7 @@ func TestOpen(t *testing.T) {
 }
 
 func TestOpenNonExistent(t *testing.T) {
-	_, err := Open("/nonexistent/path.jsonl")
+	_, err := Open("/nonexistent/path.db")
 	if err == nil {
 		t.Error("expected error for non-existent file")
 	}
@@ -558,8 +560,9 @@ func TestContinueRecentNew(t *testing.T) {
 	if m.header == nil {
 		t.Fatal("expected new session header")
 	}
-	if _, err := os.Stat(m.file); err != nil {
-		t.Fatalf("expected session file to exist: %v", err)
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("expected sessions.db to exist: %v", err)
 	}
 	if _, err := m.AppendMessage(provider.NewUserMessage("Hello")); err != nil {
 		t.Fatalf("append message to new continued session: %v", err)
@@ -636,33 +639,43 @@ func TestOpenByPathOrIDAmbiguousPrefix(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsCorruptSessionLine(t *testing.T) {
+func TestOpenByIDRecreatesMissingHandle(t *testing.T) {
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "session.jsonl")
-	data := fmt.Sprintf(
-		"{\"type\":\"%s\",\"version\":%d,\"id\":\"session-id\",\"timestamp\":\"%s\",\"cwd\":\"/tmp/test\"}\nnot-json\n",
-		EntrySession,
-		CurrentVersion,
-		time.Now().Format(time.RFC3339Nano),
-	)
-	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
-		t.Fatalf("write session: %v", err)
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	if err := m.InitWithID("custom-session-123"); err != nil {
+		t.Fatalf("init session: %v", err)
 	}
 
-	// Corrupt lines are now tolerated (logged as warning) rather than rejected.
-	m, err := Open(path)
+	reopened, err := OpenByID("/tmp/test", sessionDir, "custom-session-123")
 	if err != nil {
-		t.Fatalf("expected session to load despite corrupt line, got error: %v", err)
+		t.Fatalf("open by ID: %v", err)
 	}
-	if m == nil {
-		t.Fatal("expected non-nil session manager")
+	if reopened.GetHeader().ID != "custom-session-123" {
+		t.Fatalf("header ID = %q", reopened.GetHeader().ID)
 	}
-	hdr := m.GetHeader()
-	if hdr == nil {
-		t.Fatal("expected header to be loaded")
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("expected sessions.db: %v", err)
 	}
-	if hdr.ID != "session-id" {
-		t.Fatalf("header ID = %q, want %q", hdr.ID, "session-id")
+}
+
+func TestLoadRejectsCorruptSessionFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "session.db")
+	// Handle file with a session ID that won't exist in any DB
+	if err := os.WriteFile(path, []byte("nonexistent-session-id"), 0600); err != nil {
+		t.Fatalf("write handle: %v", err)
+	}
+
+	// Should fail because there's no sessions.db with this session ID
+	_, err := Open(path)
+	if err == nil {
+		t.Fatal("expected error for session not in DB")
+	}
+	if !strings.Contains(err.Error(), "not registered in DB") {
+		t.Fatalf("err = %q, want 'not registered in DB'", err)
 	}
 }
 
@@ -755,8 +768,9 @@ func TestDeleteSession(t *testing.T) {
 	m.Init()
 
 	path := m.GetFile()
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("session file should exist: %v", err)
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("sessions.db should exist: %v", err)
 	}
 
 	err := DeleteSession(path, sessionDir)
@@ -764,28 +778,50 @@ func TestDeleteSession(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Error("expected session file to be deleted")
+	sessions, err := ListForDir("/tmp/test", sessionDir)
+	if err != nil {
+		t.Fatalf("list error: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Error("expected 0 sessions after deletion")
 	}
 }
 
 func TestDeleteSessionNonExistent(t *testing.T) {
 	sessionDir := t.TempDir()
-	err := DeleteSession(filepath.Join(sessionDir, "missing.jsonl"), sessionDir)
-	if err == nil {
-		t.Error("expected error for non-existent file")
+	err := DeleteSession(filepath.Join(sessionDir, "missing.db"), sessionDir)
+	if err != nil {
+		t.Errorf("expected no error for non-existent file, got %v", err)
 	}
 }
 
 func TestDeleteSessionRejectsPathOutsideSessionDir(t *testing.T) {
 	sessionDir := t.TempDir()
-	outside := filepath.Join(t.TempDir(), "outside.jsonl")
-	if err := os.WriteFile(outside, []byte("{}"), 0600); err != nil {
+	outside := filepath.Join(t.TempDir(), "outside.db")
+	if err := os.WriteFile(outside, []byte("session-id"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := DeleteSession(outside, sessionDir); err == nil {
 		t.Fatal("expected outside session path to be rejected")
+	}
+}
+
+func TestDeleteSessionRejectsSharedDB(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	if err := m.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	sharedDB := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(sharedDB); err != nil {
+		t.Fatalf("expected shared DB: %v", err)
+	}
+
+	if err := DeleteSession(sharedDB, sessionDir); err == nil {
+		t.Fatal("expected shared DB deletion to be rejected")
 	}
 }
 
@@ -952,9 +988,9 @@ func TestSessionFileID(t *testing.T) {
 		path     string
 		expected string
 	}{
-		{"/path/to/20240101-120000_abcd1234.jsonl", "abcd1234"},
-		{"/path/to/session.jsonl", ""},
-		{"simple_id.jsonl", "id"},
+		{"/path/to/20240101-120000_abcd1234.db", "abcd1234"},
+		{"/path/to/session.db", ""},
+		{"simple_id.db", "id"},
 	}
 
 	for _, tt := range tests {

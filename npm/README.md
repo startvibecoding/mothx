@@ -34,11 +34,11 @@ vibecoding --mode yolo    # Full access
 ## Features
 
 - ⚙️ **Workflow Mode**: Dynamic Elisp workflows with phases, parallel execution, and multi-worker coordination
-- 🤖 **Multi-Provider**: DeepSeek, OpenAI, Anthropic, 15+ vendor adapters
+- 🤖 **Multi-Provider**: DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, 20+ vendor adapters
 - ⚡ **SSE Streaming**: Real-time token delivery
 - 🧠 **Think Mode**: Extended reasoning for complex problems
 - 🛡️ **Sandbox**: bwrap process isolation (Linux)
-- 📝 **Sessions**: Persistent JSONL history with branching
+- 📝 **Sessions**: Persistent SQLite-backed history with branching
 - 🧩 **Skills**: Reusable prompt snippets
 - 💻 **IDE Integration**: ACP protocol for VS Code, JetBrains
 - 🌐 **Gateway**: OpenAI-compatible HTTP API

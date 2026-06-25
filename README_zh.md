@@ -23,7 +23,7 @@
 
 ## 功能特性
 
-- **多提供商支持**：DeepSeek（默认）、OpenAI、Anthropic，以及面向 OpenAI/Anthropic 格式兼容 API 的厂商适配器
+- **多提供商支持**：DeepSeek（默认）、OpenAI、Anthropic、火山引擎/豆包，以及 20+ 面向 OpenAI/Anthropic 格式兼容 API 的厂商适配器
 - **SSE 流式传输**：实时令牌流式传输，快速响应
 - **思考模式**：扩展思考/推理支持（DeepSeek 推理）
 - **多 Agent 工作流**：可选 `--multi-agent` 模式，支持委托子 Agent 和 cron 命令入口
@@ -34,7 +34,7 @@
   - 🔧 **代理**（默认）— 对项目的受控读写访问。Bash 需要批准（可配置白名单）。沙箱化，无网络
   - 🚀 **YOLO** — 完全系统访问，无限制
 - **bwrap 沙箱**：通过 [bubblewrap](https://github.com/containers/bubblewrap) 实现 Linux 沙箱化安全执行
-- **会话管理**：基于 JSONL 的会话文件，支持树形结构、分支和压缩
+- **会话管理**：基于 SQLite 的会话存储，支持树形结构、分支和压缩
 - **上下文管理**：自动上下文窗口管理和令牌估算
 - **丰富终端界面**：使用 BubbleTea 构建的终端界面，支持 Markdown 渲染和代码高亮
 - **缓存命中率**：页脚实时显示缓存命中百分比，每轮缓存统计
@@ -253,7 +253,7 @@ vibecoding [标志] [消息...]
       --enable-a2a-master   启用 A2A Master 模式（远程 agent 调度）
   -c, --continue           继续最近会话
   -r, --resume string      通过 ID 或路径恢复会话
-      --session string     使用特定会话文件或 ID
+      --session string     使用特定 session ID 或 .db 句柄文件
       --sandbox            启用沙箱 (bwrap) 进行安全执行
   -P, --print              打印响应并退出（非交互式）
       --verbose            详细输出
@@ -314,13 +314,13 @@ vibecoding/
 │   ├── memory/            # 持久化记忆 (memory.md)
 │   ├── messaging/         # 消息平台抽象
 │   ├── platform/          # 跨平台兼容性工具
-│   ├── provider/          # LLM 提供商抽象
+│   ├── provider/          # LLM 提供商抽象（20+ 厂商）
 │   │   ├── factory/       # 共享 provider/model 创建逻辑
 │   │   ├── openai/        # OpenAI Chat Completions API
 │   │   ├── anthropic/     # Anthropic Messages API
 │   │   └── vendor*.go     # 厂商适配注册和默认值
 │   ├── sandbox/           # 沙箱 (bwrap) 实现
-│   ├── session/           # 会话管理 (JSONL)
+│   ├── session/           # 会话管理 (SQLite)
 │   ├── skills/            # 技能系统
 │   ├── tools/             # 工具实现
 │   ├── tui/               # 终端界面 (BubbleTea)

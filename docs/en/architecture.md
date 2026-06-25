@@ -46,7 +46,7 @@ vibecoding/
 │   │   ├── http_client.go       # Shared HTTP client with proxy/headers support
 │   │   └── vendor*.go           # Vendor adapter registry and defaults
 │   ├── sandbox/                 # Sandbox abstraction (bwrap, none)
-│   ├── session/                 # Session management (JSONL)
+│   ├── session/                 # Session management (SQLite)
 │   ├── skills/                  # Skills system
 │   ├── tools/                   # Tool implementations
 │   │   ├── bash.go              # Bash command execution
@@ -406,34 +406,27 @@ share the same tool registry.
 
 ### 9. Session Management
 
-Sessions use JSONL format with tree structure and branching support.
+Sessions use SQLite storage with tree structure and branching support.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Session Structure                         │
+│                    Session Storage                          │
 ├─────────────────────────────────────────────────────────────┤
-│  {                                                          │
-│    "id": "session-abc123",                                  │
-│    "type": "session",                                       │
-│    "timestamp": "2024-01-01T00:00:00Z",                     │
-│    "cwd": "/home/user/project",                             │
-│    "provider": "anthropic",                                 │
-│    "model": "claude-sonnet-4-20250514"                      │
-│  }                                                          │
-│  {                                                          │
-│    "id": "msg-001",                                         │
-│    "parentId": "session-abc123",                            │
-│    "type": "message",                                       │
-│    "role": "user",                                          │
-│    "content": "..."                                         │
-│  }                                                          │
-│  {                                                          │
-│    "id": "msg-002",                                         │
-│    "parentId": "msg-001",                                   │
-│    "type": "message",                                       │
-│    "role": "assistant",                                     │
-│    "content": "..."                                         │
-│  }                                                          │
+│  sessions.db                                                │
+│  ├── sessions                                               │
+│  │   ├── id                                                 │
+│  │   ├── cwd                                                │
+│  │   ├── timestamp                                          │
+│  │   ├── parent_session                                     │
+│  │   └── version                                            │
+│  └── entries                                                │
+│      ├── seq                                                │
+│      ├── session_id                                         │
+│      ├── id                                                 │
+│      ├── type                                               │
+│      ├── parent_id                                          │
+│      ├── timestamp                                          │
+│      └── data                                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 

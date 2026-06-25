@@ -275,7 +275,7 @@ type RunState struct {
 }
 ```
 
-状态文件是 runtime 状态，不替代 session JSONL。子 agent 仍按现有 session 体系保存自己的消息。
+状态文件是 runtime 状态，不替代 session SQLite state。子 agent 仍按现有 session 体系保存自己的消息。
 
 ### 5.5 安全边界
 

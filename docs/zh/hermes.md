@@ -429,7 +429,7 @@ Authorization: Bearer <auth_token>
 
 - 每个 `platform:user_id` 一个持久 session
 - `/new` 归档当前 session 并创建新 session
-- Session 存储在 `<sessionDir>/hermes/<platform>/<user_id>/active.jsonl`
+- Session 存储在 `<sessionDir>/hermes/<platform>/<user_id>/active.db`
 - Context 窗口满时自动压缩
 
 ## A2A 协议

@@ -13,7 +13,7 @@
 | **DeepSeek** (default) | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
 | **OpenAI** | GPT-4o, o1, etc. | OpenAI Chat |
 | **Anthropic** | Claude Sonnet, Opus, etc. | Anthropic Messages |
-| **Vendor Adapters** | Google Gemini, Google Vertex, Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, and more | OpenAI Chat or Anthropic Messages |
+| **Vendor Adapters** | Google Gemini, Google Vertex, Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock, and more | OpenAI Chat or Anthropic Messages |
 | **Custom** | Any compatible model | Generic OpenAI Chat or Anthropic Messages fallback |
 
 ### Quick Switch
@@ -31,10 +31,10 @@ vibecoding --provider anthropic --model claude-3-5-sonnet-20241022
 
 ### Vendor Adapters
 
-VibeCoding supports 15+ vendor adapters, including:
+VibeCoding supports 20+ vendor adapters, including:
 
-- **China**: Xiaomi, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee
-- **International**: Google Gemini, Google Vertex, OpenRouter, Together, Groq, Fireworks
+- **China**: Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee
+- **International**: Google Gemini, Google Vertex, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock
 
 No additional configuration needed — just set the API key and start using.
 
@@ -127,9 +127,9 @@ sudo pacman -S bubblewrap
 
 ## 📝 Session Management
 
-### JSONL Persistence
+### SQLite Persistence
 
-VibeCoding uses JSONL format for persistent session history, supporting:
+VibeCoding uses SQLite-backed storage for persistent session history. Features include:
 
 - **Branching**: Create new branches from any node
 - **Compaction**: Automatically compact old sessions to save space
@@ -144,8 +144,8 @@ vibecoding --continue
 # Resume specific session
 vibecoding --resume <session-id>
 
-# Use specific session file
-vibecoding --session <session-file>
+# Use specific session handle file
+vibecoding --session <session-file.db>
 ```
 
 ### Session Storage Location
@@ -468,7 +468,7 @@ Disable via `settings.json` with `"updateCheck": false`, or via `VIBECODING_NO_U
 VibeCoding is an **all-in-one terminal AI coding assistant** with these core advantages:
 
 1. **One binary does it all**: No need to install multiple tools
-2. **Multi-provider support**: 15+ vendor adapters, one-click switching
+2. **Multi-provider support**: 20+ vendor adapters, one-click switching
 3. **Security control**: Sandbox isolation, approval gates, blacklist protection
 4. **Rich features**: Session management, skills system, IDE integration
 5. **High performance**: SSE streaming, cache hit optimization

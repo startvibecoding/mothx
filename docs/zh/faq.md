@@ -316,7 +316,7 @@ vibecoding -c
 vibecoding --resume abc123
 ```
 
-### Q: 会话文件占用太多空间怎么办？
+### Q: 会话存储占用太多空间怎么办？
 
 **A:**
 
@@ -324,11 +324,11 @@ vibecoding --resume abc123
 # 查看会话大小
 du -sh ~/.vibecoding/sessions/
 
-# 删除旧会话
+# 删除旧会话（同时删除句柄文件和 SQLite 记录）
 /sessions del abc123
 
-# 或手动清理
-rm -rf ~/.vibecoding/sessions/--old-project--/
+# 手动清理前先备份完整 session 根目录，其中包含 sessions.db
+cp -a ~/.vibecoding/sessions ~/backups/sessions
 ```
 
 ---

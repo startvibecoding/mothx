@@ -38,11 +38,11 @@
 | 特性 | 对你意味着什么 |
 |------|---------------|
 | **⚙️ 工作流模式** | 动态 Elisp 工作流，支持阶段划分、并行执行、多 Worker 协调 — 自动化复杂开发流水线 |
-| **🤖 多提供商** | DeepSeek、OpenAI、Anthropic 和 15+ 厂商适配器 — 一键切换模型 |
+| **🤖 多提供商** | DeepSeek、OpenAI、Anthropic、火山引擎/豆包和 20+ 厂商适配器 — 一键切换模型 |
 | **⚡ 极速响应** | SSE 流式传输、实时 token 送达、缓存命中优化 |
 | **🧠 思考模式** | 复杂问题的扩展推理（DeepSeek、o1、Claude） |
 | **🛡️ 沙箱隔离** | bwrap 进程级隔离 — 安全文件操作、网络控制、审批门控 |
-| **📝 会话管理** | 持久化 JSONL 历史，支持分支、压缩和树形结构 |
+| **📝 会话管理** | 持久化 SQLite 历史，支持分支、压缩和树形结构 |
 | **🧩 技能系统** | 可复用的提示片段，用于项目约定 — 团队共享 |
 | **💻 IDE 集成** | ACP 协议支持 VS Code、Zed、JetBrains — 原生编辑器集成 |
 | **🌐 网关模式** | OpenAI 兼容 HTTP API — 把 VibeCoding 当后端服务用 |
@@ -103,10 +103,10 @@ vibecoding/
 ├── cmd/vibecoding/        # CLI 入口
 ├── internal/
 │   ├── agent/             # 核心 Agent 循环
-│   ├── provider/          # LLM 提供商抽象（15+ 厂商）
+│   ├── provider/          # LLM 提供商抽象（20+ 厂商）
 │   ├── tools/             # 内置工具（read, write, bash, grep, find, ...）
 │   ├── sandbox/           # bwrap 沙箱实现
-│   ├── session/           # JSONL 会话存储
+│   ├── session/           # SQLite 会话存储
 │   ├── skills/            # 技能系统
 │   ├── tui/               # 终端 UI（BubbleTea + Lipgloss）
 │   ├── gateway/           # OpenAI 兼容 HTTP 网关

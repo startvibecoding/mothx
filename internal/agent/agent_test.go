@@ -886,11 +886,12 @@ func TestSessionSaveErrorEmitsAgentEnd(t *testing.T) {
 		t.Fatalf("init session: %v", err)
 	}
 	sessionFile := sess.GetFile()
-	if err := os.Chmod(sessionFile, 0400); err != nil {
-		t.Fatalf("chmod session file read-only: %v", err)
+	dbPath := filepath.Join(filepath.Dir(sessionFile), "sessions.db")
+	if err := os.Chmod(dbPath, 0400); err != nil {
+		t.Fatalf("chmod sessions.db read-only: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chmod(sessionFile, 0600)
+		_ = os.Chmod(dbPath, 0600)
 	})
 
 	cfg := Config{

@@ -429,7 +429,7 @@ Persistent memory stored as `memory.md` (Markdown, human-readable).
 
 - Each `platform:user_id` gets one persistent session
 - `/new` archives current session and creates new one
-- Sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.jsonl`
+- Sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.db`
 - Auto-compaction when context window is full
 
 ## A2A Protocol

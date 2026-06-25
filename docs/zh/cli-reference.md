@@ -26,7 +26,7 @@ vibecoding [flags] [message...]
 |------|------|------|
 | `--continue` | `-c` | 继续最近的会话 |
 | `--resume` | `-r` | 通过 ID 或路径恢复会话 |
-| `--session` | - | 使用特定的会话文件 |
+| `--session` | - | 使用特定 session ID 或 `.db` 句柄文件 |
 
 ### 输出控制
 
@@ -338,10 +338,10 @@ vibecoding -c
 
 # 恢复特定会话
 vibecoding --resume session-abc123
-vibecoding -r ~/.vibecoding/sessions/my-session.jsonl
+vibecoding -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 
-# 使用特定会话文件
-vibecoding --session ./my-session.jsonl
+# 使用特定会话句柄文件
+vibecoding --session ./20260625-120000_abcd1234.db
 ```
 
 ### 沙箱

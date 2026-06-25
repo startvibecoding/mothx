@@ -274,7 +274,7 @@ vibecoding --multi-agent
 
 Example tool-call payloads used by the agent:
 
-```jsonl
+```json
 { "tool": "subagent_spawn", "arguments": { "task": "Task 1: Process dataset A" } }
 { "tool": "subagent_spawn", "arguments": { "task": "Task 2: Process dataset B" } }
 { "tool": "subagent_status", "arguments": { "handle": "subagent-job-1" } }
@@ -541,8 +541,8 @@ vibecoding --continue
 # Resume specific session
 vibecoding --resume <session-id>
 
-# Create new branch
-vibecoding --session <session-file>
+# Use specific session handle file
+vibecoding --session <session-file.db>
 ```
 
 ### 5. Monitor Cache Hit Rate

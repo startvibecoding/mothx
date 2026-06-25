@@ -40,11 +40,11 @@
 | Feature | What It Means for You |
 |---------|----------------------|
 | **⚙️ Workflow Mode** | Dynamic Elisp workflows with phases, parallel execution, and multi-worker coordination — automate complex development pipelines |
-| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, and 15+ vendor adapters — switch models instantly |
+| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, and 20+ vendor adapters — switch models instantly |
 | **⚡ Lightning Fast** | SSE streaming, real-time token delivery, cache hit optimization |
 | **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude) |
 | **🛡️ Sandboxed** | bwrap process isolation — safe file ops, network control, approval gates |
-| **📝 Sessions** | Persistent JSONL history with branching, compaction, and tree structure |
+| **📝 Sessions** | Persistent SQLite-backed history with branching, compaction, and tree structure |
 | **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
 | **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
 | **🌐 Gateway** | OpenAI-compatible HTTP API — use VibeCoding as a backend service |
@@ -106,10 +106,10 @@ vibecoding/
 ├── cmd/vibecoding/        # CLI entry point
 ├── internal/
 │   ├── agent/             # Core agent loop
-│   ├── provider/          # LLM provider abstraction (15+ vendors)
+│   ├── provider/          # LLM provider abstraction (20+ vendors)
 │   ├── tools/             # Built-in tools (read, write, bash, grep, find, ...)
 │   ├── sandbox/           # bwrap sandbox implementation
-│   ├── session/           # JSONL session storage
+│   ├── session/           # SQLite session storage
 │   ├── skills/            # Skills system
 │   ├── tui/               # Terminal UI (BubbleTea + Lipgloss)
 │   ├── gateway/           # OpenAI-compatible HTTP gateway

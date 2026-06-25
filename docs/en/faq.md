@@ -316,7 +316,7 @@ vibecoding -c
 vibecoding --resume abc123
 ```
 
-### Q: Session files are taking up too much space
+### Q: Session storage is taking up too much space
 
 **A:**
 
@@ -324,11 +324,11 @@ vibecoding --resume abc123
 # Check session sizes
 du -sh ~/.vibecoding/sessions/
 
-# Delete old sessions
+# Delete old sessions (removes both handle file and SQLite records)
 /sessions del abc123
 
-# Or clean manually
-rm -rf ~/.vibecoding/sessions/--old-project--/
+# Back up the whole session root before manual cleanup; it contains sessions.db
+cp -a ~/.vibecoding/sessions ~/backups/sessions
 ```
 
 ---

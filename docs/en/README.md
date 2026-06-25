@@ -36,11 +36,11 @@ Welcome to the VibeCoding Documentation Center!
 
 | Feature | What It Means for You |
 |---------|----------------------|
-| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, and 15+ vendor adapters — switch models instantly |
+| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, and 20+ vendor adapters — switch models instantly |
 | **⚡ Lightning Fast** | SSE streaming, real-time token delivery, cache hit optimization |
 | **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude) |
 | **🛡️ Sandboxed** | bwrap process isolation — safe file ops, network control, approval gates |
-| **📝 Sessions** | Persistent JSONL history with branching, compaction, and tree structure |
+| **📝 Sessions** | Persistent SQLite-backed history with branching, compaction, and tree structure |
 | **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
 | **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
 | **🌐 Gateway** | OpenAI-compatible HTTP API — use VibeCoding as a backend service |

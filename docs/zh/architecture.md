@@ -46,7 +46,7 @@ vibecoding/
 │   │   ├── http_client.go       # 共享 HTTP 客户端，支持代理和自定义 header
 │   │   └── vendor*.go           # 厂商适配注册和默认值
 │   ├── sandbox/                 # 沙箱抽象 (bwrap, none)
-│   ├── session/                 # 会话管理 (JSONL)
+│   ├── session/                 # 会话管理 (SQLite)
 │   ├── skills/                  # 技能系统
 │   ├── tools/                   # 工具实现
 │   │   ├── bash.go              # Bash 命令执行
@@ -396,34 +396,27 @@ A2A Master 模式通过 `--enable-a2a-master` 启用，加载 `a2a-list.json`
 
 ### 9. 会话管理
 
-会话使用 JSONL 格式存储，支持树状结构和分支。
+会话使用 SQLite 存储，支持树状结构和分支。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Session Structure                         │
+│                    Session Storage                          │
 ├─────────────────────────────────────────────────────────────┤
-│  {                                                          │
-│    "id": "session-abc123",                                  │
-│    "type": "session",                                       │
-│    "timestamp": "2024-01-01T00:00:00Z",                     │
-│    "cwd": "/home/user/project",                             │
-│    "provider": "anthropic",                                 │
-│    "model": "claude-sonnet-4-20250514"                      │
-│  }                                                          │
-│  {                                                          │
-│    "id": "msg-001",                                         │
-│    "parentId": "session-abc123",                            │
-│    "type": "message",                                       │
-│    "role": "user",                                          │
-│    "content": "..."                                         │
-│  }                                                          │
-│  {                                                          │
-│    "id": "msg-002",                                         │
-│    "parentId": "msg-001",                                   │
-│    "type": "message",                                       │
-│    "role": "assistant",                                     │
-│    "content": "..."                                         │
-│  }                                                          │
+│  sessions.db                                                │
+│  ├── sessions                                               │
+│  │   ├── id                                                 │
+│  │   ├── cwd                                                │
+│  │   ├── timestamp                                          │
+│  │   ├── parent_session                                     │
+│  │   └── version                                            │
+│  └── entries                                                │
+│      ├── seq                                                │
+│      ├── session_id                                         │
+│      ├── id                                                 │
+│      ├── type                                               │
+│      ├── parent_id                                          │
+│      ├── timestamp                                          │
+│      └── data                                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 

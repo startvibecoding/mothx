@@ -223,12 +223,6 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 
 	dir := d.hermesSessionDir(platform, userID)
 	activePath := filepath.Join(dir, "active.db")
-	if _, err := os.Stat(activePath); os.IsNotExist(err) {
-		legacyPath := filepath.Join(dir, "active.jsonl")
-		if _, err := os.Stat(legacyPath); err == nil {
-			activePath = legacyPath
-		}
-	}
 	workDir := d.cfg.GetPlatformWorkDir(platform)
 	if err := d.security.CheckWorkDirAllowed(workDir); err != nil {
 		return nil, err
@@ -257,7 +251,7 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 		}
 		// Rename the auto-generated file to active.db
 		targetPath := filepath.Join(dir, "active.db")
-			if mgr.GetFile() != targetPath {
+		if mgr.GetFile() != targetPath {
 			if err := os.Rename(mgr.GetFile(), targetPath); err != nil {
 				return nil, fmt.Errorf("rename to active.db: %w", err)
 			}
@@ -337,12 +331,6 @@ func (d *Dispatcher) RotateSession(platform, userID string) error {
 
 	dir := d.hermesSessionDir(platform, userID)
 	activePath := filepath.Join(dir, "active.db")
-	if _, err := os.Stat(activePath); os.IsNotExist(err) {
-		legacyPath := filepath.Join(dir, "active.jsonl")
-		if _, err := os.Stat(legacyPath); err == nil {
-			activePath = legacyPath
-		}
-	}
 
 	// Archive existing active session
 	if _, err := os.Stat(activePath); err == nil {
@@ -876,7 +864,7 @@ func safeSessionPathComponent(s string) string {
 // archiveCorrupt renames a corrupt session file.
 func (d *Dispatcher) archiveCorrupt(path string) {
 	dir := filepath.Dir(path)
-	archived := filepath.Join(dir, fmt.Sprintf("%s_corrupt.jsonl",
+	archived := filepath.Join(dir, fmt.Sprintf("%s_corrupt.db",
 		time.Now().Format("20060102-150405")))
 	os.Rename(path, archived)
 }

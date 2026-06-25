@@ -1,7 +1,6 @@
 package session
 
 import (
-	"bufio"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -20,13 +19,16 @@ import (
 
 const CurrentVersion = 3
 
-var dbLock sync.Mutex
-var initializedDBs = make(map[string]bool)
+var (
+	dbLock         sync.Mutex
+	initializedDBs = make(map[string]bool)
+	cachedDBs      = make(map[string]*sql.DB)
+)
 
 // Manager manages a single session's state and persistence.
 type Manager struct {
 	mu         sync.RWMutex
-	file       string
+	file       string // path to the session's .db handle file
 	header     *Header
 	entries    []interface{} // all entry types
 	leafID     *string
@@ -107,7 +109,7 @@ func OpenByPathOrID(cwd, sessionDir, value string) (*Manager, error) {
 	if value == "" {
 		return nil, fmt.Errorf("session value is empty")
 	}
-	if strings.HasSuffix(value, ".jsonl") || strings.HasSuffix(value, ".db") || strings.ContainsRune(value, os.PathSeparator) {
+	if strings.HasSuffix(value, ".db") || strings.ContainsRune(value, os.PathSeparator) {
 		return Open(value)
 	}
 	return OpenByID(cwd, sessionDir, value)
@@ -120,6 +122,12 @@ type SessionInfo struct {
 	Name    string
 }
 
+// sessionDirForCwd returns the encoded session directory path for a working directory.
+func sessionDirForCwd(cwd, sessionDir string) string {
+	encoded := encodePath(cwd)
+	return filepath.Join(sessionDir, "--"+encoded+"--")
+}
+
 // ListForDir lists session files for a given working directory.
 func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 	if sessionDir == "" {
@@ -130,31 +138,54 @@ func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
 	}
 
-	// Session files are stored in sessionDir/--<encoded-path>--/
-	encoded := encodePath(cwd)
-	dir := filepath.Join(sessionDir, "--"+encoded+"--")
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, nil
 	}
 
-	entries, err := os.ReadDir(dir)
+	dbLock.Lock()
+	db, ok := cachedDBs[dbPath]
+	if !ok {
+		var err error
+		db, err = sql.Open("sqlite", dbPath)
+		if err != nil {
+			dbLock.Unlock()
+			return nil, fmt.Errorf("open sqlite db: %w", err)
+		}
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		db.SetConnMaxLifetime(0)
+		_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
+		_, _ = db.Exec("PRAGMA journal_mode = WAL;")
+		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
+		cachedDBs[dbPath] = db
+	}
+	dbLock.Unlock()
+
+	rows, err := db.Query("SELECT id, timestamp FROM sessions WHERE cwd = ? ORDER BY timestamp DESC", cwd)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	var sessions []SessionInfo
-	for _, e := range entries {
-		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".jsonl") || strings.HasSuffix(e.Name(), ".db")) {
+	for rows.Next() {
+		var id string
+		var timestampStr string
+		if err := rows.Scan(&id, &timestampStr); err != nil {
 			continue
 		}
-		info, err := e.Info()
-		if err != nil {
-			continue
+		ts, _ := time.Parse(time.RFC3339Nano, timestampStr)
+		if ts.IsZero() {
+			ts, _ = time.Parse(time.RFC3339, timestampStr)
 		}
+
+		// Create a virtual file path in the sessionDir directory
+		virtualFile := filepath.Join(sessionDir, fmt.Sprintf("%s_%s.db", ts.Format("20060102-150405"), id))
+
 		sessions = append(sessions, SessionInfo{
-			Path:    filepath.Join(dir, e.Name()),
-			ModTime: info.ModTime(),
+			Path:    virtualFile,
+			ModTime: ts,
 		})
 	}
 
@@ -191,21 +222,21 @@ func (m *Manager) initWithIDLocked(id string) error {
 	m.entries = nil
 	m.leafID = nil
 
-	// Create session file
-	encoded := encodePath(m.cwd)
-	dir := filepath.Join(m.sessionDir, "--"+encoded+"--")
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("create session dir: %w", err)
+	m.file = filepath.Join(m.sessionDir, fmt.Sprintf("%s_%s.db", now.Format("20060102-150405"), id))
+
+	// Write session ID to handle file ONLY if the session directory is for Hermes
+	if strings.Contains(m.sessionDir, "hermes") {
+		dir := sessionDirForCwd(m.cwd, m.sessionDir)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return fmt.Errorf("create session dir: %w", err)
+		}
+		m.file = filepath.Join(dir, fmt.Sprintf("%s_%s.db", now.Format("20060102-150405"), id))
+		if err := os.WriteFile(m.file, []byte(id), 0600); err != nil {
+			return fmt.Errorf("write session handle file: %w", err)
+		}
 	}
 
-	m.file = filepath.Join(dir, fmt.Sprintf("%s_%s.db", now.Format("20060102-150405"), m.header.ID[:8]))
-
-	// Write session ID to placeholder file
-	if err := os.WriteFile(m.file, []byte(id), 0600); err != nil {
-		return fmt.Errorf("write placeholder file: %w", err)
-	}
-
-	// Write header
+	// Write session header into SQLite
 	return m.writeEntry(m.header)
 }
 
@@ -216,48 +247,159 @@ func (m *Manager) ensureInitializedLocked() error {
 	return m.initWithIDLocked("")
 }
 
-// OpenByID opens the most recent session file for cwd whose session header ID matches sessionID.
+// OpenByID opens the session for cwd whose session ID matches sessionID.
+// Supports prefix matching — if sessionID matches multiple sessions, an error is returned.
 func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
-	sessions, err := ListForDir(cwd, sessionDir)
+	if sessionDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = "."
+		}
+		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+	}
+
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("session %s not found for cwd %s", sessionID, cwd)
+	}
+
+	dbLock.Lock()
+	db, ok := cachedDBs[dbPath]
+	if !ok {
+		var err error
+		db, err = sql.Open("sqlite", dbPath)
+		if err != nil {
+			dbLock.Unlock()
+			return nil, fmt.Errorf("open sqlite db: %w", err)
+		}
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		db.SetConnMaxLifetime(0)
+		_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
+		_, _ = db.Exec("PRAGMA journal_mode = WAL;")
+		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
+		cachedDBs[dbPath] = db
+	}
+	dbLock.Unlock()
+
+	// Query by exact match first
+	var exactID string
+	err := db.QueryRow("SELECT id FROM sessions WHERE id = ? AND cwd = ?", sessionID, cwd).Scan(&exactID)
+	if err == nil {
+		return openSessionFromDB(exactID, sessionDir)
+	}
+
+	// Prefix match
+	rows, err := db.Query("SELECT id FROM sessions WHERE cwd = ? AND id LIKE ?", cwd, sessionID+"%")
 	if err != nil {
 		return nil, err
 	}
-	var match *Manager
-	for _, s := range sessions {
-		fileID := sessionFileID(s.Path)
-		if !strings.HasPrefix(fileID, sessionID) && !strings.HasPrefix(sessionID, fileID) {
+	defer rows.Close()
+
+	var matches []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			continue
 		}
-		mgr, err := Open(s.Path)
+		matches = append(matches, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("session %s not found for cwd %s", sessionID, cwd)
+	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("session ID %s is ambiguous for cwd %s", sessionID, cwd)
+	}
+
+	return openSessionFromDB(matches[0], sessionDir)
+}
+
+// findHandleForID finds the .db handle file that contains the given session ID.
+func findHandleForID(dir, sessionID string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".db") {
+			continue
+		}
+		// Skip sessions.db itself
+		if e.Name() == "sessions.db" || strings.HasPrefix(e.Name(), "sessions.db-") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		data, err := os.ReadFile(path)
 		if err != nil {
 			continue
 		}
-		hdr := mgr.GetHeader()
-		if hdr == nil {
-			continue
+		if strings.TrimSpace(string(data)) == sessionID {
+			return path
 		}
-		if hdr.ID == sessionID {
-			return mgr, nil
-		}
-		if strings.HasPrefix(hdr.ID, sessionID) || strings.HasPrefix(fileID, sessionID) || strings.HasPrefix(sessionID, fileID) {
-			if match != nil {
-				return nil, fmt.Errorf("session ID %s is ambiguous for cwd %s", sessionID, cwd)
+		// Also check filename pattern: timestamp_id.db
+		base := strings.TrimSuffix(e.Name(), ".db")
+		if idx := strings.Index(base, "_"); idx >= 0 {
+			if strings.HasPrefix(base[idx+1:], sessionID) {
+				return path
 			}
-			match = mgr
 		}
 	}
-	if match != nil {
-		return match, nil
+	return ""
+}
+
+// openSessionFromDB reconstructs a Manager directly from the SQLite database
+// when no handle file is available.
+func openSessionFromDB(sessionID, dir string) (*Manager, error) {
+	m := &Manager{
+		sessionDir: dir,
 	}
-	return nil, fmt.Errorf("session %s not found for cwd %s", sessionID, cwd)
+
+	dbPath := filepath.Join(dir, "sessions.db")
+	dbLock.Lock()
+	db, ok := cachedDBs[dbPath]
+	dbLock.Unlock()
+
+	var timestampStr string
+	if ok && db != nil {
+		_ = db.QueryRow("SELECT timestamp FROM sessions WHERE id = ?", sessionID).Scan(&timestampStr)
+	}
+
+	if timestampStr != "" {
+		ts, _ := time.Parse(time.RFC3339Nano, timestampStr)
+		if ts.IsZero() {
+			ts, _ = time.Parse(time.RFC3339, timestampStr)
+		}
+		if !ts.IsZero() {
+			m.file = filepath.Join(dir, fmt.Sprintf("%s_%s.db", ts.Format("20060102-150405"), sessionID))
+		}
+	}
+
+	if m.file == "" {
+		m.file = filepath.Join(dir, sessionID+".db")
+	}
+
+	if err := m.load(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func sessionFileID(path string) string {
 	base := filepath.Base(path)
 	base = strings.TrimSuffix(base, ".db")
-	base = strings.TrimSuffix(base, ".jsonl")
 	if idx := strings.Index(base, "_"); idx >= 0 {
 		return base[idx+1:]
+	}
+	if base == "" || base == "active" || base == "sessions" {
+		return ""
+	}
+	if len(base) >= 8 {
+		return base
 	}
 	return ""
 }
@@ -589,58 +731,58 @@ func cloneContentBlock(block provider.ContentBlock) provider.ContentBlock {
 	return cloned
 }
 
+// resolveDBPath determines the path to the shared sessions.db for a given session file.
 func resolveDBPath(sessionFilePath string) string {
 	clean := filepath.Clean(sessionFilePath)
 	dir := filepath.Dir(clean)
 
-	// If inside standard session dir --<encoded>--
+	// If inside standard session dir --<encoded>--, use the shared DB in the parent session root.
 	if strings.Contains(filepath.Base(dir), "--") {
 		return filepath.Join(filepath.Dir(dir), "sessions.db")
 	}
 
-	// If inside hermes sessions dir
+	// If inside Hermes per-user sessions dir, use the DB beside active.db/archive handles.
 	if strings.Contains(clean, string(filepath.Separator)+"hermes"+string(filepath.Separator)) {
-		current := dir
-		for {
-			parent := filepath.Dir(current)
-			if parent == current {
-				break
-			}
-			if filepath.Base(current) == "hermes" {
-				return filepath.Join(parent, "sessions.db")
-			}
-			current = parent
+		return filepath.Join(dir, "sessions.db")
+	}
+
+	// If dir is "." or empty, or does not exist, use default home fallback if possible
+	if dir == "." || dir == "" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, ".vibecoding", "sessions", "sessions.db")
 		}
 	}
 
-	// Default fallback to user home sessions/sessions.db or same dir
-	home, err := os.UserHomeDir()
-	if err == nil {
-		return filepath.Join(home, ".vibecoding", "sessions", "sessions.db")
-	}
 	return filepath.Join(dir, "sessions.db")
 }
 
 func (m *Manager) withDB(fn func(*sql.DB) error) error {
 	dbLock.Lock()
-	defer dbLock.Unlock()
-
 	dbPath := resolveDBPath(m.file)
-	
+
 	// Ensure parent directory of database exists
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		dbLock.Unlock()
 		return fmt.Errorf("create db dir: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return fmt.Errorf("open sqlite db: %w", err)
+	db, ok := cachedDBs[dbPath]
+	if !ok {
+		var err error
+		db, err = sql.Open("sqlite", dbPath)
+		if err != nil {
+			dbLock.Unlock()
+			return fmt.Errorf("open sqlite db: %w", err)
+		}
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		db.SetConnMaxLifetime(0)
+		cachedDBs[dbPath] = db
 	}
-	defer db.Close()
-	db.SetMaxIdleConns(0)
 
-	// Configure busy timeout on every connection
-	_, _ = db.Exec("PRAGMA busy_timeout = 5000;")
+	// Always make sure PRAGMAs are run on connection (or at least during initialization)
+	_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
 
 	if !initializedDBs[dbPath] {
 		// Check and enable WAL mode conditionally (since WAL persists in the file header)
@@ -651,7 +793,7 @@ func (m *Manager) withDB(fn func(*sql.DB) error) error {
 		}
 		_, _ = db.Exec("PRAGMA synchronous=NORMAL;")
 
-		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS sessions (
+		_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sessions (
 			id TEXT PRIMARY KEY,
 			cwd TEXT,
 			timestamp TEXT,
@@ -659,6 +801,7 @@ func (m *Manager) withDB(fn func(*sql.DB) error) error {
 			version INTEGER
 		);`)
 		if err != nil {
+			dbLock.Unlock()
 			return fmt.Errorf("create sessions table: %w", err)
 		}
 
@@ -672,10 +815,18 @@ func (m *Manager) withDB(fn func(*sql.DB) error) error {
 			data TEXT NOT NULL
 		);`)
 		if err != nil {
+			dbLock.Unlock()
 			return fmt.Errorf("create entries table: %w", err)
 		}
+
+		// Index for fast session lookups and ordering
+		_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_entries_session_id ON entries(session_id);")
+		_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_entries_type ON entries(type);")
+		_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_cwd ON sessions(cwd);")
+
 		initializedDBs[dbPath] = true
 	}
+	dbLock.Unlock()
 
 	return fn(db)
 }
@@ -719,18 +870,21 @@ func getEntryMetadata(entry interface{}) (id string, typeStr string, parentID *s
 	}
 }
 
-// load reads a session file into memory.
+// load reads a session from the SQLite database using the handle file's session ID.
 func (m *Manager) load() error {
-	if strings.HasSuffix(m.file, ".jsonl") {
-		return m.loadJSONL()
+	var sessionID string
+	idBytes, err := os.ReadFile(m.file)
+	if err == nil {
+		sessionID = strings.TrimSpace(string(idBytes))
+	} else if os.IsNotExist(err) {
+		sessionID = sessionFileID(m.file)
+	} else {
+		return fmt.Errorf("read session handle file: %w", err)
 	}
 
-	// Read session ID from placeholder file
-	idBytes, err := os.ReadFile(m.file)
-	if err != nil {
-		return fmt.Errorf("read placeholder file: %w", err)
+	if sessionID == "" {
+		return fmt.Errorf("could not determine session ID from %s", m.file)
 	}
-	sessionID := strings.TrimSpace(string(idBytes))
 
 	return m.withDB(func(db *sql.DB) error {
 		// Load session metadata
@@ -762,12 +916,12 @@ func (m *Manager) load() error {
 		}
 		defer rows.Close()
 
-		var corruptLines int
+		var corruptRows int
 		for rows.Next() {
 			var typeStr string
 			var dataStr string
 			if err := rows.Scan(&typeStr, &dataStr); err != nil {
-				corruptLines++
+				corruptRows++
 				continue
 			}
 
@@ -779,7 +933,7 @@ func (m *Manager) load() error {
 			case EntryMessage:
 				var e MessageEntry
 				if err := json.Unmarshal(line, &e); err != nil {
-					corruptLines++
+					corruptRows++
 					continue
 				}
 				m.entries = append(m.entries, e)
@@ -788,7 +942,7 @@ func (m *Manager) load() error {
 			case EntryModelChange:
 				var e ModelChangeEntry
 				if err := json.Unmarshal(line, &e); err != nil {
-					corruptLines++
+					corruptRows++
 					continue
 				}
 				m.entries = append(m.entries, e)
@@ -797,7 +951,7 @@ func (m *Manager) load() error {
 			case EntryThinkingChange:
 				var e ThinkingLevelChangeEntry
 				if err := json.Unmarshal(line, &e); err != nil {
-					corruptLines++
+					corruptRows++
 					continue
 				}
 				m.entries = append(m.entries, e)
@@ -806,7 +960,7 @@ func (m *Manager) load() error {
 			case EntryCompaction:
 				var e CompactionEntry
 				if err := json.Unmarshal(line, &e); err != nil {
-					corruptLines++
+					corruptRows++
 					continue
 				}
 				m.entries = append(m.entries, e)
@@ -815,7 +969,7 @@ func (m *Manager) load() error {
 			case EntrySessionInfo:
 				var e SessionInfoEntry
 				if err := json.Unmarshal(line, &e); err != nil {
-					corruptLines++
+					corruptRows++
 					continue
 				}
 				m.entries = append(m.entries, e)
@@ -824,7 +978,7 @@ func (m *Manager) load() error {
 			case EntryBranchSummary:
 				var e BranchSummaryEntry
 				if err := json.Unmarshal(line, &e); err != nil {
-					corruptLines++
+					corruptRows++
 					continue
 				}
 				m.entries = append(m.entries, e)
@@ -832,111 +986,13 @@ func (m *Manager) load() error {
 			}
 		}
 
-		if corruptLines > 0 {
-			log.Printf("[session] warning: skipped %d corrupt row(s) in %s", corruptLines, m.file)
+		if corruptRows > 0 {
+			log.Printf("[session] warning: skipped %d corrupt row(s) in %s", corruptRows, m.file)
 		}
 		return rows.Err()
 	})
 }
 
-func (m *Manager) loadJSONL() error {
-	f, err := os.Open(m.file)
-	if err != nil {
-		return fmt.Errorf("open session: %w", err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-
-	var corruptLines int
-	for scanner.Scan() {
-		line := scanner.Bytes()
-
-		// Parse just the type field to determine entry type
-		var typeField struct {
-			Type EntryType `json:"type"`
-		}
-		if err := json.Unmarshal(line, &typeField); err != nil {
-			corruptLines++
-			continue
-		}
-
-		switch typeField.Type {
-		case EntrySession:
-			var h Header
-			if err := json.Unmarshal(line, &h); err != nil {
-				return fmt.Errorf("parse header: %w", err)
-			}
-			m.header = &h
-			m.cwd = h.Cwd
-
-		case EntryMessage:
-			var e MessageEntry
-			if err := json.Unmarshal(line, &e); err != nil {
-				corruptLines++
-				continue
-			}
-			m.entries = append(m.entries, e)
-			m.leafID = &e.ID
-
-		case EntryModelChange:
-			var e ModelChangeEntry
-			if err := json.Unmarshal(line, &e); err != nil {
-				corruptLines++
-				continue
-			}
-			m.entries = append(m.entries, e)
-			m.leafID = &e.ID
-
-		case EntryThinkingChange:
-			var e ThinkingLevelChangeEntry
-			if err := json.Unmarshal(line, &e); err != nil {
-				corruptLines++
-				continue
-			}
-			m.entries = append(m.entries, e)
-			m.leafID = &e.ID
-
-		case EntryCompaction:
-			var e CompactionEntry
-			if err := json.Unmarshal(line, &e); err != nil {
-				corruptLines++
-				continue
-			}
-			m.entries = append(m.entries, e)
-			m.leafID = &e.ID
-
-		case EntrySessionInfo:
-			var e SessionInfoEntry
-			if err := json.Unmarshal(line, &e); err != nil {
-				corruptLines++
-				continue
-			}
-			m.entries = append(m.entries, e)
-			m.leafID = &e.ID
-
-		case EntryBranchSummary:
-			var e BranchSummaryEntry
-			if err := json.Unmarshal(line, &e); err != nil {
-				corruptLines++
-				continue
-			}
-			m.entries = append(m.entries, e)
-			m.leafID = &e.ID
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-	if corruptLines > 0 {
-		log.Printf("[session] warning: skipped %d corrupt line(s) in %s", corruptLines, m.file)
-	}
-	return nil
-}
-
-// writeEntry writes a single entry to the session file.
 // DeleteSession deletes a session file if it is under sessionDir.
 func DeleteSession(path string, sessionDir string) error {
 	cleanPath, err := filepath.Abs(filepath.Clean(path))
@@ -951,28 +1007,51 @@ func DeleteSession(path string, sessionDir string) error {
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("session path %s is outside session directory %s", path, sessionDir)
 	}
-	ext := filepath.Ext(cleanPath)
-	if ext != ".jsonl" && ext != ".db" {
-		return fmt.Errorf("session path %s is not a .jsonl or .db file", path)
+	if filepath.Ext(cleanPath) != ".db" {
+		return fmt.Errorf("session path %s is not a .db file", path)
 	}
-	if ext == ".db" {
-		idBytes, err := os.ReadFile(cleanPath)
-		if err == nil {
-			sessionID := strings.TrimSpace(string(idBytes))
-			if sessionID != "" {
-				dbPath := resolveDBPath(cleanPath)
-				dbLock.Lock()
-				db, err := sql.Open("sqlite", dbPath)
-				if err == nil {
-					_, _ = db.Exec("DELETE FROM entries WHERE session_id = ?", sessionID)
-					_, _ = db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
-					db.Close()
-				}
-				dbLock.Unlock()
+	base := filepath.Base(cleanPath)
+	if base == "sessions.db" || strings.HasPrefix(base, "sessions.db-") {
+		return fmt.Errorf("refusing to delete shared SQLite database %s as a session handle", path)
+	}
+
+	// Read session ID and delete from SQLite DB
+	var sessionID string
+	idBytes, err := os.ReadFile(cleanPath)
+	if err == nil {
+		sessionID = strings.TrimSpace(string(idBytes))
+	} else if os.IsNotExist(err) {
+		sessionID = sessionFileID(cleanPath)
+	}
+
+	if sessionID != "" {
+		dbPath := resolveDBPath(cleanPath)
+		dbLock.Lock()
+		db, ok := cachedDBs[dbPath]
+		if !ok {
+			var err error
+			db, err = sql.Open("sqlite", dbPath)
+			if err == nil {
+				db.SetMaxOpenConns(1)
+				db.SetMaxIdleConns(1)
+				db.SetConnMaxLifetime(0)
+				_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
+				_, _ = db.Exec("PRAGMA journal_mode = WAL;")
+				_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
+				cachedDBs[dbPath] = db
 			}
 		}
+		if db != nil {
+			_, _ = db.Exec("DELETE FROM entries WHERE session_id = ?", sessionID)
+			_, _ = db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
+		}
+		dbLock.Unlock()
 	}
-	return os.Remove(path)
+
+	if _, err := os.Stat(path); err == nil {
+		return os.Remove(path)
+	}
+	return nil
 }
 
 // SessionDetail contains detailed metadata about a session for display.
@@ -993,7 +1072,6 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 	var details []SessionDetail
 	for _, s := range sessions {
 		d := SessionDetail{SessionInfo: s}
-		// Extract ID from filename: YYYYMMDD-HHMMSS_ID.jsonl
 		d.ID = sessionFileID(s.Path)
 
 		// Read session to count messages and get preview
@@ -1033,16 +1111,18 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 }
 
 func (m *Manager) writeEntry(entry interface{}) error {
-	if strings.HasSuffix(m.file, ".jsonl") {
-		return m.writeEntryJSONL(entry)
+	// Verify handle file or its database is writable to honor file permission settings
+	dbPath := resolveDBPath(m.file)
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		return fmt.Errorf("create db dir: %w", err)
 	}
-
-	// Verify placeholder file is writable to honor file permission settings
-	f, err := os.OpenFile(m.file, os.O_WRONLY, 0600)
-	if err != nil {
-		return fmt.Errorf("open session file: %w", err)
+	if _, err := os.Stat(dbPath); err == nil {
+		f, err := os.OpenFile(dbPath, os.O_WRONLY, 0600)
+		if err != nil {
+			return fmt.Errorf("open session file: %w", err)
+		}
+		f.Close()
 	}
-	f.Close()
 
 	id, typeStr, parentID, ts := getEntryMetadata(entry)
 	data, err := json.Marshal(entry)
@@ -1057,6 +1137,8 @@ func (m *Manager) writeEntry(entry interface{}) error {
 		idBytes, err := os.ReadFile(m.file)
 		if err == nil {
 			sessionID = strings.TrimSpace(string(idBytes))
+		} else if os.IsNotExist(err) {
+			sessionID = sessionFileID(m.file)
 		}
 	}
 	if sessionID == "" {
@@ -1089,27 +1171,4 @@ func (m *Manager) writeEntry(entry interface{}) error {
 		)
 		return err
 	})
-}
-
-func (m *Manager) writeEntryJSONL(entry interface{}) error {
-	f, err := os.OpenFile(m.file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		return fmt.Errorf("open session file: %w", err)
-	}
-	defer f.Close()
-
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return fmt.Errorf("marshal entry: %w", err)
-	}
-
-	data = append(data, '\n')
-	if _, err := f.Write(data); err != nil {
-		return fmt.Errorf("write session entry: %w", err)
-	}
-	// fsync to guarantee durability on crash/power loss.
-	if err := f.Sync(); err != nil {
-		return fmt.Errorf("sync session file: %w", err)
-	}
-	return nil
 }

@@ -26,7 +26,7 @@ vibecoding [flags] [message...]
 |-----------|-------|-------------|
 | `--continue` | `-c` | Continue most recent session |
 | `--resume` | `-r` | Resume session by ID or path |
-| `--session` | - | Use specific session file |
+| `--session` | - | Use specific session ID or `.db` handle file |
 
 ### Output Control
 
@@ -309,10 +309,10 @@ vibecoding -c
 
 # Resume specific session
 vibecoding --resume session-abc123
-vibecoding -r ~/.vibecoding/sessions/my-session.jsonl
+vibecoding -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 
-# Use specific session file
-vibecoding --session ./my-session.jsonl
+# Use specific session handle file
+vibecoding --session ./20260625-120000_abcd1234.db
 ```
 
 ### Sandbox

@@ -79,7 +79,7 @@ func (s *Server) cmdClear(sess *GatewaySession) *CommandResult {
 	if sess == nil {
 		return &CommandResult{Message: "No active session to clear.", Error: true}
 	}
-	// The session manager keeps the JSONL file, but we reset the in-memory state.
+	// The session manager keeps persisted SQLite state, but we reset the in-memory state.
 	// The caller will set agent=nil so the next request builds a fresh agent.
 	return &CommandResult{Message: "✅ Conversation cleared"}
 }

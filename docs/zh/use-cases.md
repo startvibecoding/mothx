@@ -274,7 +274,7 @@ vibecoding --multi-agent
 
 Agent 使用的工具调用 payload 示例：
 
-```jsonl
+```json
 { "tool": "subagent_spawn", "arguments": { "task": "任务1: 处理数据集 A" } }
 { "tool": "subagent_spawn", "arguments": { "task": "任务2: 处理数据集 B" } }
 { "tool": "subagent_status", "arguments": { "handle": "subagent-job-1" } }
@@ -541,8 +541,8 @@ vibecoding --continue
 # 恢复特定会话
 vibecoding --resume <session-id>
 
-# 创建新分支
-vibecoding --session <session-file>
+# 使用特定会话句柄文件
+vibecoding --session <session-file.db>
 ```
 
 ### 5. 监控缓存命中率
