@@ -973,15 +973,31 @@ func TestInvalidToolArgumentsDoNotBreakSessionSave(t *testing.T) {
 		t.Fatal("expected tool argument parse error")
 	}
 
-	rawSession, err := os.ReadFile(sess.GetFile())
+	var foundSanitized, foundInvalid bool
+	err := filepath.Walk(filepath.Dir(filepath.Dir(sess.GetFile())), func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if strings.Contains(string(data), `"arguments":{}`) {
+			foundSanitized = true
+		}
+		if strings.Contains(string(data), `"invalidArguments":"]"`) {
+			foundInvalid = true
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("read session: %v", err)
+		t.Fatalf("walk session files: %v", err)
 	}
-	if !strings.Contains(string(rawSession), `"arguments":{}`) {
-		t.Fatalf("expected sanitized arguments in session, got:\n%s", string(rawSession))
+	if !foundSanitized {
+		t.Fatal("expected sanitized arguments in session")
 	}
-	if !strings.Contains(string(rawSession), `"invalidArguments":"]"`) {
-		t.Fatalf("expected original invalid arguments in session, got:\n%s", string(rawSession))
+	if !foundInvalid {
+		t.Fatal("expected original invalid arguments in session")
 	}
 	if _, err := session.Open(sess.GetFile()); err != nil {
 		t.Fatalf("reopen session: %v", err)

@@ -222,7 +222,13 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 	}
 
 	dir := d.hermesSessionDir(platform, userID)
-	activePath := filepath.Join(dir, "active.jsonl")
+	activePath := filepath.Join(dir, "active.db")
+	if _, err := os.Stat(activePath); os.IsNotExist(err) {
+		legacyPath := filepath.Join(dir, "active.jsonl")
+		if _, err := os.Stat(legacyPath); err == nil {
+			activePath = legacyPath
+		}
+	}
 	workDir := d.cfg.GetPlatformWorkDir(platform)
 	if err := d.security.CheckWorkDirAllowed(workDir); err != nil {
 		return nil, err
@@ -249,14 +255,15 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*HermesSession, er
 		if err := mgr.Init(); err != nil {
 			return nil, fmt.Errorf("init session: %w", err)
 		}
-		// Rename the auto-generated file to active.jsonl
-		if mgr.GetFile() != activePath {
-			if err := os.Rename(mgr.GetFile(), activePath); err != nil {
-				return nil, fmt.Errorf("rename to active.jsonl: %w", err)
+		// Rename the auto-generated file to active.db
+		targetPath := filepath.Join(dir, "active.db")
+			if mgr.GetFile() != targetPath {
+			if err := os.Rename(mgr.GetFile(), targetPath); err != nil {
+				return nil, fmt.Errorf("rename to active.db: %w", err)
 			}
 			// Re-open from the renamed path
 			var openErr error
-			mgr, openErr = session.Open(activePath)
+			mgr, openErr = session.Open(targetPath)
 			if openErr != nil {
 				return nil, fmt.Errorf("open renamed session: %w", openErr)
 			}
@@ -329,7 +336,13 @@ func (d *Dispatcher) RotateSession(platform, userID string) error {
 	defer d.mu.Unlock()
 
 	dir := d.hermesSessionDir(platform, userID)
-	activePath := filepath.Join(dir, "active.jsonl")
+	activePath := filepath.Join(dir, "active.db")
+	if _, err := os.Stat(activePath); os.IsNotExist(err) {
+		legacyPath := filepath.Join(dir, "active.jsonl")
+		if _, err := os.Stat(legacyPath); err == nil {
+			activePath = legacyPath
+		}
+	}
 
 	// Archive existing active session
 	if _, err := os.Stat(activePath); err == nil {
@@ -340,13 +353,15 @@ func (d *Dispatcher) RotateSession(platform, userID string) error {
 			if hdr != nil && len(hdr.ID) >= 8 {
 				idPrefix = hdr.ID[:8]
 			}
-			archived := filepath.Join(dir, fmt.Sprintf("%s_%s.jsonl",
-				time.Now().Format("20060102-150405"), idPrefix))
+			ext := filepath.Ext(activePath)
+			archived := filepath.Join(dir, fmt.Sprintf("%s_%s%s",
+				time.Now().Format("20060102-150405"), idPrefix, ext))
 			os.Rename(activePath, archived)
 		} else {
 			// Can't parse — just rename with timestamp
-			archived := filepath.Join(dir, fmt.Sprintf("%s_corrupt.jsonl",
-				time.Now().Format("20060102-150405")))
+			ext := filepath.Ext(activePath)
+			archived := filepath.Join(dir, fmt.Sprintf("%s_corrupt%s",
+				time.Now().Format("20060102-150405"), ext))
 			os.Rename(activePath, archived)
 		}
 	}

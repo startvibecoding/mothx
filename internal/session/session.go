@@ -2,6 +2,7 @@ package session
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,9 +15,13 @@ import (
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	_ "modernc.org/sqlite"
 )
 
 const CurrentVersion = 3
+
+var dbLock sync.Mutex
+var initializedDBs = make(map[string]bool)
 
 // Manager manages a single session's state and persistence.
 type Manager struct {
@@ -102,7 +107,7 @@ func OpenByPathOrID(cwd, sessionDir, value string) (*Manager, error) {
 	if value == "" {
 		return nil, fmt.Errorf("session value is empty")
 	}
-	if strings.HasSuffix(value, ".jsonl") || strings.ContainsRune(value, os.PathSeparator) {
+	if strings.HasSuffix(value, ".jsonl") || strings.HasSuffix(value, ".db") || strings.ContainsRune(value, os.PathSeparator) {
 		return Open(value)
 	}
 	return OpenByID(cwd, sessionDir, value)
@@ -140,7 +145,7 @@ func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 
 	var sessions []SessionInfo
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+		if e.IsDir() || !(strings.HasSuffix(e.Name(), ".jsonl") || strings.HasSuffix(e.Name(), ".db")) {
 			continue
 		}
 		info, err := e.Info()
@@ -193,7 +198,12 @@ func (m *Manager) initWithIDLocked(id string) error {
 		return fmt.Errorf("create session dir: %w", err)
 	}
 
-	m.file = filepath.Join(dir, fmt.Sprintf("%s_%s.jsonl", now.Format("20060102-150405"), m.header.ID[:8]))
+	m.file = filepath.Join(dir, fmt.Sprintf("%s_%s.db", now.Format("20060102-150405"), m.header.ID[:8]))
+
+	// Write session ID to placeholder file
+	if err := os.WriteFile(m.file, []byte(id), 0600); err != nil {
+		return fmt.Errorf("write placeholder file: %w", err)
+	}
 
 	// Write header
 	return m.writeEntry(m.header)
@@ -214,6 +224,10 @@ func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 	}
 	var match *Manager
 	for _, s := range sessions {
+		fileID := sessionFileID(s.Path)
+		if !strings.HasPrefix(fileID, sessionID) && !strings.HasPrefix(sessionID, fileID) {
+			continue
+		}
 		mgr, err := Open(s.Path)
 		if err != nil {
 			continue
@@ -225,7 +239,7 @@ func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 		if hdr.ID == sessionID {
 			return mgr, nil
 		}
-		if strings.HasPrefix(hdr.ID, sessionID) || strings.HasPrefix(sessionFileID(s.Path), sessionID) {
+		if strings.HasPrefix(hdr.ID, sessionID) || strings.HasPrefix(fileID, sessionID) || strings.HasPrefix(sessionID, fileID) {
 			if match != nil {
 				return nil, fmt.Errorf("session ID %s is ambiguous for cwd %s", sessionID, cwd)
 			}
@@ -240,6 +254,7 @@ func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 
 func sessionFileID(path string) string {
 	base := filepath.Base(path)
+	base = strings.TrimSuffix(base, ".db")
 	base = strings.TrimSuffix(base, ".jsonl")
 	if idx := strings.Index(base, "_"); idx >= 0 {
 		return base[idx+1:]
@@ -574,8 +589,257 @@ func cloneContentBlock(block provider.ContentBlock) provider.ContentBlock {
 	return cloned
 }
 
+func resolveDBPath(sessionFilePath string) string {
+	clean := filepath.Clean(sessionFilePath)
+	dir := filepath.Dir(clean)
+
+	// If inside standard session dir --<encoded>--
+	if strings.Contains(filepath.Base(dir), "--") {
+		return filepath.Join(filepath.Dir(dir), "sessions.db")
+	}
+
+	// If inside hermes sessions dir
+	if strings.Contains(clean, string(filepath.Separator)+"hermes"+string(filepath.Separator)) {
+		current := dir
+		for {
+			parent := filepath.Dir(current)
+			if parent == current {
+				break
+			}
+			if filepath.Base(current) == "hermes" {
+				return filepath.Join(parent, "sessions.db")
+			}
+			current = parent
+		}
+	}
+
+	// Default fallback to user home sessions/sessions.db or same dir
+	home, err := os.UserHomeDir()
+	if err == nil {
+		return filepath.Join(home, ".vibecoding", "sessions", "sessions.db")
+	}
+	return filepath.Join(dir, "sessions.db")
+}
+
+func (m *Manager) withDB(fn func(*sql.DB) error) error {
+	dbLock.Lock()
+	defer dbLock.Unlock()
+
+	dbPath := resolveDBPath(m.file)
+	
+	// Ensure parent directory of database exists
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		return fmt.Errorf("create db dir: %w", err)
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("open sqlite db: %w", err)
+	}
+	defer db.Close()
+	db.SetMaxIdleConns(0)
+
+	// Configure busy timeout on every connection
+	_, _ = db.Exec("PRAGMA busy_timeout = 5000;")
+
+	if !initializedDBs[dbPath] {
+		// Check and enable WAL mode conditionally (since WAL persists in the file header)
+		var currentMode string
+		_ = db.QueryRow("PRAGMA journal_mode;").Scan(&currentMode)
+		if currentMode != "wal" {
+			_, _ = db.Exec("PRAGMA journal_mode=WAL;")
+		}
+		_, _ = db.Exec("PRAGMA synchronous=NORMAL;")
+
+		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS sessions (
+			id TEXT PRIMARY KEY,
+			cwd TEXT,
+			timestamp TEXT,
+			parent_session TEXT,
+			version INTEGER
+		);`)
+		if err != nil {
+			return fmt.Errorf("create sessions table: %w", err)
+		}
+
+		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS entries (
+			seq INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+			id TEXT UNIQUE,
+			type TEXT NOT NULL,
+			parent_id TEXT,
+			timestamp TEXT NOT NULL,
+			data TEXT NOT NULL
+		);`)
+		if err != nil {
+			return fmt.Errorf("create entries table: %w", err)
+		}
+		initializedDBs[dbPath] = true
+	}
+
+	return fn(db)
+}
+
+func getEntryMetadata(entry interface{}) (id string, typeStr string, parentID *string, timestamp time.Time) {
+	switch e := entry.(type) {
+	case *Header:
+		return e.ID, string(e.Type), nil, e.Timestamp
+	case Header:
+		return e.ID, string(e.Type), nil, e.Timestamp
+	case *MessageEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case MessageEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case *ModelChangeEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case ModelChangeEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case *ThinkingLevelChangeEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case ThinkingLevelChangeEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case *CompactionEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case CompactionEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case *SessionInfoEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case SessionInfoEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case *BranchSummaryEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case BranchSummaryEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case *LabelEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	case LabelEntry:
+		return e.ID, string(e.Type), e.ParentID, e.Timestamp
+	default:
+		return "", "", nil, time.Now()
+	}
+}
+
 // load reads a session file into memory.
 func (m *Manager) load() error {
+	if strings.HasSuffix(m.file, ".jsonl") {
+		return m.loadJSONL()
+	}
+
+	// Read session ID from placeholder file
+	idBytes, err := os.ReadFile(m.file)
+	if err != nil {
+		return fmt.Errorf("read placeholder file: %w", err)
+	}
+	sessionID := strings.TrimSpace(string(idBytes))
+
+	return m.withDB(func(db *sql.DB) error {
+		// Load session metadata
+		var cwd, timestamp, parentSession sql.NullString
+		var version int
+		err := db.QueryRow("SELECT cwd, timestamp, parent_session, version FROM sessions WHERE id = ?", sessionID).
+			Scan(&cwd, &timestamp, &parentSession, &version)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("session %q not registered in DB", sessionID)
+			}
+			return err
+		}
+
+		ts, _ := time.Parse(time.RFC3339Nano, timestamp.String)
+		m.header = &Header{
+			Type:          EntrySession,
+			Version:       version,
+			ID:            sessionID,
+			Timestamp:     ts,
+			Cwd:           cwd.String,
+			ParentSession: parentSession.String,
+		}
+		m.cwd = cwd.String
+
+		rows, err := db.Query("SELECT type, data FROM entries WHERE session_id = ? ORDER BY seq ASC", sessionID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		var corruptLines int
+		for rows.Next() {
+			var typeStr string
+			var dataStr string
+			if err := rows.Scan(&typeStr, &dataStr); err != nil {
+				corruptLines++
+				continue
+			}
+
+			line := []byte(dataStr)
+			switch EntryType(typeStr) {
+			case EntrySession:
+				// Already loaded from sessions table
+
+			case EntryMessage:
+				var e MessageEntry
+				if err := json.Unmarshal(line, &e); err != nil {
+					corruptLines++
+					continue
+				}
+				m.entries = append(m.entries, e)
+				m.leafID = &e.ID
+
+			case EntryModelChange:
+				var e ModelChangeEntry
+				if err := json.Unmarshal(line, &e); err != nil {
+					corruptLines++
+					continue
+				}
+				m.entries = append(m.entries, e)
+				m.leafID = &e.ID
+
+			case EntryThinkingChange:
+				var e ThinkingLevelChangeEntry
+				if err := json.Unmarshal(line, &e); err != nil {
+					corruptLines++
+					continue
+				}
+				m.entries = append(m.entries, e)
+				m.leafID = &e.ID
+
+			case EntryCompaction:
+				var e CompactionEntry
+				if err := json.Unmarshal(line, &e); err != nil {
+					corruptLines++
+					continue
+				}
+				m.entries = append(m.entries, e)
+				m.leafID = &e.ID
+
+			case EntrySessionInfo:
+				var e SessionInfoEntry
+				if err := json.Unmarshal(line, &e); err != nil {
+					corruptLines++
+					continue
+				}
+				m.entries = append(m.entries, e)
+				m.leafID = &e.ID
+
+			case EntryBranchSummary:
+				var e BranchSummaryEntry
+				if err := json.Unmarshal(line, &e); err != nil {
+					corruptLines++
+					continue
+				}
+				m.entries = append(m.entries, e)
+				m.leafID = &e.ID
+			}
+		}
+
+		if corruptLines > 0 {
+			log.Printf("[session] warning: skipped %d corrupt row(s) in %s", corruptLines, m.file)
+		}
+		return rows.Err()
+	})
+}
+
+func (m *Manager) loadJSONL() error {
 	f, err := os.Open(m.file)
 	if err != nil {
 		return fmt.Errorf("open session: %w", err)
@@ -687,8 +951,26 @@ func DeleteSession(path string, sessionDir string) error {
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("session path %s is outside session directory %s", path, sessionDir)
 	}
-	if filepath.Ext(cleanPath) != ".jsonl" {
-		return fmt.Errorf("session path %s is not a .jsonl file", path)
+	ext := filepath.Ext(cleanPath)
+	if ext != ".jsonl" && ext != ".db" {
+		return fmt.Errorf("session path %s is not a .jsonl or .db file", path)
+	}
+	if ext == ".db" {
+		idBytes, err := os.ReadFile(cleanPath)
+		if err == nil {
+			sessionID := strings.TrimSpace(string(idBytes))
+			if sessionID != "" {
+				dbPath := resolveDBPath(cleanPath)
+				dbLock.Lock()
+				db, err := sql.Open("sqlite", dbPath)
+				if err == nil {
+					_, _ = db.Exec("DELETE FROM entries WHERE session_id = ?", sessionID)
+					_, _ = db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
+					db.Close()
+				}
+				dbLock.Unlock()
+			}
+		}
 	}
 	return os.Remove(path)
 }
@@ -751,6 +1033,65 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 }
 
 func (m *Manager) writeEntry(entry interface{}) error {
+	if strings.HasSuffix(m.file, ".jsonl") {
+		return m.writeEntryJSONL(entry)
+	}
+
+	// Verify placeholder file is writable to honor file permission settings
+	f, err := os.OpenFile(m.file, os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("open session file: %w", err)
+	}
+	f.Close()
+
+	id, typeStr, parentID, ts := getEntryMetadata(entry)
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("marshal entry: %w", err)
+	}
+
+	var sessionID string
+	if m.header != nil {
+		sessionID = m.header.ID
+	} else {
+		idBytes, err := os.ReadFile(m.file)
+		if err == nil {
+			sessionID = strings.TrimSpace(string(idBytes))
+		}
+	}
+	if sessionID == "" {
+		return fmt.Errorf("no session ID found for writeEntry")
+	}
+
+	return m.withDB(func(db *sql.DB) error {
+		// Register session if header is being written
+		if typeStr == string(EntrySession) && m.header != nil {
+			var parentSess interface{}
+			if m.header.ParentSession != "" {
+				parentSess = m.header.ParentSession
+			}
+			_, err = db.Exec(
+				"INSERT OR REPLACE INTO sessions (id, cwd, timestamp, parent_session, version) VALUES (?, ?, ?, ?, ?)",
+				sessionID, m.cwd, m.header.Timestamp.Format(time.RFC3339Nano), parentSess, m.header.Version,
+			)
+			if err != nil {
+				return fmt.Errorf("register session: %w", err)
+			}
+		}
+
+		var parentIDVal interface{}
+		if parentID != nil {
+			parentIDVal = *parentID
+		}
+		_, err := db.Exec(
+			"INSERT OR REPLACE INTO entries (session_id, id, type, parent_id, timestamp, data) VALUES (?, ?, ?, ?, ?, ?)",
+			sessionID, id, typeStr, parentIDVal, ts.Format(time.RFC3339Nano), string(data),
+		)
+		return err
+	})
+}
+
+func (m *Manager) writeEntryJSONL(entry interface{}) error {
 	f, err := os.OpenFile(m.file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("open session file: %w", err)

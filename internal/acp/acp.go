@@ -162,6 +162,7 @@ type loadSessionRequest struct {
 	SessionID  string             `json:"sessionId"`
 	Cwd        string             `json:"cwd"`
 	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
+	Limit      int                `json:"limit,omitempty"`
 }
 
 type promptRequest struct {
@@ -394,8 +395,11 @@ func createProvider(settings *config.Settings, providerName, modelID string) (pr
 	})
 }
 
-func (s *server) newToolRegistry() *tools.Registry {
-	registry := tools.NewRegistry(s.cwd, s.sbMgr.GetActive())
+func (s *server) newToolRegistry(cwd string) *tools.Registry {
+	if cwd == "" {
+		cwd = s.cwd
+	}
+	registry := tools.NewRegistry(cwd, s.sbMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
 	// The interactive question tool is exposed in plan/agent modes (see
 	// Registry.ModeTools) so the agent can ask the user clarifying questions,
@@ -464,7 +468,7 @@ func (s *server) handleNewSession(req rpcRequest) {
 		return
 	}
 	id := mgr.GetHeader().ID
-	registry := s.newToolRegistry()
+	registry := s.newToolRegistry(in.Cwd)
 	mcpClients, err := mcp.ConnectServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(id))
 	if err != nil {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
@@ -492,7 +496,7 @@ func (s *server) handleLoadSession(req rpcRequest) {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "cwd must be an absolute path"})
 		return
 	}
-	registry := s.newToolRegistry()
+	registry := s.newToolRegistry(in.Cwd)
 	mcpClients, err := mcp.ConnectServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(in.SessionID))
 	if err != nil {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
@@ -510,7 +514,15 @@ func (s *server) handleLoadSession(req rpcRequest) {
 	}
 	s.sessions[in.SessionID] = &sessionRuntime{id: in.SessionID, mgr: mgr, registry: registry, mcp: mcpClients}
 	s.mu.Unlock()
-	for _, msg := range mgr.GetMessages() {
+	allMsgs := mgr.GetMessages()
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 40
+	}
+	if len(allMsgs) > limit {
+		allMsgs = allMsgs[len(allMsgs)-limit:]
+	}
+	for _, msg := range allMsgs {
 		s.emitMessage(in.SessionID, msg)
 	}
 	s.writeResponse(req.ID, nil, nil)
@@ -663,7 +675,7 @@ func (s *server) sessionForPrompt(sessionID string) *sessionRuntime {
 	if err := mgr.InitWithID(sessionID); err != nil {
 		return nil
 	}
-	rt := &sessionRuntime{id: sessionID, mgr: mgr, registry: s.newToolRegistry()}
+	rt := &sessionRuntime{id: sessionID, mgr: mgr, registry: s.newToolRegistry(mgr.GetHeader().Cwd)}
 	s.sessions[sessionID] = rt
 	return rt
 }
@@ -1080,6 +1092,18 @@ func (s *server) emitMessage(sessionID string, msg provider.Message) {
 				s.notify(sessionID, sessionUpdate{SessionUpdate: "agent_thought_chunk", Content: &contentBlock{Type: "text", Text: c.Thinking}})
 			} else if c.Type == "text" && c.Text != "" {
 				s.notify(sessionID, sessionUpdate{SessionUpdate: "agent_message_chunk", Content: &contentBlock{Type: "text", Text: c.Text}})
+			} else if c.Type == "toolCall" && c.ToolCall != nil {
+				var rawInput map[string]any
+				_ = json.Unmarshal(c.ToolCall.Arguments, &rawInput)
+				title := s.rememberToolTitle(c.ToolCall.ID, c.ToolCall.Name, rawInput)
+				s.notify(sessionID, sessionUpdate{
+					SessionUpdate: "tool_call",
+					ToolCallID:    c.ToolCall.ID,
+					Title:         title,
+					Kind:          "other",
+					Status:        "pending",
+					RawInput:      toolRawInput(rawInput),
+				})
 			}
 		}
 		return
@@ -1097,6 +1121,22 @@ func (s *server) emitMessage(sessionID string, msg provider.Message) {
 		if text != "" {
 			s.notify(sessionID, sessionUpdate{SessionUpdate: "user_message_chunk", Content: &contentBlock{Type: "text", Text: text}})
 		}
+		return
+	}
+	if msg.Role == "toolResult" {
+		rawOutput := map[string]any{"content": msg.Content}
+		status := "completed"
+		if msg.IsError {
+			status = "failed"
+		}
+		title := s.toolTitleFor(msg.ToolCallID, msg.ToolName)
+		s.notify(sessionID, sessionUpdate{
+			SessionUpdate: "tool_call_update",
+			ToolCallID:    msg.ToolCallID,
+			Title:         title,
+			Status:        status,
+			RawOutput:     rawOutput,
+		})
 	}
 }
 
