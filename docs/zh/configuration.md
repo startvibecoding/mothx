@@ -138,7 +138,7 @@ VibeCoding 使用两个配置文件:
 | `skillsDir` | string | `"~/.vibecoding/skills"` | 全局技能目录路径 |
 | `compaction` | object | *(见下文)* | 上下文压缩设置 |
 | `sandbox` | object | *(见下文)* | 沙箱执行设置 |
-| `sessionDir` | string | `"~/.vibecoding/sessions"` | 会话文件存储目录 |
+| `sessionDir` | string | `"~/.vibecoding/sessions"` | SQLite 会话存储目录 |
 | `shellPath` | string | `""` (自动) | 自定义 Bash 工具的 shell 路径 |
 | `shellCommandPrefix` | string | `""` | 每条 shell 命令前自动追加的前缀 |
 | `theme` | string | `"dark"` | UI 主题: `"dark"` 或 `"light"` |
@@ -177,7 +177,7 @@ VibeCoding 使用两个配置文件:
 2. `baseUrl` 自动识别
 3. 通用 fallback：`openai-chat`、`openai-responses`、`anthropic-messages`、`google-gemini` 或 `google-vertex`
 
-内置厂商适配器包括 `openai`、`anthropic`、`claude`、`deepseek`、`google-gemini`、`google-vertex`、`xiaomi`、`xiaomi-token-plan-ams`、`xiaomi-token-plan-cn`、`xiaomi-token-plan-sgp`、`kimi`、`minimax`、`seed`、`qianfan`、`bailian`、`gitee`、`openrouter`、`together`、`groq` 和 `fireworks`。
+内置厂商适配器包括 `openai`、`anthropic`、`claude`、`deepseek`、`google-gemini`、`google-vertex`、`xiaomi`、`xiaomi-token-plan-ams`、`xiaomi-token-plan-cn`、`xiaomi-token-plan-sgp`、`volcengine`、`kimi`、`minimax`、`seed`、`qianfan`、`bailian`、`gitee`、`openrouter`、`together`、`groq`、`fireworks`、`mistral`、`github-copilot`、`cloudflare-ai-gateway`、`cloudflare-workers-ai` 和 `amazon-bedrock`。
 
 ```json
 {
@@ -193,6 +193,28 @@ VibeCoding 使用两个配置文件:
       },
       "models": [
         { "id": "deepseek-v4-flash", "name": "DeepSeek-V4-Flash", "contextWindow": 1000000 }
+      ]
+    }
+  }
+}
+```
+
+#### 火山引擎 / 豆包示例
+
+内置 `volcengine` provider 使用方舟 OpenAI 兼容端点，并支持豆包 Seed 系列模型。也可以通过 `ark.cn-beijing.volces.com` 自动识别。
+
+```json
+{
+  "providers": {
+    "volcengine": {
+      "vendor": "volcengine",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "apiKey": "${VOLCENGINE_API_KEY}",
+      "api": "openai-chat",
+      "models": [
+        { "id": "doubao-seed-2-1-turbo-260628", "name": "Doubao Seed 2.1 Turbo", "contextWindow": 262144, "maxTokens": 262144, "input": ["text"] },
+        { "id": "doubao-seed-evolving", "name": "Doubao Seed Evolving", "contextWindow": 262144, "maxTokens": 262144, "input": ["text", "image"] },
+        { "id": "doubao-seed-2-1-pro-260628", "name": "Doubao Seed 2.1 Pro", "contextWindow": 262144, "maxTokens": 262144, "input": ["text", "image"] }
       ]
     }
   }
@@ -644,7 +666,9 @@ VibeCoding 会自动搜索并加载以下文件:
 
 ### sessionDir
 
-会话文件 (JSONL 格式) 存储目录。支持 `~` 展开。
+SQLite 会话存储目录。支持 `~` 展开。
+
+VibeCoding 会把所有会话元数据和条目统一存入单个 `sessions.db` 数据库文件中（CLI/TUI 模式下使用虚拟句柄，Hermes 模式下则会按需创建物理句柄）。布局详见[会话管理](sessions.md)。
 
 | 平台 | 默认值 |
 |------|--------|

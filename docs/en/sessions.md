@@ -1,71 +1,60 @@
 # Session Management
 
-VibeCoding uses JSONL format for session storage, supporting tree structure and branching.
+VibeCoding stores sessions in SQLite, supporting tree structure, branching, compaction, labels, and fast session lookup.
 
 ## Session Storage
 
-### Storage Location
+### Storage Architecture
 
-```
-Linux/macOS:
+VibeCoding's session architecture differs based on the execution mode:
+
+1. **CLI / TUI / Gateway Mode (Single Database + Virtual Handles)**
+   All session metadata (session list, session IDs, CWD, timestamps) and all history messages/entries are stored entirely inside a single, unified SQLite database file `sessions.db` under `sessionDir`.
+   In this mode, **no physical working directory subdirectories or per-session handle files are created on disk**. The `.db` paths displayed in the CLI/TUI (e.g., `~/.vibecoding/sessions/20260625-120000_abcd1234.db`) are **virtual paths** (handles) computed dynamically from the database metadata. They do not exist on the filesystem but are fully recognized, navigated, and deleted by the program.
+
+2. **Hermes Mode (Single Database + Physical Handles)**
+   As an unattended chatbot gateway, Hermes stores records in the single `sessions.db` database and additionally writes physical subdirectory handle files containing the session ID (e.g., `20260625-120000_abcd1234.db`) under platform-specific or per-user paths on disk. This layout facilitates platform-specific mapping and lifecycle tracking.
+
+### Storage Location Layout
+
+```text
 ~/.vibecoding/sessions/
-└── --home-user-projects-myapp--/    # Encoded working directory path
-    ├── session-abc123.jsonl
-    ├── session-def456.jsonl
-    └── ...
-
-Windows:
-%APPDATA%\vibecoding\sessions\
-└── --home-user-projects-myapp--/
-    ├── session-abc123.jsonl
-    ├── session-def456.jsonl
-    └── ...
+├── sessions.db                       # The unified SQLite database for all session entries and metadata
+└── hermes/                             # (Only present in Hermes mode)
+    └── wechat/user_123/active.db       # Hermes platform-specific physical session handle
 ```
 
 ### Path Encoding
 
-Working directory paths are encoded to filesystem-safe format:
-- `/` → `-`
-- `.` → removed or replaced
+In scenarios requiring directory isolation (such as Hermes), working directory paths are encoded with URL-safe base64 to avoid collisions and filesystem issues.
 
 Examples:
-- `/home/user/project` → `--home-user-project--`
-- `/home/user/my.app` → `--home-user-myapp--`
+- `/home/user/project` → `--L2hvbWUvdXNlci9wcm9qZWN0--`
+- `/home/user/my.app` → a distinct encoded directory name
 
-## Session File Format
+## SQLite Schema
 
-### JSONL Structure
+Session state is stored in `sessions.db` using two core tables:
 
-One JSON object per line:
+| Table | Purpose |
+|-------|---------|
+| `sessions` | Session metadata: ID, working directory, timestamp, parent session, schema version |
+| `entries` | Ordered event log: messages, model changes, compactions, labels, and metadata entries |
 
-```jsonl
-{"id":"session-abc123","type":"session","timestamp":"2024-01-01T00:00:00Z","cwd":"/home/user/project","provider":"anthropic","model":"claude-sonnet-4-20250514"}
-{"id":"msg-001","parentId":"session-abc123","type":"message","role":"user","content":"Hello"}
-{"id":"msg-002","parentId":"msg-001","type":"message","role":"assistant","content":"Hi! How can I help you?"}
-{"id":"msg-003","parentId":"msg-002","type":"message","role":"user","content":"Explain this code"}
-{"id":"msg-004","parentId":"msg-003","type":"message","role":"assistant","content":"This code does..."}
-```
-
-### Field Description
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Unique identifier |
-| `parentId` | string | Parent node ID (for tree structure) |
-| `type` | string | Entry type |
-| `timestamp` | string | ISO 8601 timestamp |
-| `role` | string | Message role (user/assistant/system/tool) |
-| `content` | string | Message content |
+Entries keep stable IDs and parent IDs so the conversation can be replayed as a tree and compacted safely.
 
 ### Entry Types
 
 | Type | Description |
 |------|-------------|
 | `session` | Session metadata |
-| `message` | User/assistant messages |
-| `model_change` | Model change record |
-| `compaction` | Context compression record |
-| `label` | Session label |
+| `message` | User/assistant/tool messages |
+| `model_change` | Model switch record |
+| `thinking_level_change` | Thinking-level switch record |
+| `compaction` | Context compression checkpoint |
+| `session_info` | Display metadata such as session name |
+| `branch_summary` | Branch switch summary |
+| `label` | User-defined label |
 
 ## Session Operations
 
@@ -81,68 +70,58 @@ if err := sess.Init(); err != nil {
 ### Continue Recent Session
 
 ```bash
-# Command line
 vibecoding --continue
 vibecoding -c
+```
 
-# Code
+```go
 sess, err := session.ContinueRecent(cwd, sessionDir)
 ```
 
 ### Resume Specific Session
 
 ```bash
-# By ID
-vibecoding --resume session-abc123
+# By session ID or unique prefix
+vibecoding --resume abcd1234
 
-# By file path (Linux/macOS)
-vibecoding --resume ~/.vibecoding/sessions/my-session.jsonl
+# By session handle path
+vibecoding --resume ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+```
 
-# By file path (Windows)
-vibecoding --resume %APPDATA%\vibecoding\sessions\my-session.jsonl
-
-# Code
-sess, err := session.Open(sessionID)
+```go
+sess, err := session.OpenByPathOrID(cwd, sessionDir, "abcd1234")
 ```
 
 ### Add Message
 
 ```go
-sess.AddMessage(session.Message{
-    Role:    "user",
-    Content: "Hello",
-})
+_, err := sess.AppendMessage(provider.NewUserMessage("Hello"))
 ```
 
 ## Tree Structure
 
-### Session Branching
+Session entries form a parent-linked tree:
 
-Tree structure allows creating branches:
-
-```
-session-abc123
+```text
+session-abcd1234
 ├── msg-001 (user: "Hello")
 │   └── msg-002 (assistant: "Hi!")
 │       └── msg-003 (user: "Tell me more")
-│           └── msg-004 (assistant: "Sure!")
-│               └── msg-005 (user: "What about...")
-│                   └── msg-006 (assistant: "...")
-└── msg-007 (user: "Different question")  # Branch point
-    └── msg-008 (assistant: "...")
+└── msg-004 (user: "Different question")  # Branch point
+    └── msg-005 (assistant: "...")
 ```
 
-### Branch Uses
-
-- Explore different directions
-- Go back to a point and start over
-- Preserve multiple solutions
+This supports exploring different directions, returning to previous points, and preserving alternate solutions.
 
 ## Session Compression
 
-### Automatic Compression
+VibeCoding records compaction checkpoints in SQLite. After compaction, replay state preserves per-message entry IDs and the compaction boundary (`firstKeptEntryID`). When a session is reloaded:
 
-Automatically compresses when context approaches limits:
+- Messages are trimmed to the correct compaction boundary
+- The summary message is prepended automatically
+- Subsequent messages keep their original entry IDs
+
+Configure compaction in settings:
 
 ```json
 {
@@ -153,163 +132,59 @@ Automatically compresses when context approaches limits:
   }
 }
 ```
-
-### Compression Process
-
-1. Calculate current token usage
-2. If exceeds threshold (80%), trigger compression
-3. Keep recent messages
-4. Compress old messages into summary
-5. Mark compression point in session
-
-### Replay State Persistence
-
-After compaction, the session persists a **replay state** that records per-message entry IDs and the compaction boundary (`firstKeptEntryID`). When a session is reloaded (e.g. after a restart), the replay state ensures that:
-
-- Messages are trimmed to the correct compaction boundary
-- The summary message is correctly prepended
-- Subsequent messages maintain their original session entry IDs
-
-This is handled automatically — no user configuration is needed.
-
-### Manual Compression
-
-```bash
-# Interactive
-/clear
-
-# Start new session
-vibecoding
-```
-
-## Session Labels
-
-### Add Label
-
-```bash
-# Interactive
-/label "Refactoring session"
-```
-
-### Label Uses
-
-- Mark important sessions
-- Quickly identify session content
-- Organize sessions
 
 ## Best Practices
 
-### 1. Regular Cleanup
+### Regular Cleanup
+
+Prefer the built-in `/sessions delete <id>` command when deleting individual sessions, because it removes both the handle file and SQLite records:
 
 ```bash
-# Delete sessions older than 30 days (Linux/macOS)
-find ~/.vibecoding/sessions -mtime +30 -delete
-
-# Delete sessions older than 30 days (Windows PowerShell)
-Get-ChildItem -Path "$env:APPDATA\vibecoding\sessions" -Recurse | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Recurse -Force
+/sessions list
+/sessions delete abcd1234
 ```
 
-### 2. Use Labels
-
-Mark important sessions for easy retrieval later.
-
-### 3. Configure Compression
-
-Adjust compression parameters as needed:
-
-```json
-{
-  "compaction": {
-    "enabled": true,
-    "reserveTokens": 16384,
-    "keepRecentTokens": 20000
-  }
-}
-```
-
-### 4. Backup Important Sessions
+If you do manual cleanup, remove only dated per-session handle files under encoded working-directory subdirectories. Do not delete the root `sessions.db` unless you intend to remove all persisted session data.
 
 ```bash
-# Linux/macOS
-cp ~/.vibecoding/sessions/important.jsonl ~/backups/
+# Example: inspect old handle files first, then delete carefully
+find ~/.vibecoding/sessions -path '*/--*--/*.db' -mtime +30 -print
+```
 
-# Windows PowerShell
-Copy-Item "$env:APPDATA\vibecoding\sessions\important.jsonl" "$env:USERPROFILE\backups\"
+### Backup Important Sessions
+
+Back up the session root directory, especially `sessions.db` and the encoded working-directory handle directories:
+
+```bash
+cp -a ~/.vibecoding/sessions ~/backups/
 ```
 
 ## Troubleshooting
 
-### Session File Corruption
+### Session Database Error
 
+```text
+Error: session "..." not registered in DB
 ```
-Error: invalid JSON in session file
-```
 
-**Solution:**
+Possible causes:
+- The session handle file exists but the SQLite record was removed
+- `sessions.db` was deleted or restored from an older backup
+- The session root was partially copied
 
-1. Check JSONL file format
-2. Manually fix or delete corrupted lines
-3. Restore from backup
+Solutions:
+1. Restore the full session root from backup
+2. Resume by a valid session ID shown in `/sessions list`
+3. Delete stale handle files if the SQLite record no longer exists
 
 ### Session Lost
 
-**Possible Causes:**
+Possible causes:
 - Working directory changed
-- Session file deleted
-- Path encoding issue
+- Session handle file or database was deleted
+- The encoded working-directory directory is different
 
-**Solution:**
-
-1. Check sessions directory:
-   - Linux/macOS: `~/.vibecoding/sessions/`
-   - Windows: `%APPDATA%\vibecoding\sessions\`
-2. Use `--resume` to specify session ID
-3. Confirm working directory is correct
-
-### Compression Issues
-
-**Possible Causes:**
-- Token estimation inaccurate
-- Compression threshold set incorrectly
-
-**Solution:**
-
-1. Adjust `maxContextTokens`
-2. Adjust `compaction.reserveTokens`
-3. Use `/clear` to manually clear
-
-## API Reference
-
-### Session Manager
-
-```go
-type Manager struct {
-    ID        string
-    Path      string
-    CWD       string
-    Provider  string
-    Model     string
-    CreatedAt time.Time
-}
-
-func New(cwd, sessionDir string) *Manager
-func Open(path string) (*Manager, error)
-func ContinueRecent(cwd, sessionDir string) (*Manager, error)
-
-func (m *Manager) Init() error
-func (m *Manager) AddMessage(msg Message) error
-func (m *Manager) Messages() ([]Message, error)
-func (m *Manager) Close() error
-```
-
-### Message
-
-```go
-type Message struct {
-    ID        string
-    ParentID  string
-    Role      string    // "user", "assistant", "system", "tool"
-    Content   string
-    Timestamp time.Time
-}
-```
+Solutions:
+1. Check `~/.vibecoding/sessions/` or `%APPDATA%\vibecoding\sessions\`
+2. Use `--resume <session-id>` from the original working directory
+3. Confirm the configured `sessionDir` is correct

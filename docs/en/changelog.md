@@ -3,6 +3,23 @@
 
 ## v1.1.51
 
+### ✨ Features
+
+- **New Provider: Volcengine (火山引擎)**
+  - Added Volcengine provider with Doubao Seed models via the Ark API platform.
+  - Models: Doubao Seed 2.1 Turbo (`doubao-seed-2-1-turbo-260628`, 256K context, text), Doubao Seed Evolving (`doubao-seed-evolving`, 256K context, text+image), Doubao Seed 2.1 Pro (`doubao-seed-2-1-pro-260628`, 256K context, text+image).
+  - Uses OpenAI-compatible API endpoint `https://ark.cn-beijing.volces.com/api/v3`.
+  - Automatic vendor detection via `ark.cn-beijing.volces.com` domain.
+
+- **SQLite Session Storage**
+  - Standardized new and resumed sessions on SQLite (`modernc.org/sqlite`) for improved query performance and metadata management.
+  - For CLI and Gateway, all session metadata and entry logs are stored in a single, unified `sessions.db` database file under `sessionDir`, using virtual `.db` paths as handles for listing, switching, and deleting. Only Hermes writes physical handle files (like `active.db` and archived `*_corrupt.db` files) under per-user directories.
+  - Added fast exact/prefix matching in `OpenByID` and `OpenByPathOrID`, including ambiguity detection and direct session reconstruction from the unified SQLite database.
+  - ACP history replay now streams tool execution events (`toolCall`/`toolResult`) while loading stored conversation history.
+  - `DeleteSession` purges session/entry rows from SQLite, and deletes the physical handle file if present (as in Hermes), while refusing to treat the shared `sessions.db` database as a session handle.
+  - Hermes now uses `active.db` physical session handles, archives corrupt sessions as `*_corrupt.db`, and no longer falls back to legacy `active.jsonl` paths.
+  - Removed legacy JSONL load/write paths so new and resumed sessions use SQLite only.
+
 ### 🐛 Bug Fixes
 
 - **ACP Systeminit Plan Mode Write Access**
@@ -27,6 +44,11 @@
   - Network checks run in the background (at most once per 24h) and only refresh a local cache (`update-check.json`); the foreground never blocks on the network.
   - The reminder appears in the TUI initial message and on stderr in `--print` mode, suggesting `npm install -g vibecoding-installer@latest`.
   - Disable via config file with `"updateCheck": false` in `settings.json`, or with `VIBECODING_NO_UPDATE_CHECK=1`; override the registry with `VIBECODING_NPM_REGISTRY`.
+
+### 📚 Documentation
+
+- Updated session documentation, CLI examples, FAQ cleanup guidance, architecture diagrams, Hermes docs, and README feature summaries to describe SQLite-backed storage, `.db` handle files, and `active.db` Hermes sessions.
+- Added configuration docs for the built-in Volcengine/Doubao provider and refreshed provider-adapter lists to include Volcengine, Mistral, GitHub Copilot, Cloudflare, and Amazon Bedrock adapters.
 
 ### 💅 Improvements
 
@@ -713,7 +735,7 @@
   - Fixed path containment checks to use path-aware boundaries instead of string prefix checks
   - Prevented context `extraFiles` from escaping the working directory
   - Encoded unsafe Hermes session path components and enforced `allowed_work_dirs` during session creation
-  - Restricted session deletion to `.jsonl` files under the configured session directory
+  - Restricted session deletion to `.db` files under the configured session directory
 
 - **Auth, Approval, and Resource Limits**
   - Switched Hermes HTTP/WebSocket token checks to constant-time comparison

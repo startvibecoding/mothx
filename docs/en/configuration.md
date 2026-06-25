@@ -138,7 +138,7 @@ Project-level configuration overrides global configuration. When both exist, sca
 | `skillsDir` | string | `"~/.vibecoding/skills"` | Global skills directory path |
 | `compaction` | object | *(see below)* | Context compaction settings |
 | `sandbox` | object | *(see below)* | Sandbox execution settings |
-| `sessionDir` | string | `"~/.vibecoding/sessions"` | Session file storage directory |
+| `sessionDir` | string | `"~/.vibecoding/sessions"` | SQLite session storage directory |
 | `shellPath` | string | `""` (auto) | Custom shell path for Bash tool |
 | `shellCommandPrefix` | string | `""` | Prefix prepended to every shell command |
 | `theme` | string | `"dark"` | UI theme: `"dark"` or `"light"` |
@@ -177,7 +177,7 @@ Selection order:
 2. Base URL detection
 3. Generic fallback: `openai-chat`, `openai-responses`, `anthropic-messages`, `google-gemini`, or `google-vertex`
 
-Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `google-gemini`, `google-vertex`, `xiaomi`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-sgp`, `kimi`, `minimax`, `seed`, `qianfan`, `bailian`, `gitee`, `openrouter`, `together`, `groq`, and `fireworks`.
+Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `google-gemini`, `google-vertex`, `xiaomi`, `xiaomi-token-plan-ams`, `xiaomi-token-plan-cn`, `xiaomi-token-plan-sgp`, `volcengine`, `kimi`, `minimax`, `seed`, `qianfan`, `bailian`, `gitee`, `openrouter`, `together`, `groq`, `fireworks`, `mistral`, `github-copilot`, `cloudflare-ai-gateway`, `cloudflare-workers-ai`, and `amazon-bedrock`.
 
 ```json
 {
@@ -193,6 +193,28 @@ Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `g
       },
       "models": [
         { "id": "deepseek-v4-flash", "name": "DeepSeek-V4-Flash", "contextWindow": 1000000 }
+      ]
+    }
+  }
+}
+```
+
+#### Volcengine / Doubao example
+
+The built-in `volcengine` provider uses the Ark OpenAI-compatible endpoint and supports Doubao Seed models. It can also be detected automatically from `ark.cn-beijing.volces.com`.
+
+```json
+{
+  "providers": {
+    "volcengine": {
+      "vendor": "volcengine",
+      "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+      "apiKey": "${VOLCENGINE_API_KEY}",
+      "api": "openai-chat",
+      "models": [
+        { "id": "doubao-seed-2-1-turbo-260628", "name": "Doubao Seed 2.1 Turbo", "contextWindow": 262144, "maxTokens": 262144, "input": ["text"] },
+        { "id": "doubao-seed-evolving", "name": "Doubao Seed Evolving", "contextWindow": 262144, "maxTokens": 262144, "input": ["text", "image"] },
+        { "id": "doubao-seed-2-1-pro-260628", "name": "Doubao Seed 2.1 Pro", "contextWindow": 262144, "maxTokens": 262144, "input": ["text", "image"] }
       ]
     }
   }
@@ -644,7 +666,9 @@ Sandbox configuration for secure command execution. Uses [bubblewrap (bwrap)](ht
 
 ### sessionDir
 
-Directory for storing session files (JSONL format). Supports `~` expansion.
+Directory for SQLite session storage. Supports `~` expansion.
+
+VibeCoding stores all session metadata and entries in a single, unified `sessions.db` database file under `sessionDir` (using virtual handles for CLI/TUI, and creating physical handles as needed for Hermes). See [Session Management](sessions.md) for the layout.
 
 | Platform | Default |
 |----------|---------|

@@ -3,6 +3,23 @@
 
 ## v1.1.51
 
+### ✨ 新功能
+
+- **新增 Provider: 火山引擎 (Volcengine)**
+  - 新增火山引擎 Provider，通过方舟 API 平台接入豆包 Seed 系列模型。
+  - 支持模型：豆包 Seed 2.1 Turbo（`doubao-seed-2-1-turbo-260628`，256K 上下文，纯文本）、豆包 Seed Evolving（`doubao-seed-evolving`，256K 上下文，文本+图片）、豆包 Seed 2.1 Pro（`doubao-seed-2-1-pro-260628`，256K 上下文，文本+图片）。
+  - 使用 OpenAI 兼容 API 端点 `https://ark.cn-beijing.volces.com/api/v3`。
+  - 通过 `ark.cn-beijing.volces.com` 域名自动识别供应商。
+
+- **SQLite 会话存储**
+  - 新增和恢复会话统一使用 SQLite（`modernc.org/sqlite`），提升查询性能和元数据管理能力。
+  - 对于 CLI 和 Gateway，所有会话的元数据和条目日志均存储在单个统一的 `sessions.db` 数据库文件中，列表/切换/删除时使用虚拟的 `.db` 路径句柄；只有 Hermes 会在用户目录下写入物理的会话句柄文件（如 `active.db` 与归档的 `*_corrupt.db`）。
+  - `OpenByID` 和 `OpenByPathOrID` 新增快速精确/前缀匹配，支持歧义检测，并可直接基于统一 SQLite 数据库还原会话结构。
+  - ACP 历史重放现在会在加载存储对话历史时流式传输工具执行事件（`toolCall`/`toolResult`）。
+  - `DeleteSession` 清理 SQLite 中的会话与条目记录，并在物理句柄文件存在时（如 Hermes）将其删除，同时拒绝将共享的 `sessions.db` 作为会话句柄删除。
+  - Hermes 现在使用 `active.db` 会话物理句柄，损坏会话归档为 `*_corrupt.db`，并移除旧版 `active.jsonl` fallback。
+  - 移除旧版 JSONL 加载/写入路径，新增和恢复会话仅使用 SQLite。
+
 ### 🐛 Bug 修复
 
 - **ACP Systeminit Plan Mode 写权限**
@@ -27,6 +44,11 @@
   - 网络检测在后台进行（最多每 24 小时一次），仅刷新本地缓存（`update-check.json`），前台不会因网络请求而阻塞。
   - 提醒会显示在 TUI 启动信息中，`--print` 模式下输出到 stderr，并提示执行 `npm install -g vibecoding-installer@latest`。
   - 可在配置文件 `settings.json` 中设置 `"updateCheck": false` 关闭，也可通过 `VIBECODING_NO_UPDATE_CHECK=1` 关闭；通过 `VIBECODING_NPM_REGISTRY` 覆盖 registry 地址。
+
+### 📚 文档
+
+- 更新会话文档、CLI 示例、FAQ 清理建议、架构图、Hermes 文档和 README 功能摘要，说明 SQLite 存储、`.db` 句柄文件和 Hermes `active.db` 会话。
+- 新增内置火山引擎/豆包 provider 配置文档，并刷新 provider 适配器列表，加入火山引擎、Mistral、GitHub Copilot、Cloudflare 和 Amazon Bedrock。
 
 ### 💅 优化
 
@@ -714,7 +736,7 @@
   - 路径包含校验改为使用路径边界，而不是字符串前缀匹配
   - 禁止 context `extraFiles` 逃逸工作目录
   - 对 Hermes session 路径组件进行安全编码，并在创建 session 时强制校验 `allowed_work_dirs`
-  - 限制 session 删除只能删除配置 session 目录下的 `.jsonl` 文件
+  - 限制 session 删除只能删除配置 session 目录下的 `.db` 文件
 
 - **认证、审批与资源限制**
   - Hermes HTTP/WebSocket token 校验改为常量时间比较

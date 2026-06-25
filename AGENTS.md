@@ -24,7 +24,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/provider/factory/` — shared provider/model construction from config
 - `internal/provider/vendor*.go` — vendor adapter registry and per-vendor defaults
 - `internal/sandbox/` — sandbox backends
-- `internal/session/` — JSONL session storage
+- `internal/session/` — SQLite session storage
 - `internal/skills/` — skills loading
 - `internal/tools/` — built-in tools
 - `internal/tui/` — terminal UI
@@ -45,7 +45,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - The agent loop builds a system prompt, sends messages, handles stream events, executes tools, and continues until completion.
 - Tools should stay stateless when possible; shared execution state belongs in registries/managers.
 - Context files and skills are first-class prompt inputs.
-- Sessions are stored as JSONL with parent/child relationships.
+- Sessions are stored in SQLite with parent/child relationships. CLI/Gateway sessions use a single root `sessions.db` database (where all session metadata and message entries live, with dynamically computed virtual `.db` paths for listing/switching); Hermes uses the same `sessions.db` database and additionally writes physical `active.db` handle files in per-user directories on disk.
 
 ### Gateway Mode
 
@@ -65,7 +65,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/hermes/` implements a messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
 - Hermes reuses the same agent loop, provider factory, session, tools, sandbox, skills, and MCP as CLI/ACP.
 - Configuration lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.vibe/hermes.json`).
-- Per-user sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.jsonl`.
+- Per-user sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.db`.
 - Default mode is `yolo` (not `agent`) — messaging platforms are unattended by nature.
 - `default_provider` / `default_model` in hermes.json override settings.json; CLI `-p`/`-m` override hermes.json.
 - `multi_agent` enables sub-agent tools (spawn/status/send/destroy).
