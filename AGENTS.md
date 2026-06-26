@@ -31,7 +31,6 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/acp/` — ACP / MCP related integration
 - `internal/a2a/` — A2A (Agent-to-Agent) protocol server and master mode
 - `internal/gateway/` — OpenAI-compatible HTTP gateway mode
-- `internal/vendored/` — embedded `rg` / `fd`
 - `docs/` — documentation
 
 ## Architecture Notes
@@ -103,7 +102,7 @@ Built-in tools include:
 - `plan`, `question` (TUI plan/agent modes only)
 - `skill_ref`
 
-`grep` and `find` are backed by embedded `rg` and `fd` binaries in `internal/vendored/`. On unsupported architectures (e.g., loong64), they automatically fall back to system `grep` / `find`.
+`grep` and `find` are backed by pure-Go SDKs (`github.com/startvibecoding/go-ripgrep` and `github.com/startvibecoding/go-fd`). They work on all Go-supported architectures without external binary dependencies.
 
 ## Modes and Safety
 
