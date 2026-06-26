@@ -231,6 +231,31 @@ func formatTokens(count int) string {
 }
 
 func (a *App) renderFooter() string {
+	if out := a.renderExternalFooter(); out != "" {
+		return out
+	}
+	return a.renderBuiltinFooter()
+}
+
+func (a *App) renderExternalFooter() string {
+	if !a.statusLineEnabled() {
+		return ""
+	}
+	if strings.TrimSpace(a.statusLineOutput) == "" {
+		return ""
+	}
+	lines := strings.Split(a.statusLineOutput, "\n")
+	padding := 0
+	if a.settings != nil && a.settings.StatusLine.Padding > 0 {
+		padding = a.settings.StatusLine.Padding
+	}
+	for i := 0; i < padding; i++ {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (a *App) renderBuiltinFooter() string {
 	modelName := "unknown"
 	if a.model != nil {
 		modelName = a.model.Name

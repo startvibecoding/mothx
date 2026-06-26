@@ -138,6 +138,183 @@ func TestRenderExpandedEditToolResultDoesNotDuplicateDiffExcerpt(t *testing.T) {
 	}
 }
 
+func TestRenderFooterUsesBuiltinWhenStatusLineDisabled(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.width = 80
+	a.ready = true
+	a.statusLineOutput = "external footer"
+
+	got := stripANSI(a.renderFooter())
+	if strings.Contains(got, "external footer") {
+		t.Fatalf("renderFooter() unexpectedly used external status line: %q", got)
+	}
+	if !strings.Contains(got, "AGENT") {
+		t.Fatalf("renderFooter() = %q, want builtin footer", got)
+	}
+}
+
+func TestRenderFooterUsesExternalStatusLineWhenEnabled(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.width = 80
+	a.ready = true
+	a.settings.StatusLine.Enabled = true
+	a.settings.StatusLine.Command = "ccstatusline"
+	a.statusLineOutput = "external footer"
+
+	got := stripANSI(a.renderFooter())
+	if !strings.Contains(got, "external footer") {
+		t.Fatalf("renderFooter() = %q, want external footer", got)
+	}
+	if strings.Contains(got, "AGENT") {
+		t.Fatalf("renderFooter() leaked builtin footer: %q", got)
+	}
+}
+
+func TestStatusLineCommandShowsOffState(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.handleCommand("/statusline")
+
+	if len(a.messages) == 0 {
+		t.Fatal("messages empty after /statusline")
+	}
+	plain := stripANSI(a.messages[len(a.messages)-1])
+	if !strings.Contains(plain, "Status line: OFF") {
+		t.Fatalf("/statusline output = %q, want OFF state", plain)
+	}
+}
+
+func TestStatusLineCommandShowsActiveStateAndError(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.settings.StatusLine.Enabled = true
+	a.settings.StatusLine.Command = "ccstatusline"
+	a.statusLineOutput = "ready"
+	a.statusLineLastError = "boom"
+
+	a.handleCommand("/statusline")
+
+	if len(a.messages) == 0 {
+		t.Fatal("messages empty after /statusline")
+	}
+	plain := stripANSI(a.messages[len(a.messages)-1])
+	for _, want := range []string{"Status line: ON", "Command: ccstatusline", "Render: external footer active", "Last error: boom"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("/statusline output = %q, want substring %q", plain, want)
+		}
+	}
+}
+
+func TestStatusLineCommandOnWritesProjectSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.handleCommand("/statusline on")
+
+	data, err := os.ReadFile(".vibe/settings.json")
+	if err != nil {
+		t.Fatalf("read project settings: %v", err)
+	}
+	if !strings.Contains(string(data), `"enabled": true`) {
+		t.Fatalf("project settings = %s, want enabled true", string(data))
+	}
+	if !strings.Contains(string(data), `"command": "ccstatusline"`) {
+		t.Fatalf("project settings = %s, want ccstatusline command", string(data))
+	}
+	if !a.settings.StatusLine.Enabled {
+		t.Fatal("app settings statusLine not enabled")
+	}
+}
+
+func TestStatusLineCommandOffClearsRuntimeOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.settings.StatusLine.Enabled = true
+	a.settings.StatusLine.Command = "ccstatusline"
+	a.statusLineOutput = "external footer"
+	a.statusLineLastError = "boom"
+
+	a.handleCommand("/statusline off")
+
+	if a.settings.StatusLine.Enabled {
+		t.Fatal("statusLine still enabled after off")
+	}
+	if a.statusLineOutput != "" {
+		t.Fatalf("statusLineOutput = %q, want empty", a.statusLineOutput)
+	}
+	if a.statusLineLastError != "" {
+		t.Fatalf("statusLineLastError = %q, want empty", a.statusLineLastError)
+	}
+}
+
+func TestStatusLineCommandCommandWritesProjectSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.handleCommand("/statusline command echo hello")
+
+	data, err := os.ReadFile(".vibe/settings.json")
+	if err != nil {
+		t.Fatalf("read project settings: %v", err)
+	}
+	if !strings.Contains(string(data), `"command": "echo hello"`) {
+		t.Fatalf("project settings = %s, want command", string(data))
+	}
+	if got := a.settings.StatusLine.Command; got != "echo hello" {
+		t.Fatalf("command = %q, want echo hello", got)
+	}
+}
+
+func TestStatusLineCommandRefreshWritesProjectSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.handleCommand("/statusline refresh 7")
+
+	data, err := os.ReadFile(".vibe/settings.json")
+	if err != nil {
+		t.Fatalf("read project settings: %v", err)
+	}
+	if !strings.Contains(string(data), `"refreshInterval": 7`) {
+		t.Fatalf("project settings = %s, want refreshInterval", string(data))
+	}
+	if got := a.settings.StatusLine.RefreshInterval; got != 7 {
+		t.Fatalf("refreshInterval = %d, want 7", got)
+	}
+}
+
 func TestNormalizeHistoryLineEndingsOnlyCollapsesCRLF(t *testing.T) {
 	got := normalizeHistoryLineEndings("a\r\nb\rc")
 	want := "a\nb\rc"

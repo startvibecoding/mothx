@@ -21,6 +21,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/init_mcp", Value: "/init_mcp ", Description: "Init mcp.json"},
 		{Label: "/mcps", Value: "/mcps", Description: "List MCP servers"},
 		{Label: "/delegate", Value: "/delegate ", Description: "Toggle delegation mode"},
+		{Label: "/statusline", Value: "/statusline ", Description: "Inspect or toggle the TUI status line"},
 		{Label: "/alloweditpath", Value: "/alloweditpath ", Description: "Manage auto-edit path whitelist (glob)"},
 		{Label: "/allowautoedit", Value: "/allowautoedit ", Description: "Toggle full auto-edit in agent mode"},
 		{Label: "/btw", Value: "/btw ", Description: "Ask a side question without touching the main task"},

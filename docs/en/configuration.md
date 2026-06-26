@@ -74,6 +74,15 @@ Project-level configuration overrides global configuration. When both exist, sca
   "defaultModel": "deepseek-v4-flash",
   "defaultMode": "agent",
   "defaultThinkingLevel": "medium",
+  "statusLine": {
+    "enabled": false,
+    "type": "command",
+    "command": "ccstatusline",
+    "padding": 0,
+    "refreshInterval": 10,
+    "timeoutMs": 800,
+    "fallback": "builtin"
+  },
   "enablePlanTool": true,
   "maxContextTokens": 1000000,
   "maxOutputTokens": 384000,
@@ -131,6 +140,7 @@ Project-level configuration overrides global configuration. When both exist, sca
 | `defaultModel` | string | `"deepseek-v4-flash"` | Which model ID to use by default |
 | `defaultMode` | string | `"agent"` | Default run mode: `plan`, `agent`, or `yolo` |
 | `defaultThinkingLevel` | string | `"medium"` | Default thinking level |
+| `statusLine` | object | *(see below)* | External status line command settings for TUI only |
 | `enablePlanTool` | bool | `true` | Register the built-in `plan` tool |
 | `maxContextTokens` | int | `0` (auto) | Override maximum context token count |
 | `maxOutputTokens` | int | `0` (auto) | Override maximum output token count |
@@ -150,6 +160,45 @@ Project-level configuration overrides global configuration. When both exist, sca
 ---
 
 ## Configuration Details
+
+### statusLine
+
+TUI-only status line command configuration. When enabled, VibeCoding sends the current status JSON to an external command via stdin and replaces the built-in footer below the input box with that command's stdout.
+
+If it is disabled, not configured, still on its first run, times out, fails, or returns empty output, the TUI keeps the current built-in footer.
+
+Other modes ignore this setting entirely, including Gateway, Hermes, ACP, and print mode.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | bool | `false` | Enable the external status line |
+| `type` | string | `"command"` | Currently only `"command"` is supported |
+| `command` | string | `""` | Status line command to execute, for example `ccstatusline` |
+| `padding` | int | `0` | Blank lines appended after the status line output |
+| `refreshInterval` | int | `0` | Optional periodic refresh in seconds; `0` means event-driven only |
+| `timeoutMs` | int | `800` | Per-invocation timeout in milliseconds |
+| `fallback` | string | `"builtin"` | Fallback strategy on failure; keep `"builtin"` |
+
+Minimal example:
+
+```json
+{
+  "statusLine": {
+    "enabled": true,
+    "type": "command",
+    "command": "ccstatusline",
+    "refreshInterval": 10,
+    "timeoutMs": 800
+  }
+}
+```
+
+Notes:
+
+- The current implementation supports `stdin snapshot` mode only.
+- It does not emit `transcript_path`.
+- It does not generate transcript JSONL files for `ccstatusline`.
+- Widgets that depend on transcript history scanning may therefore be empty or less accurate.
 
 ### providers
 

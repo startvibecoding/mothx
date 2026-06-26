@@ -74,6 +74,15 @@ VibeCoding 使用两个配置文件:
   "defaultModel": "deepseek-v4-flash",
   "defaultMode": "agent",
   "defaultThinkingLevel": "medium",
+  "statusLine": {
+    "enabled": false,
+    "type": "command",
+    "command": "ccstatusline",
+    "padding": 0,
+    "refreshInterval": 10,
+    "timeoutMs": 800,
+    "fallback": "builtin"
+  },
   "enablePlanTool": true,
   "maxContextTokens": 1000000,
   "maxOutputTokens": 384000,
@@ -131,6 +140,7 @@ VibeCoding 使用两个配置文件:
 | `defaultModel` | string | `"deepseek-v4-flash"` | 默认使用的模型 ID |
 | `defaultMode` | string | `"agent"` | 默认运行模式: `plan`, `agent`, `yolo` |
 | `defaultThinkingLevel` | string | `"medium"` | 默认思考级别 |
+| `statusLine` | object | *(见下文)* | 仅 TUI 生效的外部状态行命令设置 |
 | `enablePlanTool` | bool | `true` | 是否注册内置 `plan` 工具 |
 | `maxContextTokens` | int | `0` (自动) | 覆盖最大上下文 token 数 |
 | `maxOutputTokens` | int | `0` (自动) | 覆盖最大输出 token 数 |
@@ -150,6 +160,45 @@ VibeCoding 使用两个配置文件:
 ---
 
 ## 配置项详解
+
+### statusLine
+
+TUI 专用状态行命令配置。启用后，VibeCoding 会在交互式 TUI 中把当前状态 JSON 通过 stdin 传给外部命令，并用该命令的 stdout 替换输入框下方的默认 footer。
+
+未启用、未配置、首次执行中、超时、失败或输出为空时，TUI 会继续显示当前默认 footer。
+
+其他模式不会读取或执行这个配置，包括 Gateway、Hermes、ACP、print mode。
+
+| 字段 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `enabled` | bool | `false` | 是否启用外部状态行 |
+| `type` | string | `"command"` | 当前只支持 `"command"` |
+| `command` | string | `""` | 要执行的状态行命令，例如 `ccstatusline` |
+| `padding` | int | `0` | 在状态行输出后追加的空行数 |
+| `refreshInterval` | int | `0` | 可选周期刷新秒数；`0` 表示仅事件触发 |
+| `timeoutMs` | int | `800` | 单次命令超时时间（毫秒） |
+| `fallback` | string | `"builtin"` | 失败时的回退策略；当前建议保持 `"builtin"` |
+
+最小示例：
+
+```json
+{
+  "statusLine": {
+    "enabled": true,
+    "type": "command",
+    "command": "ccstatusline",
+    "refreshInterval": 10,
+    "timeoutMs": 800
+  }
+}
+```
+
+说明：
+
+- 当前实现只支持 `stdin snapshot` 模式。
+- 不输出 `transcript_path`。
+- 不生成任何给 `ccstatusline` 读取的 transcript JSONL 文件。
+- 因此依赖 transcript 历史扫描的 `ccstatusline` widgets 可能为空或精度受限。
 
 ### providers
 

@@ -238,10 +238,12 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			a.contextUsage = event.ContextUsage
 		}
 		if event.Usage != nil {
+			a.latestUsage = cloneUsage(event.Usage)
 			// Accumulate cache stats
 			a.totalInputTokens += event.Usage.TotalInputTokens()
 			a.totalCacheRead += event.Usage.CacheRead
 			a.totalCacheWrite += event.Usage.CacheWrite
+			a.totalCostUSD += event.Usage.Cost.Total
 
 			// Per-turn cache info
 			cacheInfo := ""

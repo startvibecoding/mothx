@@ -21,6 +21,7 @@ type Settings struct {
 	DefaultModel         string                     `json:"defaultModel,omitempty"`
 	DefaultThinkingLevel string                     `json:"defaultThinkingLevel,omitempty"`
 	DefaultMode          string                     `json:"defaultMode,omitempty"`
+	StatusLine           StatusLineSettings         `json:"statusLine,omitempty"`
 	EnablePlanTool       *bool                      `json:"enablePlanTool,omitempty"`
 	WebSearch            WebSearchSettings          `json:"webSearch"`
 	MaxContextTokens     int                        `json:"maxContextTokens,omitempty"`
@@ -63,6 +64,16 @@ type WebSearchSettings struct {
 	Provider     string `json:"provider,omitempty"`
 	ProviderType string `json:"providerType,omitempty"`
 	Model        string `json:"model,omitempty"`
+}
+
+type StatusLineSettings struct {
+	Enabled         bool   `json:"enabled,omitempty"`
+	Type            string `json:"type,omitempty"`
+	Command         string `json:"command,omitempty"`
+	Padding         int    `json:"padding,omitempty"`
+	RefreshInterval int    `json:"refreshInterval,omitempty"`
+	TimeoutMs       int    `json:"timeoutMs,omitempty"`
+	Fallback        string `json:"fallback,omitempty"`
 }
 
 type ModelConfig struct {
@@ -293,8 +304,8 @@ func DefaultSettings() *Settings {
 					{ID: "gemini-3.5-flash", Name: "Gemini 3.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
 				},
 			},
-			"xiaomi":                {BaseURL: "https://api.xiaomimimo.com/v1", APIKey: "${XIAOMI_API_KEY}", API: "openai-chat", ThinkingFormat: "xiaomi", Models: []ModelConfig{{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.0036}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text", "image", "audio", "video"}}, {ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 256000, MaxTokens: 64000, Cost: &CostConfig{Input: 0.10, Output: 0.30, CacheRead: 0.01}, Input: []string{"text"}}}},
-			"volcengine":            {Vendor: "volcengine", BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "doubao-seed-2-1-turbo-260628", Name: "Doubao Seed 2.1 Turbo", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}}, {ID: "doubao-seed-evolving", Name: "Doubao Seed Evolving", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}, {ID: "doubao-seed-2-1-pro-260628", Name: "Doubao Seed 2.1 Pro", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}}},
+			"xiaomi":     {BaseURL: "https://api.xiaomimimo.com/v1", APIKey: "${XIAOMI_API_KEY}", API: "openai-chat", ThinkingFormat: "xiaomi", Models: []ModelConfig{{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.0036}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text", "image", "audio", "video"}}, {ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 256000, MaxTokens: 64000, Cost: &CostConfig{Input: 0.10, Output: 0.30, CacheRead: 0.01}, Input: []string{"text"}}}},
+			"volcengine": {Vendor: "volcengine", BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "doubao-seed-2-1-turbo-260628", Name: "Doubao Seed 2.1 Turbo", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}}, {ID: "doubao-seed-evolving", Name: "Doubao Seed Evolving", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}, {ID: "doubao-seed-2-1-pro-260628", Name: "Doubao Seed 2.1 Pro", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}}},
 			"openrouter": {Vendor: "openrouter", BaseURL: "https://openrouter.ai/api/v1", APIKey: "${OPENROUTER_API_KEY}", API: "openai-chat", Models: []ModelConfig{
 				{ID: "anthropic/claude-sonnet-4.6", Name: "Claude Sonnet 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
 				{ID: "anthropic/claude-opus-4.8", Name: "Claude Opus 4.8", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
@@ -417,11 +428,18 @@ func DefaultSettings() *Settings {
 		DefaultModel:         "deepseek-v4-flash",
 		DefaultThinkingLevel: "medium",
 		DefaultMode:          "agent",
-		EnablePlanTool:       boolPtr(true),
-		WebSearch:            WebSearchSettings{Enabled: boolPtr(false), Provider: "openai", ProviderType: "responses"},
-		ContextFiles:         ContextFilesSettings{Enabled: true},
-		SkillsDir:            platform.SkillsDir(),
-		Compaction:           CompactionSettings{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000},
+		StatusLine: StatusLineSettings{
+			Enabled:   false,
+			Type:      "command",
+			Padding:   0,
+			TimeoutMs: 800,
+			Fallback:  "builtin",
+		},
+		EnablePlanTool: boolPtr(true),
+		WebSearch:      WebSearchSettings{Enabled: boolPtr(false), Provider: "openai", ProviderType: "responses"},
+		ContextFiles:   ContextFilesSettings{Enabled: true},
+		SkillsDir:      platform.SkillsDir(),
+		Compaction:     CompactionSettings{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000},
 		Sandbox: SandboxSettings{
 			Enabled:     false,
 			Level:       "none",
@@ -594,6 +612,24 @@ func LoadGlobalSettingsSparse() (*Settings, error) {
 	return s, nil
 }
 
+// LoadProjectSettingsSparse loads only fields explicitly present in the project
+// settings file. If the file does not exist, it returns an empty Settings.
+func LoadProjectSettingsSparse() (*Settings, error) {
+	s := &Settings{}
+	projectPath := ProjectSettingsPath()
+	if data, err := os.ReadFile(projectPath); err == nil {
+		if err := json.Unmarshal(data, s); err != nil {
+			return nil, fmt.Errorf("parse project settings: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read project settings %s: %w", projectPath, err)
+	}
+	if s.Providers == nil {
+		s.Providers = map[string]*ProviderConfig{}
+	}
+	return s, nil
+}
+
 // SaveGlobalSettings writes settings.json atomically with private permissions.
 func SaveGlobalSettings(s *Settings) error {
 	if s == nil {
@@ -609,6 +645,43 @@ func SaveGlobalSettings(s *Settings) error {
 	}
 	settingsPath := GlobalSettingsPath()
 	tmp, err := os.CreateTemp(configDir, "settings-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp settings: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write temp settings: %w", err)
+	}
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("chmod temp settings: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp settings: %w", err)
+	}
+	if err := os.Rename(tmpName, settingsPath); err != nil {
+		return fmt.Errorf("replace settings: %w", err)
+	}
+	return nil
+}
+
+// SaveProjectSettings writes .vibe/settings.json atomically with private permissions.
+func SaveProjectSettings(s *Settings) error {
+	if s == nil {
+		return fmt.Errorf("settings is nil")
+	}
+	projectDir := filepath.Dir(ProjectSettingsPath())
+	if err := os.MkdirAll(projectDir, 0700); err != nil {
+		return fmt.Errorf("create project config directory: %w", err)
+	}
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal settings: %w", err)
+	}
+	settingsPath := ProjectSettingsPath()
+	tmp, err := os.CreateTemp(projectDir, "settings-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp settings: %w", err)
 	}

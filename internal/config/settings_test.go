@@ -51,6 +51,18 @@ func TestDefaultSettings(t *testing.T) {
 	if s.DefaultThinkingLevel != "medium" {
 		t.Errorf("expected thinking level 'medium', got '%s'", s.DefaultThinkingLevel)
 	}
+	if s.StatusLine.Enabled {
+		t.Fatalf("expected statusLine disabled by default")
+	}
+	if s.StatusLine.Type != "command" {
+		t.Fatalf("expected statusLine.type command, got %q", s.StatusLine.Type)
+	}
+	if s.StatusLine.TimeoutMs != 800 {
+		t.Fatalf("expected statusLine.timeoutMs 800, got %d", s.StatusLine.TimeoutMs)
+	}
+	if s.StatusLine.Fallback != "builtin" {
+		t.Fatalf("expected statusLine.fallback builtin, got %q", s.StatusLine.Fallback)
+	}
 	if s.WebSearch.Enabled == nil || *s.WebSearch.Enabled {
 		t.Fatalf("expected web search to be disabled by default, got %#v", s.WebSearch.Enabled)
 	}
