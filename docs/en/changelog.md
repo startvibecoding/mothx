@@ -5,6 +5,11 @@
 
 ### ✨ Features
 
+- **FreeBSD Builds & Packaging**
+  - Added FreeBSD `amd64` and `arm64` to the build matrix (`make build-freebsd`), tarball distribution (`make dist-freebsd`), and the full `make dist` / `make build-all` flows.
+  - Added FreeBSD platform npm packages (`vibecoding-installer-freebsd-x64`, `vibecoding-installer-freebsd-arm64`) as optional dependencies, with platform detection in the npm wrapper and `install.sh`.
+  - FreeBSD uses the system `grep`/`find` fallback (no embedded `rg`/`fd`) and falls back to the no-op sandbox, since bwrap/seatbelt are Linux/macOS only.
+
 - **New Provider: Volcengine (火山引擎)**
   - Added Volcengine provider with Doubao Seed models via the Ark API platform.
   - Models: Doubao Seed 2.1 Turbo (`doubao-seed-2-1-turbo-260628`, 256K context, text), Doubao Seed Evolving (`doubao-seed-evolving`, 256K context, text+image), Doubao Seed 2.1 Pro (`doubao-seed-2-1-pro-260628`, 256K context, text+image).

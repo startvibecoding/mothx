@@ -44,6 +44,8 @@ declare -A PLATFORMS=(
   ["darwin-arm64"]="vibecoding-darwin-arm64"
   ["win32-x64"]="vibecoding-windows-amd64.exe"
   ["win32-arm64"]="vibecoding-windows-arm64.exe"
+  ["freebsd-x64"]="vibecoding-freebsd-amd64"
+  ["freebsd-arm64"]="vibecoding-freebsd-arm64"
 )
 
 declare -A OS_MAP=(
@@ -55,6 +57,8 @@ declare -A OS_MAP=(
   ["darwin-arm64"]="darwin"
   ["win32-x64"]="win32"
   ["win32-arm64"]="win32"
+  ["freebsd-x64"]="freebsd"
+  ["freebsd-arm64"]="freebsd"
 )
 
 declare -A CPU_MAP=(
@@ -66,6 +70,8 @@ declare -A CPU_MAP=(
   ["darwin-arm64"]="arm64"
   ["win32-x64"]="x64"
   ["win32-arm64"]="arm64"
+  ["freebsd-x64"]="x64"
+  ["freebsd-arm64"]="arm64"
 )
 
 BUILT=0

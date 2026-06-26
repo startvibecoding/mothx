@@ -1,6 +1,6 @@
 .PHONY: help build build-all install test test-vendored lint fmt clean run
-.PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows
-.PHONY: dist dist-linux dist-darwin dist-windows dist-deb dist-tarball dist-zip
+.PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows build-freebsd
+.PHONY: dist dist-linux dist-darwin dist-windows dist-freebsd dist-deb dist-tarball dist-zip
 .PHONY: dist-linux-loong64
 .PHONY: clean-all checksums
 .PHONY: npm-version npm-binaries npm-packages npm-pack npm-publish-all npm-publish-pre npm-publish
@@ -30,6 +30,7 @@ endif
 # linux: amd64 arm64 loong64
 # darwin: amd64 arm64
 # windows: amd64 arm64
+# freebsd: amd64 arm64
 
 # Default target
 help:
@@ -42,6 +43,7 @@ help:
 	@echo "  build-linux-musl Build for Linux musl (amd64)"
 	@echo "  build-darwin     Build for macOS (amd64, arm64)"
 	@echo "  build-windows    Build for Windows (amd64, arm64)"
+	@echo "  build-freebsd    Build for FreeBSD (amd64, arm64)"
 	@echo "  build-all        Build for all platforms and architectures"
 	@echo "  prepare-vendored Extract rg/fd binaries for go:embed"
 	@echo ""
@@ -50,6 +52,7 @@ help:
 	@echo "  dist-linux     Build Linux packages (tar.gz + deb)"
 	@echo "  dist-darwin    Build macOS packages (tar.gz)"
 	@echo "  dist-windows   Build Windows packages (zip)"
+	@echo "  dist-freebsd   Build FreeBSD packages (tar.gz)"
 	@echo "  dist-linux-loong64 Build Linux LoongArch64 packages"
 	@echo "  dist-deb       Build Debian packages only"
 	@echo "  dist-tarball   Build tarball packages only"
@@ -120,8 +123,14 @@ build-windows: prepare-vendored
 	@echo "Compressing Windows amd64 binary with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-windows-amd64.exe
 
+build-freebsd: prepare-vendored
+	@echo "Building for FreeBSD..."
+	@mkdir -p bin
+	GOOS=freebsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-amd64 ./cmd/vibecoding
+	GOOS=freebsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-arm64 ./cmd/vibecoding
+
 # Build all platforms
-build-all: prepare-vendored build-linux build-linux-musl build-darwin build-windows
+build-all: prepare-vendored build-linux build-linux-musl build-darwin build-windows build-freebsd
 	@echo ""
 	@echo "Build complete! Binaries in bin/"
 	@ls -lh bin/
@@ -170,7 +179,7 @@ run: build
 	./bin/$(BINARY_NAME)
 
 # Distribution: tar.gz for Linux and macOS
-dist-tarball: build-linux build-linux-musl build-darwin
+dist-tarball: build-linux build-linux-musl build-darwin build-freebsd
 	@echo ""
 	@echo "Creating tarball packages..."
 	@for arch in amd64 arm64 loong64; do \
@@ -183,6 +192,10 @@ dist-tarball: build-linux build-linux-musl build-darwin
 	done
 	@echo "  Packaging $(BINARY_NAME)-linux-musl-amd64.tar.gz..."; \
 	./scripts/build-tarball.sh linux-musl amd64 $(VERSION)
+	@for arch in amd64 arm64; do \
+		echo "  Packaging $(BINARY_NAME)-freebsd-$${arch}.tar.gz..."; \
+		./scripts/build-tarball.sh freebsd $${arch} $(VERSION); \
+	done
 
 # Distribution: deb for Linux
 dist-deb: build-linux build-linux-musl
@@ -221,6 +234,15 @@ dist-darwin: dist-tarball
 dist-windows: dist-zip
 	@echo "Windows packages complete!"
 
+dist-freebsd: build-freebsd
+	@echo ""
+	@echo "Creating FreeBSD packages..."
+	@for arch in amd64 arm64; do \
+		echo "  Packaging $(BINARY_NAME)-freebsd-$${arch}.tar.gz..."; \
+		./scripts/build-tarball.sh freebsd $${arch} $(VERSION); \
+	done
+	@echo "FreeBSD packages complete!"
+
 # Generate checksums
 checksums:
 	@echo "Generating checksums..."
@@ -233,7 +255,7 @@ checksums:
 	@cat $(CHECKSUM_FILE)
 
 # Build all distribution packages
-dist: dist-linux dist-darwin dist-windows checksums
+dist: dist-linux dist-darwin dist-windows dist-freebsd checksums
 	@echo ""
 	@echo "=========================================="
 	@echo "All distribution packages built!"

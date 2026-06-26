@@ -5,6 +5,11 @@
 
 ### ✨ 新功能
 
+- **FreeBSD 编译与打包**
+  - 在构建矩阵中新增 FreeBSD `amd64` 和 `arm64`（`make build-freebsd`）、tarball 分发（`make dist-freebsd`），并接入完整的 `make dist` / `make build-all` 流程。
+  - 新增 FreeBSD 平台 npm 包（`vibecoding-installer-freebsd-x64`、`vibecoding-installer-freebsd-arm64`）作为可选依赖，并在 npm wrapper 和 `install.sh` 中加入平台识别。
+  - FreeBSD 使用系统 `grep`/`find` fallback（不内嵌 `rg`/`fd`），并回退到 no-op 沙箱，因为 bwrap/seatbelt 仅支持 Linux/macOS。
+
 - **新增 Provider: 火山引擎 (Volcengine)**
   - 新增火山引擎 Provider，通过方舟 API 平台接入豆包 Seed 系列模型。
   - 支持模型：豆包 Seed 2.1 Turbo（`doubao-seed-2-1-turbo-260628`，256K 上下文，纯文本）、豆包 Seed Evolving（`doubao-seed-evolving`，256K 上下文，文本+图片）、豆包 Seed 2.1 Pro（`doubao-seed-2-1-pro-260628`，256K 上下文，文本+图片）。

@@ -41,6 +41,8 @@
     "vibecoding-installer-darwin-x64": "1.1.51",
     "vibecoding-installer-darwin-arm64": "1.1.51",
     "vibecoding-installer-win32-x64": "1.1.51",
-    "vibecoding-installer-win32-arm64": "1.1.51"
+    "vibecoding-installer-win32-arm64": "1.1.51",
+    "vibecoding-installer-freebsd-x64": "1.1.51",
+    "vibecoding-installer-freebsd-arm64": "1.1.51"
   }
 }
