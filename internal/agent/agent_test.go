@@ -446,6 +446,59 @@ func TestAgentRun(t *testing.T) {
 	}
 }
 
+func TestAgentRunEmitsErrorAfterPartialStreamOutput(t *testing.T) {
+	streamErr := fmt.Errorf("stream read error: stream error: stream ID 19; INTERNAL_ERROR; received from peer")
+	responses := []provider.StreamEvent{
+		{Type: provider.StreamStart},
+		{Type: provider.StreamTextDelta, TextDelta: "partial"},
+		{Type: provider.StreamError, Error: streamErr, StopReason: "error"},
+	}
+
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, responses)
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry("/tmp", sb)
+	registry.RegisterDefaults()
+
+	cfg := Config{
+		Provider: mockProvider,
+		Model:    mockProvider.Models()[0],
+		Mode:     "agent",
+	}
+
+	a := New(cfg, registry)
+
+	var sawPartial bool
+	var sawError bool
+	for event := range a.Run(context.Background(), "test") {
+		switch event.Type {
+		case EventTextDelta:
+			if event.TextDelta == "partial" {
+				sawPartial = true
+			}
+		case EventError:
+			if !sawPartial {
+				t.Fatal("EventError emitted before partial text delta")
+			}
+			sawError = true
+			if event.Error == nil || !strings.Contains(event.Error.Error(), "INTERNAL_ERROR") {
+				t.Fatalf("EventError = %v, want INTERNAL_ERROR", event.Error)
+			}
+		case EventDone:
+			t.Fatal("unexpected EventDone after stream error")
+		}
+	}
+
+	if !sawPartial {
+		t.Fatal("missing partial text delta")
+	}
+	if !sawError {
+		t.Fatal("missing EventError")
+	}
+}
+
 func TestRunWithMessages(t *testing.T) {
 	responses := []provider.StreamEvent{
 		{Type: provider.StreamStart},
