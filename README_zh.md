@@ -325,7 +325,7 @@ vibecoding/
 │   ├── tools/             # 工具实现
 │   ├── tui/               # 终端界面 (BubbleTea)
 │   ├── ua/                # 用户代理字符串生成
-│   └── vendored/          # 内嵌二进制 (rg, fd)
+│   └── vendored/          # (已移除，rg/fd 已替换为 Go SDK)
 └── pkg/sdk/               # 公共 SDK 接口
 ```
 

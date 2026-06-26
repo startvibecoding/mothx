@@ -72,7 +72,11 @@ func NewProviderWithModels(apiKey, baseURL string, models []*provider.Model) *Pr
 }
 
 func NewProviderWithModelsAndProxy(apiKey, baseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
-	client, err := provider.NewHTTPClient(30*time.Minute, proxyURL)
+	return NewProviderWithModelsAndOptions(apiKey, baseURL, models, provider.HTTPClientOptions{ProxyURL: proxyURL})
+}
+
+func NewProviderWithModelsAndOptions(apiKey, baseURL string, models []*provider.Model, opts provider.HTTPClientOptions) (*Provider, error) {
+	client, err := provider.NewHTTPClientWithOptions(30*time.Minute, opts)
 	if err != nil {
 		return nil, fmt.Errorf("configure http proxy: %w", err)
 	}
@@ -344,18 +348,8 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			resp, err := p.client.Do(req)
 			if err != nil {
 				if attempt < maxRetries && provider.IsRetryable(err, 0) {
-					delay := provider.RetryDelay(attempt, baseDelayMs)
-					ch <- provider.StreamEvent{
-						Type:         provider.StreamRetry,
-						RetryAttempt: attempt + 1,
-						RetryMax:     maxRetries,
-						Error:        fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, err)),
-					}
-					select {
-					case <-ctx.Done():
-						ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
+					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
 						return
-					case <-time.After(delay):
 					}
 					continue
 				}
@@ -371,18 +365,8 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 					fmt.Fprintf(os.Stderr, "[DEBUG] Request body was: %s\n", string(body))
 				}
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
-					delay := provider.RetryDelay(attempt, baseDelayMs)
-					ch <- provider.StreamEvent{
-						Type:         provider.StreamRetry,
-						RetryAttempt: attempt + 1,
-						RetryMax:     maxRetries,
-						Error:        fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b)))),
-					}
-					select {
-					case <-ctx.Done():
-						ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
+					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))) {
 						return
-					case <-time.After(delay):
 					}
 					continue
 				}
@@ -390,15 +374,41 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 				return
 			}
 
-			// Success: stream the SSE response. No retry once streaming starts.
-			p.parseSSE(ctx, resp.Body, ch, params)
+			visibleOutput, err := p.parseSSE(ctx, resp.Body, ch, params)
 			resp.Body.Close()
+			if err == nil {
+				return
+			}
+			if attempt < maxRetries && !visibleOutput && provider.IsRetryable(err, 0) {
+				if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
+					return
+				}
+				continue
+			}
+			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("stream read error: %w", err), StopReason: "error"}
 			return
 		}
 
 		ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("all %d retry attempts exhausted", maxRetries)}
 	}()
 	return ch
+}
+
+func sendRetryEventAndWait(ctx context.Context, ch chan<- provider.StreamEvent, attempt, maxRetries, baseDelayMs int, err error) bool {
+	delay := provider.RetryDelay(attempt, baseDelayMs)
+	ch <- provider.StreamEvent{
+		Type:         provider.StreamRetry,
+		RetryAttempt: attempt + 1,
+		RetryMax:     maxRetries,
+		Error:        fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, err)),
+	}
+	select {
+	case <-ctx.Done():
+		ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
+		return false
+	case <-time.After(delay):
+		return true
+	}
 }
 
 func cloneHeaders(headers map[string]string) map[string]string {
@@ -412,7 +422,7 @@ func cloneHeaders(headers map[string]string) map[string]string {
 	return cloned
 }
 
-func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) {
+func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) (bool, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
@@ -426,6 +436,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		usage            *provider.Usage
 		currentBlockType string
 		toolCallIndex    int = -1
+		visibleOutput    bool
 	)
 
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
@@ -434,10 +445,10 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		select {
 		case <-ctx.Done():
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
-			return
+			return true, nil
 		case <-params.Abort:
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("aborted"), StopReason: "aborted"}
-			return
+			return true, nil
 		default:
 		}
 
@@ -464,6 +475,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			if event.ContentBlock != nil {
 				currentBlockType = event.ContentBlock.Type
 				if event.ContentBlock.Type == "tool_use" {
+					visibleOutput = true
 					toolCallIndex = len(toolCalls)
 					toolCalls = append(toolCalls, provider.ToolCallBlock{ID: event.ContentBlock.ID, Name: event.ContentBlock.Name})
 					toolCallBuffers[toolCallIndex] = &strings.Builder{}
@@ -475,15 +487,19 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			}
 			switch event.Delta.Type {
 			case "text_delta":
+				visibleOutput = true
 				textContent += event.Delta.Text
 				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: event.Delta.Text}
 			case "thinking_delta":
+				visibleOutput = true
 				reasonContent += event.Delta.Thinking
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: event.Delta.Thinking}
 			case "signature_delta":
+				visibleOutput = true
 				thinkSignature += event.Delta.Signature
 			case "input_json_delta":
 				if toolCallIndex >= 0 {
+					visibleOutput = true
 					if buf, ok := toolCallBuffers[toolCallIndex]; ok {
 						buf.WriteString(event.Delta.PartialJSON)
 					}
@@ -491,12 +507,14 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			}
 		case "content_block_stop":
 			if currentBlockType == "thinking" && thinkSignature != "" {
+				visibleOutput = true
 				ch <- provider.StreamEvent{Type: provider.StreamThinkSignature, ThinkSignature: thinkSignature}
 				thinkSignature = ""
 			}
 			if currentBlockType == "tool_use" && toolCallIndex >= 0 && toolCallIndex < len(toolCalls) {
 				if buf, ok := toolCallBuffers[toolCallIndex]; ok {
 					toolCalls[toolCallIndex].Arguments = json.RawMessage(buf.String())
+					visibleOutput = true
 					ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: &toolCalls[toolCallIndex]}
 				}
 			}
@@ -533,20 +551,21 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				}
 			}
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("%s", errMsg), StopReason: "error"}
-			return
+			return true, nil
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("stream read error: %w", err), StopReason: "error"}
-		return
+		return visibleOutput, err
 	}
 
 	if usage != nil {
 		usage.TotalTokens = usage.Input + usage.CacheRead + usage.CacheWrite + usage.Output
+		visibleOutput = true
 		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: usage}
 	}
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: stopReason}
+	return visibleOutput, nil
 }
 
 func (p *Provider) convertMessages(params provider.ChatParams) []anthropicMessage {

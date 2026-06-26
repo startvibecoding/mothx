@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
@@ -28,6 +30,21 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
 }
+
+type errorAfterBody struct {
+	r   *strings.Reader
+	err error
+}
+
+func (b *errorAfterBody) Read(p []byte) (int, error) {
+	n, err := b.r.Read(p)
+	if err == io.EOF {
+		return n, b.err
+	}
+	return n, err
+}
+
+func (b *errorAfterBody) Close() error { return nil }
 
 func newMockAnthropicProvider(t *testing.T, models []*provider.Model, sse string, bodyCh chan<- string, check func(*http.Request)) *Provider {
 	t.Helper()
@@ -51,6 +68,80 @@ func newMockAnthropicProvider(t *testing.T, models []*provider.Model, sse string
 		}, nil
 	})}
 	return p
+}
+
+func TestAnthropicRetriesEarlyStreamReadError(t *testing.T) {
+	streamErr := errors.New("stream error: stream ID 19; INTERNAL_ERROR; received from peer")
+	attempts := 0
+	p := NewProviderWithModels("fake-key", "https://api.anthropic.com", []*provider.Model{{ID: "mock"}})
+	p.SetRetryConfig(&provider.RetryConfig{Enabled: true, MaxRetries: 1, BaseDelayMs: 1})
+	p.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		attempts++
+		var body io.ReadCloser
+		if attempts == 1 {
+			body = &errorAfterBody{r: strings.NewReader(""), err: streamErr}
+		} else {
+			body = io.NopCloser(strings.NewReader("data: {\"type\":\"message_stop\"}\n"))
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: body, Request: r}, nil
+	})}
+
+	events := chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})})
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	var sawRetry, sawDone bool
+	for _, e := range events {
+		switch e.Type {
+		case provider.StreamRetry:
+			sawRetry = true
+		case provider.StreamDone:
+			sawDone = true
+		case provider.StreamError:
+			t.Fatalf("unexpected StreamError: %v", e.Error)
+		}
+	}
+	if !sawRetry || !sawDone {
+		t.Fatalf("sawRetry=%v sawDone=%v, want both true", sawRetry, sawDone)
+	}
+}
+
+func TestAnthropicDoesNotRetryStreamReadErrorAfterVisibleOutput(t *testing.T) {
+	streamErr := errors.New("stream error: stream ID 19; INTERNAL_ERROR; received from peer")
+	attempts := 0
+	p := NewProviderWithModels("fake-key", "https://api.anthropic.com", []*provider.Model{{ID: "mock"}})
+	p.SetRetryConfig(&provider.RetryConfig{Enabled: true, MaxRetries: 1, BaseDelayMs: 1})
+	p.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		attempts++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       &errorAfterBody{r: strings.NewReader("data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n"), err: streamErr},
+			Request:    r,
+		}, nil
+	})}
+
+	events := chatAndCollect(t, p, provider.ChatParams{Messages: []provider.Message{provider.NewUserMessage("hi")}, Abort: make(chan struct{})})
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+	var sawText, sawError bool
+	for _, e := range events {
+		switch e.Type {
+		case provider.StreamTextDelta:
+			sawText = e.TextDelta == "hello"
+		case provider.StreamRetry:
+			t.Fatal("unexpected StreamRetry after visible output")
+		case provider.StreamError:
+			sawError = true
+			if e.Error == nil || !strings.Contains(e.Error.Error(), "INTERNAL_ERROR") {
+				t.Fatalf("error = %v, want INTERNAL_ERROR", e.Error)
+			}
+		}
+	}
+	if !sawText || !sawError {
+		t.Fatalf("sawText=%v sawError=%v, want both true", sawText, sawError)
+	}
 }
 
 func TestAnthropicProviderHTTPProxy(t *testing.T) {

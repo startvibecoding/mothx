@@ -35,11 +35,15 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 		apiKey := settings.ResolveKey(providerName)
 		models := ConvertModelConfigs(providerName, pc.Models)
 		resolved := provider.ResolveAdapterConfig(pc)
+		httpOpts := provider.HTTPClientOptions{
+			ProxyURL:    pc.HTTPProxy,
+			ForceHTTP11: pc.ForceHTTP11,
+		}
 
 		var p provider.Provider
 		switch resolved.API {
 		case "anthropic-messages":
-			ap, err := anthropic.NewProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			ap, err := anthropic.NewProviderWithModelsAndOptions(apiKey, resolved.BaseURL, models, httpOpts)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -52,7 +56,7 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			ConfigureRetry(ap, settings)
 			p = ap
 		case "openai-chat", "openai", "openai-responses", "responses":
-			op, err := openai.NewProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			op, err := openai.NewProviderWithModelsAndOptions(apiKey, resolved.BaseURL, models, httpOpts)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -66,14 +70,14 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			ConfigureRetry(op, settings)
 			p = op
 		case "google-gemini":
-			gp, err := google.NewGeminiProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			gp, err := google.NewGeminiProviderWithModelsAndOptions(apiKey, resolved.BaseURL, models, httpOpts)
 			if err != nil {
 				return nil, nil, err
 			}
 			ConfigureRetry(gp, settings)
 			p = gp
 		case "google-vertex":
-			gp, err := google.NewVertexProviderWithModelsAndProxy(apiKey, resolved.BaseURL, pc.HTTPProxy, models)
+			gp, err := google.NewVertexProviderWithModelsAndOptions(apiKey, resolved.BaseURL, models, httpOpts)
 			if err != nil {
 				return nil, nil, err
 			}

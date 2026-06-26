@@ -18,6 +18,8 @@ const PLATFORM_MAP = {
   'darwin-arm64': 'vibecoding-installer-darwin-arm64',
   'win32-x64': 'vibecoding-installer-win32-x64',
   'win32-arm64': 'vibecoding-installer-win32-arm64',
+  'freebsd-x64': 'vibecoding-installer-freebsd-x64',
+  'freebsd-arm64': 'vibecoding-installer-freebsd-arm64',
 };
 
 function detectPlatform() {
@@ -86,7 +88,7 @@ function findBinary() {
   // (old single-package layout, or development mode)
   const fallbackBinName = (() => {
     const suffix = process.platform === 'win32' ? '.exe' : '';
-    const osMap = { linux: 'linux', darwin: 'darwin', win32: 'windows' };
+    const osMap = { linux: 'linux', darwin: 'darwin', win32: 'windows', freebsd: 'freebsd' };
     const archMap = { x64: 'amd64', arm64: 'arm64', loong64: 'loong64' };
     return `vibecoding-${osMap[process.platform]}-${archMap[process.arch]}${suffix}`;
   })();

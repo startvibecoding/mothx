@@ -39,6 +39,15 @@ Path separators should use backslashes (\). Environment variables use %VAR% synt
 	} else if platform.IsMacOS() {
 		sb.WriteString(`Note: You are running on macOS. Some commands may differ from Linux (e.g., sed, grep flags).
 `)
+	} else if platform.IsBSD() {
+		sb.WriteString(`Note: You are running on a BSD system. Some commands may differ from Linux (e.g., sed, grep flags, pkg instead of apt/yum).
+`)
+	} else if platform.IsSolaris() {
+		sb.WriteString(`Note: You are running on Solaris/illumos. Some commands may differ from Linux (e.g., grep, find, pkg).
+`)
+	} else if platform.IsPlan9() {
+		sb.WriteString(`Note: You are running on Plan 9. Commands and paths differ significantly from Unix; use rc shell syntax.
+`)
 	}
 	sb.WriteString("\n")
 

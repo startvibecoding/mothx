@@ -39,6 +39,143 @@ func TestIsLinux(t *testing.T) {
 	}
 }
 
+func TestIsFreeBSD(t *testing.T) {
+	expected := runtime.GOOS == "freebsd"
+	if IsFreeBSD() != expected {
+		t.Errorf("expected %v, got %v", expected, IsFreeBSD())
+	}
+}
+
+func TestIsOpenBSD(t *testing.T) {
+	expected := runtime.GOOS == "openbsd"
+	if IsOpenBSD() != expected {
+		t.Errorf("expected %v, got %v", expected, IsOpenBSD())
+	}
+}
+
+func TestIsNetBSD(t *testing.T) {
+	expected := runtime.GOOS == "netbsd"
+	if IsNetBSD() != expected {
+		t.Errorf("expected %v, got %v", expected, IsNetBSD())
+	}
+}
+
+func TestIsDragonflyBSD(t *testing.T) {
+	expected := runtime.GOOS == "dragonfly"
+	if IsDragonflyBSD() != expected {
+		t.Errorf("expected %v, got %v", expected, IsDragonflyBSD())
+	}
+}
+
+func TestIsBSD(t *testing.T) {
+	expected := false
+	switch runtime.GOOS {
+	case "freebsd", "openbsd", "netbsd", "dragonfly":
+		expected = true
+	}
+	if IsBSD() != expected {
+		t.Errorf("expected %v, got %v", expected, IsBSD())
+	}
+}
+
+func TestIsSolaris(t *testing.T) {
+	expected := false
+	switch runtime.GOOS {
+	case "solaris", "illumos":
+		expected = true
+	}
+	if IsSolaris() != expected {
+		t.Errorf("expected %v, got %v", expected, IsSolaris())
+	}
+}
+
+func TestIsAIX(t *testing.T) {
+	expected := runtime.GOOS == "aix"
+	if IsAIX() != expected {
+		t.Errorf("expected %v, got %v", expected, IsAIX())
+	}
+}
+
+func TestIsPlan9(t *testing.T) {
+	expected := runtime.GOOS == "plan9"
+	if IsPlan9() != expected {
+		t.Errorf("expected %v, got %v", expected, IsPlan9())
+	}
+}
+
+func TestIsUnix(t *testing.T) {
+	expected := runtime.GOOS != "windows" && runtime.GOOS != "plan9"
+	if IsUnix() != expected {
+		t.Errorf("expected %v, got %v", expected, IsUnix())
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Architecture tests
+// ──────────────────────────────────────────────────────────────────────────────
+
+func TestArch(t *testing.T) {
+	if got := Arch(); got != runtime.GOARCH {
+		t.Errorf("expected %s, got %s", runtime.GOARCH, got)
+	}
+}
+
+func TestIsAMD64(t *testing.T) {
+	expected := runtime.GOARCH == "amd64"
+	if IsAMD64() != expected {
+		t.Errorf("expected %v, got %v", expected, IsAMD64())
+	}
+}
+
+func TestIsARM64(t *testing.T) {
+	expected := runtime.GOARCH == "arm64"
+	if IsARM64() != expected {
+		t.Errorf("expected %v, got %v", expected, IsARM64())
+	}
+}
+
+func TestIsARM(t *testing.T) {
+	expected := runtime.GOARCH == "arm"
+	if IsARM() != expected {
+		t.Errorf("expected %v, got %v", expected, IsARM())
+	}
+}
+
+func TestIs386(t *testing.T) {
+	expected := runtime.GOARCH == "386"
+	if Is386() != expected {
+		t.Errorf("expected %v, got %v", expected, Is386())
+	}
+}
+
+func TestIs64Bit(t *testing.T) {
+	expected := false
+	switch runtime.GOARCH {
+	case "amd64", "arm64", "ppc64", "ppc64le", "mips64", "mips64le",
+		"s390x", "riscv64", "loong64":
+		expected = true
+	}
+	if Is64Bit() != expected {
+		t.Errorf("expected %v, got %v", expected, Is64Bit())
+	}
+}
+
+func TestIsLittleEndian(t *testing.T) {
+	expected := false
+	switch runtime.GOARCH {
+	case "amd64", "arm64", "arm", "386", "riscv64", "loong64",
+		"mips64le", "mipsle", "ppc64le":
+		expected = true
+	}
+	if IsLittleEndian() != expected {
+		t.Errorf("expected %v, got %v", expected, IsLittleEndian())
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Directory tests
+// ──────────────────────────────────────────────────────────────────────────────
+
 func TestHomeDir(t *testing.T) {
 	home := HomeDir()
 	if home == "" {
@@ -90,6 +227,31 @@ func TestConfigDirForOS(t *testing.T) {
 		{
 			name: "linux defaults to home dot directory",
 			goos: "linux",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name: "freebsd defaults to home dot directory",
+			goos: "freebsd",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name: "openbsd defaults to home dot directory",
+			goos: "openbsd",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name: "solaris defaults to home dot directory",
+			goos: "solaris",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name: "aix defaults to home dot directory",
+			goos: "aix",
+			want: filepath.Join(home, ".vibecoding"),
+		},
+		{
+			name: "plan9 defaults to home dot directory",
+			goos: "plan9",
 			want: filepath.Join(home, ".vibecoding"),
 		},
 		{
@@ -152,6 +314,10 @@ func TestSkillsDir(t *testing.T) {
 	}
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Shell tests
+// ──────────────────────────────────────────────────────────────────────────────
+
 func TestDefaultShell(t *testing.T) {
 	shell := DefaultShell()
 	if shell == "" {
@@ -184,6 +350,7 @@ func TestShellArgs(t *testing.T) {
 		{"/bin/zsh", "echo hello", []string{"-c", "echo hello"}},
 		{"powershell.exe", "echo hello", []string{"-NoProfile", "-NonInteractive", "-Command", "echo hello"}},
 		{"cmd.exe", "echo hello", []string{"/c", "echo hello"}},
+		{"/bin/rc", "echo hello", []string{"-c", "echo hello"}},
 	}
 
 	for _, tt := range tests {
@@ -200,6 +367,10 @@ func TestShellArgs(t *testing.T) {
 		}
 	}
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Path tests
+// ──────────────────────────────────────────────────────────────────────────────
 
 func TestPathSeparator(t *testing.T) {
 	sep := PathSeparator()
@@ -265,6 +436,10 @@ func TestExpandHome(t *testing.T) {
 	}
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Platform-specific paths and environment tests
+// ──────────────────────────────────────────────────────────────────────────────
+
 func TestCommonPaths(t *testing.T) {
 	paths := CommonPaths()
 	if len(paths) == 0 {
@@ -284,19 +459,15 @@ func TestCommonPaths(t *testing.T) {
 
 func TestSandboxPaths(t *testing.T) {
 	paths := SandboxPaths()
-	if len(paths) == 0 {
-		t.Error("expected non-empty sandbox paths")
-	}
-
-	// Should have at least one path
-	if len(paths) < 1 {
-		t.Error("expected at least one sandbox path")
+	// On unsupported platforms, empty is fine
+	if runtime.GOOS == "linux" && len(paths) == 0 {
+		t.Error("expected non-empty sandbox paths on linux")
 	}
 }
 
 func TestDeniedPaths(t *testing.T) {
 	paths := DeniedPaths()
-	if len(paths) == 0 {
+	if runtime.GOOS != "windows" && runtime.GOOS != "plan9" && len(paths) == 0 {
 		t.Error("expected non-empty denied paths")
 	}
 }
@@ -307,10 +478,10 @@ func TestDefaultEnvVars(t *testing.T) {
 		t.Error("expected non-empty env vars")
 	}
 
-	// Should have PATH
+	// Should have PATH (or "path" on Plan 9)
 	found := false
 	for _, v := range vars {
-		if v == "PATH" {
+		if v == "PATH" || v == "path" {
 			found = true
 			break
 		}

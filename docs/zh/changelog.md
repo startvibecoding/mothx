@@ -1,6 +1,28 @@
 # 更新日志
 
 
+## v1.1.52
+
+### 💅 优化
+
+- **Provider HTTP/1.1 fallback 配置**
+  - 新增 `providers.<name>.forceHTTP11`，可为单个 provider HTTP client 禁用 HTTP/2。
+  - 当代理或 API 网关偶发将 HTTP/2 SSE 流重置并报出 `stream ID ... INTERNAL_ERROR` 时，可用该配置提升稳定性。
+
+- **早期 provider SSE 读流失败遵守 retry 配置**
+  - OpenAI 兼容、Anthropic 与 Google 流在尚未输出任何可见内容前遇到暂时性读流错误时，会按已配置的 `retry` 规则自动重试。
+  - HTTP/2 `INTERNAL_ERROR` stream reset 现在会被归类为可重试网络错误。
+  - 一旦文本、思考、工具调用或 usage 已输出，读流错误仍会立即失败，以避免重复输出。
+
+- **移除内嵌 rg/fd 二进制，切换为纯 Go SDK**
+  - 将内嵌的 `rg` 二进制替换为 [`go-ripgrep`](https://github.com/startvibecoding/go-ripgrep) 包。`grep` 工具现在以纯 Go 方式在进程内执行 ripgrep 兼容搜索，不再回退到系统 `grep`。
+  - 将内嵌的 `fd` 二进制替换为 [`go-fd`](https://github.com/startvibecoding/go-fd) SDK（`gofd.Find()`）。`find` 工具现在以纯 Go 方式在进程内执行 fd 兼容的文件发现，不再回退到系统 `find`。
+  - 删除整个 `internal/vendored/` 包（embed 文件、二进制提取逻辑、`RgPath`/`FdPath`/`Ensure` 辅助函数）以及全部 12 个平台的 `rg`/`fd` 二进制文件（约 42 MB）。
+  - 移除 `scripts/prepare-vendored.sh`、`scripts/extract-vendored-tool.sh`、`scripts/download-ripgrep.sh`、`scripts/download-fd.sh` 以及 `pkgs/` 目录（缓存的压缩包）。
+  - 移除 Makefile 中的 `prepare-vendored` 和 `test-vendored` 目标；`build`、`build-all`、`test` 不再依赖二进制提取。
+  - `bash` 工具不再将 `~/.vibecoding/bin` 注入 `PATH`，因为已无提取的二进制需要暴露。
+  - `grep` 和 `find` 仍保持按行输出；无效根路径和搜索初始化错误会直接作为工具错误返回。
+
 ## v1.1.51
 
 ### ✨ 新功能
@@ -8,7 +30,7 @@
 - **FreeBSD 编译与打包**
   - 在构建矩阵中新增 FreeBSD `amd64` 和 `arm64`（`make build-freebsd`）、tarball 分发（`make dist-freebsd`），并接入完整的 `make dist` / `make build-all` 流程。
   - 新增 FreeBSD 平台 npm 包（`vibecoding-installer-freebsd-x64`、`vibecoding-installer-freebsd-arm64`）作为可选依赖，并在 npm wrapper 和 `install.sh` 中加入平台识别。
-  - FreeBSD 使用系统 `grep`/`find` fallback（不内嵌 `rg`/`fd`），并回退到 no-op 沙箱，因为 bwrap/seatbelt 仅支持 Linux/macOS。
+  - FreeBSD 使用纯 Go 的 `grep`/`find` 实现，并回退到 no-op 沙箱，因为 bwrap/seatbelt 仅支持 Linux/macOS。
 
 - **新增 Provider: 火山引擎 (Volcengine)**
   - 新增火山引擎 Provider，通过方舟 API 平台接入豆包 Seed 系列模型。

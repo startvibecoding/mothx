@@ -2,15 +2,9 @@
   "name": "vibecoding-installer-freebsd-arm64",
   "version": "1.1.51",
   "description": "VibeCoding native binary for freebsd-arm64",
-  "os": [
-    "freebsd"
-  ],
-  "cpu": [
-    "arm64"
-  ],
-  "files": [
-    "bin/"
-  ],
+  "os": ["freebsd"],
+  "cpu": ["arm64"],
+  "files": ["bin/"],
   "license": "MIT",
   "repository": {
     "type": "git",

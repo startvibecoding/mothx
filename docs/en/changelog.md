@@ -1,6 +1,28 @@
 # Changelog
 
 
+## v1.1.52
+
+### 💅 Improvements
+
+- **Provider HTTP/1.1 fallback option**
+  - Added `providers.<name>.forceHTTP11` to disable HTTP/2 for a provider HTTP client.
+  - This can help with proxies or API gateways that occasionally reset HTTP/2 SSE streams with errors such as `stream ID ... INTERNAL_ERROR`.
+
+- **Retry early provider SSE read failures**
+  - OpenAI-compatible, Anthropic, and Google streams now honor the configured `retry` settings when a transient stream read error occurs before any visible output is emitted.
+  - HTTP/2 `INTERNAL_ERROR` stream resets are now classified as retryable network errors.
+  - Once text, thinking, tool calls, or usage have been emitted, stream read errors still fail immediately to avoid duplicate output.
+
+- **Removed embedded rg/fd binaries — switched to pure-Go SDKs**
+  - Replaced the embedded `rg` binary with the [`go-ripgrep`](https://github.com/startvibecoding/go-ripgrep) packages. The `grep` tool now runs ripgrep-compatible search in-process as pure Go, without system `grep` fallback.
+  - Replaced the embedded `fd` binary with the [`go-fd`](https://github.com/startvibecoding/go-fd) SDK (`gofd.Find()`). The `find` tool now runs fd-compatible file discovery in-process as pure Go, without system `find` fallback.
+  - Deleted the entire `internal/vendored/` package (embed files, binary extraction, `RgPath`/`FdPath`/`Ensure` helpers) and all 12 platform-specific `rg`/`fd` binaries (~42 MB).
+  - Removed `scripts/prepare-vendored.sh`, `scripts/extract-vendored-tool.sh`, `scripts/download-ripgrep.sh`, `scripts/download-fd.sh`, and the `pkgs/` directory (cached tarballs).
+  - Removed `prepare-vendored` and `test-vendored` Makefile targets; `build`, `build-all`, and `test` no longer depend on binary extraction.
+  - The `bash` tool no longer injects `~/.vibecoding/bin` into `PATH`, since there are no extracted binaries to expose.
+  - Output format remains line-oriented for `grep` and `find`; invalid roots and search setup errors are reported directly as tool errors.
+
 ## v1.1.51
 
 ### ✨ Features
@@ -8,7 +30,7 @@
 - **FreeBSD Builds & Packaging**
   - Added FreeBSD `amd64` and `arm64` to the build matrix (`make build-freebsd`), tarball distribution (`make dist-freebsd`), and the full `make dist` / `make build-all` flows.
   - Added FreeBSD platform npm packages (`vibecoding-installer-freebsd-x64`, `vibecoding-installer-freebsd-arm64`) as optional dependencies, with platform detection in the npm wrapper and `install.sh`.
-  - FreeBSD uses the system `grep`/`find` fallback (no embedded `rg`/`fd`) and falls back to the no-op sandbox, since bwrap/seatbelt are Linux/macOS only.
+  - FreeBSD uses the pure-Go `grep`/`find` implementations and falls back to the no-op sandbox, since bwrap/seatbelt are Linux/macOS only.
 
 - **New Provider: Volcengine (火山引擎)**
   - Added Volcengine provider with Doubao Seed models via the Ark API platform.

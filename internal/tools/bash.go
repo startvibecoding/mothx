@@ -15,7 +15,6 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/util"
-	"github.com/startvibecoding/vibecoding/internal/vendored"
 )
 
 // limitedBuffer wraps bytes.Buffer with a max size limit.
@@ -162,30 +161,12 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	workDir := t.registry.GetWorkDir()
 
-	// 构建环境变量，将 ~/.vibecoding/bin 加入 PATH
-	vendoredBin := ""
-	if vendored.HasEmbeddedTools() {
-		rgPath := vendored.RgPath()
-		vendoredBin = filepath.Dir(rgPath)
-	}
 	env := os.Environ()
-	if vendoredBin != "" && vendoredBin != "." {
-		for i, e := range env {
-			// Windows 环境变量不区分大小写，PATH/Path/path 都可以
-			if len(e) >= 5 && strings.EqualFold(e[:5], "PATH=") {
-				env[i] = "PATH=" + vendoredBin + string(os.PathListSeparator) + e[5:]
-				break
-			}
-		}
-	}
 
 	var cmd *exec.Cmd
 	sb := t.registry.GetSandbox()
 	if sb != nil && sb.IsAvailable() {
 		envPath := os.Getenv("PATH")
-		if vendoredBin != "" && vendoredBin != "." {
-			envPath = vendoredBin + string(os.PathListSeparator) + envPath
-		}
 		opts := sandbox.ExecOpts{
 			WorkDir: workDir,
 			Timeout: timeout,

@@ -44,7 +44,8 @@ type ProviderConfig struct {
 	APIKey         string            `json:"apiKey,omitempty"`    // API key or env/shell reference
 	BaseURL        string            `json:"baseUrl,omitempty"`   // API base URL
 	HTTPProxy      string            `json:"httpProxy,omitempty"` // optional per-provider HTTP proxy URL, e.g. http://127.0.0.1:7890
-	Headers        map[string]string `json:"headers,omitempty"`   // optional per-provider HTTP headers
+	ForceHTTP11    bool              `json:"forceHTTP11,omitempty"`
+	Headers        map[string]string `json:"headers,omitempty"` // optional per-provider HTTP headers
 	API            string            `json:"api,omitempty"`
 	ThinkingFormat string            `json:"thinkingFormat,omitempty"` // "", "openai", "anthropic", "deepseek", "xiaomi"
 	CacheControl   *bool             `json:"cacheControl,omitempty"`   // enable Anthropic prompt caching (nil/false=off, true=on; set true for Claude models)

@@ -61,8 +61,6 @@ vibecoding/
 │   │   ├── skill_ref.go         # Skill reference loading
 │   │   └── a2a_dispatch.go      # A2A remote agent dispatch
 │   ├── tui/                     # Terminal UI (BubbleTea)
-│   ├── ua/                      # User-Agent string generation
-│   └── vendored/                # Embedded binaries (rg, fd)
 └── pkg/sdk/                     # Public SDK interface
 ```
 

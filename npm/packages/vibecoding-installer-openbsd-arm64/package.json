@@ -1,8 +1,8 @@
 {
-  "name": "vibecoding-installer-win32-arm64",
+  "name": "vibecoding-installer-openbsd-arm64",
   "version": "1.1.51",
-  "description": "VibeCoding native binary for win32-arm64",
-  "os": ["win32"],
+  "description": "VibeCoding native binary for openbsd-arm64",
+  "os": ["openbsd"],
   "cpu": ["arm64"],
   "files": ["bin/"],
   "license": "MIT",

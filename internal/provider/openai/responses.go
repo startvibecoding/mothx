@@ -11,7 +11,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/ua"
@@ -190,13 +189,8 @@ func (p *Provider) chatResponses(ctx context.Context, params provider.ChatParams
 			resp, err := p.client.Do(req)
 			if err != nil {
 				if attempt < maxRetries && provider.IsRetryable(err, 0) {
-					delay := provider.RetryDelay(attempt, baseDelayMs)
-					ch <- provider.StreamEvent{Type: provider.StreamRetry, RetryAttempt: attempt + 1, RetryMax: maxRetries, Error: fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, err))}
-					select {
-					case <-ctx.Done():
-						ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
+					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
 						return
-					case <-time.After(delay):
 					}
 					continue
 				}
@@ -208,13 +202,8 @@ func (p *Provider) chatResponses(ctx context.Context, params provider.ChatParams
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
-					delay := provider.RetryDelay(attempt, baseDelayMs)
-					ch <- provider.StreamEvent{Type: provider.StreamRetry, RetryAttempt: attempt + 1, RetryMax: maxRetries, Error: fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))))}
-					select {
-					case <-ctx.Done():
-						ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
+					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))) {
 						return
-					case <-time.After(delay):
 					}
 					continue
 				}
@@ -222,8 +211,18 @@ func (p *Provider) chatResponses(ctx context.Context, params provider.ChatParams
 				return
 			}
 
-			p.parseResponsesSSE(ctx, resp.Body, ch, params)
+			visibleOutput, err := p.parseResponsesSSE(ctx, resp.Body, ch, params)
 			resp.Body.Close()
+			if err == nil {
+				return
+			}
+			if attempt < maxRetries && !visibleOutput && provider.IsRetryable(err, 0) {
+				if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
+					return
+				}
+				continue
+			}
+			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("stream read error: %w", err), StopReason: "error"}
 			return
 		}
 
@@ -311,7 +310,7 @@ func (p *Provider) convertResponsesTools(tools []provider.ToolDefinition) []resp
 	return result
 }
 
-func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) {
+func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) (bool, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
@@ -321,6 +320,7 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 		toolCallsByKey  = make(map[string]*provider.ToolCallBlock)
 		toolCallOrder   []string
 		argumentBuffers = make(map[string]*strings.Builder)
+		visibleOutput   bool
 	)
 
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
@@ -329,10 +329,10 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 		select {
 		case <-ctx.Done():
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
-			return
+			return true, nil
 		case <-params.Abort:
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("aborted"), StopReason: "aborted"}
-			return
+			return true, nil
 		default:
 		}
 
@@ -353,13 +353,16 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 		switch event.Type {
 		case "response.output_text.delta":
 			if event.Delta != "" {
+				visibleOutput = true
 				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: event.Delta}
 			}
 		case "response.reasoning_text.delta":
 			if !p.disableReasoning && event.Delta != "" {
+				visibleOutput = true
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: event.Delta}
 			}
 		case "response.function_call_arguments.delta":
+			visibleOutput = true
 			key := responsesToolKey(event.ItemID, event.OutputIndex)
 			if _, ok := argumentBuffers[key]; !ok {
 				argumentBuffers[key] = &strings.Builder{}
@@ -391,36 +394,38 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 				stopReason = responseStopReason(event.Response.Status)
 				if event.Response.Error != nil {
 					ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("responses error: %s", event.Response.Error.Message), StopReason: "error"}
-					return
+					return true, nil
 				}
 			}
 		case "response.failed", "error":
 			if event.Error != nil {
 				ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("responses error: %s", event.Error.Message), StopReason: "error"}
-				return
+				return true, nil
 			}
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("responses stream failed"), StopReason: "error"}
-			return
+			return true, nil
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("stream read error: %w", err), StopReason: "error"}
-		return
+		return visibleOutput, err
 	}
 
 	for _, key := range toolCallOrder {
 		if tc := toolCallsByKey[key]; tc != nil {
+			visibleOutput = true
 			ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: tc}
 		}
 	}
 	if usage != nil {
+		visibleOutput = true
 		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: usage}
 	}
 	if stopReason == "" && len(toolCallOrder) > 0 {
 		stopReason = "tool_calls"
 	}
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: stopReason}
+	return visibleOutput, nil
 }
 
 func responsesToolKey(itemID string, outputIndex int) string {

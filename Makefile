@@ -1,10 +1,12 @@
-.PHONY: help build build-all install test test-vendored lint fmt clean run
-.PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows build-freebsd
-.PHONY: dist dist-linux dist-darwin dist-windows dist-freebsd dist-deb dist-tarball dist-zip
+.PHONY: help build build-all install test lint fmt clean run
+.PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows
+.PHONY: build-freebsd build-openbsd build-netbsd
+.PHONY: dist dist-linux dist-darwin dist-windows
+.PHONY: dist-freebsd dist-openbsd dist-netbsd
 .PHONY: dist-linux-loong64
+.PHONY: dist-deb dist-tarball dist-zip
 .PHONY: clean-all checksums
 .PHONY: npm-version npm-binaries npm-packages npm-pack npm-publish-all npm-publish-pre npm-publish
-.PHONY: prepare-vendored
 
 # Variables
 BINARY_NAME=vibecoding
@@ -26,11 +28,13 @@ else
 UPX_CMD = @true
 endif
 
-# Platforms and architectures (for reference)
-# linux: amd64 arm64 loong64
-# darwin: amd64 arm64
-# windows: amd64 arm64
-# freebsd: amd64 arm64
+# Platforms and architectures (verified to compile; 32-bit blocked by larksuite SDK)
+# linux:    amd64 arm64 loong64 ppc64le s390x riscv64
+# darwin:   amd64 arm64
+# windows:  amd64 arm64
+# freebsd:  amd64 arm64
+# openbsd:  amd64 arm64
+# netbsd:   amd64
 
 # Default target
 help:
@@ -38,14 +42,15 @@ help:
 	@echo ""
 	@echo "Build targets:"
 	@echo "  build            Build for current platform"
-	@echo "  build-linux      Build for Linux (amd64, arm64, loong64)"
+	@echo "  build-linux      Build for Linux (amd64, arm64, loong64, ppc64le, s390x, riscv64)"
 	@echo "  build-linux-loong64 Build for Linux LoongArch64"
-	@echo "  build-linux-musl Build for Linux musl (amd64)"
+	@echo "  build-linux-musl Build for Linux musl (amd64, arm64)"
 	@echo "  build-darwin     Build for macOS (amd64, arm64)"
 	@echo "  build-windows    Build for Windows (amd64, arm64)"
 	@echo "  build-freebsd    Build for FreeBSD (amd64, arm64)"
+	@echo "  build-openbsd    Build for OpenBSD (amd64, arm64)"
+	@echo "  build-netbsd     Build for NetBSD (amd64)"
 	@echo "  build-all        Build for all platforms and architectures"
-	@echo "  prepare-vendored Extract rg/fd binaries for go:embed"
 	@echo ""
 	@echo "Distribution targets:"
 	@echo "  dist           Build all distribution packages"
@@ -53,6 +58,8 @@ help:
 	@echo "  dist-darwin    Build macOS packages (tar.gz)"
 	@echo "  dist-windows   Build Windows packages (zip)"
 	@echo "  dist-freebsd   Build FreeBSD packages (tar.gz)"
+	@echo "  dist-openbsd   Build OpenBSD packages (tar.gz)"
+	@echo "  dist-netbsd    Build NetBSD packages (tar.gz)"
 	@echo "  dist-linux-loong64 Build Linux LoongArch64 packages"
 	@echo "  dist-deb       Build Debian packages only"
 	@echo "  dist-tarball   Build tarball packages only"
@@ -78,44 +85,44 @@ help:
 	@echo "  run            Build and run"
 	@echo "  help           Show this help"
 
-# Prepare vendored binaries for go:embed
-prepare-vendored:
-	./scripts/prepare-vendored.sh
-
-# Build for current platform (requires prepare-vendored first)
-build: prepare-vendored
+# Build for current platform
+build:
 	go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/vibecoding
 
 # Platform builds
-build-linux: prepare-vendored
+build-linux:
 	@echo "Building for Linux..."
 	@mkdir -p bin
 	GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 ./cmd/vibecoding
 	GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-arm64 ./cmd/vibecoding
 	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/vibecoding
+	GOOS=linux GOARCH=ppc64le go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-ppc64le ./cmd/vibecoding
+	GOOS=linux GOARCH=s390x go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-s390x ./cmd/vibecoding
+	GOOS=linux GOARCH=riscv64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-riscv64 ./cmd/vibecoding
 	@echo "Compressing Linux amd64 binary with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-linux-amd64
 
-build-linux-loong64: prepare-vendored
+build-linux-loong64:
 	@echo "Building for Linux LoongArch64..."
 	@mkdir -p bin
 	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/vibecoding
 
-# musl: static build with CGO_ENABLED=0, arm64 not commonly needed
-build-linux-musl: prepare-vendored
+# musl: static build with CGO_ENABLED=0
+build-linux-musl:
 	@echo "Building for Linux musl..."
 	@mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-musl-amd64 ./cmd/vibecoding
-	@echo "Compressing Linux musl binary with UPX..."
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-musl-arm64 ./cmd/vibecoding
+	@echo "Compressing Linux musl binaries with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-linux-musl-amd64
 
-build-darwin: prepare-vendored
+build-darwin:
 	@echo "Building for macOS..."
 	@mkdir -p bin
 	GOOS=darwin GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-amd64 ./cmd/vibecoding
 	GOOS=darwin GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-arm64 ./cmd/vibecoding
 
-build-windows: prepare-vendored
+build-windows:
 	@echo "Building for Windows..."
 	@mkdir -p bin
 	GOOS=windows GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe ./cmd/vibecoding
@@ -123,14 +130,25 @@ build-windows: prepare-vendored
 	@echo "Compressing Windows amd64 binary with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-windows-amd64.exe
 
-build-freebsd: prepare-vendored
+build-freebsd:
 	@echo "Building for FreeBSD..."
 	@mkdir -p bin
 	GOOS=freebsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-amd64 ./cmd/vibecoding
 	GOOS=freebsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-arm64 ./cmd/vibecoding
 
+build-openbsd:
+	@echo "Building for OpenBSD..."
+	@mkdir -p bin
+	GOOS=openbsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-openbsd-amd64 ./cmd/vibecoding
+	GOOS=openbsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-openbsd-arm64 ./cmd/vibecoding
+
+build-netbsd:
+	@echo "Building for NetBSD..."
+	@mkdir -p bin
+	GOOS=netbsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-netbsd-amd64 ./cmd/vibecoding
+
 # Build all platforms
-build-all: prepare-vendored build-linux build-linux-musl build-darwin build-windows build-freebsd
+build-all: build-linux build-linux-musl build-darwin build-windows build-freebsd build-openbsd build-netbsd
 	@echo ""
 	@echo "Build complete! Binaries in bin/"
 	@ls -lh bin/
@@ -140,21 +158,8 @@ install:
 	go install $(GOBUILD_FLAGS) $(LDFLAGS) ./cmd/vibecoding
 
 # Test
-test: prepare-vendored test-vendored
+test:
 	go test -v -race ./...
-
-test-vendored:
-	@case "$$(go env GOOS)-$$(go env GOARCH)" in \
-		linux-amd64|linux-arm64|darwin-amd64|darwin-arm64|windows-amd64|windows-arm64) ;; \
-		*) echo "Vendored rg/fd unsupported for $$(go env GOOS)-$$(go env GOARCH); system grep/find fallback will be used."; exit 0 ;; \
-	esac; \
-	case "$$(go env GOOS)" in windows) ext=".exe" ;; *) ext="" ;; esac; \
-	dir="internal/vendored/bin/$$(go env GOOS)-$$(go env GOARCH)"; \
-	if [ ! -f "$$dir/rg$$ext" ] || [ ! -f "$$dir/fd$$ext" ]; then \
-		echo "Missing vendored rg/fd for $$(go env GOOS)-$$(go env GOARCH)."; \
-		echo "Run: make prepare-vendored"; \
-		exit 1; \
-	fi
 
 # Lint
 lint:
@@ -178,11 +183,11 @@ clean-all: clean
 run: build
 	./bin/$(BINARY_NAME)
 
-# Distribution: tar.gz for Linux and macOS
-dist-tarball: build-linux build-linux-musl build-darwin build-freebsd
+# Distribution: tar.gz for Unix-like platforms
+dist-tarball: build-linux build-linux-musl build-darwin build-freebsd build-openbsd build-netbsd
 	@echo ""
 	@echo "Creating tarball packages..."
-	@for arch in amd64 arm64 loong64; do \
+	@for arch in amd64 arm64 loong64 ppc64le s390x riscv64; do \
 		echo "  Packaging $(BINARY_NAME)-linux-$${arch}.tar.gz..."; \
 		./scripts/build-tarball.sh linux $${arch} $(VERSION); \
 	done
@@ -192,10 +197,18 @@ dist-tarball: build-linux build-linux-musl build-darwin build-freebsd
 	done
 	@echo "  Packaging $(BINARY_NAME)-linux-musl-amd64.tar.gz..."; \
 	./scripts/build-tarball.sh linux-musl amd64 $(VERSION)
+	@echo "  Packaging $(BINARY_NAME)-linux-musl-arm64.tar.gz..."; \
+	./scripts/build-tarball.sh linux-musl arm64 $(VERSION)
 	@for arch in amd64 arm64; do \
 		echo "  Packaging $(BINARY_NAME)-freebsd-$${arch}.tar.gz..."; \
 		./scripts/build-tarball.sh freebsd $${arch} $(VERSION); \
 	done
+	@for arch in amd64 arm64; do \
+		echo "  Packaging $(BINARY_NAME)-openbsd-$${arch}.tar.gz..."; \
+		./scripts/build-tarball.sh openbsd $${arch} $(VERSION); \
+	done
+	@echo "  Packaging $(BINARY_NAME)-netbsd-amd64.tar.gz..."; \
+	./scripts/build-tarball.sh netbsd amd64 $(VERSION)
 
 # Distribution: deb for Linux
 dist-deb: build-linux build-linux-musl
@@ -207,6 +220,8 @@ dist-deb: build-linux build-linux-musl
 	done
 	@echo "  Packaging $(BINARY_NAME)_$(VERSION)_amd64-musl.deb..."; \
 	./scripts/build-deb.sh amd64-musl $(VERSION)
+	@echo "  Packaging $(BINARY_NAME)_$(VERSION)_arm64-musl.deb..."; \
+	./scripts/build-deb.sh arm64-musl $(VERSION)
 
 # Distribution: zip for Windows
 dist-zip: build-windows
@@ -243,6 +258,21 @@ dist-freebsd: build-freebsd
 	done
 	@echo "FreeBSD packages complete!"
 
+dist-openbsd: build-openbsd
+	@echo ""
+	@echo "Creating OpenBSD packages..."
+	@for arch in amd64 arm64; do \
+		echo "  Packaging $(BINARY_NAME)-openbsd-$${arch}.tar.gz..."; \
+		./scripts/build-tarball.sh openbsd $${arch} $(VERSION); \
+	done
+	@echo "OpenBSD packages complete!"
+
+dist-netbsd: build-netbsd
+	@echo ""
+	@echo "Creating NetBSD packages..."
+	./scripts/build-tarball.sh netbsd amd64 $(VERSION)
+	@echo "NetBSD packages complete!"
+
 # Generate checksums
 checksums:
 	@echo "Generating checksums..."
@@ -255,7 +285,7 @@ checksums:
 	@cat $(CHECKSUM_FILE)
 
 # Build all distribution packages
-dist: dist-linux dist-darwin dist-windows dist-freebsd checksums
+dist: dist-linux dist-darwin dist-windows dist-freebsd dist-openbsd dist-netbsd checksums
 	@echo ""
 	@echo "=========================================="
 	@echo "All distribution packages built!"

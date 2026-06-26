@@ -46,3 +46,23 @@ func TestNewHTTPClientRejectsInvalidProxy(t *testing.T) {
 		}
 	}
 }
+
+func TestNewHTTPClientForceHTTP11(t *testing.T) {
+	client, err := NewHTTPClientWithOptions(time.Second, HTTPClientOptions{ForceHTTP11: true})
+	if err != nil {
+		t.Fatalf("NewHTTPClientWithOptions: %v", err)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.ForceAttemptHTTP2 {
+		t.Fatal("ForceAttemptHTTP2 = true, want false")
+	}
+	if transport.TLSNextProto == nil {
+		t.Fatal("TLSNextProto = nil, want empty map to disable HTTP/2")
+	}
+	if len(transport.TLSNextProto) != 0 {
+		t.Fatalf("TLSNextProto has %d entries, want 0", len(transport.TLSNextProto))
+	}
+}

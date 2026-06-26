@@ -211,6 +211,7 @@ TUI 专用状态行命令配置。启用后，VibeCoding 会在交互式 TUI 中
 | `apiKey` | string | — | `""` | API 密钥 (见[认证配置](#认证配置)) |
 | `api` | string | — | 自动检测 | API 协议: `"openai-chat"`、`"openai-responses"`、`"anthropic-messages"`、`"google-gemini"` 或 `"google-vertex"` |
 | `httpProxy` | string | — | `""` | 可选的 provider 级 HTTP 代理 URL，例如 `"http://127.0.0.1:7890"` |
+| `forceHTTP11` | bool | — | `false` | 为该 provider 强制使用 HTTP/1.1，即禁用 provider HTTP client 的 HTTP/2 |
 | `headers` | object | — | `{}` | 可选自定义 HTTP 请求头，会附加到每次 provider 请求；值支持与 `apiKey` 相同的 `${ENV}` 和 `!cmd` 解析 |
 | `thinkingFormat` | string | — | 自动检测 | 思考参数格式 (见下文) |
 | `cacheControl` | bool | — | `false` | 启用 Anthropic 提示缓存；使用 Claude 模型时设为 `true` |
@@ -773,7 +774,7 @@ VibeCoding 会把所有会话元数据和条目统一存入单个 `sessions.db` 
 
 ### retry
 
-API 调用重试配置，使用指数退避策略。重试仅适用于初始 HTTP 连接阶段（一旦 SSE 流开始，不会重试）。
+API 调用重试配置，使用指数退避策略。重试适用于暂时性的初始 HTTP 失败，以及尚未输出任何可见内容时发生的早期 SSE 读流失败。一旦文本、思考、工具调用或 usage 已经流式输出给客户端，读流失败将不再重试，以避免重复输出。
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
@@ -799,13 +800,13 @@ API 调用重试配置，使用指数退避策略。重试仅适用于初始 HTT
 |------|------|
 | 速率限制 | HTTP 429 |
 | 服务器错误 | HTTP 502, 503, 504 |
-| 网络错误 | 连接被拒绝、连接重置、DNS 错误 |
+| 网络错误 | 连接被拒绝、连接重置、DNS 错误、HTTP/2 `INTERNAL_ERROR` stream reset |
 | 超时 | HTTP 客户端超时、TCP 超时 |
 
 以下情况**不会**重试：
 - 上下文取消（用户按了 Ctrl+C）
 - HTTP 4xx 客户端错误（除 429 外）：400、401、403、404
-- 连接成功后流中断的错误
+- 已经输出可见内容之后发生的读流失败
 
 #### 退避策略
 
@@ -1153,7 +1154,7 @@ export DEEPSEEK_API_KEY=sk-...
 
 ### 自定义 API 端点 / HTTP 代理 / Headers
 
-`baseUrl` 指向 API 端点或 API 网关；`httpProxy` 只配置该 provider 的网络代理。`httpProxy` 为空时，会保留 Go 默认的 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量行为。
+`baseUrl` 指向 API 端点或 API 网关；`httpProxy` 只配置该 provider 的网络代理。`httpProxy` 为空时，会保留 Go 默认的 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量行为。当代理或网关的 HTTP/2 流式传输不稳定时，可以把 `forceHTTP11` 设为 `true`。
 
 使用 `headers` 可以为某个 provider 的每次请求附加自定义 HTTP header。Header 值支持与 `apiKey` 相同的解析规则，包括 `${ENV_VAR}` 和需显式开启的 `!cmd` shell 命令。自定义 header 会在 VibeCoding 默认 provider header 之后应用，因此必要时也可以覆盖 `Authorization`、`x-api-key` 或网关要求的特定 header。
 
@@ -1165,6 +1166,7 @@ export DEEPSEEK_API_KEY=sk-...
       "api": "openai-chat",
       "apiKey": "${MY_PROXY_API_KEY}",
       "httpProxy": "http://127.0.0.1:7890",
+      "forceHTTP11": true,
       "headers": {
         "X-Gateway-Token": "${MY_GATEWAY_TOKEN}",
         "X-Request-Source": "vibecoding"

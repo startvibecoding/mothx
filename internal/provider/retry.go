@@ -70,7 +70,8 @@ func IsRetryable(err error, statusCode int) bool {
 	if strings.Contains(errStr, "connection reset") ||
 		strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "broken pipe") ||
-		strings.Contains(errStr, "EOF") {
+		strings.Contains(errStr, "EOF") ||
+		strings.Contains(errStr, "INTERNAL_ERROR") {
 		return true
 	}
 

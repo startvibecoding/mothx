@@ -61,8 +61,6 @@ vibecoding/
 │   │   ├── skill_ref.go         # 技能引用加载
 │   │   └── a2a_dispatch.go      # A2A 远程 agent 调度
 │   ├── tui/                     # 终端 UI (BubbleTea)
-│   ├── ua/                      # User-Agent 字符串生成
-│   └── vendored/                # 内嵌二进制 (rg, fd)
 └── pkg/sdk/                     # 公共 SDK 接口
 ```
 

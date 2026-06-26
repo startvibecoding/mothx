@@ -1,22 +1,22 @@
 package tools
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"os/exec"
+	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/vendored"
+	"github.com/startvibecoding/go-ripgrep/pkg/globset"
+	"github.com/startvibecoding/go-ripgrep/pkg/ignore"
+	"github.com/startvibecoding/go-ripgrep/pkg/matcher"
+	"github.com/startvibecoding/go-ripgrep/pkg/searcher"
 )
 
 const maxGrepOutputBytes = 200000
 
-// GrepTool searches file contents using ripgrep (rg).
+// GrepTool searches file contents using the go-ripgrep SDK.
 type GrepTool struct {
 	registry *Registry
 }
@@ -79,6 +79,9 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 			return ToolResult{}, fmt.Errorf("invalid path: %w", err)
 		}
 	}
+	if _, err := os.Stat(searchPath); err != nil {
+		return ToolResult{}, fmt.Errorf("invalid path: %w", err)
+	}
 
 	include, _ := params["include"].(string)
 	maxResults := 100
@@ -86,173 +89,173 @@ func (t *GrepTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		maxResults = int(v)
 	}
 
-	// 获取 rg 路径
-	rgPath, err := resolveRgPath()
+	m, err := matcher.BuildMatcher(pattern, false, false, false)
 	if err != nil {
-		if errors.Is(err, vendored.ErrUnsupportedPlatform) {
-			return executeNativeGrep(ctx, pattern, searchPath, include, maxResults)
-		}
-		return ToolResult{}, err
+		return ToolResult{}, fmt.Errorf("grep search failed: %w", err)
 	}
 
-	// 构建 rg 命令参数
-	args := []string{
-		"--no-heading",
-		"--line-number",
-		"--color=never",
-		fmt.Sprintf("--max-count=%d", maxResults),
-	}
-
+	var includeGlob *globset.GlobSet
 	if include != "" {
-		args = append(args, "-g", include)
+		var err error
+		includeGlob, err = globset.NewGlobSet([]string{include})
+		if err != nil {
+			return ToolResult{}, fmt.Errorf("grep search failed: %w", err)
+		}
 	}
 
-	args = append(args, "--", pattern, searchPath)
+	searchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	// 执行 rg
-	cmd := exec.CommandContext(ctx, rgPath, args...)
-	output, stderr, err := runLimitedLineCommand(cmd, maxResults)
+	s := searcher.NewSearcher(m, 0, 0, 0, false)
+	s.SetContext(searchCtx)
+
+	files, err := collectGrepFiles(searchCtx, searchPath, includeGlob)
 	if err != nil {
-		// rg 返回 1 表示没有匹配，这不是错误
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return NewTextToolResult("(no matches found)"), nil
-		}
-		// 其他错误
-		errMsg := strings.TrimSpace(stderr)
-		if errMsg != "" {
-			return ToolResult{}, fmt.Errorf("rg 执行失败: %s", errMsg)
-		}
-		if isExecFormatError(err) {
-			return executeNativeGrep(ctx, pattern, searchPath, include, maxResults)
-		}
-		return ToolResult{}, fmt.Errorf("rg 执行失败: %w", err)
-	}
-
-	if output == "" {
-		return NewTextToolResult("(no matches found)"), nil
-	}
-
-	// rg 默认输出格式: file:line:content
-	// 与原实现格式一致: file:line: content
-	return NewTextToolResult(output), nil
-}
-
-func resolveRgPath() (string, error) {
-	if !vendored.HasEmbeddedTools() {
-		return "", fmt.Errorf("%w", vendored.ErrUnsupportedPlatform)
-	}
-
-	rgPath := vendored.RgPath()
-	if rgPath == "" {
-		return "", fmt.Errorf("无法确定 rg 路径")
-	}
-
-	// 缺失或不可执行时，尝试从 go:embed 释放到 ~/.vibecoding/bin/
-	if err := vendored.Ensure(); err != nil {
-		return "", fmt.Errorf("准备 rg 失败: %w", err)
-	}
-
-	return rgPath, nil
-}
-
-func executeNativeGrep(ctx context.Context, pattern, searchPath, include string, maxResults int) (ToolResult, error) {
-	grepPath, err := exec.LookPath("grep")
-	if err != nil {
-		return ToolResult{}, fmt.Errorf("rg is unsupported on this platform and system grep was not found: %w", err)
-	}
-
-	args := []string{"-R", "-n", "-E", "-I", "--color=never"}
-	if include != "" {
-		args = append(args, "--include="+include)
-	}
-	args = append(args, "--", pattern, searchPath)
-
-	cmd := exec.CommandContext(ctx, grepPath, args...)
-	output, stderr, err := runLimitedLineCommand(cmd, maxResults)
-
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return NewTextToolResult("(no matches found)"), nil
-		}
-		errMsg := strings.TrimSpace(stderr)
-		if errMsg != "" {
-			return ToolResult{}, fmt.Errorf("grep execution failed: %s", errMsg)
-		}
-		return ToolResult{}, fmt.Errorf("grep execution failed: %w", err)
-	}
-
-	if output == "" {
-		return NewTextToolResult("(no matches found)"), nil
-	}
-	return NewTextToolResult(output), nil
-}
-
-func isExecFormatError(err error) bool {
-	return strings.Contains(strings.ToLower(err.Error()), "exec format error")
-}
-
-func runLimitedLineCommand(cmd *exec.Cmd, maxResults int) (string, string, error) {
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", "", err
-	}
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	if err := cmd.Start(); err != nil {
-		return "", stderr.String(), err
+		return ToolResult{}, fmt.Errorf("grep search failed: %w", err)
 	}
 
 	var lines []string
-	reader := bufio.NewReader(stdout)
 	bytesUsed := 0
-	limited := false
+	count := 0
+	truncated := false
 
-	for {
-		line, readErr := reader.ReadString('\n')
-		if len(line) > 0 {
-			if maxResults <= 0 || len(lines) < maxResults {
-				if bytesUsed+len(line) > maxGrepOutputBytes {
-					remaining := maxGrepOutputBytes - bytesUsed
-					if remaining > 0 {
-						lines = append(lines, line[:remaining])
-						bytesUsed += remaining
-					}
-					limited = true
-				} else {
-					lines = append(lines, line)
-					bytesUsed += len(line)
+	for _, file := range files {
+		select {
+		case <-searchCtx.Done():
+			return ToolResult{}, ctx.Err()
+		default:
+		}
+
+		results, err := s.SearchFile(file.Path)
+		if err != nil {
+			continue
+		}
+		for _, res := range results {
+			if res == nil {
+				continue
+			}
+			for _, m := range res.Matches {
+				if m.IsContext {
+					continue
 				}
-			} else {
-				limited = true
+				if maxResults > 0 && count >= maxResults {
+					truncated = true
+					break
+				}
+				line := fmt.Sprintf("%s:%d:%s", res.Path, m.LineNum, strings.TrimRight(m.Line, "\r\n"))
+				if bytesUsed+len(line) > maxGrepOutputBytes {
+					truncated = true
+					break
+				}
+				lines = append(lines, line)
+				bytesUsed += len(line)
+				count++
+			}
+			if truncated {
+				break
 			}
 		}
-
-		if limited {
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
-			break
-		}
-		if readErr != nil {
-			if !errors.Is(readErr, io.EOF) {
-				_ = cmd.Wait()
-				return "", stderr.String(), readErr
-			}
+		if truncated {
+			cancel()
 			break
 		}
 	}
 
-	err = cmd.Wait()
-	output := strings.TrimSpace(strings.Join(lines, ""))
-	if limited {
-		if maxResults > 0 && len(lines) >= maxResults {
+	if len(lines) == 0 {
+		return NewTextToolResult("(no matches found)"), nil
+	}
+
+	output := strings.Join(lines, "\n")
+	if truncated {
+		if maxResults > 0 && count >= maxResults {
 			output += fmt.Sprintf("\n... (truncated, showing first %d results)", maxResults)
 		} else {
 			output += fmt.Sprintf("\n... (truncated at %d bytes)", maxGrepOutputBytes)
 		}
-		return output, stderr.String(), nil
 	}
-	return output, stderr.String(), err
+
+	return NewTextToolResult(output), nil
+}
+
+type grepFile struct {
+	Path string
+	Rel  string
+}
+
+func collectGrepFiles(ctx context.Context, root string, includeGlob *globset.GlobSet) ([]grepFile, error) {
+	info, err := os.Lstat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		if shouldIncludeGrepPath(root, filepath.Base(root), includeGlob) {
+			return []grepFile{{Path: root, Rel: filepath.Base(root)}}, nil
+		}
+		return nil, nil
+	}
+
+	stack := ignore.NewIgnoreStack(false, false, 0)
+	stack.LoadBaseRules(root)
+
+	var files []grepFile
+	err = walkGrepDir(ctx, root, root, stack, includeGlob, &files)
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+func walkGrepDir(ctx context.Context, root, dir string, stack *ignore.IgnoreStack, includeGlob *globset.GlobSet, files *[]grepFile) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	if err := stack.Push(dir); err != nil {
+		return err
+	}
+	defer stack.Pop()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		path := filepath.Join(dir, entry.Name())
+		isDir := entry.IsDir()
+		if stack.IsIgnored(path, isDir) {
+			continue
+		}
+		if isDir {
+			if err := walkGrepDir(ctx, root, path, stack.Clone(), includeGlob, files); err != nil {
+				return err
+			}
+			continue
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			rel = filepath.Base(path)
+		}
+		if shouldIncludeGrepPath(path, rel, includeGlob) {
+			*files = append(*files, grepFile{Path: path, Rel: rel})
+		}
+	}
+	return nil
+}
+
+func shouldIncludeGrepPath(path, rel string, includeGlob *globset.GlobSet) bool {
+	if ignore.ShouldIgnoreByType(filepath.Base(path), nil, nil) {
+		return false
+	}
+	if includeGlob == nil {
+		return true
+	}
+	return !includeGlob.MatchGlobFilter(filepath.ToSlash(rel))
 }

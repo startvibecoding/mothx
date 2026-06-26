@@ -9,6 +9,10 @@ import (
 	"strings"
 )
 
+// ──────────────────────────────────────────────────────────────────────────────
+// OS detection
+// ──────────────────────────────────────────────────────────────────────────────
+
 // OS returns the current operating system: "windows", "darwin", "linux", etc.
 func OS() string {
 	return runtime.GOOS
@@ -28,6 +32,122 @@ func IsMacOS() bool {
 func IsLinux() bool {
 	return runtime.GOOS == "linux"
 }
+
+// IsFreeBSD returns true if running on FreeBSD.
+func IsFreeBSD() bool {
+	return runtime.GOOS == "freebsd"
+}
+
+// IsOpenBSD returns true if running on OpenBSD.
+func IsOpenBSD() bool {
+	return runtime.GOOS == "openbsd"
+}
+
+// IsNetBSD returns true if running on NetBSD.
+func IsNetBSD() bool {
+	return runtime.GOOS == "netbsd"
+}
+
+// IsDragonflyBSD returns true if running on DragonFly BSD.
+func IsDragonflyBSD() bool {
+	return runtime.GOOS == "dragonfly"
+}
+
+// IsBSD returns true if running on any BSD variant (FreeBSD, OpenBSD, NetBSD, DragonFly BSD).
+func IsBSD() bool {
+	switch runtime.GOOS {
+	case "freebsd", "openbsd", "netbsd", "dragonfly":
+		return true
+	default:
+		return false
+	}
+}
+
+// IsSolaris returns true if running on Solaris or illumos.
+func IsSolaris() bool {
+	switch runtime.GOOS {
+	case "solaris", "illumos":
+		return true
+	default:
+		return false
+	}
+}
+
+// IsAIX returns true if running on AIX.
+func IsAIX() bool {
+	return runtime.GOOS == "aix"
+}
+
+// IsPlan9 returns true if running on Plan 9.
+func IsPlan9() bool {
+	return runtime.GOOS == "plan9"
+}
+
+// IsUnix returns true if running on a Unix-like OS (Linux, macOS, BSD, Solaris, illumos, AIX).
+func IsUnix() bool {
+	switch runtime.GOOS {
+	case "windows", "plan9":
+		return false
+	default:
+		return true
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Architecture detection
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Arch returns the current architecture: "amd64", "arm64", "386", etc.
+func Arch() string {
+	return runtime.GOARCH
+}
+
+// IsAMD64 returns true if running on amd64 (x86-64).
+func IsAMD64() bool {
+	return runtime.GOARCH == "amd64"
+}
+
+// IsARM64 returns true if running on arm64 (AArch64).
+func IsARM64() bool {
+	return runtime.GOARCH == "arm64"
+}
+
+// IsARM returns true if running on 32-bit ARM.
+func IsARM() bool {
+	return runtime.GOARCH == "arm"
+}
+
+// Is386 returns true if running on 32-bit x86.
+func Is386() bool {
+	return runtime.GOARCH == "386"
+}
+
+// Is64Bit returns true if the architecture is 64-bit.
+func Is64Bit() bool {
+	switch runtime.GOARCH {
+	case "amd64", "arm64", "ppc64", "ppc64le", "mips64", "mips64le",
+		"s390x", "riscv64", "loong64":
+		return true
+	default:
+		return false
+	}
+}
+
+// IsLittleEndian returns true if the architecture is little-endian.
+// Returns true for most modern architectures; false for s390x, ppc64 (BE), mips64 (BE).
+func IsLittleEndian() bool {
+	switch runtime.GOARCH {
+	case "amd64", "arm64", "arm", "386", "riscv64", "loong64",
+		"mips64le", "mipsle", "ppc64le":
+		return true
+	default:
+		return false
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Directory helpers
+// ──────────────────────────────────────────────────────────────────────────────
 
 // HomeDir returns the user's home directory.
 func HomeDir() string {
@@ -57,7 +177,7 @@ func configDirForOS(goos, home, appData string) string {
 			return filepath.Join(appData, "vibecoding")
 		}
 		return filepath.Join(home, "AppData", "Roaming", "vibecoding")
-	default: // linux and others
+	default: // unix-like and others
 		return filepath.Join(home, ".vibecoding")
 	}
 }
@@ -78,7 +198,7 @@ func CacheDir() string {
 		return filepath.Join(HomeDir(), "AppData", "Local", "vibecoding", "cache")
 	case "darwin":
 		return filepath.Join(HomeDir(), "Library", "Caches", "vibecoding")
-	default: // linux and others
+	default: // linux, BSD, Solaris, illumos, AIX, and others
 		cacheHome := os.Getenv("XDG_CACHE_HOME")
 		if cacheHome != "" {
 			return filepath.Join(cacheHome, "vibecoding")
@@ -97,6 +217,10 @@ func SkillsDir() string {
 	return filepath.Join(ConfigDir(), "skills")
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Shell helpers
+// ──────────────────────────────────────────────────────────────────────────────
+
 // DefaultShell returns the default shell for the current platform.
 func DefaultShell() string {
 	if shell := os.Getenv("SHELL"); isExecutableAbsolutePath(shell) {
@@ -112,8 +236,12 @@ func DefaultShell() string {
 		return "cmd.exe"
 	case "darwin":
 		return "/bin/zsh"
-	default: // linux and others
+	case "linux":
 		return "/bin/bash"
+	case "plan9":
+		return "/bin/rc"
+	default: // BSD, Solaris, illumos, AIX, and others
+		return "/bin/sh"
 	}
 }
 
@@ -136,10 +264,16 @@ func ShellArgs(shell, command string) []string {
 		return []string{"-NoProfile", "-NonInteractive", "-Command", command}
 	case strings.Contains(normalizedShell, "cmd"):
 		return []string{"/c", command}
-	default: // bash, zsh, etc.
+	case strings.Contains(normalizedShell, "rc"):
+		return []string{"-c", command}
+	default: // bash, zsh, sh, ksh, csh, etc.
 		return []string{"-c", command}
 	}
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Path helpers
+// ──────────────────────────────────────────────────────────────────────────────
 
 // PathSeparator returns the platform-specific path separator.
 func PathSeparator() string {
@@ -179,6 +313,10 @@ func ExpandHome(path string) string {
 	return path
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Platform-specific paths and environment
+// ──────────────────────────────────────────────────────────────────────────────
+
 // CommonPaths returns platform-specific common system paths.
 func CommonPaths() map[string]string {
 	switch runtime.GOOS {
@@ -197,7 +335,12 @@ func CommonPaths() map[string]string {
 			"appSupport": filepath.Join(HomeDir(), "Library", "Application Support"),
 			"caches":     filepath.Join(HomeDir(), "Library", "Caches"),
 		}
-	default: // linux
+	case "plan9":
+		return map[string]string{
+			"home": HomeDir(),
+			"temp": os.TempDir(),
+		}
+	default: // linux, BSD, Solaris, illumos, AIX, and others
 		return map[string]string{
 			"home":   HomeDir(),
 			"temp":   os.TempDir(),
@@ -226,7 +369,7 @@ func SandboxPaths() []string {
 			"/System",
 			"/Library",
 		}
-	default: // linux
+	case "linux":
 		return []string{
 			"/usr",
 			"/lib",
@@ -243,6 +386,8 @@ func SandboxPaths() []string {
 			"/proc/meminfo",
 			"/proc/cpuinfo",
 		}
+	default: // BSD, Solaris, illumos, AIX, Plan9, and others
+		return []string{}
 	}
 }
 
@@ -254,7 +399,9 @@ func DeniedPaths() []string {
 			filepath.Join(HomeDir(), "Documents"),
 			filepath.Join(HomeDir(), "Desktop"),
 		}
-	default: // linux, darwin
+	case "plan9":
+		return []string{}
+	default: // linux, macOS, BSD, Solaris, illumos, AIX, and others
 		return []string{
 			"/etc/shadow",
 			"/etc/gshadow",
@@ -290,7 +437,14 @@ func DefaultEnvVars() []string {
 			"SHELL",
 			"TMPDIR",
 		)
-	default: // linux
+	case "plan9":
+		return []string{
+			"path",
+			"home",
+			"user",
+			"service",
+		}
+	default: // linux, BSD, Solaris, illumos, AIX, and others
 		return append(common,
 			"SHELL",
 			"GOPATH",

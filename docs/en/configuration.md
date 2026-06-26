@@ -211,6 +211,7 @@ Multi-provider configuration. Each provider is an object keyed by a user-chosen 
 | `apiKey` | string | — | `""` | API key (see [Authentication](#authentication-configuration) below) |
 | `api` | string | — | auto-detect | API protocol: `"openai-chat"`, `"openai-responses"`, `"anthropic-messages"`, `"google-gemini"`, or `"google-vertex"` |
 | `httpProxy` | string | — | `""` | Optional per-provider HTTP proxy URL, e.g. `"http://127.0.0.1:7890"` |
+| `forceHTTP11` | bool | — | `false` | Force HTTP/1.1 for this provider by disabling HTTP/2 on the provider HTTP client |
 | `headers` | object | — | `{}` | Optional custom HTTP headers applied to every provider request; values support the same `${ENV}` and `!cmd` resolution as `apiKey` |
 | `thinkingFormat` | string | — | auto-detect | Thinking parameter format (see below) |
 | `cacheControl` | bool | — | `false` | Enable Anthropic prompt caching; set `true` when using Claude models |
@@ -773,7 +774,7 @@ UI color theme for the terminal interface.
 
 ### retry
 
-API call retry configuration with exponential backoff. Retries apply to the initial HTTP connection phase only (once SSE streaming begins, it is not retried).
+API call retry configuration with exponential backoff. Retries apply to transient initial HTTP failures and early SSE read failures before any visible output has been emitted. Once text, thinking, tool calls, or usage have streamed to the client, stream read failures are not retried to avoid duplicate output.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -799,13 +800,13 @@ The following errors trigger automatic retries:
 |----------|----------|
 | Rate limiting | HTTP 429 |
 | Server errors | HTTP 502, 503, 504 |
-| Network errors | connection refused, connection reset, DNS errors |
+| Network errors | connection refused, connection reset, DNS errors, HTTP/2 `INTERNAL_ERROR` stream resets |
 | Timeouts | HTTP client timeout, TCP timeout |
 
 The following are **not** retried:
 - Context cancellation (user pressed Ctrl+C)
 - HTTP 4xx client errors (except 429): 400, 401, 403, 404
-- Successful connections that fail mid-stream
+- Stream read failures after visible output has already been emitted
 
 #### Backoff Strategy
 
@@ -1153,7 +1154,7 @@ Switch between providers at runtime using `/provider` or `--provider`:
 
 ### Custom API Endpoint / HTTP Proxy / Headers
 
-`baseUrl` points to an API endpoint or API gateway. `httpProxy` configures the network proxy used only by that provider's HTTP client. When `httpProxy` is empty, the provider keeps Go's default `HTTP_PROXY` / `HTTPS_PROXY` environment behavior.
+`baseUrl` points to an API endpoint or API gateway. `httpProxy` configures the network proxy used only by that provider's HTTP client. When `httpProxy` is empty, the provider keeps Go's default `HTTP_PROXY` / `HTTPS_PROXY` environment behavior. Set `forceHTTP11` to `true` when a proxy or gateway has unstable HTTP/2 streaming behavior.
 
 Use `headers` to attach custom HTTP headers to every request for a provider. Header values support the same resolution rules as `apiKey`, including `${ENV_VAR}` and opt-in `!cmd` shell commands. Custom headers are applied after VibeCoding's default provider headers, so they can also override defaults such as `Authorization`, `x-api-key`, or gateway-specific headers when needed.
 
@@ -1165,6 +1166,7 @@ Use `headers` to attach custom HTTP headers to every request for a provider. Hea
       "api": "openai-chat",
       "apiKey": "${MY_PROXY_API_KEY}",
       "httpProxy": "http://127.0.0.1:7890",
+      "forceHTTP11": true,
       "headers": {
         "X-Gateway-Token": "${MY_GATEWAY_TOKEN}",
         "X-Request-Source": "vibecoding"

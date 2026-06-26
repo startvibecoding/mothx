@@ -60,7 +60,15 @@ func NewGeminiProviderWithModels(apiKey, baseURL string, models []*provider.Mode
 }
 
 func NewGeminiProviderWithModelsAndProxy(apiKey, baseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
-	return newProvider("google-gemini", APIKindGemini, apiKey, baseURL, "https://generativelanguage.googleapis.com/v1beta/models", proxyURL, models)
+	return NewGeminiProviderWithModelsAndOptions(apiKey, baseURL, models, provider.HTTPClientOptions{ProxyURL: proxyURL})
+}
+
+func NewGeminiProviderWithModelsAndOptions(apiKey, baseURL string, models []*provider.Model, opts provider.HTTPClientOptions) (*Provider, error) {
+	return newProvider("google-gemini", APIKindGemini, apiKey, baseURL, "https://generativelanguage.googleapis.com/v1beta/models", models, opts)
+}
+
+func NewVertexProviderWithModelsAndOptions(apiKey, baseURL string, models []*provider.Model, opts provider.HTTPClientOptions) (*Provider, error) {
+	return newProvider("google-vertex", APIKindVertex, apiKey, baseURL, "https://aiplatform.googleapis.com/v1/publishers/google/models", models, opts)
 }
 
 func NewVertexProvider(apiKey, baseURL string) *Provider {
@@ -76,11 +84,11 @@ func NewVertexProviderWithModels(apiKey, baseURL string, models []*provider.Mode
 }
 
 func NewVertexProviderWithModelsAndProxy(apiKey, baseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
-	return newProvider("google-vertex", APIKindVertex, apiKey, baseURL, "https://aiplatform.googleapis.com/v1/publishers/google/models", proxyURL, models)
+	return NewVertexProviderWithModelsAndOptions(apiKey, baseURL, models, provider.HTTPClientOptions{ProxyURL: proxyURL})
 }
 
-func newProvider(name string, kind APIKind, apiKey, baseURL, defaultBaseURL, proxyURL string, models []*provider.Model) (*Provider, error) {
-	client, err := provider.NewHTTPClient(30*time.Minute, proxyURL)
+func newProvider(name string, kind APIKind, apiKey, baseURL, defaultBaseURL string, models []*provider.Model, opts provider.HTTPClientOptions) (*Provider, error) {
+	client, err := provider.NewHTTPClientWithOptions(30*time.Minute, opts)
 	if err != nil {
 		return nil, fmt.Errorf("configure http proxy: %w", err)
 	}
@@ -275,9 +283,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			resp, err := p.client.Do(req)
 			if err != nil {
 				if attempt < maxRetries && provider.IsRetryable(err, 0) {
-					delay := provider.RetryDelay(attempt, baseDelayMs)
-					ch <- provider.StreamEvent{Type: provider.StreamRetry, RetryAttempt: attempt + 1, RetryMax: maxRetries, Error: fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, err))}
-					if !sleepOrAbort(ctx, delay, ch) {
+					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
 						return
 					}
 					continue
@@ -290,10 +296,8 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
-					delay := provider.RetryDelay(attempt, baseDelayMs)
 					err := fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
-					ch <- provider.StreamEvent{Type: provider.StreamRetry, RetryAttempt: attempt + 1, RetryMax: maxRetries, Error: fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, err))}
-					if !sleepOrAbort(ctx, delay, ch) {
+					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
 						return
 					}
 					continue
@@ -302,13 +306,29 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 				return
 			}
 
-			p.parseSSE(ctx, resp.Body, ch, params)
+			visibleOutput, err := p.parseSSE(ctx, resp.Body, ch, params)
 			resp.Body.Close()
+			if err == nil {
+				return
+			}
+			if attempt < maxRetries && !visibleOutput && provider.IsRetryable(err, 0) {
+				if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
+					return
+				}
+				continue
+			}
+			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("stream read error: %w", err), StopReason: "error"}
 			return
 		}
 		ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("all %d retry attempts exhausted", maxRetries)}
 	}()
 	return ch
+}
+
+func sendRetryEventAndWait(ctx context.Context, ch chan<- provider.StreamEvent, attempt, maxRetries, baseDelayMs int, err error) bool {
+	delay := provider.RetryDelay(attempt, baseDelayMs)
+	ch <- provider.StreamEvent{Type: provider.StreamRetry, RetryAttempt: attempt + 1, RetryMax: maxRetries, Error: fmt.Errorf("%s", provider.FormatRetryMessage(attempt, maxRetries, delay, err))}
+	return sleepOrAbort(ctx, delay, ch)
 }
 
 func sleepOrAbort(ctx context.Context, delay time.Duration, ch chan<- provider.StreamEvent) bool {
@@ -517,23 +537,24 @@ func (p *Provider) convertTools(tools []provider.ToolDefinition) []googleTool {
 	return []googleTool{{FunctionDeclarations: declarations}}
 }
 
-func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) {
+func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provider.StreamEvent, params provider.ChatParams) (bool, error) {
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
 	var usage *provider.Usage
 	var stopReason string
+	var visibleOutput bool
 	toolCallIndex := 0
 
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err(), StopReason: "aborted"}
-			return
+			return true, nil
 		case <-params.Abort:
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("aborted"), StopReason: "aborted"}
-			return
+			return true, nil
 		default:
 		}
 
@@ -552,7 +573,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		}
 		if chunk.Error != nil {
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("%s: %s", chunk.Error.Status, chunk.Error.Message), StopReason: "error"}
-			return
+			return true, nil
 		}
 		if chunk.UsageMetadata != nil {
 			usage = convertUsage(chunk.UsageMetadata)
@@ -564,6 +585,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 			}
 			for _, part := range candidate.Content.Parts {
 				if part.Text != "" {
+					visibleOutput = true
 					if part.Thought {
 						ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: part.Text}
 					} else {
@@ -571,9 +593,11 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 					}
 				}
 				if part.ThoughtSignature != "" && part.FunctionCall == nil {
+					visibleOutput = true
 					ch <- provider.StreamEvent{Type: provider.StreamThinkSignature, ThinkSignature: part.ThoughtSignature}
 				}
 				if part.FunctionCall != nil {
+					visibleOutput = true
 					toolCallIndex++
 					args := part.FunctionCall.Args
 					if len(args) == 0 {
@@ -592,13 +616,14 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	}
 
 	if err := scanner.Err(); err != nil {
-		ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("stream read error: %w", err), StopReason: "error"}
-		return
+		return visibleOutput, err
 	}
 	if usage != nil {
+		visibleOutput = true
 		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: usage}
 	}
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: stopReason}
+	return visibleOutput, nil
 }
 
 func convertUsage(u *googleUsageMetadata) *provider.Usage {

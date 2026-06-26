@@ -235,7 +235,7 @@ List files and directories inside a target path, giving exact file sizes, modifi
 
 ### find - File Search
 
-Find file paths matching glob patterns. This tool uses an embedded `fd` binary (falls back to system `find` if unsupported) and is extremely fast.
+Find file paths matching glob patterns. This tool runs the pure-Go `go-fd` engine in-process and respects ignore files.
 
 #### Parameters:
 
@@ -259,7 +259,7 @@ Find file paths matching glob patterns. This tool uses an embedded `fd` binary (
 
 ### grep - Text Content Search
 
-Perform fast regex-based searches across codebase files. Uses embedded `rg` (ripgrep) for near-instant results.
+Perform fast regex-based searches across codebase files. This tool runs the pure-Go `go-ripgrep` engine in-process and respects ignore files.
 
 #### Parameters:
 

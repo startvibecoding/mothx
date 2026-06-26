@@ -29,6 +29,7 @@ func TestIsRetryable_NetworkErrors(t *testing.T) {
 		{"ECONNREFUSED", syscall.ECONNREFUSED, 0, true},
 		{"EPIPE", syscall.EPIPE, 0, true},
 		{"ETIMEDOUT", syscall.ETIMEDOUT, 0, true},
+		{"HTTP/2 stream internal error", fmt.Errorf("stream error: stream ID 19; INTERNAL_ERROR; received from peer"), 0, true},
 		{"context canceled", context.Canceled, 0, false},
 		{"generic error", errors.New("something"), 0, false},
 	}

@@ -4,22 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/vendored"
 )
 
 func TestMain(m *testing.M) {
-	// 提取 vendored 二进制到 ~/.vibecoding/bin/
-	if err := vendored.Ensure(); err != nil {
-		// 如果提取失败，跳过需要 rg/fd 的测试
-		os.Exit(m.Run())
-	}
 	os.Exit(m.Run())
 }
 
@@ -609,6 +602,67 @@ func TestGrepToolExecute(t *testing.T) {
 	}
 }
 
+func TestGrepToolExecuteIncludeGlob(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "one.go"), []byte("package main\nfunc Hello() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "two.txt"), []byte("Hello text\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewGrepTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"pattern": "Hello",
+		"path":    ".",
+		"include": "*.go",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "one.go") {
+		t.Fatalf("expected .go match, got: %s", result.Text)
+	}
+	if strings.Contains(result.Text, "two.txt") {
+		t.Fatalf("include filter should exclude two.txt, got: %s", result.Text)
+	}
+}
+
+func TestGrepToolExecuteRespectsGitignore(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte("ignored.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "kept.go"), []byte("func Kept() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "ignored.go"), []byte("func Ignored() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewGrepTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"pattern": "func",
+		"path":    ".",
+		"include": "*.go",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "kept.go") {
+		t.Fatalf("expected kept.go, got: %s", result.Text)
+	}
+	if strings.Contains(result.Text, "ignored.go") {
+		t.Fatalf("expected ignored.go to be excluded, got: %s", result.Text)
+	}
+}
+
 func TestGrepToolExecuteLimitsTotalResults(t *testing.T) {
 	tmpDir := t.TempDir()
 	for i := 0; i < 5; i++ {
@@ -645,28 +699,25 @@ func TestGrepToolExecuteLimitsTotalResults(t *testing.T) {
 	}
 }
 
-func TestNativeGrepFallbackExecute(t *testing.T) {
-	if _, err := exec.LookPath("grep"); err != nil {
-		t.Skip("system grep not available")
-	}
-
+func TestGrepToolExecuteReturnsPatternError(t *testing.T) {
 	tmpDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(tmpDir, "one.go"), []byte("package main\nfunc Hello() {}\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "two.txt"), []byte("Hello text\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("Hello"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := executeNativeGrep(context.Background(), "Hello", tmpDir, "*.go", 10)
-	if err != nil {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewGrepTool(r)
+
+	_, err := tool.Execute(context.Background(), map[string]any{
+		"pattern": "[",
+		"path":    ".",
+	})
+	if err == nil {
+		t.Fatal("expected pattern error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "grep search failed") {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(result.Text, "one.go") {
-		t.Fatalf("expected .go match, got: %s", result.Text)
-	}
-	if strings.Contains(result.Text, "two.txt") {
-		t.Fatalf("include filter should exclude two.txt, got: %s", result.Text)
 	}
 }
 
@@ -707,24 +758,28 @@ func TestFindToolExecute(t *testing.T) {
 	}
 }
 
-func TestNativeFindFallbackExecute(t *testing.T) {
-	if _, err := exec.LookPath("find"); err != nil {
-		t.Skip("system find not available")
-	}
-
+func TestFindToolExecuteMaxDepth(t *testing.T) {
 	tmpDir := t.TempDir()
 	nested := filepath.Join(tmpDir, "nested")
-	if err := os.MkdirAll(nested, 0755); err != nil {
+	if err := os.MkdirAll(nested, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "root.go"), []byte("package root\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "root.go"), []byte("package root\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(nested, "nested.go"), []byte("package nested\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(nested, "nested.go"), []byte("package nested\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	result, err := executeNativeFind(context.Background(), "*.go", tmpDir, 1, 10)
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry(tmpDir, sb)
+	tool := NewFindTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"pattern":  "*.go",
+		"path":     ".",
+		"maxDepth": float64(1),
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -736,35 +791,25 @@ func TestNativeFindFallbackExecute(t *testing.T) {
 	}
 }
 
-func TestFindToolExecuteUsesNativeGlob(t *testing.T) {
+func TestFindToolExecuteReturnsInvalidPathError(t *testing.T) {
 	tmpDir := t.TempDir()
-	nestedDir := filepath.Join(tmpDir, "nested")
-	if err := os.MkdirAll(nestedDir, 0755); err != nil {
-		t.Fatalf("mkdir nested: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(nestedDir, "test.txt"), []byte("Hello"), 0644); err != nil {
-		t.Fatalf("write nested file: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("Hello"), 0644); err != nil {
-		t.Fatalf("write root file: %v", err)
+	if err := os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("Hello"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry(tmpDir, sb)
 	tool := NewFindTool(r)
 
-	result, err := tool.Execute(context.Background(), map[string]any{
-		"pattern":  "**/*.txt",
-		"path":     ".",
-		"maxDepth": float64(2),
+	_, err := tool.Execute(context.Background(), map[string]any{
+		"pattern": "*.txt",
+		"path":    "missing",
 	})
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected invalid path error")
 	}
-
-	if !strings.Contains(result.Text, filepath.Join("nested", "test.txt")) {
-		t.Fatalf("result = %q, want nested/test.txt", result.Text)
+	if !strings.Contains(strings.ToLower(err.Error()), "invalid path") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

@@ -1,9 +1,10 @@
 {
-  "name": "vibecoding-installer-win32-arm64",
+  "name": "vibecoding-installer-linux-musl-arm64",
   "version": "1.1.51",
-  "description": "VibeCoding native binary for win32-arm64",
-  "os": ["win32"],
+  "description": "VibeCoding native binary for linux-musl-arm64 (musl static)",
+  "os": ["linux"],
   "cpu": ["arm64"],
+  "libc": ["musl"],
   "files": ["bin/"],
   "license": "MIT",
   "repository": {

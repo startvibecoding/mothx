@@ -1,6 +1,6 @@
 module github.com/startvibecoding/vibecoding
 
-go 1.25.0
+go 1.26.1
 
 require (
 	github.com/charmbracelet/bubbles v0.21.0
@@ -10,9 +10,11 @@ require (
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.3
 	github.com/spf13/cobra v1.10.2
 	github.com/startvibecoding/GoStreamingMarkdown v0.0.4
+	github.com/startvibecoding/go-fd v0.0.4
+	github.com/startvibecoding/go-ripgrep v0.0.4
 	github.com/startvibecoding/vibeEmacsLispVm v0.0.2
 	golang.org/x/net v0.38.0
-	golang.org/x/sys v0.44.0
+	golang.org/x/sys v0.46.0
 	golang.org/x/term v0.36.0
 	modernc.org/sqlite v1.53.0
 )
