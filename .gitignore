@@ -5,6 +5,7 @@ npm/bin/
 !npm/bin/vibecoding
 *.exe
 *.exe~
+!internal/platform/busybox_assets/*.exe
 *.dll
 *.so
 *.dylib
