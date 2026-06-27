@@ -535,26 +535,22 @@ func (a *App) submitAuthInput() {
 				a.auth.Error = "HTTP proxy must be a valid URL or empty."
 				return
 			}
-		}
-		a.auth.HTTPProxy = value
-		if a.returnToReviewAfterEdit() {
-			return
-		}
-		a.pushAuthView(authViewModels)
-	case authViewAPIKey:
-		if value == "" {
-			a.auth.Error = "API key is required."
-			return
-		}
-		a.auth.APIKey = value
-		if a.returnToReviewAfterEdit() {
-			return
-		}
-		if len(baseURLOptionsForProvider(a.auth.ProviderID)) > 0 {
-			a.pushAuthView(authViewBaseURLChoice)
-		} else {
-			a.pushAuthView(authViewBaseURL)
-		}
+        }
+        a.auth.HTTPProxy = value
+        if a.returnToReviewAfterEdit() {
+            return
+        }
+        a.pushAuthView(authViewAPIKey)
+    case authViewAPIKey:
+        if value == "" {
+            a.auth.Error = "API key is required."
+            return
+        }
+        a.auth.APIKey = value
+        if a.returnToReviewAfterEdit() {
+            return
+        }
+        a.pushAuthView(authViewModels)
 	case authViewModels:
 		ids := normalizeAuthModelIDs(value)
 		if len(ids) == 0 {

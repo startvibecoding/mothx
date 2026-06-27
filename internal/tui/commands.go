@@ -554,7 +554,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		}
 	case "/model":
 		if len(parts) > 1 {
-			// Switch model
+			// Switch model directly
 			modelID := parts[1]
 			newModel := a.provider.GetModel(modelID)
 			if newModel == nil {
@@ -571,20 +571,10 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 			a.resetAgent(fmt.Errorf("model changed"))
 			a.addCommandStatus(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID))
 		} else {
-			// Show current model and available models
-			a.addCommandStatus(fmt.Sprintf("Current model: %s (%s)", a.model.Name, a.model.ID))
-			models := a.provider.Models()
-			if len(models) > 0 {
-				var sb strings.Builder
-				sb.WriteString("Available models (use /model <id> to switch):\n")
-				for _, m := range models {
-					marker := " "
-					if m.ID == a.model.ID {
-						marker = "*"
-					}
-					sb.WriteString(fmt.Sprintf("  [%s] %s (%s)\n", marker, m.Name, m.ID))
-				}
-				a.addCommandStatus(sb.String())
+			if a.isThinking {
+				a.addCommandError("Cannot open /model while the agent is running.")
+			} else {
+				a.openModelDialog()
 			}
 		}
 	case "/auth":

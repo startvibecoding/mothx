@@ -113,12 +113,14 @@ type App struct {
 	// UI Components
 	input     editor.Model
 	authInput editor.Model
+	modelInput editor.Model
 	suggest   suggest.Model
 	timer     stopwatch.Model
 
 	// State
 	messages               []string
 	auth                   authDialogState
+	modelDialog            modelDialogState
 	toolResults            []toolResult // Store tool results for expansion
 	isThinking             bool
 	manualCompactionActive bool
@@ -622,6 +624,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleMouse(msg)
 
 	case tea.KeyMsg:
+		if handled, cmd := a.handleModelKey(msg); handled {
+			return a, cmd
+		}
 		if handled, cmd := a.handleAuthKey(msg); handled {
 			return a, cmd
 		}
@@ -1048,7 +1053,9 @@ func (a *App) View() string {
 	}
 
 	// 4. Auth dialog or input field
-	if a.auth.Open {
+	if a.modelDialog.Open {
+		parts = append(parts, a.renderModelDialog())
+	} else if a.auth.Open {
 		parts = append(parts, a.renderAuthDialog())
 	} else {
 		inputGap := lipgloss.NewStyle().
