@@ -1989,6 +1989,20 @@ func (p *historyInjectMockProvider) GetModel(id string) *provider.Model {
 	return nil
 }
 
+func cloneMessages(msgs []provider.Message) []provider.Message {
+	if len(msgs) == 0 {
+		return nil
+	}
+	cloned := make([]provider.Message, len(msgs))
+	for i, msg := range msgs {
+		cloned[i] = msg
+		if len(msg.Contents) > 0 {
+			cloned[i].Contents = append([]provider.ContentBlock(nil), msg.Contents...)
+		}
+	}
+	return cloned
+}
+
 type recordingHistoryProvider struct {
 	calls      int
 	lastParams provider.ChatParams
@@ -2156,11 +2170,11 @@ func TestContinueSessionPromptPayloadOrder(t *testing.T) {
 	if msgs[1].Role != "user" || msgs[1].Content != "old user" {
 		t.Fatalf("second payload message = %+v, want old user", msgs[1])
 	}
-	if msgs[2].Role != "assistant" || msgs[2].Content != "old assistant" {
+	if msgs[2].Role != "assistant" || len(msgs[2].Contents) == 0 || msgs[2].Contents[0].Text != "old assistant" {
 		t.Fatalf("third payload message = %+v, want old assistant", msgs[2])
 	}
 	last := msgs[len(msgs)-1]
-	if last.Role != "user" || last.Content != "new question" {
+	if last.Role != "user" || len(last.Contents) == 0 || last.Contents[0].Text != "new question" {
 		t.Fatalf("last payload message = %+v, want new question", last)
 	}
 }

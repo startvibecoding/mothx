@@ -80,7 +80,7 @@ func (t *BashTool) Name() string { return "bash" }
 
 func (t *BashTool) Description() string {
 	if platform.IsWindows() {
-		return "Execute a shell command (PowerShell/cmd). Use this to run commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
+		return "Execute a shell command (BusyBox first, PowerShell fallback). Use this to run commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
 	}
 	return "Execute a bash command. Use this to run shell commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
 }
@@ -90,10 +90,14 @@ func (t *BashTool) PromptSnippet() string {
 }
 
 func (t *BashTool) PromptGuidelines() []string {
-	return []string{
+	guidelines := []string{
 		"Prefer read/ls/grep/find tools over bash for file inspection and exploration",
 		"For long-running services (servers, watchers, dev servers), use async=true to run in background",
 	}
+	if platform.IsWindows() {
+		guidelines = append(guidelines, "On Windows, bash uses embedded BusyBox first and falls back to PowerShell if BusyBox is unavailable")
+	}
+	return guidelines
 }
 
 func (t *BashTool) Parameters() json.RawMessage {
@@ -153,9 +157,11 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	// Get platform-specific shell
 	shell := platform.DefaultShell()
-	if s := os.Getenv("SHELL"); s != "" {
-		if isValidShell(s) {
-			shell = s
+	if !platform.IsWindows() {
+		if s := os.Getenv("SHELL"); s != "" {
+			if isValidShell(s) {
+				shell = s
+			}
 		}
 	}
 
@@ -163,32 +169,86 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 
 	env := os.Environ()
 
-	var cmd *exec.Cmd
 	sb := t.registry.GetSandbox()
+	if platform.IsWindows() {
+		shells := t.windowsShellCandidates()
+		for i, candidate := range shells {
+			cmd, runtimeLabel := t.buildWindowsCommand(cmdCtx, sb, candidate, command, workDir, env, timeout)
+			result, err, launchErr := t.runCommand(cmd, command, workDir, async, cancel, runtimeLabel)
+			if launchErr && i < len(shells)-1 {
+				continue
+			}
+			return result, err
+		}
+		return ToolResult{}, fmt.Errorf("no shell candidates available")
+	}
+
+	var cmd *exec.Cmd
 	if sb != nil && sb.IsAvailable() {
-		envPath := os.Getenv("PATH")
+		opts := sandbox.ExecOpts{WorkDir: workDir, Timeout: timeout}
+		cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
+	} else {
+		cmd = t.buildCommand(cmdCtx, shell, command, workDir, env)
+	}
+	result, err, _ := t.runCommand(cmd, command, workDir, async, cancel, runtimeForShell(shell))
+	return result, err
+}
+
+func (t *BashTool) buildCommand(ctx context.Context, shell, command, workDir string, env []string) *exec.Cmd {
+	// Use platform-specific shell arguments
+	args := platform.ShellArgs(shell, command)
+	cmd := exec.CommandContext(ctx, shell, args...)
+	cmd.Dir = workDir
+	cmd.Env = env
+	// Detach child process group so background children don't block the shell.
+	setSysProcAttr(cmd)
+	// If the shell exits while a background child still holds stdio,
+	// don't wait forever – give it 100ms then force-close.
+	cmd.WaitDelay = 100 * time.Millisecond
+	return cmd
+}
+
+func (t *BashTool) windowsShellCandidates() []string {
+	if busyboxPath, ok := platform.WindowsBusyboxPath(); ok {
+		return []string{busyboxPath, "powershell.exe"}
+	}
+	return []string{"powershell.exe"}
+}
+
+func (t *BashTool) buildWindowsCommand(ctx context.Context, sb sandbox.Sandbox, shell, command, workDir string, env []string, timeout time.Duration) (*exec.Cmd, string) {
+	if sb != nil && sb.IsAvailable() {
 		opts := sandbox.ExecOpts{
 			WorkDir: workDir,
 			Timeout: timeout,
-			EnvVars: map[string]string{
-				"PATH": envPath,
-			},
 		}
-		cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
-	} else {
-		// Use platform-specific shell arguments
-		args := platform.ShellArgs(shell, command)
-		cmd = exec.CommandContext(cmdCtx, shell, args...)
-		cmd.Dir = workDir
-		cmd.Env = env
-		// Detach child process group so background children don't block the shell.
-		setSysProcAttr(cmd)
-		// If the shell exits while a background child still holds stdio,
-		// don't wait forever – give it 100ms then force-close.
-		cmd.WaitDelay = 100 * time.Millisecond
+		if shell != "powershell.exe" {
+			if busyboxPath, ok := platform.WindowsBusyboxPath(); ok {
+				opts.EnvVars = map[string]string{
+					"PATH": prefixPathValue(os.Getenv("PATH"), filepath.Dir(busyboxPath)),
+				}
+			}
+		}
+		return sb.WrapCommand(ctx, shell, command, opts), runtimeForShell(shell)
 	}
 
-	// Async mode: start in background and return immediately
+	if shell != "powershell.exe" {
+		cmd := exec.CommandContext(ctx, shell, "sh", "-c", command)
+		cmd.Dir = workDir
+		cmd.Env = env
+		setSysProcAttr(cmd)
+		cmd.WaitDelay = 100 * time.Millisecond
+		return cmd, runtimeForShell(shell)
+	}
+
+	cmd := exec.CommandContext(ctx, shell, platform.ShellArgs(shell, command)...)
+	cmd.Dir = workDir
+	cmd.Env = env
+	setSysProcAttr(cmd)
+	cmd.WaitDelay = 100 * time.Millisecond
+	return cmd, runtimeForShell(shell)
+}
+
+func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool, cancel context.CancelFunc, runtimeLabel string) (ToolResult, error, bool) {
 	if async {
 		const maxJobOutput = 1000000 // 1 MB limit per stream
 		stdout := newLimitedBuffer(maxJobOutput)
@@ -197,27 +257,23 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		cmd.Stderr = stderr
 
 		if err := cmd.Start(); err != nil {
-			cancel()
-			return ToolResult{}, fmt.Errorf("failed to start background command: %w", err)
+			if cancel != nil {
+				cancel()
+			}
+			return ToolResult{}, err, isLaunchError(err)
 		}
 
 		job := t.jobManager.AddJob(cmd, command, cancel)
-
-		// Wait in background and mark done when finished
 		go func() {
 			err := cmd.Wait()
-			// Ignore WaitDelay error – background children may still hold stdio.
 			if errors.Is(err, exec.ErrWaitDelay) {
 				err = nil
 			}
 			job.MarkDone(stdout.Bytes(), stderr.Bytes(), err)
 		}()
-
-		return NewTextToolResult(fmt.Sprintf("Started background job [%d] (PID: %d): %s\nUse 'jobs' tool to check status or 'kill' to stop.", job.ID, job.PID, command)), nil
+		return NewTextToolResult(fmt.Sprintf("[runtime]\n%s\n[command]\n%s\nUse 'jobs' tool to check status or 'kill' to stop.", runtimeLabel, command)), nil, false
 	}
 
-	// Synchronous output is returned to the model truncated to 50 KB below, so
-	// keep only a bounded prefix while still draining the process pipes.
 	const maxSyncOutput = 1 << 20 // 1 MB per stream
 	stdout := newLimitedBuffer(maxSyncOutput)
 	stderr := newLimitedBuffer(maxSyncOutput)
@@ -225,6 +281,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	cmd.Stderr = stderr
 
 	err := cmd.Run()
+	if err != nil && isLaunchError(err) {
+		return ToolResult{}, err, true
+	}
 
 	stdoutStr := strings.TrimRight(string(stdout.Bytes()), "\n")
 	stderrStr := string(stderr.Bytes())
@@ -244,6 +303,9 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	}
 
 	var result strings.Builder
+	result.WriteString("[runtime]\n")
+	result.WriteString(runtimeLabel)
+	result.WriteString("\n")
 	result.WriteString("[command]\n")
 	result.WriteString(command)
 	result.WriteString("\n[cwd]\n")
@@ -255,7 +317,6 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	result.WriteString("\n[exit_code]\n")
 	result.WriteString(fmt.Sprintf("%d", exitCode))
 
-	// Truncate large outputs
 	const maxOutput = 50000
 	resultStr := result.String()
 	if len(resultStr) > maxOutput {
@@ -265,18 +326,48 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	}
 
 	if err != nil {
-		// Ignore WaitDelay error – the shell already exited; we just didn't
-		// drain all stdio in time (common with background children).
 		if errors.Is(err, exec.ErrWaitDelay) {
-			return NewTextToolResult(resultStr), nil
+			return NewTextToolResult(resultStr), nil, false
 		}
 		if _, ok := err.(*exec.ExitError); ok {
-			return NewTextToolResult(resultStr), nil
+			return NewTextToolResult(resultStr), nil, false
 		}
-		return ToolResult{}, fmt.Errorf("command failed: %w\n%s", err, resultStr)
+		return ToolResult{}, fmt.Errorf("command failed: %w\n%s", err, resultStr), false
 	}
 
-	return NewTextToolResult(resultStr), nil
+	return NewTextToolResult(resultStr), nil, false
+}
+
+func prefixPathValue(pathValue, dir string) string {
+	if dir == "" {
+		return pathValue
+	}
+	if pathValue == "" {
+		return dir
+	}
+	return dir + string(os.PathListSeparator) + pathValue
+}
+
+func runtimeForShell(shell string) string {
+	switch {
+	case strings.Contains(strings.ToLower(shell), "busybox"):
+		return "busybox"
+	case strings.Contains(strings.ToLower(shell), "powershell"):
+		return "powershell"
+	case strings.Contains(strings.ToLower(shell), "cmd"):
+		return "cmd"
+	default:
+		return filepath.Base(shell)
+	}
+}
+
+func isLaunchError(err error) bool {
+	var execErr *exec.Error
+	if errors.As(err, &execErr) {
+		return true
+	}
+	var pathErr *os.PathError
+	return errors.As(err, &pathErr)
 }
 
 // SetTool is an interface for tools that need sandbox updates.

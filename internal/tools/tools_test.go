@@ -407,6 +407,9 @@ func TestBashToolExecute(t *testing.T) {
 	if result.Text == "" {
 		t.Error("expected non-empty result")
 	}
+	if !strings.Contains(result.Text, "[runtime]\n") {
+		t.Fatalf("expected runtime section, got: %s", result.Text)
+	}
 	if !strings.Contains(result.Text, "[command]\necho hello") {
 		t.Fatalf("expected command section, got: %s", result.Text)
 	}
@@ -484,6 +487,23 @@ func TestBashToolExecuteNonZeroExitCode(t *testing.T) {
 	}
 	if !strings.Contains(result.Text, "[exit_code]\n7") {
 		t.Fatalf("expected exit code 7, got: %s", result.Text)
+	}
+}
+
+func TestBashToolWindowsBusyboxCommandUsesShC(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	cmd, runtimeLabel := tool.buildWindowsCommand(context.Background(), sb, "C:/Users/test/.vibecoding/bin/busybox64u.exe", "echo hello", "/tmp", os.Environ(), 120*time.Second)
+	if runtimeLabel != "busybox" {
+		t.Fatalf("expected runtime label busybox, got %q", runtimeLabel)
+	}
+	if len(cmd.Args) < 4 {
+		t.Fatalf("expected busybox args, got %#v", cmd.Args)
+	}
+	if cmd.Args[1] != "sh" || cmd.Args[2] != "-c" || cmd.Args[3] != "echo hello" {
+		t.Fatalf("expected busybox sh -c command, got %#v", cmd.Args)
 	}
 }
 

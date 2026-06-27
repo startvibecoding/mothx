@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/platform"
 )
@@ -58,6 +59,12 @@ func (s *winSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts Ex
 	// Use the specified shell or default
 	if shell == "" {
 		shell = "cmd.exe"
+	}
+	if strings.Contains(strings.ToLower(shell), "busybox") {
+		c := exec.CommandContext(ctx, shell, "sh", "-c", cmd)
+		c.Dir = opts.WorkDir
+		c.Env = s.buildEnv(opts)
+		return c
 	}
 
 	c := exec.CommandContext(ctx, shell, platform.ShellArgs(shell, cmd)...)

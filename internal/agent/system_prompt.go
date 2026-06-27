@@ -14,6 +14,11 @@ func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext
 
 	// Get platform-specific shell
 	shell := platform.DefaultShell()
+	if platform.IsWindows() {
+		if busyboxPath, ok := platform.WindowsBusyboxPath(); ok {
+			shell = busyboxPath
+		}
+	}
 
 	// Core identity and environment
 	sb.WriteString(fmt.Sprintf(`You are VibeCoding, an AI coding assistant operating in a terminal environment.
@@ -33,7 +38,7 @@ that should guide your approach.
 
 	// Platform-specific notes
 	if platform.IsWindows() {
-		sb.WriteString(`Note: You are running on Windows. Use Windows-compatible commands (PowerShell/cmd).
+		sb.WriteString(`Note: You are running on Windows. Use the embedded BusyBox shell first when available, and fall back to PowerShell if needed.
 Path separators should use backslashes (\). Environment variables use %VAR% syntax.
 `)
 	} else if platform.IsMacOS() {

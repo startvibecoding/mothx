@@ -20,6 +20,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
 	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/gateway"
+	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
@@ -35,6 +36,7 @@ import (
 var version = "dev"
 
 func main() {
+	_ = platform.EnsureWindowsBusybox()
 	rootCmd := newRootCommand(run, acp.Run)
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

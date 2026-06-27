@@ -260,6 +260,8 @@ func isExecutableAbsolutePath(path string) bool {
 func ShellArgs(shell, command string) []string {
 	normalizedShell := strings.ToLower(shell)
 	switch {
+	case strings.Contains(normalizedShell, "busybox"):
+		return []string{"sh", "-c", command}
 	case strings.Contains(normalizedShell, "powershell"):
 		return []string{"-NoProfile", "-NonInteractive", "-Command", command}
 	case strings.Contains(normalizedShell, "cmd"):
