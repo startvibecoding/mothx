@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -2004,11 +2005,13 @@ func cloneMessages(msgs []provider.Message) []provider.Message {
 }
 
 type recordingHistoryProvider struct {
+	mu         sync.Mutex
 	calls      int
 	lastParams provider.ChatParams
 }
 
 func (p *recordingHistoryProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.mu.Lock()
 	p.calls++
 	p.lastParams = provider.ChatParams{
 		SystemPrompt:  params.SystemPrompt,
@@ -2018,6 +2021,7 @@ func (p *recordingHistoryProvider) Chat(ctx context.Context, params provider.Cha
 		MaxTokens:     params.MaxTokens,
 		ModelID:       params.ModelID,
 	}
+	p.mu.Unlock()
 	ch := make(chan provider.StreamEvent, 2)
 	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: "end_turn"}
 	close(ch)
@@ -2037,6 +2041,18 @@ func (p *recordingHistoryProvider) GetModel(id string) *provider.Model {
 		}
 	}
 	return nil
+}
+
+func (p *recordingHistoryProvider) getCalls() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
+}
+
+func (p *recordingHistoryProvider) getLastParams() provider.ChatParams {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.lastParams
 }
 
 func TestProcessInputLoadsSessionHistoryIntoAgentEvenWhenUIHistoryAlreadyLoaded(t *testing.T) {
@@ -2148,7 +2164,7 @@ func TestContinueSessionPromptPayloadOrder(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		if recordingProvider.calls > 0 {
+		if recordingProvider.getCalls() > 0 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -2157,10 +2173,11 @@ func TestContinueSessionPromptPayloadOrder(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	if recordingProvider.lastParams.SystemPrompt == "" {
+	params := recordingProvider.getLastParams()
+	if params.SystemPrompt == "" {
 		t.Fatal("expected system prompt to be passed separately")
 	}
-	msgs := recordingProvider.lastParams.Messages
+	msgs := params.Messages
 	if len(msgs) < 3 {
 		t.Fatalf("messages len = %d, want at least 3", len(msgs))
 	}
