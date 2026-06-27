@@ -1989,6 +1989,42 @@ func (p *historyInjectMockProvider) GetModel(id string) *provider.Model {
 	return nil
 }
 
+type recordingHistoryProvider struct {
+	calls      int
+	lastParams provider.ChatParams
+}
+
+func (p *recordingHistoryProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.calls++
+	p.lastParams = provider.ChatParams{
+		SystemPrompt:  params.SystemPrompt,
+		Messages:      cloneMessages(params.Messages),
+		Tools:         append([]provider.ToolDefinition(nil), params.Tools...),
+		ThinkingLevel: params.ThinkingLevel,
+		MaxTokens:     params.MaxTokens,
+		ModelID:       params.ModelID,
+	}
+	ch := make(chan provider.StreamEvent, 2)
+	ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: "end_turn"}
+	close(ch)
+	return ch
+}
+
+func (p *recordingHistoryProvider) Name() string { return "mock" }
+
+func (p *recordingHistoryProvider) Models() []*provider.Model {
+	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}
+}
+
+func (p *recordingHistoryProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.Models() {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
 func TestProcessInputLoadsSessionHistoryIntoAgentEvenWhenUIHistoryAlreadyLoaded(t *testing.T) {
 	tmp := t.TempDir()
 	cwd := filepath.Join(tmp, "project")
@@ -2047,6 +2083,85 @@ func TestProcessInputLoadsSessionHistoryIntoAgentEvenWhenUIHistoryAlreadyLoaded(
 			t.Fatalf("timeout waiting for agent messages")
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestContinueSessionPromptPayloadOrder(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+	sessionDir := filepath.Join(tmp, "sessions")
+
+	sess := session.New(cwd, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	if _, err := sess.AppendMessage(provider.NewUserMessage("old user")); err != nil {
+		t.Fatalf("append old user: %v", err)
+	}
+	if _, err := sess.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}})); err != nil {
+		t.Fatalf("append old assistant: %v", err)
+	}
+
+	recordingProvider := &recordingHistoryProvider{}
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	app := NewApp(
+		recordingProvider,
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		sess,
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		nil,
+		"agent",
+		false,
+		false,
+		nil,
+		nil,
+		nil,
+	)
+	_ = app.Init()
+
+	cmd := app.processInput("new question")
+	if cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	_ = cmd()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if recordingProvider.calls > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timeout waiting for provider payload")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if recordingProvider.lastParams.SystemPrompt == "" {
+		t.Fatal("expected system prompt to be passed separately")
+	}
+	msgs := recordingProvider.lastParams.Messages
+	if len(msgs) < 3 {
+		t.Fatalf("messages len = %d, want at least 3", len(msgs))
+	}
+	if !msgs[0].SystemInjected || msgs[0].Role != "user" || !strings.Contains(msgs[0].Content, "[session context]") {
+		t.Fatalf("first payload message = %+v, want injected session context", msgs[0])
+	}
+	if msgs[1].Role != "user" || msgs[1].Content != "old user" {
+		t.Fatalf("second payload message = %+v, want old user", msgs[1])
+	}
+	if msgs[2].Role != "assistant" || msgs[2].Content != "old assistant" {
+		t.Fatalf("third payload message = %+v, want old assistant", msgs[2])
+	}
+	last := msgs[len(msgs)-1]
+	if last.Role != "user" || last.Content != "new question" {
+		t.Fatalf("last payload message = %+v, want new question", last)
 	}
 }
 
