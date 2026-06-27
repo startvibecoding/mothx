@@ -142,7 +142,7 @@ VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件
 
 ### bash - 命令执行
 
-执行指定的 Shell 命令（如 Linux 上的 `/bin/bash` 或 Windows 上的 `PowerShell`）。该工具完美支持同步（阻塞）和异步（后台运行）两种模式。
+执行指定的 Shell 命令（如 Linux/macOS 上的 `/bin/bash`、Windows 上的 BusyBox，或回退到 PowerShell）。该工具完美支持同步（阻塞）和异步（后台运行）两种模式。
 
 #### 参数：
 

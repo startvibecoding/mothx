@@ -142,7 +142,7 @@ The `edit` tool performs highly precise, **atomic multi-replacement operations**
 
 ### bash - Command Execution
 
-Executes a command using the shell (e.g., `/bin/bash` or `PowerShell`). It supports both synchronous (blocking) and asynchronous (background) execution modes.
+Executes a command using the shell (e.g., `/bin/bash` on Linux/macOS, BusyBox on Windows, or PowerShell as fallback). It supports both synchronous (blocking) and asynchronous (background) execution modes.
 
 #### Parameters:
 

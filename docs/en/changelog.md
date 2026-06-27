@@ -23,14 +23,28 @@
   - The `bash` tool no longer injects `~/.vibecoding/bin` into `PATH`, since there are no extracted binaries to expose.
   - Output format remains line-oriented for `grep` and `find`; invalid roots and search setup errors are reported directly as tool errors.
 
-## v1.1.51
-
-### ✨ Features
-
 - **FreeBSD Builds & Packaging**
   - Added FreeBSD `amd64` and `arm64` to the build matrix (`make build-freebsd`), tarball distribution (`make dist-freebsd`), and the full `make dist` / `make build-all` flows.
   - Added FreeBSD platform npm packages (`vibecoding-installer-freebsd-x64`, `vibecoding-installer-freebsd-arm64`) as optional dependencies, with platform detection in the npm wrapper and `install.sh`.
   - FreeBSD uses the pure-Go `grep`/`find` implementations and falls back to the no-op sandbox, since bwrap/seatbelt are Linux/macOS only.
+
+- **Embedded BusyBox for Windows**
+  - Embedded `busybox32u.exe` and `busybox64u.exe` assets for Windows, extracted at runtime and used as the default shell for the `bash` tool.
+  - Falls back to PowerShell when BusyBox is unavailable.
+  - Bash tool output now includes a runtime label indicating whether BusyBox or the system shell is in use.
+
+- **Interactive Model Picker**
+  - `/model` without arguments now opens an interactive picker dialog instead of listing models as plain text.
+  - Supports search/filter, arrow-key navigation, current-model indicator, and Enter to switch.
+
+- **Native ccstatusline Support**
+  - Added `statusLine` configuration (`type`, `command`, `padding`, `refreshInterval`, `timeoutMs`, `fallback`) for external status line renderers.
+  - Executes the status line command with a Claude-compatible JSON stdin payload; supports multi-line output, ANSI colors, and OSC 8 hyperlinks.
+  - Added `/statusline` slash command (`on`/`off`/`status`/`test`/`refresh`) for runtime control.
+
+## v1.1.51
+
+### ✨ Features
 
 - **New Provider: Volcengine (火山引擎)**
   - Added Volcengine provider with Doubao Seed models via the Ark API platform.

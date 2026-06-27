@@ -23,14 +23,28 @@
   - `bash` 工具不再将 `~/.vibecoding/bin` 注入 `PATH`，因为已无提取的二进制需要暴露。
   - `grep` 和 `find` 仍保持按行输出；无效根路径和搜索初始化错误会直接作为工具错误返回。
 
-## v1.1.51
-
-### ✨ 新功能
-
 - **FreeBSD 编译与打包**
   - 在构建矩阵中新增 FreeBSD `amd64` 和 `arm64`（`make build-freebsd`）、tarball 分发（`make dist-freebsd`），并接入完整的 `make dist` / `make build-all` 流程。
   - 新增 FreeBSD 平台 npm 包（`vibecoding-installer-freebsd-x64`、`vibecoding-installer-freebsd-arm64`）作为可选依赖，并在 npm wrapper 和 `install.sh` 中加入平台识别。
   - FreeBSD 使用纯 Go 的 `grep`/`find` 实现，并回退到 no-op 沙箱，因为 bwrap/seatbelt 仅支持 Linux/macOS。
+
+- **Windows 内嵌 BusyBox 支持**
+  - 为 Windows 平台内嵌 `busybox32u.exe` 和 `busybox64u.exe` 资产，运行时解压后作为 `bash` 工具的默认 shell。
+  - BusyBox 不可用时回退到 PowerShell。
+  - bash 工具输出现在包含运行时标签，指示当前使用的是 BusyBox 还是系统 shell。
+
+- **交互式 Model 选择器**
+  - `/model` 不带参数时现在会打开交互式选择对话框，而非以纯文本列出模型。
+  - 支持搜索过滤、方向键导航、当前模型指示，以及回车切换。
+
+- **ccstatusline 原生支持**
+  - 新增 `statusLine` 配置（`type`、`command`、`padding`、`refreshInterval`、`timeoutMs`、`fallback`），用于外部状态行渲染器。
+  - 以 Claude 兼容的 JSON stdin payload 执行状态行命令；支持多行输出、ANSI 颜色和 OSC 8 超链接。
+  - 新增 `/statusline` 斜杠命令（`on`/`off`/`status`/`test`/`refresh`），可在运行时控制状态行。
+
+## v1.1.51
+
+### ✨ 新功能
 
 - **新增 Provider: 火山引擎 (Volcengine)**
   - 新增火山引擎 Provider，通过方舟 API 平台接入豆包 Seed 系列模型。
