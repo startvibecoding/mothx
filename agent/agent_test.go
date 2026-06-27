@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 )
 
@@ -43,6 +44,22 @@ func (m *MockProvider) GetModel(id string) *ModelInfo {
 		}
 	}
 	return nil
+}
+
+type testExternalTool struct {
+	name string
+}
+
+func (t testExternalTool) Name() string { return t.name }
+
+func (t testExternalTool) Description() string { return "test tool" }
+
+func (t testExternalTool) Parameters() []byte {
+	return json.RawMessage(`{"type":"object","properties":{}}`)
+}
+
+func (t testExternalTool) Execute(ctx context.Context, params map[string]any) (ExternalToolResult, error) {
+	return ExternalToolResult{Text: "ok"}, nil
 }
 
 // ============ types.go tests ============
@@ -500,6 +517,22 @@ func TestBuilderConfig(t *testing.T) {
 	}
 	if !cfg.MultiAgent {
 		t.Error("expected MultiAgent true")
+	}
+}
+
+func TestBuilderConfigIncludesExternalTools(t *testing.T) {
+	b := NewBuilder().
+		WithProvider(NewMockProvider("test", []ModelInfo{{ID: "gpt-4"}})).
+		WithModel("gpt-4").
+		WithExternalTools(testExternalTool{name: "custom_tool"}).
+		WithoutBuiltinTools()
+
+	cfg := b.Config()
+	if len(cfg.ExternalTools) != 1 || cfg.ExternalTools[0].Name() != "custom_tool" {
+		t.Fatalf("external tools = %#v, want one matching tool", cfg.ExternalTools)
+	}
+	if !cfg.DisableBuiltinTools {
+		t.Fatal("expected DisableBuiltinTools true")
 	}
 }
 

@@ -19,23 +19,25 @@ import (
 //	    WithWorkDir("/home/user/project").
 //	    Build()
 type Builder struct {
-	provider          Provider
-	modelID           string
-	mode              string
-	workDir           string
-	thinkingLevel     ThinkingLevel
-	maxTokens         int
-	systemPromptExtra string
-	maxIterations     int
-	toolExecutionMode string
-	tools             []string
-	sandboxEnabled    bool
-	sessionDir        string
-	compactionEnabled bool
-	compactionReserve int
-	multiAgent        bool
-	delegateMode      bool
-	approvalHandler   func(toolCallID, toolName string, args map[string]any) bool
+	provider            Provider
+	modelID             string
+	mode                string
+	workDir             string
+	thinkingLevel       ThinkingLevel
+	maxTokens           int
+	systemPromptExtra   string
+	maxIterations       int
+	toolExecutionMode   string
+	tools               []string
+	sandboxEnabled      bool
+	sessionDir          string
+	compactionEnabled   bool
+	compactionReserve   int
+	multiAgent          bool
+	delegateMode        bool
+	approvalHandler     func(toolCallID, toolName string, args map[string]any) bool
+	externalTools       []ExternalTool
+	disableBuiltinTools bool
 }
 
 // NewBuilder creates a new Builder with sensible defaults.
@@ -148,6 +150,23 @@ func (b *Builder) WithApprovalHandler(h func(toolCallID, toolName string, args m
 	return b
 }
 
+// WithExternalTools registers host-provided custom tools. These are exposed to
+// the agent in addition to the built-in tools, unless WithoutBuiltinTools is
+// also set, in which case only the external tools are available.
+func (b *Builder) WithExternalTools(tools ...ExternalTool) *Builder {
+	b.externalTools = append(b.externalTools, tools...)
+	return b
+}
+
+// WithoutBuiltinTools disables all built-in coding tools (read/write/edit/bash/...).
+// Use together with WithExternalTools to run an agent that may only use the
+// host-provided tools. This is the recommended mode for embedding the agent as
+// a controlled orchestration layer over an application's own tool set.
+func (b *Builder) WithoutBuiltinTools() *Builder {
+	b.disableBuiltinTools = true
+	return b
+}
+
 // Build creates and returns an Agent instance.
 // Returns an error if required fields are missing.
 func (b *Builder) Build() (Agent, error) {
@@ -194,23 +213,25 @@ func SetBuilderFunc(fn func(b *Builder) (Agent, error)) {
 // It is used by the internal package to construct the agent without
 // exposing Builder fields directly.
 type BuilderConfig struct {
-	Provider          Provider
-	ModelID           string
-	Mode              string
-	WorkDir           string
-	ThinkingLevel     ThinkingLevel
-	MaxTokens         int
-	SystemPromptExtra string
-	MaxIterations     int
-	ToolExecutionMode string
-	Tools             []string
-	SandboxEnabled    bool
-	SessionDir        string
-	CompactionEnabled bool
-	CompactionReserve int
-	MultiAgent        bool
-	DelegateMode      bool
-	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool
+	Provider            Provider
+	ModelID             string
+	Mode                string
+	WorkDir             string
+	ThinkingLevel       ThinkingLevel
+	MaxTokens           int
+	SystemPromptExtra   string
+	MaxIterations       int
+	ToolExecutionMode   string
+	Tools               []string
+	SandboxEnabled      bool
+	SessionDir          string
+	CompactionEnabled   bool
+	CompactionReserve   int
+	MultiAgent          bool
+	DelegateMode        bool
+	ApprovalHandler     func(toolCallID, toolName string, args map[string]any) bool
+	ExternalTools       []ExternalTool
+	DisableBuiltinTools bool
 }
 
 // Config returns a read-only snapshot of the Builder's current configuration.
@@ -218,23 +239,25 @@ type BuilderConfig struct {
 // exporting individual fields.
 func (b *Builder) Config() BuilderConfig {
 	return BuilderConfig{
-		Provider:          b.provider,
-		ModelID:           b.modelID,
-		Mode:              b.mode,
-		WorkDir:           b.workDir,
-		ThinkingLevel:     b.thinkingLevel,
-		MaxTokens:         b.maxTokens,
-		SystemPromptExtra: b.systemPromptExtra,
-		MaxIterations:     b.maxIterations,
-		ToolExecutionMode: b.toolExecutionMode,
-		Tools:             b.tools,
-		SandboxEnabled:    b.sandboxEnabled,
-		SessionDir:        b.sessionDir,
-		CompactionEnabled: b.compactionEnabled,
-		CompactionReserve: b.compactionReserve,
-		MultiAgent:        b.multiAgent,
-		DelegateMode:      b.delegateMode,
-		ApprovalHandler:   b.approvalHandler,
+		Provider:            b.provider,
+		ModelID:             b.modelID,
+		Mode:                b.mode,
+		WorkDir:             b.workDir,
+		ThinkingLevel:       b.thinkingLevel,
+		MaxTokens:           b.maxTokens,
+		SystemPromptExtra:   b.systemPromptExtra,
+		MaxIterations:       b.maxIterations,
+		ToolExecutionMode:   b.toolExecutionMode,
+		Tools:               b.tools,
+		SandboxEnabled:      b.sandboxEnabled,
+		SessionDir:          b.sessionDir,
+		CompactionEnabled:   b.compactionEnabled,
+		CompactionReserve:   b.compactionReserve,
+		MultiAgent:          b.multiAgent,
+		DelegateMode:        b.delegateMode,
+		ApprovalHandler:     b.approvalHandler,
+		ExternalTools:       b.externalTools,
+		DisableBuiltinTools: b.disableBuiltinTools,
 	}
 }
 

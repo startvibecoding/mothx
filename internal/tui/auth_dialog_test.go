@@ -143,6 +143,16 @@ func TestAuthExistingProviderDoesNotSkipBaseURL(t *testing.T) {
 	}
 }
 
+func TestAuthCustomProviderAPIKeyAdvancesToModels(t *testing.T) {
+	a := &App{auth: authDialogState{Open: true, View: authViewAPIKey, Mode: "custom", ProviderID: "openrouter", API: "openai-chat"}}
+	a.prepareAuthInput()
+	a.authInput = a.authInput.SetValue("test-key")
+	a.submitAuthInput()
+	if a.auth.View != authViewModels {
+		t.Fatalf("view = %v, want authViewModels", a.auth.View)
+	}
+}
+
 func TestAuthExistingProviderLoadsForceHTTP11(t *testing.T) {
 	a := &App{
 		settings: &config.Settings{Providers: map[string]*config.ProviderConfig{

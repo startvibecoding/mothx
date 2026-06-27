@@ -231,10 +231,14 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 
 // CreateFromPublicOptions creates an agent from public Builder options.
 func (f *AgentFactory) CreateFromPublicOptions(b *agentpkg.Builder) agentpkg.Agent {
-	// This is called by the public Builder's Build() method via buildInternal.
-	// Extract options from Builder and delegate to Create.
-	// For now, use defaults — the Builder fields are accessed via the builder's internal state.
-	return f.Create(AgentOptions{})
+	if b == nil {
+		return nil
+	}
+	agent, err := buildFromPublicBuilder(b)
+	if err != nil {
+		return nil
+	}
+	return agent
 }
 
 // sandboxForMode returns the appropriate sandbox for the given mode.
@@ -328,11 +332,25 @@ func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
 	} else {
 		sb = sandbox.NewNoneSandbox()
 	}
-	registry := tools.NewRegistryWithConfig(tools.RegistryConfig{
-		WorkDir:    cfg.WorkDir,
-		Sandbox:    sb,
-		ToolFilter: cfg.Tools,
-	})
+	var registry *tools.Registry
+	if cfg.DisableBuiltinTools {
+		// External-only mode: start with an empty registry so the agent may
+		// use ONLY the host-provided external tools.
+		registry = tools.NewRegistry(cfg.WorkDir, sb)
+	} else {
+		registry = tools.NewRegistryWithConfig(tools.RegistryConfig{
+			WorkDir:    cfg.WorkDir,
+			Sandbox:    sb,
+			ToolFilter: cfg.Tools,
+		})
+	}
+	// Register host-provided external tools.
+	for _, et := range cfg.ExternalTools {
+		if et == nil {
+			continue
+		}
+		registry.Register(newExternalToolAdapter(et))
+	}
 
 	agentCfg := Config{
 		Provider:           internalProvider,

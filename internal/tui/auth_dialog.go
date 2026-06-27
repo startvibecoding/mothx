@@ -568,7 +568,11 @@ func (a *App) submitAuthInput() {
 		if a.returnToReviewAfterEdit() {
 			return
 		}
-		a.pushAuthView(authViewBaseURL)
+		if a.auth.Mode == "custom" {
+			a.pushAuthView(authViewModels)
+		} else {
+			a.pushAuthView(authViewBaseURL)
+		}
 	case authViewModels:
 		ids := normalizeAuthModelIDs(value)
 		if len(ids) == 0 {
