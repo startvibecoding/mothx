@@ -111,16 +111,17 @@ type App struct {
 	activeSkills     map[string]string // skill name -> skill context string
 
 	// UI Components
-	input     editor.Model
-	authInput editor.Model
+	input      editor.Model
+	authInput  editor.Model
 	modelInput editor.Model
-	suggest   suggest.Model
-	timer     stopwatch.Model
+	suggest    suggest.Model
+	timer      stopwatch.Model
 
 	// State
 	messages               []string
 	auth                   authDialogState
 	modelDialog            modelDialogState
+	defaultModelDialog     defaultModelDialogState
 	toolResults            []toolResult // Store tool results for expansion
 	isThinking             bool
 	manualCompactionActive bool
@@ -624,6 +625,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleMouse(msg)
 
 	case tea.KeyMsg:
+		if handled, cmd := a.handleDefaultModelKey(msg); handled {
+			return a, cmd
+		}
 		if handled, cmd := a.handleModelKey(msg); handled {
 			return a, cmd
 		}
@@ -1052,8 +1056,10 @@ func (a *App) View() string {
 		parts = append(parts, activity)
 	}
 
-	// 4. Auth dialog or input field
-	if a.modelDialog.Open {
+	// 4. Dialog or input field
+	if a.defaultModelDialog.Open {
+		parts = append(parts, a.renderDefaultModelDialog())
+	} else if a.modelDialog.Open {
 		parts = append(parts, a.renderModelDialog())
 	} else if a.auth.Open {
 		parts = append(parts, a.renderAuthDialog())

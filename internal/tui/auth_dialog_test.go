@@ -15,6 +15,7 @@ func TestAuthBuildSettingsPreservesExistingModelConfig(t *testing.T) {
 			API:           "openai-chat",
 			BaseURL:       "https://api.deepseek.com",
 			HTTPProxy:     "http://127.0.0.1:7890",
+			ForceHTTP11:   true,
 			APIKey:        "test-key",
 			ModelIDs:      "deepseek-v4-pro, custom-model",
 			ContextWindow: "200000",
@@ -37,6 +38,9 @@ func TestAuthBuildSettingsPreservesExistingModelConfig(t *testing.T) {
 	}
 	if pc.HTTPProxy != "http://127.0.0.1:7890" {
 		t.Fatalf("httpProxy = %q", pc.HTTPProxy)
+	}
+	if !pc.ForceHTTP11 {
+		t.Fatal("forceHTTP11 = false, want true")
 	}
 	if !pc.Models[0].Reasoning || pc.Models[0].ContextWindow != 200000 || pc.Models[0].MaxTokens != 10000 {
 		t.Fatalf("existing model config/overrides unexpected: %#v", pc.Models[0])
@@ -136,6 +140,29 @@ func TestAuthExistingProviderDoesNotSkipBaseURL(t *testing.T) {
 	a.submitAuthInput()
 	if a.auth.View != authViewHTTPProxy {
 		t.Fatalf("view = %v, want authViewHTTPProxy", a.auth.View)
+	}
+}
+
+func TestAuthExistingProviderLoadsForceHTTP11(t *testing.T) {
+	a := &App{
+		settings: &config.Settings{Providers: map[string]*config.ProviderConfig{
+			"custom": {API: "openai-chat", BaseURL: "https://custom.test", APIKey: "key", ForceHTTP11: true, Models: []config.ModelConfig{{ID: "model", Name: "Model"}}},
+		}},
+		auth: authDialogState{Open: true, View: authViewExistingProvider},
+	}
+
+	a.selectAuthOption()
+	if !a.auth.ForceHTTP11 {
+		t.Fatal("ForceHTTP11 was not loaded from provider config")
+	}
+
+	a.auth.Stack = []authView{authViewEditMenu}
+	a.jumpAuthEdit("forceHTTP11")
+	if a.auth.ForceHTTP11 {
+		t.Fatal("ForceHTTP11 was not toggled from edit menu")
+	}
+	if a.auth.View != authViewReview {
+		t.Fatalf("view = %v, want authViewReview", a.auth.View)
 	}
 }
 

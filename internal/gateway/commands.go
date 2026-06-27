@@ -8,6 +8,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
@@ -39,6 +40,8 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 		return s.cmdMode(sess, parts)
 	case "/model":
 		return s.cmdModel(parts)
+	case "/defaultModel":
+		return s.cmdDefaultModel(parts)
 	case "/models":
 		return s.cmdModels()
 	case "/sessions":
@@ -119,6 +122,69 @@ func (s *Server) cmdModel(parts []string) *CommandResult {
 	m := s.model
 	s.mu.RUnlock()
 	return &CommandResult{Message: fmt.Sprintf("Current model: %s (%s)", m.Name, m.ID)}
+}
+
+func (s *Server) cmdDefaultModel(parts []string) *CommandResult {
+	if len(parts) != 3 && len(parts) != 4 {
+		return &CommandResult{Message: "Usage: /defaultModel <provider> <model> [project|global]", Error: true}
+	}
+	providerID := parts[1]
+	modelID := parts[2]
+	scope := "global"
+	if len(parts) == 4 {
+		switch parts[3] {
+		case "project", "global":
+			scope = parts[3]
+		default:
+			return &CommandResult{Message: "Usage: /defaultModel <provider> <model> [project|global]", Error: true}
+		}
+	}
+
+	s.mu.RLock()
+	runtime := *s.settings
+	s.mu.RUnlock()
+	runtime.DefaultProvider = providerID
+	runtime.DefaultModel = modelID
+
+	p, m, err := providerfactory.Create(&runtime, providerID, modelID)
+	if err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Provider validation failed: %v", err), Error: true}
+	}
+
+	scoped, err := loadDefaultModelSettings(scope)
+	if err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Failed to load %s settings: %v", scope, err), Error: true}
+	}
+	scoped.DefaultProvider = providerID
+	scoped.DefaultModel = modelID
+	if err := saveDefaultModelSettings(scope, scoped); err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Failed to save %s settings: %v", scope, err), Error: true}
+	}
+
+	s.mu.Lock()
+	s.settings = &runtime
+	s.provider = p
+	s.model = m
+	s.mu.Unlock()
+	return &CommandResult{Message: fmt.Sprintf("✅ Default model saved (%s): %s / %s", scope, providerID, modelID)}
+}
+
+func loadDefaultModelSettings(scope string) (*config.Settings, error) {
+	switch scope {
+	case "global":
+		return config.LoadGlobalSettingsSparse()
+	default:
+		return config.LoadProjectSettingsSparse()
+	}
+}
+
+func saveDefaultModelSettings(scope string, settings *config.Settings) error {
+	switch scope {
+	case "global":
+		return config.SaveGlobalSettings(settings)
+	default:
+		return config.SaveProjectSettings(settings)
+	}
 }
 
 func (s *Server) cmdModels() *CommandResult {
@@ -480,6 +546,7 @@ func (s *Server) cmdHelp() *CommandResult {
   /clear                  - Clear conversation context
   /mode [plan|agent|yolo] - Show or switch mode
   /model [model_id]       - Show or switch model
+  /defaultModel <provider> <model> [project|global] - Set default provider/model (default: global)
   /models                 - List available models
   /sessions               - List active sessions
   /sessions del <id>      - Delete a session

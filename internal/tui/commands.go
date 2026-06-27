@@ -577,6 +577,26 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				a.openModelDialog()
 			}
 		}
+	case "/defaultModel":
+		scope := "global"
+		if len(parts) > 2 {
+			a.addCommandError("Usage: /defaultModel [project|global]")
+			return nil
+		}
+		if len(parts) == 2 {
+			switch parts[1] {
+			case "project", "global":
+				scope = parts[1]
+			default:
+				a.addCommandError("Usage: /defaultModel [project|global]")
+				return nil
+			}
+		}
+		if a.isThinking {
+			a.addCommandError("Cannot open /defaultModel while the agent is running.")
+		} else {
+			a.openDefaultModelDialog(scope)
+		}
 	case "/auth":
 		if a.isThinking {
 			a.addCommandError("Cannot open /auth while the agent is running.")

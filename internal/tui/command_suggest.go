@@ -13,6 +13,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/auth", Value: "/auth", Description: "Configure provider token, base URL, proxy and models"},
 		{Label: "/mode", Value: "/mode ", Description: "Switch or show mode"},
 		{Label: "/model", Value: "/model ", Description: "Switch or show model"},
+		{Label: "/defaultModel", Value: "/defaultModel ", Description: "Set default provider/model; defaults to global settings"},
 		{Label: "/skills", Value: "/skills", Description: "List available skills"},
 		{Label: "/skill", Value: "/skill ", Description: "Activate a skill"},
 		{Label: "/clear", Value: "/clear", Description: "Clear conversation"},
@@ -37,7 +38,7 @@ func commandSuggestionItems() []suggest.Item {
 
 func (a *App) updateCommandSuggestions() {
 	value := a.input.Value()
-	if a.auth.Open || a.toolModalOpen || a.waitingForApproval || a.waitingForQuestion || !strings.HasPrefix(value, "/") || strings.ContainsAny(value, " \t\n") {
+	if a.auth.Open || a.defaultModelDialog.Open || a.toolModalOpen || a.waitingForApproval || a.waitingForQuestion || !strings.HasPrefix(value, "/") || strings.ContainsAny(value, " \t\n") {
 		a.suggest = a.suggest.Update("")
 		return
 	}

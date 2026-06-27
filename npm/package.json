@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer",
-  "version": "1.1.51-pre",
+  "version": "1.1.52",
   "description": "AI coding assistant for the terminal",
   "bin": {
     "vibecoding": "bin/vibecoding"
@@ -34,22 +34,22 @@
     "node": ">=14"
   },
   "optionalDependencies": {
-    "vibecoding-installer-linux-x64": "1.1.51-pre",
-    "vibecoding-installer-linux-arm64": "1.1.51-pre",
-    "vibecoding-installer-linux-loong64": "1.1.51-pre",
-    "vibecoding-installer-linux-ppc64le": "1.1.51-pre",
-    "vibecoding-installer-linux-s390x": "1.1.51-pre",
-    "vibecoding-installer-linux-riscv64": "1.1.51-pre",
-    "vibecoding-installer-linux-musl-x64": "1.1.51-pre",
-    "vibecoding-installer-linux-musl-arm64": "1.1.51-pre",
-    "vibecoding-installer-darwin-x64": "1.1.51-pre",
-    "vibecoding-installer-darwin-arm64": "1.1.51-pre",
-    "vibecoding-installer-win32-x64": "1.1.51-pre",
-    "vibecoding-installer-win32-arm64": "1.1.51-pre",
-    "vibecoding-installer-freebsd-x64": "1.1.51-pre",
-    "vibecoding-installer-freebsd-arm64": "1.1.51-pre",
-    "vibecoding-installer-openbsd-x64": "1.1.51-pre",
-    "vibecoding-installer-openbsd-arm64": "1.1.51-pre",
-    "vibecoding-installer-netbsd-x64": "1.1.51-pre"
+    "vibecoding-installer-linux-x64": "1.1.52",
+    "vibecoding-installer-linux-arm64": "1.1.52",
+    "vibecoding-installer-linux-loong64": "1.1.52",
+    "vibecoding-installer-linux-ppc64le": "1.1.52",
+    "vibecoding-installer-linux-s390x": "1.1.52",
+    "vibecoding-installer-linux-riscv64": "1.1.52",
+    "vibecoding-installer-linux-musl-x64": "1.1.52",
+    "vibecoding-installer-linux-musl-arm64": "1.1.52",
+    "vibecoding-installer-darwin-x64": "1.1.52",
+    "vibecoding-installer-darwin-arm64": "1.1.52",
+    "vibecoding-installer-win32-x64": "1.1.52",
+    "vibecoding-installer-win32-arm64": "1.1.52",
+    "vibecoding-installer-freebsd-x64": "1.1.52",
+    "vibecoding-installer-freebsd-arm64": "1.1.52",
+    "vibecoding-installer-openbsd-x64": "1.1.52",
+    "vibecoding-installer-openbsd-arm64": "1.1.52",
+    "vibecoding-installer-netbsd-x64": "1.1.52"
   }
 }

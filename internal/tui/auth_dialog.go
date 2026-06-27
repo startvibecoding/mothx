@@ -26,6 +26,7 @@ const (
 	authViewBaseURLChoice
 	authViewBaseURL
 	authViewHTTPProxy
+	authViewForceHTTP11
 	authViewAPIKey
 	authViewModels
 	authViewAdvanced
@@ -49,14 +50,15 @@ type authDialogState struct {
 	Stack  []authView
 	Mode   string // existing/custom
 
-	ProviderID string
-	API        string
-	BaseURL    string
-	HTTPProxy  string
-	APIKey     string
-	ModelIDs   string
-	Search     string
-	SetDefault bool
+	ProviderID  string
+	API         string
+	BaseURL     string
+	HTTPProxy   string
+	ForceHTTP11 bool
+	APIKey      string
+	ModelIDs    string
+	Search      string
+	SetDefault  bool
 
 	ContextWindow string
 	MaxTokens     string
@@ -255,6 +257,7 @@ func (a *App) selectAuthOption() {
 			a.auth.API = pc.API
 			a.auth.BaseURL = pc.BaseURL
 			a.auth.HTTPProxy = pc.HTTPProxy
+			a.auth.ForceHTTP11 = pc.ForceHTTP11
 			a.auth.APIKey = pc.APIKey
 			var ids []string
 			for _, m := range pc.Models {
@@ -279,6 +282,16 @@ func (a *App) selectAuthOption() {
 			a.auth.BaseURL = opt.Value
 		}
 		a.pushAuthView(authViewBaseURL)
+	case authViewForceHTTP11:
+		a.auth.ForceHTTP11 = opt.Value == "yes"
+		if a.returnToReviewAfterEdit() {
+			break
+		}
+		if a.auth.Mode == "existing" {
+			a.pushAuthView(authViewModels)
+		} else {
+			a.pushAuthView(authViewAPIKey)
+		}
 	case authViewAdvanced:
 		switch opt.Value {
 		case "continue":
@@ -366,6 +379,11 @@ func (a *App) jumpAuthEdit(value string) {
 		}
 	case "httpProxy":
 		a.pushAuthView(authViewHTTPProxy)
+	case "forceHTTP11":
+		a.auth.ForceHTTP11 = !a.auth.ForceHTTP11
+		if a.returnToReviewAfterEdit() {
+			return
+		}
 	case "models":
 		a.pushAuthView(authViewModels)
 	case "advanced":
@@ -535,22 +553,22 @@ func (a *App) submitAuthInput() {
 				a.auth.Error = "HTTP proxy must be a valid URL or empty."
 				return
 			}
-        }
-        a.auth.HTTPProxy = value
-        if a.returnToReviewAfterEdit() {
-            return
-        }
-        a.pushAuthView(authViewAPIKey)
-    case authViewAPIKey:
-        if value == "" {
-            a.auth.Error = "API key is required."
-            return
-        }
-        a.auth.APIKey = value
-        if a.returnToReviewAfterEdit() {
-            return
-        }
-        a.pushAuthView(authViewModels)
+		}
+		a.auth.HTTPProxy = value
+		if a.returnToReviewAfterEdit() {
+			return
+		}
+		a.pushAuthView(authViewForceHTTP11)
+	case authViewAPIKey:
+		if value == "" {
+			a.auth.Error = "API key is required."
+			return
+		}
+		a.auth.APIKey = value
+		if a.returnToReviewAfterEdit() {
+			return
+		}
+		a.pushAuthView(authViewBaseURL)
 	case authViewModels:
 		ids := normalizeAuthModelIDs(value)
 		if len(ids) == 0 {
@@ -608,6 +626,11 @@ func (a *App) authOptions() []authOption {
 		}
 		items = append(items, authOption{Title: "Custom", Description: "Enter or edit the base URL manually", Value: "custom"})
 		return items
+	case authViewForceHTTP11:
+		return []authOption{
+			{Title: "No", Description: "Use the default HTTP transport behavior", Value: "no"},
+			{Title: "Yes", Description: "Disable HTTP/2 for this provider", Value: "yes"},
+		}
 	case authViewAdvanced:
 		return []authOption{
 			{Title: "Continue", Description: "Apply these parameters", Value: "continue"},
@@ -634,6 +657,7 @@ func (a *App) authOptions() []authOption {
 			{Title: "API Key", Description: maskAuthSecret(a.auth.APIKey), Value: "apiKey"},
 			{Title: "Base URL", Description: a.auth.BaseURL, Value: "baseUrl"},
 			{Title: "HTTP Proxy", Description: valueOrDefaultText(a.auth.HTTPProxy, "none"), Value: "httpProxy"},
+			{Title: "Force HTTP/1.1", Description: fmt.Sprintf("enabled: %v", a.auth.ForceHTTP11), Value: "forceHTTP11"},
 			{Title: "Model IDs", Description: a.auth.ModelIDs, Value: "models"},
 			{Title: "Advanced parameters", Description: a.authAdvancedSummary(), Value: "advanced"},
 			{Title: "Default setting", Description: fmt.Sprintf("set default: %v", a.auth.SetDefault), Value: "default"},
@@ -870,6 +894,8 @@ func authTitle(v authView) string {
 		return "Provider Setup · Base URL"
 	case authViewHTTPProxy:
 		return "Provider Setup · HTTP Proxy"
+	case authViewForceHTTP11:
+		return "Provider Setup · Force HTTP/1.1"
 	case authViewAPIKey:
 		return "Provider Setup · API Key"
 	case authViewModels:
@@ -1006,6 +1032,7 @@ func (a *App) buildAuthSettingsFrom(base *config.Settings) (*config.Settings, st
 	}
 	pc.BaseURL = a.auth.BaseURL
 	pc.HTTPProxy = a.auth.HTTPProxy
+	pc.ForceHTTP11 = a.auth.ForceHTTP11
 	pc.APIKey = a.auth.APIKey
 	ids := normalizeAuthModelIDs(a.auth.ModelIDs)
 	pc.Models = make([]config.ModelConfig, 0, len(ids))
