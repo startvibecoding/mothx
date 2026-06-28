@@ -675,7 +675,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			case provider.StreamToolCall:
 				if event.ToolCall != nil {
 					if event.ToolCall.ID == "" {
-						event.ToolCall.ID = fmt.Sprintf("toolcall_%d", len(toolCalls))
+						event.ToolCall.ID = fmt.Sprintf("agent_toolcall_%d_%d", time.Now().UnixNano(), len(toolCalls))
 					}
 					// Parse arguments for the event
 					args, err := normalizeToolCallArguments(event.ToolCall)

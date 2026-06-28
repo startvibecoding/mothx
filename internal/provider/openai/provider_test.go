@@ -798,8 +798,8 @@ func TestOpenAIToolCall_MissingIDGetsFallback(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected StreamToolCall event")
 	}
-	if got.ID != "toolcall_0" {
-		t.Fatalf("ToolCall.ID = %q, want %q", got.ID, "toolcall_0")
+	if !strings.HasPrefix(got.ID, "openai_toolcall_") {
+		t.Fatalf("ToolCall.ID = %q, want prefix 'openai_toolcall_'", got.ID)
 	}
 	if got.Name != "bash" {
 		t.Fatalf("ToolCall.Name = %q, want %q", got.Name, "bash")
