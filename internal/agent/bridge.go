@@ -277,6 +277,7 @@ func ChatParamsFromPublic(p agentpkg.ChatParams) provider.ChatParams {
 		SystemPrompt:  p.SystemPrompt,
 		ThinkingLevel: provider.ThinkingLevel(p.ThinkingLevel),
 		MaxTokens:     p.MaxTokens,
+		ModelID:       p.ModelID,
 		Abort:         abort,
 	}
 }
@@ -545,6 +546,7 @@ func ChatParamsToPublic(p provider.ChatParams) agentpkg.ChatParams {
 		SystemPrompt:  p.SystemPrompt,
 		ThinkingLevel: agentpkg.ThinkingLevel(p.ThinkingLevel),
 		MaxTokens:     p.MaxTokens,
+		ModelID:       p.ModelID,
 		Abort:         abort,
 	}
 }

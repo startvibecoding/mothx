@@ -276,15 +276,15 @@ func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatPara
 			return
 		}
 
-			modelID := params.ModelID
-			if modelID == "" {
-				if len(p.Models()) > 0 {
-					modelID = p.Models()[0].ID
-				} else {
-					ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("no models available from provider %q", p.Name())}
-					return
-				}
+		modelID := params.ModelID
+		if modelID == "" {
+			if len(p.Models()) > 0 {
+				modelID = p.Models()[0].ID
+			} else {
+				ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("no models available from provider %q", p.Name())}
+				return
 			}
+		}
 
 		maxTokens := params.MaxTokens
 		if maxTokens == 0 {

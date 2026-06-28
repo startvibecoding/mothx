@@ -25,6 +25,7 @@ type ChatParams struct {
 	SystemPrompt  string
 	ThinkingLevel ThinkingLevel
 	MaxTokens     int
+	ModelID       string
 	Abort         chan struct{}
 }
 

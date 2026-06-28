@@ -62,13 +62,13 @@ func (a *providerAdapter) Chat(ctx context.Context, params ChatParams) <-chan St
 	}
 	for i, t := range params.Tools {
 		internalParams.Tools[i] = internalprovider.ToolDefinition{
-			Name:        t.Name,
-			Description: t.Description,
-			Parameters:  t.Parameters,
-			Kind:        t.Kind,
-			Provider:    t.Provider,
+			Name:         t.Name,
+			Description:  t.Description,
+			Parameters:   t.Parameters,
+			Kind:         t.Kind,
+			Provider:     t.Provider,
 			ProviderType: t.ProviderType,
-			Model:       t.Model,
+			Model:        t.Model,
 		}
 	}
 
