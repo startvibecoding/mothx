@@ -272,6 +272,10 @@ func TestSubAgentSendTool(t *testing.T) {
 	if parsed["status"] != "message_sent" {
 		t.Errorf("expected 'message_sent', got %q", parsed["status"])
 	}
+	waitForManagedAgentToStop(t, mgr, a.ID())
+	if err := mgr.Destroy(a.ID()); err != nil {
+		t.Fatalf("destroy sent agent: %v", err)
+	}
 }
 
 func TestSubAgentSendToolNotFound(t *testing.T) {

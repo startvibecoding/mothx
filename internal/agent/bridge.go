@@ -4,7 +4,6 @@ import (
 	"context"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/tools"
@@ -637,21 +636,5 @@ func (a *AgentAdapter) SetContext(ctx *agentpkg.AgentContext) {
 	a.inner.SetContext(&AgentContext{
 		SystemPrompt: ctx.SystemPrompt,
 		Messages:     MessagesFromPublic(ctx.Messages),
-	})
-}
-
-func init() {
-	agentpkg.SetResolveProviderFunc(func(vendor, baseURL, api, apiKey string) (agentpkg.Provider, error) {
-		cfg := &config.ProviderConfig{
-			Vendor:  vendor,
-			BaseURL: baseURL,
-			API:     api,
-			APIKey:  apiKey,
-		}
-		p, err := provider.ResolveProvider(cfg)
-		if err != nil {
-			return nil, err
-		}
-		return NewPublicProviderAdapter(p), nil
 	})
 }
