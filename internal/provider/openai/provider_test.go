@@ -798,6 +798,9 @@ func TestOpenAIToolCall_MissingIDGetsFallback(t *testing.T) {
 	if got == nil {
 		t.Fatal("expected StreamToolCall event")
 	}
+	if got.ID == "" {
+		t.Fatal("ToolCall.ID is empty, want fallback ID")
+	}
 	if !strings.HasPrefix(got.ID, "openai_toolcall_") {
 		t.Fatalf("ToolCall.ID = %q, want prefix 'openai_toolcall_'", got.ID)
 	}

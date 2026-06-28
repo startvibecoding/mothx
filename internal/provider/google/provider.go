@@ -545,7 +545,6 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	var usage *provider.Usage
 	var stopReason string
 	var visibleOutput bool
-	toolCallIndex := 0
 
 	for scanner.Scan() {
 		select {
@@ -598,13 +597,12 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				}
 				if part.FunctionCall != nil {
 					visibleOutput = true
-					toolCallIndex++
 					args := part.FunctionCall.Args
 					if len(args) == 0 {
 						args = json.RawMessage(`{}`)
 					}
 					tc := &provider.ToolCallBlock{
-						ID:               fmt.Sprintf("google_toolcall_%d_%d", time.Now().UnixNano(), toolCallIndex),
+						ID:               provider.NextToolCallFallbackID("google_toolcall"),
 						Name:             part.FunctionCall.Name,
 						Arguments:        args,
 						ThoughtSignature: part.ThoughtSignature,

@@ -11,7 +11,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/ua"
@@ -378,7 +377,7 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 					tc.ID = event.Item.ID
 				}
 				if tc.ID == "" {
-					tc.ID = fmt.Sprintf("openai_toolcall_%d_%d", time.Now().UnixNano(), len(toolCallOrder))
+					tc.ID = provider.NextToolCallFallbackID("openai_toolcall")
 				}
 				if tc.Arguments == nil || len(tc.Arguments) == 0 {
 					if buf := argumentBuffers[key]; buf != nil {

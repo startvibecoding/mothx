@@ -519,7 +519,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		if buf, ok := toolCallBuffers[i]; ok {
 			if tc.ID == "" {
 				// Some OpenAI-compatible providers omit tool call IDs in stream deltas.
-				tc.ID = fmt.Sprintf("openai_toolcall_%d_%d", time.Now().UnixNano(), i)
+				tc.ID = provider.NextToolCallFallbackID("openai_toolcall")
 			}
 			tc.Arguments = json.RawMessage(buf.String())
 			toolCalls[i] = tc
