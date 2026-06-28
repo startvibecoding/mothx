@@ -639,7 +639,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			Messages:      messagesWithMarkers,
 			Tools:         a.frozenToolDefs,
 			SystemPrompt:  a.frozenSystemPrompt,
-			ThinkingLevel: a.config.ThinkingLevel,
+			ThinkingLevel: provider.NormalizeThinkingLevel(a.config.ThinkingLevel),
 			MaxTokens:     a.config.MaxTokens,
 			Temperature:   a.config.Model.Temperature,
 			TopP:          a.config.Model.TopP,

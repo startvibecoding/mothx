@@ -259,6 +259,21 @@ const (
 	ThinkingXHigh   ThinkingLevel = "xhigh"
 )
 
+// NormalizeThinkingLevel ensures a valid thinking level is returned.
+// Empty or invalid values fall back to ThinkingMedium for reasoning models.
+func NormalizeThinkingLevel(level ThinkingLevel) ThinkingLevel {
+	switch level {
+	case ThinkingOff, ThinkingMinimal, ThinkingLow, ThinkingMedium, ThinkingHigh, ThinkingXHigh:
+		return level
+	case "":
+		// Empty string falls back to medium (reasonable default for reasoning models)
+		return ThinkingMedium
+	default:
+		// Invalid value falls back to medium
+		return ThinkingMedium
+	}
+}
+
 // ToolDefinition describes a tool available to the model.
 type ToolDefinition struct {
 	Name         string          `json:"name"`
