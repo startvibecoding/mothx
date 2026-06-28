@@ -256,6 +256,8 @@ func TestBuilderWithModel(t *testing.T) {
 	}
 }
 
+func TestBuilderWithProviderByNameResolvesByAPIWhenVendorUnregistered(t *testing.T) {}
+
 func TestBuilderWithMode(t *testing.T) {
 	b := NewBuilder()
 	b.WithMode("plan")

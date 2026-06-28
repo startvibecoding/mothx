@@ -101,7 +101,13 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 			if modelID == "" {
 				return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
 			}
-			return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
+			return p, &provider.Model{
+				ID:        modelID,
+				Name:      modelID,
+				Provider:  providerName,
+				Reasoning: false,
+				Input:     []string{"text"},
+			}, nil
 		}
 		return p, applyModelOverrides(model, settings), nil
 	}
@@ -138,7 +144,13 @@ func CreateWithOptions(settings *config.Settings, providerName, modelID string, 
 		if modelID == "" {
 			return nil, nil, fmt.Errorf("no models available for provider %s", providerName)
 		}
-		return nil, nil, fmt.Errorf("model %q not found for provider %s — available: %s", modelID, providerName, modelIDs(p.Models()))
+		return p, &provider.Model{
+			ID:        modelID,
+			Name:      modelID,
+			Provider:  providerName,
+			Reasoning: false,
+			Input:     []string{"text"},
+		}, nil
 	}
 	return p, applyModelOverrides(model, settings), nil
 }

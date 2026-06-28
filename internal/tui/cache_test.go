@@ -1785,6 +1785,73 @@ func TestToolModalDefaultsMainAndSwitchesToSubAgent(t *testing.T) {
 	}
 }
 
+func TestToolCallShowsRunningMessageBeforeResult(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a.messages = []string{"assistant start"}
+
+	a.handleAgentEvent(agent.Event{
+		Type:     agent.EventToolCall,
+		ToolCall: &provider.ToolCallBlock{ID: "tool-1", Name: "bash"},
+		ToolArgs: map[string]any{"command": "sleep 10"},
+	})
+
+	if len(a.messages) < 2 {
+		t.Fatalf("messages len = %d, want running message appended", len(a.messages))
+	}
+	got := stripANSI(a.messages[1])
+	if !strings.Contains(got, "Running bash: sleep 10") {
+		t.Fatalf("running message = %q, want running bash line", got)
+	}
+
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolResult,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolResult: "done",
+	})
+
+	if len(a.messages) < 3 {
+		t.Fatalf("messages len = %d, want result message appended", len(a.messages))
+	}
+	if got := stripANSI(a.renderMessageAt(1)); !strings.Contains(got, "Running bash: sleep 10") {
+		t.Fatalf("running message changed unexpectedly: %q", got)
+	}
+	if got := stripANSI(a.renderMessageAt(2)); !strings.Contains(got, "done") {
+		t.Fatalf("rendered tool result missing final output: %q", got)
+	}
+}
+
+func TestToolResultReprintsAfterRunningMessage(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a.messages = []string{"assistant start"}
+
+	a.handleAgentEvent(agent.Event{
+		Type:     agent.EventToolCall,
+		ToolCall: &provider.ToolCallBlock{ID: "tool-1", Name: "bash"},
+		ToolArgs: map[string]any{"command": "echo hello"},
+	})
+	if len(a.toolResults) != 1 || a.toolResults[0].status != "running" {
+		t.Fatalf("toolResults = %#v, want running tool entry", a.toolResults)
+	}
+	if got := stripANSI(a.renderMessageAt(1)); !strings.Contains(got, "Running bash: echo hello") {
+		t.Fatalf("running message = %q, want running bash line", got)
+	}
+
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolResult,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolResult: "hello",
+	})
+
+	if len(a.toolResults) != 2 {
+		t.Fatalf("toolResults len = %d, want running + result entries", len(a.toolResults))
+	}
+	if got := stripANSI(a.renderMessageAt(2)); !strings.Contains(got, "hello") {
+		t.Fatalf("rendered tool result = %q, want final output", got)
+	}
+}
+
 func TestToolModalHeightFitsTerminalWithoutCroppingTop(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.ready = true

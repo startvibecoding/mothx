@@ -29,6 +29,9 @@ func (a *App) renderMessageAt(idx int) string {
 }
 
 func (a *App) renderToolResult(result toolResult) string {
+	if result.status == "running" {
+		return toolStyle.Render(formatToolExecutionStart(result.toolName, result.toolArgs))
+	}
 	// Compact mode: single-line summary for all tool types
 	if a.compactMode {
 		header := formatToolHeader(result)

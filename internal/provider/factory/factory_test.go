@@ -261,3 +261,26 @@ func TestCreateAppliesMaxContextTokensOverrideForBuiltinProvider(t *testing.T) {
 		t.Fatalf("ContextWindow = %d, want 54321", model.ContextWindow)
 	}
 }
+
+func TestCreatePreservesUnknownModelID(t *testing.T) {
+	settings := &config.Settings{
+		Providers: map[string]*config.ProviderConfig{
+			"custom-provider": {
+				APIKey:  "fake-key",
+				BaseURL: "https://api.openai.com/v1",
+				API:     "openai-chat",
+				Models: []config.ModelConfig{
+					{ID: "model-one", Name: "Model One"},
+				},
+			},
+		},
+	}
+
+	_, model, err := Create(settings, "custom-provider", "missing-model")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if model == nil || model.ID != "missing-model" {
+		t.Fatalf("model = %#v, want missing-model", model)
+	}
+}

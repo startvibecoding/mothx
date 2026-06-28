@@ -470,6 +470,44 @@ func TestBashToolExecuteNoOutput(t *testing.T) {
 	}
 }
 
+func TestBashToolExecutionTimeout(t *testing.T) {
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	timeout, ok := tool.ExecutionTimeout(map[string]any{})
+	if !ok {
+		t.Fatal("expected timeout override to be provided")
+	}
+	if timeout != 45*time.Second {
+		t.Fatalf("default timeout = %s, want 45s", timeout)
+	}
+
+	timeout, ok = tool.ExecutionTimeout(map[string]any{"timeout": float64(90)})
+	if !ok {
+		t.Fatal("expected explicit timeout override")
+	}
+	if timeout != 90*time.Second {
+		t.Fatalf("timeout = %s, want 90s", timeout)
+	}
+
+	timeout, ok = tool.ExecutionTimeout(map[string]any{"timeout": float64(0)})
+	if !ok {
+		t.Fatal("expected zero timeout override")
+	}
+	if timeout != 0 {
+		t.Fatalf("timeout = %s, want 0", timeout)
+	}
+
+	timeout, ok = tool.ExecutionTimeout(map[string]any{"async": true})
+	if !ok {
+		t.Fatal("expected async timeout override")
+	}
+	if timeout != 0 {
+		t.Fatalf("async timeout = %s, want 0", timeout)
+	}
+}
+
 func TestBashToolExecuteNonZeroExitCode(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)

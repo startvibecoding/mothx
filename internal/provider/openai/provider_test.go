@@ -962,3 +962,21 @@ func TestOpenAIResponsesAPIStreamFailure(t *testing.T) {
 	}
 	t.Fatal("missing StreamError event")
 }
+
+func TestOpenAIResponsesFactoryEnablesResponsesMode(t *testing.T) {
+	p, err := provider.CreateProvider("openai-responses", &config.ProviderConfig{
+		API:    "openai-responses",
+		APIKey: "k",
+	})
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+
+	op, ok := p.(*Provider)
+	if !ok {
+		t.Fatalf("provider type = %T, want *Provider", p)
+	}
+	if !op.useResponsesAPI {
+		t.Fatal("expected responses API mode to be enabled")
+	}
+}

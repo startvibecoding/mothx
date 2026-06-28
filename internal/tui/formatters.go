@@ -94,6 +94,36 @@ func formatToolArgs(toolName string, args map[string]any) string {
 	return strings.Join(parts, "\n")
 }
 
+func formatToolExecutionStart(toolName string, args map[string]any) string {
+	switch toolName {
+	case "bash":
+		if cmd, ok := args["command"]; ok {
+			return fmt.Sprintf("Running bash: %v", cmd)
+		}
+		return "Running bash"
+	case "write":
+		if path, ok := args["path"]; ok {
+			return fmt.Sprintf("Running write: %v", path)
+		}
+		return "Running write"
+	case "edit":
+		if path, ok := args["path"]; ok {
+			return fmt.Sprintf("Running edit: %v", path)
+		}
+		return "Running edit"
+	case "read":
+		if path, ok := args["path"]; ok {
+			return fmt.Sprintf("Running read: %v", path)
+		}
+		return "Running read"
+	default:
+		if toolName == "" {
+			return ""
+		}
+		return "Running " + toolName
+	}
+}
+
 func formatToolHeader(result toolResult) string {
 	path := toolPath(result.toolArgs)
 	if path == "" {

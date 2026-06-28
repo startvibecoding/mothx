@@ -104,6 +104,8 @@ Built-in tools include:
 
 `grep` and `find` are backed by pure-Go SDKs (`github.com/startvibecoding/go-ripgrep` and `github.com/startvibecoding/go-fd`). They work on all Go-supported architectures without external binary dependencies.
 
+`bash` defaults to a short synchronous timeout (45s); use `async=true` for dev servers and other long-running processes, and treat `timeout=0` as an explicit no tool-level deadline.
+
 ## Modes and Safety
 
 - `plan`: read-only tools + `question` (interactive, TUI only)
@@ -131,6 +133,7 @@ When changing code, prefer the least risky approach that satisfies the request.
 - Completed transcript blocks must be printed to native terminal scrollback with Bubble Tea `Program.Println`.
 - Do not route completed transcript scrollback output through `tea.Println(...)` sent via `Program.Send`; that puts printing back into the update loop and can swallow or delay transcript output.
 - Keep only active streaming content in the managed Bubble Tea view. Completed user/assistant/tool/status blocks should leave the live view after they are printed so mouse scrolling and terminal selection use the terminal's own scrollback.
+- Show a visible tool "running" line before the final result line, rather than overwriting a single tool entry in place.
 
 ## Docs and Release Notes
 

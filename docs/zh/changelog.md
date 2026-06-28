@@ -1,6 +1,35 @@
 # 更新日志
 
 
+## v1.1.53
+
+### ✨ 新功能
+
+- **可嵌入 agent：宿主提供的外部工具**
+  - 新增公开的 `agent.ExternalTool` 接口，嵌入方应用可将自身受控能力暴露给 agent，与内置编码工具并存（或完全替代）。
+  - 新增 `ExternalToolResult`（文本/错误 + 可选的富 `Contents` 内容块）以及可选的 `ExternalToolPromptInfo` 接口，用于贡献系统提示词信息（`PromptSnippet`、`PromptGuidelines`）。
+  - 新增 `Builder.WithExternalTools(...)` 用于注册自定义工具，`Builder.WithoutBuiltinTools()` 用于禁用全部内置工具，从而构建只能使用宿主工具的 agent。
+  - 外部工具通过内部 factory 的 `externalToolAdapter` 接入，内部包现在通过 `CreateFromPublicOptions` 从公开 `Builder` 配置构建 agent。
+  - 新增 `bootstrap` 包：外部模块只需空白导入 `github.com/startvibecoding/vibecoding/bootstrap` 一次即可注册内部 builder 与 provider 解析 hook（因为内部包无法被直接导入）。
+
+### 💅 优化
+
+- **Provider 指南文档**
+  - 新增 provider 指南（`docs/en/provider-guide.md`、`docs/zh/provider-guide.md`），介绍 provider/vendor 配置。
+
+- **bash 执行体验优化**
+  - 将同步执行的 `bash` 默认超时收紧到 45 秒，保留 `async=true` 作为后台任务模式，并将 `timeout=0` 明确为“不设置工具层 deadline”。
+  - 更新了 `bash` 的提示语，强调长驻服务应使用 `async=true`，网络探测和其他容易挂住的命令应显式设置超时。
+  - TUI 现在会把工具执行拆成“即将运行”和“运行结果”两条独立消息，长命令执行中也能直接看见状态。
+
+- **内部模块拆分**
+  - 将 agent、TUI 与命令文件拆分为更聚焦的模块（agent 审批/上下文、TUI 粘贴/渲染、会话/状态行命令），便于维护，行为不变。
+
+### 🐛 修复
+
+- **自定义 provider 认证流程**
+  - 修复自定义 provider 认证流程，使其能正确从 API key 步骤推进到模型选择步骤。
+
 ## v1.1.52
 
 ### 💅 优化

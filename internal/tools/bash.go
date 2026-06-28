@@ -80,9 +80,9 @@ func (t *BashTool) Name() string { return "bash" }
 
 func (t *BashTool) Description() string {
 	if platform.IsWindows() {
-		return "Execute a shell command (BusyBox first, PowerShell fallback). Use this to run commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
+		return "Execute a shell command (BusyBox first, PowerShell fallback). Use this for short commands, validation, and builds. The command runs in the current working directory. Sync runs default to 45s, max 600s. For long-running services like servers and watchers, use async=true."
 	}
-	return "Execute a bash command. Use this to run shell commands, scripts, build commands, etc. The command runs in the current working directory. Set timeout for long-running commands (default 120s, max 600s). For long-running services (like servers), use async=true to run in background."
+	return "Execute a bash command. Use this for short commands, validation, and builds. The command runs in the current working directory. Sync runs default to 45s, max 600s. For long-running services like servers and watchers, use async=true."
 }
 
 func (t *BashTool) PromptSnippet() string {
@@ -92,7 +92,9 @@ func (t *BashTool) PromptSnippet() string {
 func (t *BashTool) PromptGuidelines() []string {
 	guidelines := []string{
 		"Prefer read/ls/grep/find tools over bash for file inspection and exploration",
-		"For long-running services (servers, watchers, dev servers), use async=true to run in background",
+		"Use bash for short commands, validation, and builds; use async=true for long-running services like servers, watchers, and dev servers",
+		"For network probes and commands that may hang, set timeout explicitly",
+		"Examples that often need explicit timeout: curl, wget, npm install, go test, docker logs",
 	}
 	if platform.IsWindows() {
 		guidelines = append(guidelines, "On Windows, bash uses embedded BusyBox first and falls back to PowerShell if BusyBox is unavailable")
@@ -110,7 +112,7 @@ func (t *BashTool) Parameters() json.RawMessage {
 			},
 			"timeout": {
 				"type": "integer",
-				"description": "Timeout in seconds (default 120, max 600)"
+				"description": "Timeout in seconds (default 45, max 600). Set to 0 for no tool-level deadline."
 			},
 			"async": {
 				"type": "boolean",
@@ -137,13 +139,7 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		command = strings.TrimSpace(strings.TrimSuffix(command, "&"))
 	}
 
-	timeout := 120 * time.Second
-	if v, ok := params["timeout"].(float64); ok && v > 0 {
-		if v > 600 {
-			v = 600
-		}
-		timeout = time.Duration(v) * time.Second
-	}
+	timeout := t.defaultTimeout(params)
 
 	// For async commands, use a background context (no timeout unless specified)
 	var cmdCtx context.Context
@@ -151,8 +147,12 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	if async {
 		cmdCtx, cancel = context.WithCancel(context.Background())
 	} else {
-		cmdCtx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
+		if timeout > 0 {
+			cmdCtx, cancel = context.WithTimeout(ctx, timeout)
+			defer cancel()
+		} else {
+			cmdCtx, cancel = ctx, func() {}
+		}
 	}
 
 	// Get platform-specific shell
@@ -336,6 +336,48 @@ func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool
 	}
 
 	return NewTextToolResult(resultStr), nil, false
+}
+
+func (t *BashTool) defaultTimeout(params map[string]any) time.Duration {
+	if async, _ := params["async"].(bool); async {
+		if v, ok := timeoutSecondsParam(params); ok {
+			return clampTimeout(v)
+		}
+		return 0
+	}
+	if v, ok := timeoutSecondsParam(params); ok {
+		return clampTimeout(v)
+	}
+	return 45 * time.Second
+}
+
+func timeoutSecondsParam(params map[string]any) (float64, bool) {
+	v, ok := params["timeout"]
+	if !ok {
+		return 0, false
+	}
+	seconds, ok := v.(float64)
+	if !ok {
+		return 0, false
+	}
+	return seconds, true
+}
+
+func clampTimeout(seconds float64) time.Duration {
+	if seconds < 0 {
+		return 45 * time.Second
+	}
+	if seconds > 600 {
+		seconds = 600
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+// ExecutionTimeout lets bash align the agent-level tool deadline with the
+// runtime behavior exposed by Execute.
+func (t *BashTool) ExecutionTimeout(params map[string]any) (time.Duration, bool) {
+	timeout := t.defaultTimeout(params)
+	return timeout, true
 }
 
 func prefixPathValue(pathValue, dir string) string {

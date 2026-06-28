@@ -14,4 +14,11 @@ import (
 	// the provider registry used by Builder.WithProviderByName.
 	_ "github.com/startvibecoding/vibecoding/internal/agent"
 	_ "github.com/startvibecoding/vibecoding/internal/provider"
+
+	// Register the concrete provider factories in the global provider registry
+	// so Builder.WithProviderByName can resolve openai/anthropic/google
+	// providers (each subpackage self-registers via its init()).
+	_ "github.com/startvibecoding/vibecoding/internal/provider/anthropic"
+	_ "github.com/startvibecoding/vibecoding/internal/provider/google"
+	_ "github.com/startvibecoding/vibecoding/internal/provider/openai"
 )

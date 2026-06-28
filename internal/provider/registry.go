@@ -78,37 +78,31 @@ func ListProviders() []string {
 	return globalRegistry.List()
 }
 
-// ResolveProvider resolves a provider from config with three-level fallback (Decision 13):
-// 1. vendor field explicit
+// ResolveProvider resolves a provider from config with three-level fallback:
+// 1. explicit vendor
 // 2. baseUrl auto-detect
-// 3. generic fallback (openai-chat / anthropic-messages)
+// 3. generic fallback by API protocol
 func ResolveProvider(cfg *config.ProviderConfig) (Provider, error) {
 	resolved := ResolveAdapterConfig(cfg)
-	// Level 1: explicit vendor
-	if resolved.Vendor != "" && cfg != nil && cfg.Vendor != "" {
-		if globalRegistry.Has(resolved.Vendor) {
-			return globalRegistry.Create(resolved.Vendor, cfg)
-		}
-		// Vendor specified but not registered, fall through to generic
-	}
-
-	// Level 2: auto-detect from baseUrl
 	if resolved.Vendor != "" {
 		if globalRegistry.Has(resolved.Vendor) {
 			return globalRegistry.Create(resolved.Vendor, cfg)
 		}
 	}
 
-	// Level 3: generic fallback based on api field
 	switch resolved.API {
+	case "openai-chat":
+		return globalRegistry.Create("openai-chat", cfg)
+	case "openai-responses":
+		return globalRegistry.Create("openai-responses", cfg)
 	case "anthropic-messages":
-		return globalRegistry.Create("anthropic_compatible", cfg)
+		return globalRegistry.Create("anthropic-messages", cfg)
 	case "google-gemini":
 		return globalRegistry.Create("google-gemini", cfg)
 	case "google-vertex":
 		return globalRegistry.Create("google-vertex", cfg)
-	default: // "openai-chat" or empty
-		return globalRegistry.Create("openai_compatible", cfg)
+	default:
+		return nil, fmt.Errorf("unsupported API type: %s (use 'openai-chat', 'openai-responses', 'anthropic-messages', 'google-gemini', or 'google-vertex')", resolved.API)
 	}
 }
 

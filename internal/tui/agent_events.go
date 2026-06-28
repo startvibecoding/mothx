@@ -75,65 +75,77 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		if event.ToolCall != nil {
 			a.invalidateToolModalCache()
 			a.commitActiveStream()
-			// Store tool args for later display
-			msgIdx := len(a.messages) // Will be the index after append
+			msgIdx := len(a.messages)
 			a.toolResults = append(a.toolResults, toolResult{
 				toolCallID: event.ToolCall.ID,
 				toolName:   event.ToolCall.Name,
 				toolArgs:   event.ToolArgs,
+				status:     "running",
 				msgIndex:   msgIdx,
 			})
 			a.messages = append(a.messages, "")
+			runningLine := formatToolExecutionStart(event.ToolCall.Name, event.ToolArgs)
+			if runningLine != "" {
+				a.messages[msgIdx] = warningStyle.Render(runningLine)
+				a.printMessageOnce(msgIdx)
+			}
 			a.updateViewportContent()
 		}
 		return a.listenAgentEvents()
 
 	case agent.EventToolResult:
 		a.invalidateToolModalCache()
-		// Find the matching tool result entry and update it
-		foundIdx := -1
+		// Find the matching tool call so we can reuse its arguments for display.
+		matchedArgs := event.ToolArgs
+		matchedName := event.ToolName
 		for j := len(a.toolResults) - 1; j >= 0; j-- {
 			if a.toolResults[j].toolCallID == event.ToolCallID {
-				foundIdx = j
-				a.toolResults[j].fullContent = event.ToolResult
-				a.toolResults[j].diff = event.ToolDiff
-				a.toolResults[j].expanded = ""
-
-				// Create summary based on tool type
-				switch event.ToolName {
-				case "bash":
-					a.toolResults[j].summary = compactBashOutput(event.ToolResult)
-				case "read":
-					lines := strings.Split(event.ToolResult, "\n")
-					a.toolResults[j].summary = fmt.Sprintf("%d lines", len(lines))
-				case "ls":
-					a.toolResults[j].summary = compactBashOutput(event.ToolResult)
-				case "write":
-					if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
-						a.toolResults[j].summary = summary
-					} else {
-						a.toolResults[j].summary = summarizeWriteToolResult(event.ToolResult)
-					}
-				case "edit":
-					if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
-						a.toolResults[j].summary = summary
-					} else {
-						a.toolResults[j].summary = "Applied"
-					}
-				default:
-					a.toolResults[j].summary = truncate(event.ToolResult, 50)
-				}
+				matchedArgs = a.toolResults[j].toolArgs
+				matchedName = a.toolResults[j].toolName
 				break
 			}
 		}
 
-		// Update the message at the stored index
-		if foundIdx >= 0 {
-			idx := a.toolResults[foundIdx].msgIndex
-			if idx >= 0 && idx < len(a.messages) {
-				a.messages[idx] = ""
-				a.printMessageOnce(idx)
+		msgIdx := len(a.messages)
+		resultEntry := toolResult{
+			toolCallID:  event.ToolCallID,
+			toolName:    matchedName,
+			toolArgs:    matchedArgs,
+			msgIndex:    msgIdx,
+			fullContent: event.ToolResult,
+			diff:        event.ToolDiff,
+		}
+
+		// Create summary based on tool type
+		switch matchedName {
+		case "bash":
+			resultEntry.summary = compactBashOutput(event.ToolResult)
+		case "read":
+			lines := strings.Split(event.ToolResult, "\n")
+			resultEntry.summary = fmt.Sprintf("%d lines", len(lines))
+		case "ls":
+			resultEntry.summary = compactBashOutput(event.ToolResult)
+		case "write":
+			if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
+				resultEntry.summary = summary
+			} else {
+				resultEntry.summary = summarizeWriteToolResult(event.ToolResult)
 			}
+		case "edit":
+			if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
+				resultEntry.summary = summary
+			} else {
+				resultEntry.summary = "Applied"
+			}
+		default:
+			resultEntry.summary = truncate(event.ToolResult, 50)
+		}
+
+		a.toolResults = append(a.toolResults, resultEntry)
+		a.messages = append(a.messages, "")
+		if msgIdx >= 0 && msgIdx < len(a.messages) {
+			a.messages[msgIdx] = ""
+			a.printMessageOnce(msgIdx)
 		}
 		a.scheduleRender()
 		return a.listenAgentEvents()

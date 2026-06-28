@@ -1,6 +1,35 @@
 # Changelog
 
 
+## v1.1.53
+
+### ✨ Features
+
+- **Embeddable agent: host-provided external tools**
+  - Added a public `agent.ExternalTool` interface so embedding applications can expose their own controlled capabilities to the agent alongside (or instead of) the built-in coding tools.
+  - Added `ExternalToolResult` (text/error + optional rich `Contents` blocks) and the optional `ExternalToolPromptInfo` interface for contributing system-prompt hints (`PromptSnippet`, `PromptGuidelines`).
+  - Added `Builder.WithExternalTools(...)` to register custom tools and `Builder.WithoutBuiltinTools()` to disable all built-in tools, enabling an agent that may only use host-provided tools.
+  - External tools are wired through the internal factory via an `externalToolAdapter`, and the internal package now builds from public `Builder` config through `CreateFromPublicOptions`.
+  - Added a `bootstrap` package: external modules blank-import `github.com/startvibecoding/vibecoding/bootstrap` once to register the internal builder and provider resolution hooks (since internal packages cannot be imported directly).
+
+### 💅 Improvements
+
+- **Provider guide documentation**
+  - Added a provider guide (`docs/en/provider-guide.md`, `docs/zh/provider-guide.md`) covering provider/vendor configuration.
+
+- **Bash execution ergonomics**
+  - Reduced the default synchronous `bash` timeout to 45s, kept `async=true` for background jobs, and clarified `timeout=0` as an explicit no tool-level deadline.
+  - Updated `bash` guidance to steer long-running services to `async=true` and call out network probes and other commands that often need an explicit timeout.
+  - In the TUI, tool execution now shows a separate "running" line before the final result line, so long commands are visible while they are still in flight.
+
+- **Internal module split**
+  - Split agent, TUI, and command files into focused modules (agent approval/context, TUI paste/render, session/statusline commands) for maintainability, with no behavior change.
+
+### 🐛 Fixes
+
+- **Custom provider auth flow**
+  - Fixed the custom provider authentication flow to advance correctly from the API key step to the models step.
+
 ## v1.1.52
 
 ### 💅 Improvements

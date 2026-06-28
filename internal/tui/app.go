@@ -85,6 +85,7 @@ type toolResult struct {
 	toolCallID  string // Unique tool call ID for precise matching
 	toolName    string
 	toolArgs    map[string]any // Tool call arguments
+	status      string         // live status, e.g. "running"
 	summary     string         // Short summary for collapsed view
 	fullContent string         // Full content for expanded view
 	diff        *tools.FileDiff

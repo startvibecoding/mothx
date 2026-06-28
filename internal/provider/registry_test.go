@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
@@ -121,11 +122,11 @@ func TestResolveProviderAutoDetect(t *testing.T) {
 	r.Register("deepseek", func(cfg *config.ProviderConfig) (Provider, error) {
 		return NewMockProvider("deepseek", nil, nil), nil
 	})
-	r.Register("openai_compatible", func(cfg *config.ProviderConfig) (Provider, error) {
-		return NewMockProvider("openai_compatible", nil, nil), nil
+	r.Register("openai-chat", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai-chat", nil, nil), nil
 	})
-	r.Register("anthropic_compatible", func(cfg *config.ProviderConfig) (Provider, error) {
-		return NewMockProvider("anthropic_compatible", nil, nil), nil
+	r.Register("anthropic-messages", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("anthropic-messages", nil, nil), nil
 	})
 	orig := globalRegistry
 	globalRegistry = r
@@ -145,11 +146,20 @@ func TestResolveProviderAutoDetect(t *testing.T) {
 
 func TestResolveProviderFallback(t *testing.T) {
 	r := NewProviderRegistry()
-	r.Register("openai_compatible", func(cfg *config.ProviderConfig) (Provider, error) {
-		return NewMockProvider("openai_compatible", nil, nil), nil
+	r.Register("openai-chat", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai-chat", nil, nil), nil
 	})
-	r.Register("anthropic_compatible", func(cfg *config.ProviderConfig) (Provider, error) {
-		return NewMockProvider("anthropic_compatible", nil, nil), nil
+	r.Register("openai-responses", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai-responses", nil, nil), nil
+	})
+	r.Register("anthropic-messages", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("anthropic-messages", nil, nil), nil
+	})
+	r.Register("google-gemini", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("google-gemini", nil, nil), nil
+	})
+	r.Register("google-vertex", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("google-vertex", nil, nil), nil
 	})
 	orig := globalRegistry
 	globalRegistry = r
@@ -162,8 +172,8 @@ func TestResolveProviderFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.Name() != "openai_compatible" {
-		t.Errorf("expected 'openai_compatible', got %q", p.Name())
+	if p.Name() != "openai-chat" {
+		t.Errorf("expected 'openai-chat', got %q", p.Name())
 	}
 
 	p, err = ResolveProvider(&config.ProviderConfig{
@@ -173,8 +183,136 @@ func TestResolveProviderFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if p.Name() != "anthropic_compatible" {
-		t.Errorf("expected 'anthropic_compatible', got %q", p.Name())
+	if p.Name() != "anthropic-messages" {
+		t.Errorf("expected 'anthropic-messages', got %q", p.Name())
+	}
+
+	p, err = ResolveProvider(&config.ProviderConfig{
+		BaseURL: "https://unknown.example.com/v1",
+		API:     "openai-responses",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.Name() != "openai-responses" {
+		t.Errorf("expected 'openai-responses', got %q", p.Name())
+	}
+}
+
+func TestResolveProviderUnknownAPI(t *testing.T) {
+	orig := globalRegistry
+	globalRegistry = NewProviderRegistry()
+	defer func() { globalRegistry = orig }()
+
+	_, err := ResolveProvider(&config.ProviderConfig{
+		API: "unknown-api",
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsupported API type") {
+		t.Fatalf("error = %v, want unsupported API type", err)
+	}
+}
+
+func TestResolveProviderUnregisteredVendorUsesAPI(t *testing.T) {
+	r := NewProviderRegistry()
+	r.Register("openai-chat", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai-chat", nil, nil), nil
+	})
+	r.Register("openai-responses", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai-responses", nil, nil), nil
+	})
+	r.Register("anthropic-messages", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("anthropic-messages", nil, nil), nil
+	})
+	r.Register("google-gemini", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("google-gemini", nil, nil), nil
+	})
+	r.Register("google-vertex", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("google-vertex", nil, nil), nil
+	})
+	orig := globalRegistry
+	globalRegistry = r
+	defer func() { globalRegistry = orig }()
+
+	cases := []struct {
+		name string
+		cfg  *config.ProviderConfig
+		want string
+	}{
+		{"openai-chat", &config.ProviderConfig{Vendor: "unregistered", API: "openai-chat"}, "openai-chat"},
+		{"openai-responses", &config.ProviderConfig{Vendor: "unregistered", API: "openai-responses"}, "openai-responses"},
+		{"anthropic-messages", &config.ProviderConfig{Vendor: "unregistered", API: "anthropic-messages"}, "anthropic-messages"},
+		{"google-gemini", &config.ProviderConfig{Vendor: "unregistered", API: "google-gemini"}, "google-gemini"},
+		{"google-vertex", &config.ProviderConfig{Vendor: "unregistered", API: "google-vertex"}, "google-vertex"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := ResolveProvider(tt.cfg)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if p.Name() != tt.want {
+				t.Fatalf("provider = %q, want %q", p.Name(), tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveProviderVendorPriorityOverAPIFallback(t *testing.T) {
+	r := NewProviderRegistry()
+	r.Register("openai", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai", nil, nil), nil
+	})
+	r.Register("openai-responses", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("openai-responses", nil, nil), nil
+	})
+	orig := globalRegistry
+	globalRegistry = r
+	defer func() { globalRegistry = orig }()
+
+	p, err := ResolveProvider(&config.ProviderConfig{
+		Vendor: "openai",
+		API:    "openai-responses",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.Name() != "openai" {
+		t.Errorf("expected vendor provider 'openai', got %q", p.Name())
+	}
+}
+
+func TestResolveProviderGoogleFallback(t *testing.T) {
+	r := NewProviderRegistry()
+	r.Register("google-gemini", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("google-gemini", nil, nil), nil
+	})
+	r.Register("google-vertex", func(cfg *config.ProviderConfig) (Provider, error) {
+		return NewMockProvider("google-vertex", nil, nil), nil
+	})
+	orig := globalRegistry
+	globalRegistry = r
+	defer func() { globalRegistry = orig }()
+
+	p, err := ResolveProvider(&config.ProviderConfig{
+		BaseURL: "https://unknown.example.com/v1",
+		API:     "google-gemini",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.Name() != "google-gemini" {
+		t.Errorf("expected 'google-gemini', got %q", p.Name())
+	}
+
+	p, err = ResolveProvider(&config.ProviderConfig{
+		BaseURL: "https://unknown.example.com/v1",
+		API:     "google-vertex",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.Name() != "google-vertex" {
+		t.Errorf("expected 'google-vertex', got %q", p.Name())
 	}
 }
 
