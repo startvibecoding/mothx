@@ -80,15 +80,17 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 	if opts.ID == "" {
 		opts.ID = agentpkg.AgentID(fmt.Sprintf("agent-%d", atomic.AddInt64(&m.counter, 1)))
 	}
-	if opts.Mode == "" {
-		opts.Mode = "agent"
-	}
-
 	// Validate parent
 	if opts.ParentID != "" {
 		parent, ok := m.agents[opts.ParentID]
 		if !ok {
 			return nil, fmt.Errorf("parent agent %s not found", opts.ParentID)
+		}
+		if opts.Mode == "" {
+			opts.Mode = modeOfManagedAgent(parent)
+		}
+		if opts.Mode == "" {
+			opts.Mode = "agent"
 		}
 		// Decision 5: sub-agents cannot nest (only top-level agents can spawn)
 		if parent.ParentID() != "" {
@@ -98,6 +100,9 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 		if err := policy.Validate(string(opts.ParentID), opts.Mode, len(m.children[opts.ParentID])); err != nil {
 			return nil, err
 		}
+	}
+	if opts.Mode == "" {
+		opts.Mode = "agent"
 	}
 
 	a := m.factory.Create(opts)
@@ -116,6 +121,13 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 	}
 
 	return a, nil
+}
+
+func modeOfManagedAgent(a agentpkg.Agent) string {
+	if adapter, ok := a.(*AgentAdapter); ok && adapter != nil && adapter.inner != nil {
+		return adapter.inner.config.Mode
+	}
+	return ""
 }
 
 // SetCancel records the active run cancel function for an agent.

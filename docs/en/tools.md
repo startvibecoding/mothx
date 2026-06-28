@@ -402,7 +402,7 @@ Launches a sub-agent to handle a focused prompt task asynchronously.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `task` | string | ✓ | Prompt describing the precise task to fulfill. |
-| `mode` | string | - | Run mode (`plan`, `agent`, or `yolo`; defaults to `agent`). |
+| `mode` | string | - | Run mode (`plan`, `agent`, or `yolo`; defaults to the parent mode, then `agent`). |
 | `work_dir` | string | - | Specific subdirectory to run the sub-agent in. |
 | `tools` | array of strings | - | Whitelist of allowed tool names (empty for all). |
 | `max_iterations` | integer | - | Maximum agent loop cycles. |

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
 func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
@@ -73,80 +74,21 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventToolCall:
 		if event.ToolCall != nil {
-			a.invalidateToolModalCache()
-			a.commitActiveStream()
-			msgIdx := len(a.messages)
-			a.toolResults = append(a.toolResults, toolResult{
-				toolCallID: event.ToolCall.ID,
-				toolName:   event.ToolCall.Name,
-				toolArgs:   event.ToolArgs,
-				status:     "running",
-				msgIndex:   msgIdx,
-			})
-			a.messages = append(a.messages, "")
-			runningLine := formatToolExecutionStart(event.ToolCall.Name, event.ToolArgs)
-			if runningLine != "" {
-				a.messages[msgIdx] = warningStyle.Render(runningLine)
-				a.printMessageOnce(msgIdx)
-			}
-			a.updateViewportContent()
+			a.appendToolExecutionStart(event.ToolCall.ID, event.ToolCall.Name, event.ToolArgs)
 		}
 		return a.listenAgentEvents()
 
+	case agent.EventToolExecutionStart:
+		a.appendToolExecutionStart(event.ToolCallID, event.ToolName, event.ToolArgs)
+		return a.listenAgentEvents()
+
+	case agent.EventToolExecutionEnd:
+		a.appendToolResult(event)
+		a.scheduleRender()
+		return a.listenAgentEvents()
+
 	case agent.EventToolResult:
-		a.invalidateToolModalCache()
-		// Find the matching tool call so we can reuse its arguments for display.
-		matchedArgs := event.ToolArgs
-		matchedName := event.ToolName
-		for j := len(a.toolResults) - 1; j >= 0; j-- {
-			if a.toolResults[j].toolCallID == event.ToolCallID {
-				matchedArgs = a.toolResults[j].toolArgs
-				matchedName = a.toolResults[j].toolName
-				break
-			}
-		}
-
-		msgIdx := len(a.messages)
-		resultEntry := toolResult{
-			toolCallID:  event.ToolCallID,
-			toolName:    matchedName,
-			toolArgs:    matchedArgs,
-			msgIndex:    msgIdx,
-			fullContent: event.ToolResult,
-			diff:        event.ToolDiff,
-		}
-
-		// Create summary based on tool type
-		switch matchedName {
-		case "bash":
-			resultEntry.summary = compactBashOutput(event.ToolResult)
-		case "read":
-			lines := strings.Split(event.ToolResult, "\n")
-			resultEntry.summary = fmt.Sprintf("%d lines", len(lines))
-		case "ls":
-			resultEntry.summary = compactBashOutput(event.ToolResult)
-		case "write":
-			if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
-				resultEntry.summary = summary
-			} else {
-				resultEntry.summary = summarizeWriteToolResult(event.ToolResult)
-			}
-		case "edit":
-			if summary := summarizeFileDiff(event.ToolDiff); summary != "" {
-				resultEntry.summary = summary
-			} else {
-				resultEntry.summary = "Applied"
-			}
-		default:
-			resultEntry.summary = truncate(event.ToolResult, 50)
-		}
-
-		a.toolResults = append(a.toolResults, resultEntry)
-		a.messages = append(a.messages, "")
-		if msgIdx >= 0 && msgIdx < len(a.messages) {
-			a.messages[msgIdx] = ""
-			a.printMessageOnce(msgIdx)
-		}
+		a.appendToolResult(event)
 		a.scheduleRender()
 		return a.listenAgentEvents()
 
@@ -321,4 +263,105 @@ func (a *App) formatAgentError(event agent.Event) string {
 		msg += " (reason: " + a.pendingAbortReason + ")"
 	}
 	return msg
+}
+
+func (a *App) appendToolExecutionStart(toolCallID, toolName string, toolArgs map[string]any) {
+	if toolName == "" {
+		return
+	}
+	if a.hasToolEntry(toolCallID, toolResultStatusRunning) || a.hasToolEntry(toolCallID, toolResultStatusCompleted) {
+		return
+	}
+
+	a.invalidateToolModalCache()
+	a.commitActiveStream()
+	msgIdx := len(a.messages)
+	runningEntry := toolResult{
+		toolCallID: toolCallID,
+		toolName:   toolName,
+		toolArgs:   toolArgs,
+		status:     toolResultStatusRunning,
+		msgIndex:   msgIdx,
+	}
+	a.toolResults = append(a.toolResults, runningEntry)
+	a.messages = append(a.messages, "")
+	runningLine := formatToolExecutionStart(runningEntry)
+	if runningLine != "" {
+		a.messages[msgIdx] = toolStyle.Render(runningLine)
+		a.printMessageOnce(msgIdx)
+	}
+	a.updateViewportContent()
+}
+
+func (a *App) appendToolResult(event agent.Event) {
+	if a.hasToolEntry(event.ToolCallID, toolResultStatusCompleted) {
+		return
+	}
+
+	a.invalidateToolModalCache()
+	matchedArgs := event.ToolArgs
+	matchedName := event.ToolName
+	for j := len(a.toolResults) - 1; j >= 0; j-- {
+		if a.toolResults[j].toolCallID == event.ToolCallID {
+			if matchedArgs == nil {
+				matchedArgs = a.toolResults[j].toolArgs
+			}
+			if matchedName == "" {
+				matchedName = a.toolResults[j].toolName
+			}
+			break
+		}
+	}
+
+	msgIdx := len(a.messages)
+	resultEntry := toolResult{
+		toolCallID:  event.ToolCallID,
+		toolName:    matchedName,
+		toolArgs:    matchedArgs,
+		status:      toolResultStatusCompleted,
+		msgIndex:    msgIdx,
+		fullContent: event.ToolResult,
+		diff:        event.ToolDiff,
+		summary:     summarizeToolResult(matchedName, event.ToolResult, event.ToolDiff),
+	}
+
+	a.toolResults = append(a.toolResults, resultEntry)
+	a.messages = append(a.messages, "")
+	a.printMessageOnce(msgIdx)
+}
+
+func (a *App) hasToolEntry(toolCallID string, status toolResultStatus) bool {
+	if toolCallID == "" {
+		return false
+	}
+	for _, result := range a.toolResults {
+		if result.toolCallID == toolCallID && result.status == status {
+			return true
+		}
+	}
+	return false
+}
+
+func summarizeToolResult(toolName, result string, diff *tools.FileDiff) string {
+	switch toolName {
+	case "bash":
+		return compactBashOutput(result)
+	case "read":
+		lines := strings.Split(result, "\n")
+		return fmt.Sprintf("%d lines", len(lines))
+	case "ls":
+		return compactBashOutput(result)
+	case "write":
+		if summary := summarizeFileDiff(diff); summary != "" {
+			return summary
+		}
+		return summarizeWriteToolResult(result)
+	case "edit":
+		if summary := summarizeFileDiff(diff); summary != "" {
+			return summary
+		}
+		return "Applied"
+	default:
+		return truncate(result, 50)
+	}
 }

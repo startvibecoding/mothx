@@ -38,6 +38,7 @@ type Builder struct {
 	approvalHandler     func(toolCallID, toolName string, args map[string]any) bool
 	externalTools       []ExternalTool
 	disableBuiltinTools bool
+	err                 error
 }
 
 // NewBuilder creates a new Builder with sensible defaults.
@@ -56,6 +57,7 @@ func NewBuilder() *Builder {
 // WithProvider sets the LLM provider.
 func (b *Builder) WithProvider(p Provider) *Builder {
 	b.provider = p
+	b.err = nil
 	return b
 }
 
@@ -170,6 +172,9 @@ func (b *Builder) WithoutBuiltinTools() *Builder {
 // Build creates and returns an Agent instance.
 // Returns an error if required fields are missing.
 func (b *Builder) Build() (Agent, error) {
+	if b.err != nil {
+		return nil, b.err
+	}
 	if b.provider == nil {
 		return nil, fmt.Errorf("agent: provider is required (use WithProvider)")
 	}
@@ -274,9 +279,13 @@ func SetResolveProviderFunc(fn func(vendor, baseURL, api, apiKey string) (Provid
 func (b *Builder) WithProviderByName(vendor, baseURL, api, apiKey string) *Builder {
 	if resolveProviderFunc != nil {
 		p, err := resolveProviderFunc(vendor, baseURL, api, apiKey)
-		if err == nil && p != nil {
-			b.provider = p
+		if err != nil {
+			b.err = fmt.Errorf("agent: resolve provider: %w", err)
+			b.provider = nil
+			return b
 		}
+		b.err = nil
+		b.provider = p
 	}
 	return b
 }

@@ -402,7 +402,7 @@ VibeCoding 提供了一套功能强大且可扩展的内置工具，用于文件
 | 参数名 | 类型 | 必填 | 描述 |
 |--------|------|------|------|
 | `task` | string | ✓ | 描述让子 Agent 具体去完成的任务。 |
-| `mode` | string | - | 运行模式选择（`plan`, `agent` 或 `yolo`，默认为 `agent`）。 |
+| `mode` | string | - | 运行模式选择（`plan`, `agent` 或 `yolo`，默认继承父模式，否则回退到 `agent`）。 |
 | `work_dir` | string | - | 限定子 Agent 的运行工作子目录。 |
 | `tools` | array of strings | - | 允许子 Agent 调用的工具白名单。 |
 | `max_iterations` | integer | - | 大模型循环周期的最大限制次数。 |

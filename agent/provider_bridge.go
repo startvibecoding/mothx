@@ -21,6 +21,7 @@ func (a *providerAdapter) Chat(ctx context.Context, params ChatParams) <-chan St
 		SystemPrompt:  params.SystemPrompt,
 		ThinkingLevel: internalprovider.ThinkingLevel(params.ThinkingLevel),
 		MaxTokens:     params.MaxTokens,
+		ModelID:       params.ModelID,
 		Abort:         params.Abort,
 	}
 	for i, m := range params.Messages {
@@ -77,7 +78,7 @@ func (a *providerAdapter) Chat(ctx context.Context, params ChatParams) <-chan St
 		defer close(ch)
 		for ev := range a.inner.Chat(ctx, internalParams) {
 			ch <- StreamEvent{
-				Type:       StreamEventType(ev.Type),
+				Type:       streamEventTypeToPublic(ev.Type),
 				TextDelta:  ev.TextDelta,
 				ThinkDelta: ev.ThinkDelta,
 				ToolCall:   toolCallToPublic(ev.ToolCall),
@@ -88,6 +89,27 @@ func (a *providerAdapter) Chat(ctx context.Context, params ChatParams) <-chan St
 		}
 	}()
 	return ch
+}
+
+func streamEventTypeToPublic(t internalprovider.StreamEventType) StreamEventType {
+	switch t {
+	case internalprovider.StreamStart:
+		return StreamStart
+	case internalprovider.StreamTextDelta:
+		return StreamTextDelta
+	case internalprovider.StreamThinkDelta, internalprovider.StreamThinkSignature:
+		return StreamThinkDelta
+	case internalprovider.StreamToolCall:
+		return StreamToolCall
+	case internalprovider.StreamUsage:
+		return StreamUsage
+	case internalprovider.StreamDone:
+		return StreamDone
+	case internalprovider.StreamError, internalprovider.StreamRetry:
+		return StreamError
+	default:
+		return StreamError
+	}
 }
 
 func (a *providerAdapter) Name() string { return a.inner.Name() }

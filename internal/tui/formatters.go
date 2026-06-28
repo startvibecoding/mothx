@@ -94,34 +94,23 @@ func formatToolArgs(toolName string, args map[string]any) string {
 	return strings.Join(parts, "\n")
 }
 
-func formatToolExecutionStart(toolName string, args map[string]any) string {
-	switch toolName {
+func formatToolExecutionStart(result toolResult) string {
+	header := formatToolHeader(result)
+	switch result.toolName {
 	case "bash":
-		if cmd, ok := args["command"]; ok {
-			return fmt.Sprintf("Running bash: %v", cmd)
+		if cmd, ok := result.toolArgs["command"]; ok {
+			return fmt.Sprintf("%s running: %v", header, cmd)
 		}
-		return "Running bash"
-	case "write":
-		if path, ok := args["path"]; ok {
-			return fmt.Sprintf("Running write: %v", path)
+	case "grep", "find":
+		if pattern, ok := result.toolArgs["pattern"]; ok {
+			return fmt.Sprintf("%s running: %v", header, pattern)
 		}
-		return "Running write"
-	case "edit":
-		if path, ok := args["path"]; ok {
-			return fmt.Sprintf("Running edit: %v", path)
+	case "ls":
+		if path, ok := result.toolArgs["path"]; ok {
+			return fmt.Sprintf("%s running: %v", header, path)
 		}
-		return "Running edit"
-	case "read":
-		if path, ok := args["path"]; ok {
-			return fmt.Sprintf("Running read: %v", path)
-		}
-		return "Running read"
-	default:
-		if toolName == "" {
-			return ""
-		}
-		return "Running " + toolName
 	}
+	return header + " running"
 }
 
 func formatToolHeader(result toolResult) string {

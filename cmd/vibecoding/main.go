@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/startvibecoding/vibecoding/internal/a2a"
 	"github.com/startvibecoding/vibecoding/internal/acp"
@@ -20,8 +21,8 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
 	"github.com/startvibecoding/vibecoding/internal/cron"
 	"github.com/startvibecoding/vibecoding/internal/gateway"
-	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/mcp"
+	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -44,29 +45,45 @@ func main() {
 }
 
 func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.RunOptions) error) *cobra.Command {
-	var (
-		flagProvider        string
-		flagModel           string
-		flagMode            string
-		flagThinking        string
-		flagContinue        bool
-		flagResume          string
-		flagSession         string
-		flagSandbox         bool
-		flagPrint           bool
-		flagVerbose         bool
-		flagDebug           bool
-		flagMultiAgent      bool
-		flagDelegate        bool
-		flagWorkflows       bool
-		flagWebSearch       bool
-		flagInitGateway     bool
-		flagForce           bool
-		flagEnableA2AMaster bool
-		flagInitA2AMaster   bool
-	)
+	flags := &cliFlags{}
 
-	rootCmd := &cobra.Command{
+	rootCmd := newCLICommand(flags, runFn)
+	rootCmd.AddCommand(newACPCommand(flags, acpRunFn))
+	rootCmd.AddCommand(newGatewayCommand(flags))
+	rootCmd.AddCommand(newHermesCommand())
+	rootCmd.AddCommand(newA2ACommand())
+	rootCmd.AddCommand(newDoctorCommand())
+	rootCmd.AddCommand(newSystemInitCommand(runFn, &flags.provider, &flags.model))
+	return rootCmd
+}
+
+type cliFlags struct {
+	provider        string
+	model           string
+	mode            string
+	thinking        string
+	continueSession bool
+	resume          string
+	session         string
+	sandbox         bool
+	print           bool
+	verbose         bool
+	debug           bool
+	multiAgent      bool
+	delegate        bool
+	workflows       bool
+	webSearch       bool
+	initGateway     bool
+	force           bool
+	enableA2AMaster bool
+	initA2AMaster   bool
+	gatewayPort     string
+	gatewayConfig   string
+	gatewayWorkDir  string
+}
+
+func newCLICommand(flags *cliFlags, runFn func([]string, runOptions) error) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:     "vibecoding [message...]",
 		Aliases: []string{"vc"},
 		Short:   "VibeCoding - AI coding assistant",
@@ -74,145 +91,159 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 		Version: version,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if flagInitA2AMaster {
-				path, err := a2a.InitA2AMasterConfig(flagForce)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(os.Stderr, "Created a2a master config: %s\n", path)
-				return nil
-			}
-			if flagInitGateway {
-				path, err := gateway.InitGatewayConfig(flagForce)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(os.Stderr, "Created gateway config: %s\n", path)
-				return nil
-			}
-			return runFn(args, runOptions{
-				provider:        flagProvider,
-				model:           flagModel,
-				mode:            flagMode,
-				thinking:        flagThinking,
-				continue_:       flagContinue,
-				resume:          flagResume,
-				session:         flagSession,
-				sandbox:         flagSandbox,
-				print:           flagPrint,
-				verbose:         flagVerbose,
-				debug:           flagDebug,
-				multiAgent:      flagMultiAgent,
-				delegate:        flagDelegate,
-				workflows:       flagWorkflows,
-				webSearch:       flagWebSearch,
-				enableA2AMaster: flagEnableA2AMaster,
-			})
+			return runCLICommand(args, flags, runFn)
 		},
 	}
+	registerRootFlags(cmd.Flags(), flags)
+	return cmd
+}
 
-	acpCmd := &cobra.Command{
+func runCLICommand(args []string, flags *cliFlags, runFn func([]string, runOptions) error) error {
+	if flags.initA2AMaster {
+		path, err := a2a.InitA2AMasterConfig(flags.force)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "Created a2a master config: %s\n", path)
+		return nil
+	}
+	if flags.initGateway {
+		path, err := gateway.InitGatewayConfig(flags.force)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "Created gateway config: %s\n", path)
+		return nil
+	}
+	return runFn(args, flags.runOptions())
+}
+
+func newACPCommand(flags *cliFlags, acpRunFn func(acp.RunOptions) error) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "acp",
 		Short: "Run the Agent Client Protocol server",
 		Long:  "Run vibecoding as an ACP-compliant stdio agent.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return acpRunFn(acp.RunOptions{
-				Provider:   flagProvider,
-				Model:      flagModel,
-				Mode:       flagMode,
-				Thinking:   flagThinking,
-				Sandbox:    flagSandbox,
-				Verbose:    flagVerbose,
-				Debug:      flagDebug,
-				MultiAgent: flagMultiAgent,
-				Delegate:   flagDelegate,
-				Workflows:  flagWorkflows,
-				WebSearch:  flagWebSearch,
-			})
+			return acpRunFn(flags.acpOptions())
 		},
 	}
+	registerACPFlags(cmd.Flags(), flags)
+	return cmd
+}
 
-	flags := rootCmd.Flags()
-	flags.StringVarP(&flagProvider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
-	flags.StringVarP(&flagModel, "model", "m", "", "Model ID")
-	flags.StringVarP(&flagMode, "mode", "M", "", "Mode (plan, agent, yolo)")
-	flags.StringVarP(&flagThinking, "thinking", "t", "", "Thinking level (off, minimal, low, medium, high, xhigh)")
-	flags.BoolVarP(&flagContinue, "continue", "c", false, "Continue most recent session")
-	flags.StringVarP(&flagResume, "resume", "r", "", "Resume session by ID or path")
-	flags.StringVar(&flagSession, "session", "", "Use specific session file or ID")
-	flags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
-	flags.BoolVarP(&flagPrint, "print", "P", false, "Print response and exit (non-interactive)")
-	flags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
-	flags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
-	flags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
-	flags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
-	flags.BoolVar(&flagWorkflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
-	flags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this run")
-	flags.BoolVar(&flagInitGateway, "init-gateway", false, "Create gateway.json config template")
-	flags.BoolVar(&flagForce, "force", false, "Force overwrite existing files (used with --init-*)")
-	flags.BoolVar(&flagEnableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
-	flags.BoolVar(&flagInitA2AMaster, "init-a2a-master-config", false, "Create a2a-list.json config template")
-
-	acpFlags := acpCmd.Flags()
-	acpFlags.StringVarP(&flagProvider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
-	acpFlags.StringVarP(&flagModel, "model", "m", "", "Model ID")
-	acpFlags.StringVarP(&flagMode, "mode", "M", "", "Mode (plan, agent, yolo)")
-	acpFlags.StringVarP(&flagThinking, "thinking", "t", "", "Thinking level (off, minimal, low, medium, high, xhigh)")
-	acpFlags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
-	acpFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
-	acpFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
-	acpFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
-	acpFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
-	acpFlags.BoolVar(&flagWorkflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
-	acpFlags.BoolVar(&flagWebSearch, "web-search", false, "Enable configured web search provider for this ACP run")
-
-	var (
-		flagGatewayPort    string
-		flagGatewayConfig  string
-		flagGatewayWorkDir string
-	)
-
-	gatewayCmd := &cobra.Command{
+func newGatewayCommand(flags *cliFlags) *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "gateway",
 		Short: "Run the OpenAI-compatible HTTP gateway",
 		Long:  "Start VibeCoding as an HTTP server exposing a standard OpenAI Chat Completions API.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return gateway.Run(gateway.RunOptions{
-				ConfigPath: flagGatewayConfig,
-				Port:       flagGatewayPort,
-				Provider:   flagProvider,
-				Model:      flagModel,
-				WorkDir:    flagGatewayWorkDir,
-				Sandbox:    flagSandbox,
-				MultiAgent: flagMultiAgent,
-				Delegate:   flagDelegate,
-				Workflows:  flagWorkflows,
-				Verbose:    flagVerbose,
-				Debug:      flagDebug,
-			}, version)
+			return gateway.Run(flags.gatewayOptions(), version)
 		},
 	}
+	registerGatewayFlags(cmd.Flags(), flags)
+	return cmd
+}
 
-	gatewayFlags := gatewayCmd.Flags()
-	gatewayFlags.StringVar(&flagGatewayPort, "port", "", "Listen port (default: from gateway.json or 8080)")
-	gatewayFlags.StringVar(&flagGatewayConfig, "config", "", "Path to gateway.json")
-	gatewayFlags.StringVar(&flagGatewayWorkDir, "work-dir", "", "Default working directory")
-	gatewayFlags.StringVarP(&flagProvider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
-	gatewayFlags.StringVarP(&flagModel, "model", "m", "", "Model ID")
-	gatewayFlags.BoolVar(&flagSandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
-	gatewayFlags.BoolVar(&flagMultiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
-	gatewayFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
-	gatewayFlags.BoolVar(&flagWorkflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
-	gatewayFlags.BoolVar(&flagVerbose, "verbose", false, "Verbose output")
-	gatewayFlags.BoolVar(&flagDebug, "debug", false, "Enable debug logging")
+func registerRootFlags(fs *pflag.FlagSet, flags *cliFlags) {
+	registerSharedProviderFlags(fs, flags)
+	fs.BoolVarP(&flags.continueSession, "continue", "c", false, "Continue most recent session")
+	fs.StringVarP(&flags.resume, "resume", "r", "", "Resume session by ID or path")
+	fs.StringVar(&flags.session, "session", "", "Use specific session file or ID")
+	fs.BoolVarP(&flags.print, "print", "P", false, "Print response and exit (non-interactive)")
+	registerSharedExecutionFlags(fs, flags, "Enable configured web search provider for this run")
+	fs.BoolVar(&flags.initGateway, "init-gateway", false, "Create gateway.json config template")
+	fs.BoolVar(&flags.force, "force", false, "Force overwrite existing files (used with --init-*)")
+	fs.BoolVar(&flags.enableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
+	fs.BoolVar(&flags.initA2AMaster, "init-a2a-master-config", false, "Create a2a-list.json config template")
+}
 
-	rootCmd.AddCommand(acpCmd)
-	rootCmd.AddCommand(gatewayCmd)
-	rootCmd.AddCommand(newHermesCommand())
-	rootCmd.AddCommand(newA2ACommand())
-	rootCmd.AddCommand(newDoctorCommand())
-	rootCmd.AddCommand(newSystemInitCommand(runFn, &flagProvider, &flagModel))
-	return rootCmd
+func registerACPFlags(fs *pflag.FlagSet, flags *cliFlags) {
+	registerSharedProviderFlags(fs, flags)
+	registerSharedExecutionFlags(fs, flags, "Enable configured web search provider for this ACP run")
+}
+
+func registerGatewayFlags(fs *pflag.FlagSet, flags *cliFlags) {
+	fs.StringVar(&flags.gatewayPort, "port", "", "Listen port (default: from gateway.json or 8080)")
+	fs.StringVar(&flags.gatewayConfig, "config", "", "Path to gateway.json")
+	fs.StringVar(&flags.gatewayWorkDir, "work-dir", "", "Default working directory")
+	fs.StringVarP(&flags.provider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
+	fs.StringVarP(&flags.model, "model", "m", "", "Model ID")
+	fs.BoolVar(&flags.sandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
+	fs.BoolVar(&flags.multiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	fs.BoolVar(&flags.delegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
+	fs.BoolVar(&flags.workflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
+	fs.BoolVar(&flags.verbose, "verbose", false, "Verbose output")
+	fs.BoolVar(&flags.debug, "debug", false, "Enable debug logging")
+}
+
+func registerSharedProviderFlags(fs *pflag.FlagSet, flags *cliFlags) {
+	fs.StringVarP(&flags.provider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
+	fs.StringVarP(&flags.model, "model", "m", "", "Model ID")
+	fs.StringVarP(&flags.mode, "mode", "M", "", "Mode (plan, agent, yolo)")
+	fs.StringVarP(&flags.thinking, "thinking", "t", "", "Thinking level (off, minimal, low, medium, high, xhigh)")
+}
+
+func registerSharedExecutionFlags(fs *pflag.FlagSet, flags *cliFlags, webSearchUsage string) {
+	fs.BoolVar(&flags.sandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
+	fs.BoolVar(&flags.verbose, "verbose", false, "Verbose output")
+	fs.BoolVar(&flags.debug, "debug", false, "Enable debug logging")
+	fs.BoolVar(&flags.multiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
+	fs.BoolVar(&flags.delegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
+	fs.BoolVar(&flags.workflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
+	fs.BoolVar(&flags.webSearch, "web-search", false, webSearchUsage)
+}
+
+func (f *cliFlags) runOptions() runOptions {
+	return runOptions{
+		provider:        f.provider,
+		model:           f.model,
+		mode:            f.mode,
+		thinking:        f.thinking,
+		continue_:       f.continueSession,
+		resume:          f.resume,
+		session:         f.session,
+		sandbox:         f.sandbox,
+		print:           f.print,
+		verbose:         f.verbose,
+		debug:           f.debug,
+		multiAgent:      f.multiAgent,
+		delegate:        f.delegate,
+		workflows:       f.workflows,
+		webSearch:       f.webSearch,
+		enableA2AMaster: f.enableA2AMaster,
+	}
+}
+
+func (f *cliFlags) acpOptions() acp.RunOptions {
+	return acp.RunOptions{
+		Provider:   f.provider,
+		Model:      f.model,
+		Mode:       f.mode,
+		Thinking:   f.thinking,
+		Sandbox:    f.sandbox,
+		Verbose:    f.verbose,
+		Debug:      f.debug,
+		MultiAgent: f.multiAgent,
+		Delegate:   f.delegate,
+		Workflows:  f.workflows,
+		WebSearch:  f.webSearch,
+	}
+}
+
+func (f *cliFlags) gatewayOptions() gateway.RunOptions {
+	return gateway.RunOptions{
+		ConfigPath: f.gatewayConfig,
+		Port:       f.gatewayPort,
+		Provider:   f.provider,
+		Model:      f.model,
+		WorkDir:    f.gatewayWorkDir,
+		Sandbox:    f.sandbox,
+		MultiAgent: f.multiAgent,
+		Delegate:   f.delegate,
+		Workflows:  f.workflows,
+		Verbose:    f.verbose,
+		Debug:      f.debug,
+	}
 }
 
 // newSystemInitCommand creates the `systeminit` subcommand which generates a
@@ -259,30 +290,130 @@ type runOptions struct {
 	systemInitExtra string
 }
 
+type contextFilesResult struct {
+	context string
+	info    string
+}
+
+type providerSelection struct {
+	name          string
+	modelID       string
+	mode          string
+	thinkingLevel string
+}
+
+type skillSetup struct {
+	manager *skills.Manager
+	context string
+}
+
+type sessionSetup struct {
+	manager *session.Manager
+	info    string
+}
+
+type runtimeSetup struct {
+	agentManager  *agent.AgentManager
+	cronStore     cron.CronStore
+	cronScheduler *cron.Scheduler
+	allow         *config.AllowConfig
+	cleanup       func()
+}
+
 func run(args []string, opts runOptions) error {
+	initRunEnvironment(opts)
+
+	settings, settingsMeta, err := config.LoadSettingsWithMeta()
+	if err != nil {
+		return fmt.Errorf("load settings: %w", err)
+	}
+	applyRuntimeSettings(settings, opts)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("get working directory: %w", err)
+	}
+
+	contextFiles := loadContextFiles(cwd, settings)
+	selection := resolveProviderSelection(settings, opts)
+	args, opts, selection = applySystemInit(args, opts, selection)
+
+	p, model, err := createProvider(settings, selection.name, selection.modelID)
+	if err != nil {
+		return err
+	}
+
+	skillSetup, err := loadSkills(cwd, settings, opts)
+	if err != nil {
+		return err
+	}
+	sbMgr, err := setupSandbox(cwd, settings, opts, selection.mode)
+	if err != nil {
+		return err
+	}
+	sbInfo := sandbox.FormatSandboxInfo(sbMgr.GetActive())
+
+	sessionSetup, err := setupSession(cwd, settings, opts)
+	if err != nil {
+		return err
+	}
+
+	registry, mcpCleanup, err := setupToolRegistry(cwd, settings, opts, sbMgr, skillSetup.manager)
+	if err != nil {
+		return err
+	}
+	defer mcpCleanup()
+
+	extraContext := contextFiles.context + skillSetup.context
+	runtime, err := setupAgentRuntime(p, model, settings, opts, registry, sbMgr, extraContext, skillSetup.manager)
+	if err != nil {
+		return err
+	}
+	defer runtime.cleanup()
+
+	if opts.print {
+		if notice := updateNotice(settings, version); notice != "" {
+			fmt.Fprintln(os.Stderr, notice)
+		}
+		return runPrint(args, p, model, selection.mode, provider.ThinkingLevel(selection.thinkingLevel), settings, registry, sessionSetup.manager, extraContext, opts.multiAgent, opts.delegate, opts.workflows, runtime.agentManager)
+	}
+
+	return runInteractive(runInteractiveConfig{
+		provider:         p,
+		model:            model,
+		settings:         settings,
+		settingsMeta:     settingsMeta,
+		session:          sessionSetup.manager,
+		sessionInfo:      sessionSetup.info,
+		registry:         registry,
+		sandboxInfo:      sbInfo,
+		extraContext:     extraContext,
+		contextFilesInfo: contextFiles.info,
+		skillsManager:    skillSetup.manager,
+		mode:             selection.mode,
+		opts:             opts,
+		runtime:          runtime,
+	})
+}
+
+func initRunEnvironment(opts runOptions) {
 	// Set Windows console to UTF-8 so CJK IME works correctly.
 	if err := initConsole(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: init console: %v\n", err)
 	}
 
-	// Enable debug logging if requested
 	debugEnabled = opts.debug
 	if debugEnabled {
 		fmt.Fprintf(os.Stderr, "[DEBUG] Debug logging enabled\n")
 	}
 
-	// Enable config verbose logging
 	config.Verbose = opts.verbose || opts.debug
 	if opts.debug {
 		_ = os.Setenv("VIBECODING_DEBUG", "1")
 	}
+}
 
-	// Load settings
-	settings, settingsMeta, err := config.LoadSettingsWithMeta()
-	if err != nil {
-		return fmt.Errorf("load settings: %w", err)
-	}
-
+func applyRuntimeSettings(settings *config.Settings, opts runOptions) {
 	// Kick off a non-blocking update check (refreshes local cache for next run).
 	if settings.IsUpdateCheckEnabled() {
 		update.CheckInBackground(version)
@@ -290,91 +421,86 @@ func run(args []string, opts runOptions) error {
 	if opts.webSearch {
 		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
+}
 
-	// Get working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+func loadContextFiles(cwd string, settings *config.Settings) contextFilesResult {
+	if !settings.ContextFiles.Enabled {
+		return contextFilesResult{}
 	}
+	cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
+	contextStr := contextfiles.BuildContextString(cfResult)
+	if contextStr == "" {
+		return contextFilesResult{}
+	}
+	return contextFilesResult{
+		context: contextStr,
+		info:    formatContextFilesInfo(cfResult),
+	}
+}
 
-	// Load context files (before provider creation so user always sees what's loaded)
-	var contextStr string
-	var contextFilesInfo string
-	if settings.ContextFiles.Enabled {
-		cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
-		contextStr = contextfiles.BuildContextString(cfResult)
-		if contextStr != "" {
-			// Build context files info string for TUI
-			var sb strings.Builder
-			sb.WriteString("📄 Loaded context files:\n")
-			for _, f := range cfResult.GlobalFiles {
-				sb.WriteString(fmt.Sprintf("  ✓ %s (global)\n", f.Name))
-			}
-			for _, f := range cfResult.ParentFiles {
-				sb.WriteString(fmt.Sprintf("  ✓ %s (parent: %s)\n", f.Name, filepath.Dir(f.Path)))
-			}
-			for _, f := range cfResult.ProjectFiles {
-				sb.WriteString(fmt.Sprintf("  ✓ %s (project)\n", f.Name))
-			}
-			contextFilesInfo = sb.String()
-		}
+func formatContextFilesInfo(result *contextfiles.LoadResult) string {
+	var sb strings.Builder
+	sb.WriteString("📄 Loaded context files:\n")
+	for _, f := range result.GlobalFiles {
+		sb.WriteString(fmt.Sprintf("  ✓ %s (global)\n", f.Name))
 	}
+	for _, f := range result.ParentFiles {
+		sb.WriteString(fmt.Sprintf("  ✓ %s (parent: %s)\n", f.Name, filepath.Dir(f.Path)))
+	}
+	for _, f := range result.ProjectFiles {
+		sb.WriteString(fmt.Sprintf("  ✓ %s (project)\n", f.Name))
+	}
+	return sb.String()
+}
 
-	// Determine provider
-	providerName := opts.provider
-	if providerName == "" {
-		providerName = settings.DefaultProvider
+func resolveProviderSelection(settings *config.Settings, opts runOptions) providerSelection {
+	selection := providerSelection{
+		name:          opts.provider,
+		modelID:       opts.model,
+		mode:          opts.mode,
+		thinkingLevel: opts.thinking,
 	}
+	if selection.name == "" {
+		selection.name = settings.DefaultProvider
+	}
+	if selection.modelID == "" && opts.provider == "" {
+		selection.modelID = settings.DefaultModel
+	}
+	if selection.mode == "" {
+		selection.mode = settings.DefaultMode
+	}
+	if selection.mode == "" {
+		selection.mode = "agent"
+	}
+	if selection.thinkingLevel == "" {
+		selection.thinkingLevel = settings.DefaultThinkingLevel
+	}
+	return selection
+}
 
-	// Determine model
-	modelID := opts.model
-	if modelID == "" {
-		if opts.provider != "" {
-			modelID = ""
-		} else {
-			modelID = settings.DefaultModel
-		}
-	}
-
-	// Create provider from config
-	p, model, err := createProvider(settings, providerName, modelID)
-	if err != nil {
-		return err
-	}
-
-	// Determine mode
-	mode := opts.mode
-	if mode == "" {
-		mode = settings.DefaultMode
-	}
-	if mode == "" {
-		mode = "agent"
-	}
-
+func applySystemInit(args []string, opts runOptions, selection providerSelection) ([]string, runOptions, providerSelection) {
 	// /systeminit on the CLI is non-interactive: force print mode and yolo so
 	// the agent can write AGENTS.md without prompting for approval.
-	if opts.systemInit {
-		mode = "yolo"
-		opts.print = true
-		args = []string{systeminit.Prompt(false, opts.systemInitExtra)}
+	if !opts.systemInit {
+		return args, opts, selection
 	}
+	selection.mode = "yolo"
+	opts.print = true
+	args = []string{systeminit.Prompt(false, opts.systemInitExtra)}
+	return args, opts, selection
+}
 
-	// Determine thinking level
-	thinkingLevel := opts.thinking
-	if thinkingLevel == "" {
-		thinkingLevel = settings.DefaultThinkingLevel
-	}
-
-	// Load skills
+func loadSkills(cwd string, settings *config.Settings, opts runOptions) (skillSetup, error) {
 	if opts.workflows {
 		path, created, err := workflow.EnsureProjectSkill(cwd)
 		if err != nil {
-			return fmt.Errorf("create workflow skill: %w", err)
+			return skillSetup{}, fmt.Errorf("create workflow skill: %w", err)
 		}
 		if opts.verbose && created {
 			fmt.Fprintf(os.Stderr, "Created workflow skill: %s\n", path)
 		}
 	}
+
 	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	if err := skillsMgr.Load(); err != nil && opts.verbose {
 		fmt.Fprintf(os.Stderr, "Warning: load skills: %v\n", err)
@@ -386,76 +512,87 @@ func run(args []string, opts runOptions) error {
 	if opts.verbose && skillsContext != "" {
 		fmt.Fprintf(os.Stderr, "Loaded %d skills\n", len(skillsMgr.List()))
 	}
+	return skillSetup{manager: skillsMgr, context: skillsContext}, nil
+}
 
-	// Setup sandbox
+func setupSandbox(cwd string, settings *config.Settings, opts runOptions, mode string) (*sandbox.Manager, error) {
 	sbMgr := sandbox.NewManager(cwd)
-
-	// Sandbox is disabled by default, enabled via --sandbox flag or config
-	sbEnabled := opts.sandbox || settings.Sandbox.Enabled
-
-	if !sbEnabled {
+	if !(opts.sandbox || settings.Sandbox.Enabled) {
 		sbMgr.SetLevel(sandbox.LevelNone)
-	} else {
-		var targetLevel sandbox.Level
-		switch mode {
-		case "plan":
-			targetLevel = sandbox.LevelStrict
-		case "yolo":
-			targetLevel = sandbox.LevelNone
-		default:
-			targetLevel = sandbox.LevelStandard
-		}
-		// When the user explicitly passed --sandbox, verify the requested level
-		// is actually available before allowing silent fallback to none.
-		if opts.sandbox && targetLevel != sandbox.LevelNone {
-			if _, err := sbMgr.GetForLevel(targetLevel); err != nil {
-				return fmt.Errorf("sandbox requested but unavailable: %w", err)
-			}
-		}
-		if err := sbMgr.SetLevel(targetLevel); err != nil {
-			if opts.sandbox {
-				return fmt.Errorf("sandbox requested but unavailable: %w", err)
-			}
-			fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable, continuing without: %v\n", err)
-			sbMgr.SetLevel(sandbox.LevelNone)
+		return sbMgr, nil
+	}
+
+	targetLevel := sandboxLevelForMode(mode)
+	// When the user explicitly passed --sandbox, verify the requested level
+	// is actually available before allowing silent fallback to none.
+	if opts.sandbox && targetLevel != sandbox.LevelNone {
+		if _, err := sbMgr.GetForLevel(targetLevel); err != nil {
+			return nil, fmt.Errorf("sandbox requested but unavailable: %w", err)
 		}
 	}
-	sbInfo := sandbox.FormatSandboxInfo(sbMgr.GetActive())
+	if err := sbMgr.SetLevel(targetLevel); err != nil {
+		if opts.sandbox {
+			return nil, fmt.Errorf("sandbox requested but unavailable: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable, continuing without: %v\n", err)
+		sbMgr.SetLevel(sandbox.LevelNone)
+	}
+	return sbMgr, nil
+}
 
-	// Setup session
-	var sess *session.Manager
-	var sessionInfo string
-	if opts.continue_ {
-		sess, err = session.ContinueRecent(cwd, settings.GetSessionDir())
+func sandboxLevelForMode(mode string) sandbox.Level {
+	switch mode {
+	case "plan":
+		return sandbox.LevelStrict
+	case "yolo":
+		return sandbox.LevelNone
+	default:
+		return sandbox.LevelStandard
+	}
+}
+
+func setupSession(cwd string, settings *config.Settings, opts runOptions) (sessionSetup, error) {
+	sessionDir := settings.GetSessionDir()
+	switch {
+	case opts.continue_:
+		sess, err := session.ContinueRecent(cwd, sessionDir)
 		if err != nil {
-			return fmt.Errorf("continue session: %w", err)
+			return sessionSetup{}, fmt.Errorf("continue session: %w", err)
 		}
-		if sess.GetHeader() != nil {
-			sessionInfo = fmt.Sprintf("📂 Continuing session: %s", sess.GetFile())
-			if messages := sess.GetMessages(); len(messages) > 0 {
-				sessionInfo += fmt.Sprintf(" (%d messages)", len(messages))
-			}
-		}
-	} else if opts.session != "" {
-		sess, err = session.OpenByPathOrID(cwd, settings.GetSessionDir(), opts.session)
+		return sessionSetup{manager: sess, info: continuingSessionInfo(sess)}, nil
+	case opts.session != "":
+		sess, err := session.OpenByPathOrID(cwd, sessionDir, opts.session)
 		if err != nil {
-			return fmt.Errorf("open session: %w", err)
+			return sessionSetup{}, fmt.Errorf("open session: %w", err)
 		}
-		sessionInfo = fmt.Sprintf("📂 Opened session: %s", sess.GetFile())
-	} else if opts.resume != "" {
-		sess, err = session.OpenByPathOrID(cwd, settings.GetSessionDir(), opts.resume)
+		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Opened session: %s", sess.GetFile())}, nil
+	case opts.resume != "":
+		sess, err := session.OpenByPathOrID(cwd, sessionDir, opts.resume)
 		if err != nil {
-			return fmt.Errorf("resume session: %w", err)
+			return sessionSetup{}, fmt.Errorf("resume session: %w", err)
 		}
-		sessionInfo = fmt.Sprintf("📂 Resumed session: %s", sess.GetFile())
-	} else {
-		sess = session.New(cwd, settings.GetSessionDir())
+		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Resumed session: %s", sess.GetFile())}, nil
+	default:
+		sess := session.New(cwd, sessionDir)
 		if err := sess.Init(); err != nil {
-			return fmt.Errorf("init session: %w", err)
+			return sessionSetup{}, fmt.Errorf("init session: %w", err)
 		}
+		return sessionSetup{manager: sess}, nil
 	}
+}
 
-	// Setup tools
+func continuingSessionInfo(sess *session.Manager) string {
+	if sess.GetHeader() == nil {
+		return ""
+	}
+	info := fmt.Sprintf("📂 Continuing session: %s", sess.GetFile())
+	if messages := sess.GetMessages(); len(messages) > 0 {
+		info += fmt.Sprintf(" (%d messages)", len(messages))
+	}
+	return info
+}
+
+func setupToolRegistry(cwd string, settings *config.Settings, opts runOptions, sbMgr *sandbox.Manager, skillsMgr *skills.Manager) (*tools.Registry, func(), error) {
 	registry := tools.NewRegistry(cwd, sbMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(settings.IsPlanToolEnabled())
 
@@ -465,141 +602,154 @@ func run(args []string, opts runOptions) error {
 	if !opts.print {
 		registry.Register(tools.NewQuestionTool(registry))
 	}
-
-	// Register skill reference tool if skills are available
 	if skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(skillsMgr))
 	}
 
 	mcpServers, err := mcp.LoadConfiguredServers(cwd)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	mcpClients, err := mcp.ConnectServers(context.Background(), mcpServers, registry, mcp.Callbacks{})
 	if err != nil {
-		return fmt.Errorf("connect MCP servers: %w", err)
+		return nil, nil, fmt.Errorf("connect MCP servers: %w", err)
 	}
-	defer mcp.CloseClients(mcpClients)
+	cleanup := func() { mcp.CloseClients(mcpClients) }
+	if err := registerA2AMasterTool(registry, opts); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	return registry, cleanup, nil
+}
 
-	// Build extra system context
-	extraContext := contextStr + skillsContext
-
-	// A2A master mode: load agent list and register dispatch tool
-	if opts.enableA2AMaster {
-		// Try project-level first, then global
-		a2aListPath := a2a.ProjectAgentListConfigPath()
-		if _, err := os.Stat(a2aListPath); err != nil {
-			a2aListPath = a2a.AgentListConfigPath()
-		}
-		a2aListCfg, err := a2a.LoadAgentList(a2aListPath)
-		if err != nil {
-			return fmt.Errorf("load a2a-list.json: %w", err)
-		}
-		a2aMgr := a2a.NewA2AManager(a2aListCfg)
-		registry.Register(tools.NewA2ADispatchTool(&a2aDispatcherAdapter{mgr: a2aMgr}))
-		if opts.verbose {
-			fmt.Fprintf(os.Stderr, "A2A master mode enabled: %d agents loaded from %s\n", len(a2aMgr.List()), a2aListPath)
-		}
+func registerA2AMasterTool(registry *tools.Registry, opts runOptions) error {
+	if !opts.enableA2AMaster {
+		return nil
 	}
 
-	// Agent manager backs multi-agent, delegate, and workflow modes.
-	var agentMgr *agent.AgentManager
-	var cronStore cron.CronStore
-	var cronScheduler *cron.Scheduler
+	a2aListPath := a2a.ProjectAgentListConfigPath()
+	if _, err := os.Stat(a2aListPath); err != nil {
+		a2aListPath = a2a.AgentListConfigPath()
+	}
+	a2aListCfg, err := a2a.LoadAgentList(a2aListPath)
+	if err != nil {
+		return fmt.Errorf("load a2a-list.json: %w", err)
+	}
+	a2aMgr := a2a.NewA2AManager(a2aListCfg)
+	registry.Register(tools.NewA2ADispatchTool(&a2aDispatcherAdapter{mgr: a2aMgr}))
+	if opts.verbose {
+		fmt.Fprintf(os.Stderr, "A2A master mode enabled: %d agents loaded from %s\n", len(a2aMgr.List()), a2aListPath)
+	}
+	return nil
+}
+
+func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, skillsMgr *skills.Manager) (runtimeSetup, error) {
 	allow := config.LoadAllow()
-	{
-		compactionSettings := ctxpkg.CompactionSettings{
-			Enabled:          settings.Compaction.Enabled,
-			ReserveTokens:    settings.Compaction.ReserveTokens,
-			KeepRecentTokens: settings.Compaction.KeepRecentTokens,
-			Tokenizer:        settings.Compaction.Tokenizer,
-			TokenizerModel:   settings.Compaction.TokenizerModel,
-			Template:         settings.Compaction.Template,
-		}
-		if compactionSettings.ReserveTokens == 0 {
-			compactionSettings.ReserveTokens = 16384
-		}
-		if compactionSettings.KeepRecentTokens == 0 {
-			compactionSettings.KeepRecentTokens = 20000
-		}
-
-		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
-			MultiAgentEnabled: true,
-			DelegateEnabled:   opts.delegate,
-			WorkflowsEnabled:  opts.workflows,
-			Allow:             allow,
-		})
-		agentMgr = agent.NewAgentManager(factory)
-
-		if opts.multiAgent {
-			// Register async subagent tools
-			agent.RegisterSubAgentTools(registry, agentMgr)
-
-			// Create cron store, scheduler, and tool
-			cronPath := filepath.Join(config.ConfigDir(), "cron.json")
-			cronStore = cron.NewFileCronStore(cronPath)
-			cronScheduler = cron.NewScheduler(cronStore, agentMgr, 30*time.Second)
-			cronScheduler.Start()
-			registry.Register(cron.NewCronTool(cronStore, cronScheduler))
-			defer cronScheduler.Stop()
-		}
-		if opts.delegate {
-			agent.RegisterDelegateSubAgentTool(registry, agentMgr)
-		}
-		if opts.workflows {
-			workflow.RegisterTools(registry, agentMgr, nil)
-		}
-
-		if opts.verbose {
-			if opts.multiAgent {
-				fmt.Fprintf(os.Stderr, "Multi-agent mode enabled\n")
-			}
-			if opts.delegate {
-				fmt.Fprintf(os.Stderr, "Delegate mode enabled\n")
-			}
-			if opts.workflows {
-				fmt.Fprintf(os.Stderr, "Workflow mode enabled\n")
-			}
-		}
+	factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettingsFromConfig(settings), nil, agent.AgentFactoryOptions{
+		MultiAgentEnabled: true,
+		DelegateEnabled:   opts.delegate,
+		WorkflowsEnabled:  opts.workflows,
+		Allow:             allow,
+	})
+	agentMgr := agent.NewAgentManager(factory)
+	runtime := runtimeSetup{
+		agentManager: agentMgr,
+		allow:        allow,
+		cleanup:      func() {},
 	}
 
-	// Print mode: non-interactive
-	if opts.print {
-		if notice := updateNotice(settings, version); notice != "" {
-			fmt.Fprintln(os.Stderr, notice)
-		}
-		return runPrint(args, p, model, mode, provider.ThinkingLevel(thinkingLevel), settings, registry, sess, extraContext, opts.multiAgent, opts.delegate, opts.workflows, agentMgr)
+	if opts.multiAgent {
+		agent.RegisterSubAgentTools(registry, agentMgr)
+		cronPath := filepath.Join(config.ConfigDir(), "cron.json")
+		runtime.cronStore = cron.NewFileCronStore(cronPath)
+		runtime.cronScheduler = cron.NewScheduler(runtime.cronStore, agentMgr, 30*time.Second)
+		runtime.cronScheduler.Start()
+		runtime.cleanup = runtime.cronScheduler.Stop
+		registry.Register(cron.NewCronTool(runtime.cronStore, runtime.cronScheduler))
 	}
+	if opts.delegate {
+		agent.RegisterDelegateSubAgentTool(registry, agentMgr)
+	}
+	if opts.workflows {
+		workflow.RegisterTools(registry, agentMgr, nil)
+	}
+	logRuntimeModes(opts)
+	return runtime, nil
+}
 
-	// Interactive mode
-	// Clear any pending stdin input (e.g., terminal color queries)
+func compactionSettingsFromConfig(settings *config.Settings) ctxpkg.CompactionSettings {
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:          settings.Compaction.Enabled,
+		ReserveTokens:    settings.Compaction.ReserveTokens,
+		KeepRecentTokens: settings.Compaction.KeepRecentTokens,
+		Tokenizer:        settings.Compaction.Tokenizer,
+		TokenizerModel:   settings.Compaction.TokenizerModel,
+		Template:         settings.Compaction.Template,
+	}
+	if compactionSettings.ReserveTokens == 0 {
+		compactionSettings.ReserveTokens = 16384
+	}
+	if compactionSettings.KeepRecentTokens == 0 {
+		compactionSettings.KeepRecentTokens = 20000
+	}
+	return compactionSettings
+}
+
+func logRuntimeModes(opts runOptions) {
+	if !opts.verbose {
+		return
+	}
+	if opts.multiAgent {
+		fmt.Fprintf(os.Stderr, "Multi-agent mode enabled\n")
+	}
+	if opts.delegate {
+		fmt.Fprintf(os.Stderr, "Delegate mode enabled\n")
+	}
+	if opts.workflows {
+		fmt.Fprintf(os.Stderr, "Workflow mode enabled\n")
+	}
+}
+
+type runInteractiveConfig struct {
+	provider         provider.Provider
+	model            *provider.Model
+	settings         *config.Settings
+	settingsMeta     config.LoadMeta
+	session          *session.Manager
+	sessionInfo      string
+	registry         *tools.Registry
+	sandboxInfo      string
+	extraContext     string
+	contextFilesInfo string
+	skillsManager    *skills.Manager
+	mode             string
+	opts             runOptions
+	runtime          runtimeSetup
+}
+
+func runInteractive(cfg runInteractiveConfig) error {
+	// Clear any pending stdin input (e.g., terminal color queries).
 	clearStdin()
 
-	app := tui.NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sbInfo, extraContext, skillsMgr, mode, opts.multiAgent, opts.delegate, opts.workflows, agentMgr, cronStore, cronScheduler, allow)
-	// Add context files info and session info as initial message
-	var initialMsg string
-	if contextFilesInfo != "" {
-		initialMsg = contextFilesInfo
-	}
-	if sessionInfo != "" {
-		if initialMsg != "" {
-			initialMsg += "\n"
-		}
-		initialMsg += sessionInfo
-	}
-	if settingsMeta.CreatedGlobalConfig && !settingsHasResolvedDefaultToken(settings) {
-		if initialMsg != "" {
-			initialMsg += "\n"
-		}
-		initialMsg += fmt.Sprintf("Created default config: %s\nNo provider token configured yet. Run /auth to add a provider token and model.", settingsMeta.GlobalSettingsPath)
-	}
-	if notice := updateNotice(settings, version); notice != "" {
-		if initialMsg != "" {
-			initialMsg += "\n"
-		}
-		initialMsg += notice
-	}
-	if initialMsg != "" {
+	app := tui.NewAppWithWorkflowsAndAllow(
+		cfg.provider,
+		cfg.model,
+		cfg.settings,
+		cfg.session,
+		cfg.registry,
+		cfg.sandboxInfo,
+		cfg.extraContext,
+		cfg.skillsManager,
+		cfg.mode,
+		cfg.opts.multiAgent,
+		cfg.opts.delegate,
+		cfg.opts.workflows,
+		cfg.runtime.agentManager,
+		cfg.runtime.cronStore,
+		cfg.runtime.cronScheduler,
+		cfg.runtime.allow,
+	)
+	if initialMsg := buildInitialMessage(cfg); initialMsg != "" {
 		app.SetInitialMessage(initialMsg)
 	}
 	p2 := tea.NewProgram(app, teaProgramOptions()...)
@@ -607,12 +757,27 @@ func run(args []string, opts runOptions) error {
 	if _, err := p2.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
 	}
-
 	if app.ReloadRequested() {
 		return reexecFresh()
 	}
-
 	return nil
+}
+
+func buildInitialMessage(cfg runInteractiveConfig) string {
+	parts := []string{}
+	if cfg.contextFilesInfo != "" {
+		parts = append(parts, cfg.contextFilesInfo)
+	}
+	if cfg.sessionInfo != "" {
+		parts = append(parts, cfg.sessionInfo)
+	}
+	if cfg.settingsMeta.CreatedGlobalConfig && !settingsHasResolvedDefaultToken(cfg.settings) {
+		parts = append(parts, fmt.Sprintf("Created default config: %s\nNo provider token configured yet. Run /auth to add a provider token and model.", cfg.settingsMeta.GlobalSettingsPath))
+	}
+	if notice := updateNotice(cfg.settings, version); notice != "" {
+		parts = append(parts, notice)
+	}
+	return strings.Join(parts, "\n")
 }
 
 // reexecFresh restarts the program as a fresh process with a brand-new session

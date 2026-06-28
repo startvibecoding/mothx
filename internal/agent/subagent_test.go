@@ -164,6 +164,58 @@ func TestDelegateSubAgentTool(t *testing.T) {
 	}
 }
 
+func TestSubAgentSpawnInheritsYoloMode(t *testing.T) {
+	_, mgr := newTestFactoryAndManager(t)
+	parent, err := mgr.Create(AgentOptions{ID: "main", Mode: "yolo"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := mgr.Create(AgentOptions{ID: "sub-1", ParentID: parent.ID()})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	childAdapter := child.(*AgentAdapter)
+	if childAdapter.inner.config.Mode != "yolo" {
+		t.Fatalf("child mode = %q, want yolo", childAdapter.inner.config.Mode)
+	}
+	if !contains(childAdapter.inner.frozenSystemPrompt, "YOLO") {
+		t.Fatal("expected child prompt to use yolo mode")
+	}
+}
+
+func TestSubAgentSpawnToolInheritsParentYoloMode(t *testing.T) {
+	_, mgr := newTestFactoryAndManager(t)
+	parent, err := mgr.Create(AgentOptions{ID: "main", Mode: "yolo"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	tool := NewSubAgentSpawnTool(mgr)
+	ctx := ContextWithAgentID(context.Background(), parent.ID())
+	ctx = ContextWithParentMode(ctx, "yolo")
+
+	result, err := tool.Execute(ctx, map[string]any{"task": "list files"})
+	if err != nil {
+		t.Fatalf("execute spawn: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(result.Text), &parsed); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+	handle, _ := parsed["handle"].(string)
+	child, ok := mgr.Get(agentpkg.AgentID(handle))
+	if !ok {
+		t.Fatalf("expected spawned child %q", handle)
+	}
+	childAdapter := child.(*AgentAdapter)
+	if childAdapter.inner.config.Mode != "yolo" {
+		t.Fatalf("child mode = %q, want yolo", childAdapter.inner.config.Mode)
+	}
+	waitForManagedAgentToStop(t, mgr, agentpkg.AgentID(handle))
+	if err := mgr.Destroy(agentpkg.AgentID(handle)); err != nil {
+		t.Fatalf("destroy spawned agent: %v", err)
+	}
+}
+
 func TestDelegateSubAgentToolMissingTask(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	tool := NewDelegateSubAgentTool(mgr)

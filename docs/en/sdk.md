@@ -436,7 +436,7 @@ Destroy a finished sub-agent and release resources:
 | Constraint | Default | Description |
 |------------|---------|-------------|
 | Max children | 5 | Maximum concurrent sub-agents per parent |
-| Allowed modes | `["agent"]` | Sub-agents default to agent mode |
+| Allowed modes | `["plan", "agent", "yolo"]` | Sub-agents default to the parent mode, then `agent` |
 | Timeout per agent | 10 minutes | Each sub-agent has an independent timeout |
 | Total timeout | 30 minutes | Global timeout for all sub-agents |
 | Nesting | Disabled | Sub-agents **cannot** spawn their own sub-agents |

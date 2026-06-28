@@ -1799,8 +1799,8 @@ func TestToolCallShowsRunningMessageBeforeResult(t *testing.T) {
 		t.Fatalf("messages len = %d, want running message appended", len(a.messages))
 	}
 	got := stripANSI(a.messages[1])
-	if !strings.Contains(got, "Running bash: sleep 10") {
-		t.Fatalf("running message = %q, want running bash line", got)
+	if !strings.Contains(got, "🔧 [bash] running: sleep 10") {
+		t.Fatalf("running message = %q, want tool header running line", got)
 	}
 
 	a.handleAgentEvent(agent.Event{
@@ -1813,7 +1813,7 @@ func TestToolCallShowsRunningMessageBeforeResult(t *testing.T) {
 	if len(a.messages) < 3 {
 		t.Fatalf("messages len = %d, want result message appended", len(a.messages))
 	}
-	if got := stripANSI(a.renderMessageAt(1)); !strings.Contains(got, "Running bash: sleep 10") {
+	if got := stripANSI(a.renderMessageAt(1)); !strings.Contains(got, "🔧 [bash] running: sleep 10") {
 		t.Fatalf("running message changed unexpectedly: %q", got)
 	}
 	if got := stripANSI(a.renderMessageAt(2)); !strings.Contains(got, "done") {
@@ -1830,11 +1830,11 @@ func TestToolResultReprintsAfterRunningMessage(t *testing.T) {
 		ToolCall: &provider.ToolCallBlock{ID: "tool-1", Name: "bash"},
 		ToolArgs: map[string]any{"command": "echo hello"},
 	})
-	if len(a.toolResults) != 1 || a.toolResults[0].status != "running" {
+	if len(a.toolResults) != 1 || a.toolResults[0].status != toolResultStatusRunning {
 		t.Fatalf("toolResults = %#v, want running tool entry", a.toolResults)
 	}
-	if got := stripANSI(a.renderMessageAt(1)); !strings.Contains(got, "Running bash: echo hello") {
-		t.Fatalf("running message = %q, want running bash line", got)
+	if got := stripANSI(a.renderMessageAt(1)); !strings.Contains(got, "🔧 [bash] running: echo hello") {
+		t.Fatalf("running message = %q, want tool header running line", got)
 	}
 
 	a.handleAgentEvent(agent.Event{
@@ -1849,6 +1849,76 @@ func TestToolResultReprintsAfterRunningMessage(t *testing.T) {
 	}
 	if got := stripANSI(a.renderMessageAt(2)); !strings.Contains(got, "hello") {
 		t.Fatalf("rendered tool result = %q, want final output", got)
+	}
+}
+
+func TestToolExecutionStartAndEndPrintToTUIScrollback(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a.program = tea.NewProgram(a)
+	a.messages = []string{"assistant start"}
+
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolExecutionStart,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolArgs:   map[string]any{"command": "echo hello"},
+	})
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolExecutionEnd,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolResult: "hello",
+	})
+
+	a.printMu.Lock()
+	defer a.printMu.Unlock()
+	if got := len(a.printQueue); got != 2 {
+		t.Fatalf("print queue len = %d, want running line and result: %#v", got, a.printQueue)
+	}
+	if plain := stripANSI(a.printQueue[0]); !strings.Contains(plain, "🔧 [bash] running: echo hello") {
+		t.Fatalf("running print = %q, want execution start", plain)
+	}
+	if plain := stripANSI(a.printQueue[1]); !strings.Contains(plain, "hello") {
+		t.Fatalf("result print = %q, want execution result", plain)
+	}
+}
+
+func TestToolCallExecutionEventsPrintOnce(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a.program = tea.NewProgram(a)
+	a.messages = []string{"assistant start"}
+
+	a.handleAgentEvent(agent.Event{
+		Type:     agent.EventToolCall,
+		ToolCall: &provider.ToolCallBlock{ID: "tool-1", Name: "bash"},
+		ToolArgs: map[string]any{"command": "echo hello"},
+	})
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolExecutionStart,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolArgs:   map[string]any{"command": "echo hello"},
+	})
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolExecutionEnd,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolResult: "hello",
+	})
+	a.handleAgentEvent(agent.Event{
+		Type:       agent.EventToolResult,
+		ToolCallID: "tool-1",
+		ToolName:   "bash",
+		ToolResult: "hello",
+	})
+
+	a.printMu.Lock()
+	defer a.printMu.Unlock()
+	if got := len(a.printQueue); got != 2 {
+		t.Fatalf("print queue len = %d, want one running line and one result: %#v", got, a.printQueue)
+	}
+	if got := len(a.toolResults); got != 2 {
+		t.Fatalf("toolResults len = %d, want running + result entries", got)
 	}
 }
 

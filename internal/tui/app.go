@@ -80,14 +80,21 @@ type InputEvent struct {
 	arrived time.Time
 }
 
+type toolResultStatus string
+
+const (
+	toolResultStatusRunning   toolResultStatus = "running"
+	toolResultStatusCompleted toolResultStatus = "completed"
+)
+
 // toolResult stores tool result information
 type toolResult struct {
 	toolCallID  string // Unique tool call ID for precise matching
 	toolName    string
 	toolArgs    map[string]any // Tool call arguments
-	status      string         // live status, e.g. "running"
-	summary     string         // Short summary for collapsed view
-	fullContent string         // Full content for expanded view
+	status      toolResultStatus
+	summary     string // Short summary for collapsed view
+	fullContent string // Full content for expanded view
 	diff        *tools.FileDiff
 	msgIndex    int // Index in a.messages where this tool message lives
 	expanded    string
