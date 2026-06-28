@@ -14,6 +14,11 @@
 
 ### 💅 Improvements
 
+- **Configured provider models honored end-to-end**
+  - Threaded a `ModelID` field through the public and internal `ChatParams` so the selected model flows all the way to the provider request.
+  - OpenAI- and Anthropic-compatible providers now resolve their model list and `compat` flags from the provider config when present, falling back to built-in defaults otherwise.
+  - Provider factories are now registered through `init` hooks so `ResolveProvider` can construct providers by name via the global registry, with a simplified fallback chain that errors on an unsupported `api`.
+
 - **Provider guide documentation**
   - Added a provider guide (`docs/en/provider-guide.md`, `docs/zh/provider-guide.md`) covering provider/vendor configuration.
 

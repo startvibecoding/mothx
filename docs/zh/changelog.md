@@ -14,6 +14,11 @@
 
 ### 💅 优化
 
+- **端到端遵循已配置的 provider 模型**
+  - 在公开与内部的 `ChatParams` 中贯穿 `ModelID` 字段，使所选模型能一路传递到 provider 请求。
+  - OpenAI 与 Anthropic 兼容 provider 现在会在存在配置时从 provider 配置解析模型列表与 `compat` 标志，否则回退到内置默认值。
+  - provider 工厂改为通过 `init` hook 注册，使 `ResolveProvider` 能通过全局 registry 按名称构建 provider，并简化了回退链，对不支持的 `api` 直接报错。
+
 - **Provider 指南文档**
   - 新增 provider 指南（`docs/en/provider-guide.md`、`docs/zh/provider-guide.md`），介绍 provider/vendor 配置。
 
