@@ -103,8 +103,8 @@ func TestGetModelConfig(t *testing.T) {
 		t.Fatal("expected model config, got nil")
 	}
 
-	if mc.Name != "DeepSeek-V4-Flash" {
-		t.Errorf("expected name 'DeepSeek-V4-Flash', got '%s'", mc.Name)
+	if mc.Name != "DeepSeek V4 Flash" {
+		t.Errorf("expected name 'DeepSeek V4 Flash', got '%s'", mc.Name)
 	}
 
 	// Test non-existing model

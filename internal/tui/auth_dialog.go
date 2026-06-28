@@ -68,6 +68,16 @@ type authDialogState struct {
 	TopP          string
 	ParamField    string
 
+	// Track which advanced params were explicitly edited by the user.
+	// Pre-filled defaults from settings.go provider config have these as false,
+	// so applyAuthModelParams preserves per-model values for unedited params.
+	ContextWindowEdited bool
+	MaxTokensEdited     bool
+	ReasoningEdited     bool
+	InputTypesEdited    bool
+	TemperatureEdited   bool
+	TopPEdited          bool
+
 	Error   string
 	Preview string
 }
@@ -264,6 +274,41 @@ func (a *App) selectAuthOption() {
 				ids = append(ids, m.ID)
 			}
 			a.auth.ModelIDs = strings.Join(ids, ", ")
+			// Pre-fill advanced model params from the first existing model
+			// so the review screen shows the settings.go preset values.
+			// Edited flags stay false so saving preserves per-model values
+			// for params the user didn't explicitly change.
+			if len(pc.Models) > 0 {
+				a.auth.ContextWindow = ""
+				a.auth.MaxTokens = ""
+				a.auth.Reasoning = false
+				a.auth.InputTypes = ""
+				a.auth.Temperature = ""
+				a.auth.TopP = ""
+				a.auth.ContextWindowEdited = false
+				a.auth.MaxTokensEdited = false
+				a.auth.ReasoningEdited = false
+				a.auth.InputTypesEdited = false
+				a.auth.TemperatureEdited = false
+				a.auth.TopPEdited = false
+				m := pc.Models[0]
+				if m.ContextWindow > 0 {
+					a.auth.ContextWindow = strconv.Itoa(m.ContextWindow)
+				}
+				if m.MaxTokens > 0 {
+					a.auth.MaxTokens = strconv.Itoa(m.MaxTokens)
+				}
+				a.auth.Reasoning = m.Reasoning
+				if len(m.Input) > 0 {
+					a.auth.InputTypes = strings.Join(m.Input, ",")
+				}
+				if m.Temperature != nil {
+					a.auth.Temperature = strconv.FormatFloat(*m.Temperature, 'f', -1, 64)
+				}
+				if m.TopP != nil {
+					a.auth.TopP = strconv.FormatFloat(*m.TopP, 'f', -1, 64)
+				}
+			}
 		}
 		if a.auth.API == "" {
 			a.auth.API = "openai-chat"
@@ -302,6 +347,7 @@ func (a *App) selectAuthOption() {
 			}
 		case "reasoning":
 			a.auth.Reasoning = !a.auth.Reasoning
+			a.auth.ReasoningEdited = true
 		case "skip":
 			a.auth.ContextWindow = ""
 			a.auth.MaxTokens = ""
@@ -309,6 +355,12 @@ func (a *App) selectAuthOption() {
 			a.auth.InputTypes = ""
 			a.auth.Temperature = ""
 			a.auth.TopP = ""
+			a.auth.ContextWindowEdited = false
+			a.auth.MaxTokensEdited = false
+			a.auth.ReasoningEdited = false
+			a.auth.InputTypesEdited = false
+			a.auth.TemperatureEdited = false
+			a.auth.TopPEdited = false
 			if a.isReviewEdit() {
 				a.returnToReviewAfterEdit()
 			} else {
@@ -451,6 +503,7 @@ func (a *App) setAuthParamValue(value string) error {
 			}
 		}
 		a.auth.ContextWindow = value
+		a.auth.ContextWindowEdited = true
 	case "maxTokens":
 		if value != "" {
 			if _, err := parsePositiveInt(value); err != nil {
@@ -458,12 +511,14 @@ func (a *App) setAuthParamValue(value string) error {
 			}
 		}
 		a.auth.MaxTokens = value
+		a.auth.MaxTokensEdited = true
 	case "input":
 		ids := normalizeAuthModelIDs(value)
 		if len(ids) == 0 {
 			ids = []string{"text"}
 		}
 		a.auth.InputTypes = strings.Join(ids, ",")
+		a.auth.InputTypesEdited = true
 	case "temperature":
 		if value != "" {
 			if _, err := parseFloatRange(value, 0, 2); err != nil {
@@ -471,6 +526,7 @@ func (a *App) setAuthParamValue(value string) error {
 			}
 		}
 		a.auth.Temperature = value
+		a.auth.TemperatureEdited = true
 	case "topP":
 		if value != "" {
 			if _, err := parseFloatRange(value, 0, 1); err != nil {
@@ -478,6 +534,7 @@ func (a *App) setAuthParamValue(value string) error {
 			}
 		}
 		a.auth.TopP = value
+		a.auth.TopPEdited = true
 	}
 	return nil
 }
@@ -1045,7 +1102,7 @@ func (a *App) buildAuthSettingsFrom(base *config.Settings) (*config.Settings, st
 		if existing, ok := oldModels[id]; ok {
 			model = existing
 		}
-		applyAuthModelParams(&model, a.auth)
+		applyAuthModelParams(&model, &a.auth)
 		pc.Models = append(pc.Models, model)
 	}
 	modelID := ""
@@ -1063,32 +1120,35 @@ func (a *App) buildAuthSettings() (*config.Settings, string) {
 	return a.buildAuthSettingsFrom(a.settings)
 }
 
-func applyAuthModelParams(model *config.ModelConfig, auth authDialogState) {
-	if model == nil {
+// applyAuthModelParams only applies params that were explicitly edited by the user.
+// Pre-filled values from settings.go provider defaults are displayed in the UI but
+// not applied to models unless the user changed them, preserving per-model config.
+func applyAuthModelParams(model *config.ModelConfig, auth *authDialogState) {
+	if model == nil || auth == nil {
 		return
 	}
-	if auth.ContextWindow != "" {
+	if auth.ContextWindowEdited && auth.ContextWindow != "" {
 		if v, err := parsePositiveInt(auth.ContextWindow); err == nil {
 			model.ContextWindow = v
 		}
 	}
-	if auth.MaxTokens != "" {
+	if auth.MaxTokensEdited && auth.MaxTokens != "" {
 		if v, err := parsePositiveInt(auth.MaxTokens); err == nil {
 			model.MaxTokens = v
 		}
 	}
-	if auth.Reasoning {
-		model.Reasoning = true
+	if auth.ReasoningEdited {
+		model.Reasoning = auth.Reasoning
 	}
-	if auth.InputTypes != "" {
+	if auth.InputTypesEdited && auth.InputTypes != "" {
 		model.Input = normalizeAuthModelIDs(auth.InputTypes)
 	}
-	if auth.Temperature != "" {
+	if auth.TemperatureEdited && auth.Temperature != "" {
 		if v, err := parseFloatRange(auth.Temperature, 0, 2); err == nil {
 			model.Temperature = &v
 		}
 	}
-	if auth.TopP != "" {
+	if auth.TopPEdited && auth.TopP != "" {
 		if v, err := parseFloatRange(auth.TopP, 0, 1); err == nil {
 			model.TopP = &v
 		}

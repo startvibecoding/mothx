@@ -604,7 +604,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 						args = json.RawMessage(`{}`)
 					}
 					tc := &provider.ToolCallBlock{
-						ID:               fmt.Sprintf("google_toolcall_%d", toolCallIndex),
+						ID:               fmt.Sprintf("google_toolcall_%d_%d", time.Now().UnixNano(), toolCallIndex),
 						Name:             part.FunctionCall.Name,
 						Arguments:        args,
 						ThoughtSignature: part.ThoughtSignature,
