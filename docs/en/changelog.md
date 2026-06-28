@@ -1,6 +1,30 @@
 # Changelog
 
 
+## v1.1.54
+
+### ✨ Features
+
+- **Multi-Workspace Session Isolation in Gateway**
+  - Isolated default HTTP gateway sessions by work directory (`workDir`) rather than sharing a single global default. Multiple workspace clients no longer share fallback session history.
+  - Added `OpenByIDExact` to load session metadata and reconstruction info directly by exact session UUID, ignoring current working directory constraints.
+  - Serialized concurrent session creation inside the HTTP gateway to safely handle rapid successive calls and prevent duplicates.
+  - Improved `/sessions del` slash command to support prefix matching for session IDs and prevent deleting the currently active session.
+  - Preserved the gateway session slot on `/clear` while cleanly resetting all messages in the session manager.
+
+### 💅 Improvements
+
+- **Reliable Fallback Tool Call ID Generation**
+  - Switched the fallback tool call ID generator to use a process-wide atomic counter combined with high-precision unique timestamps. This prevents Anthropic/OpenAI schema validation errors under heavy concurrent tool-calling loads.
+  - Updated model lists and default configs for several providers, specifically resolving Gemini-specific tool-calling constraints.
+  - Preserved customized model parameters in the TUI Auth Dialog on save instead of resetting them to vendor defaults.
+
+### 🐛 Bug Fixes
+
+- **Thinking Level Normalization**
+  - Added a normalization step for provider `thinkingLevel`. If the value is empty or invalid, it gracefully falls back to `medium` instead of silently disabling thinking, ensuring reasoning models perform correctly by default.
+
+
 ## v1.1.53
 
 ### ✨ Features
