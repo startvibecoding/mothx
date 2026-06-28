@@ -9,6 +9,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
+	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
@@ -45,7 +46,7 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 	case "/models":
 		return s.cmdModels()
 	case "/sessions":
-		return s.cmdSessions(parts)
+		return s.cmdSessionsForSession(sess, parts)
 	case "/status":
 		return s.cmdStatus(sess)
 	case "/compact":
@@ -208,13 +209,21 @@ func (s *Server) cmdModels() *CommandResult {
 }
 
 func (s *Server) cmdSessions(parts []string) *CommandResult {
+	return s.cmdSessionsForSession(nil, parts)
+}
+
+func (s *Server) cmdSessionsForSession(sess *GatewaySession, parts []string) *CommandResult {
 	sub := "ls"
 	if len(parts) > 1 {
 		sub = strings.ToLower(parts[1])
 	}
 	switch sub {
 	case "ls", "list":
-		ids := s.pool.List()
+		cwd := s.cfg.GetWorkDir()
+		if sess != nil && sess.WorkDir != "" {
+			cwd = sess.WorkDir
+		}
+		ids := s.pool.ListForWorkDir(cwd)
 		if len(ids) == 0 {
 			return &CommandResult{Message: "No active sessions."}
 		}
@@ -230,12 +239,52 @@ func (s *Server) cmdSessions(parts []string) *CommandResult {
 		if len(parts) < 3 {
 			return &CommandResult{Message: "Usage: /sessions del <id>", Error: true}
 		}
-		id := parts[2]
-		if s.pool.Get(id) == nil {
-			return &CommandResult{Message: fmt.Sprintf("Session not found: %s", id), Error: true}
+		id := strings.TrimSpace(parts[2])
+		currentID := ""
+		cwd := ""
+		if sess != nil {
+			currentID = sess.ID
+			if sess.Manager != nil && sess.Manager.GetHeader() != nil {
+				cwd = sess.Manager.GetHeader().Cwd
+			}
 		}
-		s.pool.Remove(id)
-		return &CommandResult{Message: fmt.Sprintf("✅ Session %s deleted.", id)}
+		if cwd == "" {
+			cwd = s.cfg.GetWorkDir()
+		}
+		sessDir := s.settings.GetSessionDir()
+		details, err := session.ListForDirDetailed(cwd, sessDir)
+		if err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to list sessions: %v", err), Error: true}
+		}
+		var match *session.SessionDetail
+		for i, d := range details {
+			if strings.HasPrefix(d.ID, id) {
+				if match != nil {
+					return &CommandResult{Message: fmt.Sprintf("Ambiguous ID '%s'. Be more specific.", id), Error: true}
+				}
+				match = &details[i]
+			}
+		}
+		if match != nil {
+			if currentID != "" && match.ID == currentID {
+				return &CommandResult{Message: "Cannot delete the current session. Switch to another session first, or use /clear to start fresh.", Error: true}
+			}
+			if err := session.DeleteSession(match.Path, sessDir); err != nil {
+				return &CommandResult{Message: fmt.Sprintf("Failed to delete session: %v", err), Error: true}
+			}
+			s.pool.RemoveByWorkDir(cwd, match.ID)
+			s.mu.Lock()
+			if s.defaultSessionIDs != nil {
+				for workDir, id := range s.defaultSessionIDs {
+					if id == match.ID {
+						delete(s.defaultSessionIDs, workDir)
+					}
+				}
+			}
+			s.mu.Unlock()
+			return &CommandResult{Message: fmt.Sprintf("✅ Session %s deleted.", match.ID)}
+		}
+		return &CommandResult{Message: fmt.Sprintf("Session not found: %s", id), Error: true}
 	default:
 		return &CommandResult{Message: "Usage: /sessions [ls|clear|del <id>]", Error: true}
 	}

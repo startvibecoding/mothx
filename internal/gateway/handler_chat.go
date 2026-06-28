@@ -77,9 +77,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	// Get or create session
 	sessionID := req.XSessionID
 	if sessionID == "" {
-		// Fall back to the default session for this gateway instance
+		// Fall back to the default session for this workDir.
 		s.mu.RLock()
-		sessionID = s.defaultSessionID
+		sessionID = s.defaultSessionIDs[workDir]
 		s.mu.RUnlock()
 	}
 	sess, err := s.getOrCreateSession(sessionID, workDir)
@@ -92,14 +92,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sess.Lock()
+	defer sess.Unlock()
+	sess.Touch()
+
 	// Check for slash command
 	if cmdResult := s.handleCommand(sess, lastUserMsg); cmdResult != nil {
 		// If /clear, we need to reset agent state on the session
 		if strings.HasPrefix(strings.TrimSpace(lastUserMsg), "/clear") {
-			// Create a fresh session manager but keep the session slot
-			newMgr := session.New(sess.WorkDir, s.settings.GetSessionDir())
-			if err := newMgr.Init(); err == nil {
-				sess.Manager = newMgr
+			if err := s.clearSession(sess, workDir); err != nil {
+				writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+				return
 			}
 		}
 		if req.Stream {
@@ -109,11 +112,6 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	// Lock session for serial processing
-	sess.Lock()
-	defer sess.Unlock()
-	sess.Touch()
 
 	// Determine mode
 	mode := s.cfg.DefaultMode
@@ -457,18 +455,130 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 		}
 	}
 
+	// Serialize creation so concurrent requests don't create duplicate sessions
+	// for the same ID or for the shared empty x_session_id path.
+	s.sessionCreateMu.Lock()
+	defer s.sessionCreateMu.Unlock()
+
+	if sessionID != "" {
+		if sess := s.pool.Get(sessionID); sess != nil {
+			return sess, nil
+		}
+		if sess, err := session.OpenByIDExact(s.settings.GetSessionDir(), sessionID); err == nil {
+			sessWorkDir := workDir
+			if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
+				sessWorkDir = sess.GetHeader().Cwd
+			}
+			registry := tools.NewRegistry(sessWorkDir, s.sandboxMgr.GetActive())
+			registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
+			skillsMgr, extraContext, err := buildWorkDirContext(s.settings, sessWorkDir, s.cfg.EnableWorkflows)
+			if err != nil {
+				return nil, err
+			}
+			if skillsMgr != nil {
+				registry.Register(tools.NewSkillRefTool(skillsMgr))
+			}
+			gwSess := &GatewaySession{
+				ID:           sessionID,
+				WorkDir:      sessWorkDir,
+				Manager:      sess,
+				Registry:     registry,
+				SkillsMgr:    skillsMgr,
+				ExtraContext: extraContext,
+				DelegateMode: s.cfg.EnableDelegate,
+				Workflows:    s.cfg.EnableWorkflows,
+				LastUsed:     time.Now(),
+			}
+			if s.cfg.EnableSubAgents || s.cfg.EnableDelegate || s.cfg.EnableWorkflows {
+				compactionSettings := ctxpkg.CompactionSettings{
+					Enabled:          s.settings.Compaction.Enabled,
+					ReserveTokens:    s.settings.Compaction.ReserveTokens,
+					KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+					Tokenizer:        s.settings.Compaction.Tokenizer,
+					TokenizerModel:   s.settings.Compaction.TokenizerModel,
+					Template:         s.settings.Compaction.Template,
+				}
+				factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+					MultiAgentEnabled: true,
+					DelegateEnabled:   s.cfg.EnableDelegate,
+					WorkflowsEnabled:  s.cfg.EnableWorkflows,
+					Allow:             s.getAllow(),
+				})
+				gwSess.AgentMgr = agent.NewAgentManager(factory)
+			}
+			if err := s.pool.Put(gwSess); err != nil {
+				return nil, err
+			}
+			return gwSess, nil
+		}
+	} else {
+		s.mu.RLock()
+		defaultID := s.defaultSessionIDs[workDir]
+		s.mu.RUnlock()
+		if defaultID != "" {
+			if sess := s.pool.GetForWorkDir(workDir, defaultID); sess != nil {
+				return sess, nil
+			}
+			if sess, err := session.OpenByIDExact(s.settings.GetSessionDir(), defaultID); err == nil {
+				sessWorkDir := workDir
+				if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
+					sessWorkDir = sess.GetHeader().Cwd
+				}
+				registry := tools.NewRegistry(sessWorkDir, s.sandboxMgr.GetActive())
+				registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
+				skillsMgr, extraContext, err := buildWorkDirContext(s.settings, sessWorkDir, s.cfg.EnableWorkflows)
+				if err != nil {
+					return nil, err
+				}
+				if skillsMgr != nil {
+					registry.Register(tools.NewSkillRefTool(skillsMgr))
+				}
+				gwSess := &GatewaySession{
+					ID:           defaultID,
+					WorkDir:      sessWorkDir,
+					Manager:      sess,
+					Registry:     registry,
+					SkillsMgr:    skillsMgr,
+					ExtraContext: extraContext,
+					DelegateMode: s.cfg.EnableDelegate,
+					Workflows:    s.cfg.EnableWorkflows,
+					LastUsed:     time.Now(),
+				}
+				if s.cfg.EnableSubAgents || s.cfg.EnableDelegate || s.cfg.EnableWorkflows {
+					compactionSettings := ctxpkg.CompactionSettings{
+						Enabled:          s.settings.Compaction.Enabled,
+						ReserveTokens:    s.settings.Compaction.ReserveTokens,
+						KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+						Tokenizer:        s.settings.Compaction.Tokenizer,
+						TokenizerModel:   s.settings.Compaction.TokenizerModel,
+						Template:         s.settings.Compaction.Template,
+					}
+					factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+						MultiAgentEnabled: true,
+						DelegateEnabled:   s.cfg.EnableDelegate,
+						WorkflowsEnabled:  s.cfg.EnableWorkflows,
+						Allow:             s.getAllow(),
+					})
+					gwSess.AgentMgr = agent.NewAgentManager(factory)
+				}
+				if err := s.pool.Put(gwSess); err != nil {
+					return nil, err
+				}
+				return gwSess, nil
+			}
+			sessionID = defaultID
+		}
+	}
+
 	// Create new session
 	mgr := session.New(workDir, s.settings.GetSessionDir())
 	if sessionID != "" {
 		if err := mgr.InitWithID(sessionID); err != nil {
-			// Fallback to auto-generated ID
-			if err := mgr.Init(); err != nil {
-				return nil, nil
-			}
+			return nil, fmt.Errorf("initialize session %q: %w", sessionID, err)
 		}
 	} else {
 		if err := mgr.Init(); err != nil {
-			return nil, nil
+			return nil, fmt.Errorf("initialize session: %w", err)
 		}
 	}
 
@@ -521,7 +631,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 	}
 
 	if err := s.pool.Put(sess); err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	// If this session was created without a client-supplied ID,
@@ -529,13 +639,47 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 	// requests reuse the same session.
 	if sessionID == "" {
 		s.mu.Lock()
-		if s.defaultSessionID == "" {
-			s.defaultSessionID = sess.ID
+		if s.defaultSessionIDs == nil {
+			s.defaultSessionIDs = make(map[string]string)
+		}
+		if s.defaultSessionIDs[workDir] == "" {
+			s.defaultSessionIDs[workDir] = sess.ID
 		}
 		s.mu.Unlock()
 	}
 
 	return sess, nil
+}
+
+func (s *Server) clearSession(sess *GatewaySession, workDir string) error {
+	if sess == nil {
+		return fmt.Errorf("no active session to clear")
+	}
+	sessionDir := s.settings.GetSessionDir()
+	if sess.Manager == nil {
+		return fmt.Errorf("current session is not initialized")
+	}
+	if sess.Manager.GetHeader() != nil && sess.Manager.GetHeader().Cwd != "" {
+		workDir = sess.Manager.GetHeader().Cwd
+	}
+	if err := session.DeleteSession(sess.Manager.GetFile(), sessionDir); err != nil {
+		return fmt.Errorf("delete current session: %w", err)
+	}
+	newMgr := session.New(workDir, sessionDir)
+	if err := newMgr.InitWithID(sess.ID); err != nil {
+		return fmt.Errorf("create fresh session: %w", err)
+	}
+	sess.Manager = newMgr
+	sess.WorkDir = workDir
+	sess.LastUsed = time.Now()
+	sess.ForceCompact = false
+	s.mu.Lock()
+	if s.defaultSessionIDs == nil {
+		s.defaultSessionIDs = make(map[string]string)
+	}
+	s.defaultSessionIDs[workDir] = sess.ID
+	s.mu.Unlock()
+	return nil
 }
 
 // parseMessages extracts the last user message, system messages, and history messages.

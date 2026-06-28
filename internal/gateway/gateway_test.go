@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -597,6 +598,14 @@ func TestChatHandler_SlashClear(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.pool.Stop()
 
+	sess, err := srv.getOrCreateSession("test-sess", srv.cfg.GetWorkDir())
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if _, err := sess.Manager.AppendMessage(provider.NewUserMessage("hello")); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
 	body := `{"messages":[{"role":"user","content":"/clear"}],"stream":false,"x_session_id":"test-sess"}`
 	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -613,6 +622,19 @@ func TestChatHandler_SlashClear(t *testing.T) {
 	}
 	if !strings.Contains(resp.Choices[0].Message.Content, "Conversation cleared") {
 		t.Errorf("expected clear confirmation, got %q", resp.Choices[0].Message.Content)
+	}
+	if resp.XSessionID != "test-sess" {
+		t.Fatalf("clear response session ID = %q, want test-sess", resp.XSessionID)
+	}
+	if srv.pool.Count() != 1 {
+		t.Fatalf("pool count = %d, want 1", srv.pool.Count())
+	}
+	cleared := srv.pool.Get("test-sess")
+	if cleared == nil || cleared.Manager == nil {
+		t.Fatal("expected cleared session in pool")
+	}
+	if msgs := cleared.Manager.GetMessages(); len(msgs) != 0 {
+		t.Fatalf("clear should reset messages, got %d", len(msgs))
 	}
 }
 
@@ -1362,15 +1384,15 @@ func TestSessionPool_ReplaceSameID(t *testing.T) {
 		t.Fatalf("put 1: %v", err)
 	}
 
-	// Replace same ID should succeed even at max capacity
-	sess1v2 := &GatewaySession{ID: "sess-1", WorkDir: "/tmp/b", LastUsed: time.Now()}
+	// Replace same ID within the same workDir should succeed even at max capacity.
+	sess1v2 := &GatewaySession{ID: "sess-1", WorkDir: "/tmp/a", LastUsed: time.Now()}
 	if err := pool.Put(sess1v2); err != nil {
 		t.Fatalf("replace same ID should succeed: %v", err)
 	}
 
 	got := pool.Get("sess-1")
-	if got.WorkDir != "/tmp/b" {
-		t.Errorf("workdir = %q, want /tmp/b", got.WorkDir)
+	if got.WorkDir != "/tmp/a" {
+		t.Errorf("workdir = %q, want /tmp/a", got.WorkDir)
 	}
 }
 
@@ -1575,8 +1597,9 @@ func TestCommands_ModelShowCurrent(t *testing.T) {
 
 func TestCommands_SessionsList(t *testing.T) {
 	srv := newTestServer(t)
-	srv.pool.Put(&GatewaySession{ID: "s1", LastUsed: time.Now()})
-	srv.pool.Put(&GatewaySession{ID: "s2", LastUsed: time.Now()})
+	workDir := srv.cfg.GetWorkDir()
+	srv.pool.Put(&GatewaySession{ID: "s1", WorkDir: workDir, LastUsed: time.Now()})
+	srv.pool.Put(&GatewaySession{ID: "s2", WorkDir: workDir, LastUsed: time.Now()})
 
 	result := srv.cmdSessions([]string{"/sessions"})
 	if result.Error {
@@ -1597,13 +1620,25 @@ func TestCommands_SessionsEmpty(t *testing.T) {
 
 func TestCommands_SessionsDelete(t *testing.T) {
 	srv := newTestServer(t)
-	srv.pool.Put(&GatewaySession{ID: "s1", LastUsed: time.Now()})
-	result := srv.cmdSessions([]string{"/sessions", "del", "s1"})
+	current := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := current.Init(); err != nil {
+		t.Fatalf("init current session: %v", err)
+	}
+	target := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := target.Init(); err != nil {
+		t.Fatalf("init target session: %v", err)
+	}
+	result := srv.cmdSessionsForSession(&GatewaySession{ID: current.GetHeader().ID, Manager: current}, []string{"/sessions", "del", target.GetHeader().ID[:8]})
 	if result.Error {
 		t.Error("unexpected error")
 	}
-	if srv.pool.Get("s1") != nil {
-		t.Error("session should be deleted")
+	if sessions, err := session.ListForDir(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir()); err != nil {
+		t.Fatalf("list sessions: %v", err)
+	} else if len(sessions) != 1 {
+		t.Fatalf("expected 1 session remaining, got %d", len(sessions))
+	}
+	if srv.pool.Get(target.GetHeader().ID) != nil {
+		t.Error("deleted session should not remain in pool")
 	}
 }
 
@@ -1620,6 +1655,39 @@ func TestCommands_SessionsDeleteMissingID(t *testing.T) {
 	result := srv.cmdSessions([]string{"/sessions", "del"})
 	if !result.Error {
 		t.Error("expected error for missing ID")
+	}
+}
+
+func TestGetOrCreateSessionConcurrentDefaultReuse(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sess, err := srv.getOrCreateSession("", srv.cfg.GetWorkDir())
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if sess == nil || sess.ID == "" {
+				errCh <- fmt.Errorf("missing session")
+				return
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent getOrCreateSession failed: %v", err)
+		}
+	}
+	if srv.pool.Count() != 1 {
+		t.Fatalf("pool count = %d, want 1", srv.pool.Count())
 	}
 }
 
@@ -1974,5 +2042,45 @@ func TestDefaultSessionID_PoolCount(t *testing.T) {
 
 	if srv.pool.Count() != 1 {
 		t.Errorf("pool count = %d, want 1 (all should share default session)", srv.pool.Count())
+	}
+}
+
+func TestDefaultSessionID_IsolatedByWorkDir(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	body1 := fmt.Sprintf(`{"messages":[{"role":"user","content":"/status"}],"stream":false,"x_working_dir":%q}`, filepath.Join(srv.cfg.GetWorkDir(), "a"))
+
+	req1 := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body1))
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	srv.handleChatCompletions(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("req1 status = %d, body = %s", w1.Code, w1.Body.String())
+	}
+	var resp1 ChatCompletionResponse
+	if err := json.NewDecoder(w1.Body).Decode(&resp1); err != nil {
+		t.Fatalf("decode resp1: %v", err)
+	}
+
+	body2 := fmt.Sprintf(`{"messages":[{"role":"user","content":"/status"}],"stream":false,"x_working_dir":%q}`, filepath.Join(srv.cfg.GetWorkDir(), "b"))
+
+	req2 := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	srv.handleChatCompletions(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("req2 status = %d, body = %s", w2.Code, w2.Body.String())
+	}
+	var resp2 ChatCompletionResponse
+	if err := json.NewDecoder(w2.Body).Decode(&resp2); err != nil {
+		t.Fatalf("decode resp2: %v", err)
+	}
+
+	if resp1.XSessionID == resp2.XSessionID {
+		t.Fatalf("expected different default sessions for different workdirs, got %q", resp1.XSessionID)
+	}
+	if srv.pool.Count() != 2 {
+		t.Fatalf("pool count = %d, want 2", srv.pool.Count())
 	}
 }

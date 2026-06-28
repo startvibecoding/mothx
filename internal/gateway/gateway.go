@@ -52,8 +52,9 @@ type Server struct {
 	skillsMgr  *skills.Manager
 	pool       *SessionPool
 
-	extraContext     string
-	defaultSessionID string // used when x_session_id is empty
+	extraContext      string
+	defaultSessionIDs map[string]string // key: workDir, used when x_session_id is empty
+	sessionCreateMu   sync.Mutex
 }
 
 // Run starts the gateway server.
@@ -169,16 +170,17 @@ func Run(opts RunOptions, version string) error {
 	pool := NewSessionPool(gCfg.Session.MaxSessions, idleTimeout)
 
 	srv := &Server{
-		cfg:          gCfg,
-		settings:     settings,
-		allow:        config.LoadAllow(),
-		version:      version,
-		provider:     p,
-		model:        model,
-		sandboxMgr:   sbMgr,
-		skillsMgr:    skillsMgr,
-		pool:         pool,
-		extraContext: extraContext,
+		cfg:               gCfg,
+		settings:          settings,
+		allow:             config.LoadAllow(),
+		version:           version,
+		provider:          p,
+		model:             model,
+		sandboxMgr:        sbMgr,
+		skillsMgr:         skillsMgr,
+		pool:              pool,
+		extraContext:      extraContext,
+		defaultSessionIDs: make(map[string]string),
 	}
 
 	// Build routes

@@ -319,6 +319,25 @@ func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 	return openSessionFromDB(matches[0], sessionDir)
 }
 
+// OpenByIDExact opens a session by exact session ID regardless of cwd.
+func OpenByIDExact(sessionDir, sessionID string) (*Manager, error) {
+	if sessionID == "" {
+		return nil, fmt.Errorf("session id is empty")
+	}
+	if sessionDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			home = "."
+		}
+		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+	}
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("session %s not found", sessionID)
+	}
+	return openSessionFromDB(sessionID, sessionDir)
+}
+
 // findHandleForID finds the .db handle file that contains the given session ID.
 func findHandleForID(dir, sessionID string) string {
 	entries, err := os.ReadDir(dir)

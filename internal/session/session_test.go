@@ -661,6 +661,27 @@ func TestOpenByIDRecreatesMissingHandle(t *testing.T) {
 	}
 }
 
+func TestOpenByIDExactIgnoresCwd(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test-a", sessionDir)
+	if err := m.InitWithID("exact-session"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	reopened, err := OpenByIDExact(sessionDir, "exact-session")
+	if err != nil {
+		t.Fatalf("open exact: %v", err)
+	}
+	if reopened.GetHeader() == nil || reopened.GetHeader().ID != "exact-session" {
+		t.Fatalf("unexpected reopened header: %#v", reopened.GetHeader())
+	}
+	if reopened.GetHeader().Cwd != "/tmp/test-a" {
+		t.Fatalf("cwd = %q, want /tmp/test-a", reopened.GetHeader().Cwd)
+	}
+}
+
 func TestLoadRejectsCorruptSessionFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "session.db")
