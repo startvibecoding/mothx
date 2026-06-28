@@ -11,12 +11,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/ua"
+	"golang.org/x/mod/semver"
 )
 
 // PackageName is the npm package used for update detection.
@@ -24,6 +24,11 @@ const PackageName = "vibecoding-installer"
 
 // checkInterval is the minimum time between background network checks.
 const checkInterval = 24 * time.Hour
+
+var (
+	fetchLatestVersion = fetchLatest
+	now                = time.Now
+)
 
 // registryURL returns the npm registry endpoint for the latest dist-tag.
 func registryURL() string {
@@ -66,7 +71,7 @@ func writeCache(c cacheEntry) {
 // CachedNotice returns a reminder string if the cached latest version is newer
 // than current, otherwise an empty string. It performs no network I/O.
 func CachedNotice(current string) string {
-	if !isCheckable(current) {
+	if !isCheckable(current) || checksDisabled() {
 		return ""
 	}
 	c := readCache()
@@ -86,10 +91,7 @@ func CachedNotice(current string) string {
 // stale. It returns immediately and never blocks the caller. Disable with the
 // VIBECODING_NO_UPDATE_CHECK environment variable.
 func CheckInBackground(current string) {
-	if !isCheckable(current) {
-		return
-	}
-	if os.Getenv("VIBECODING_NO_UPDATE_CHECK") != "" {
+	if !isCheckable(current) || checksDisabled() {
 		return
 	}
 	c := readCache()
@@ -97,12 +99,18 @@ func CheckInBackground(current string) {
 		return
 	}
 	go func() {
-		latest, err := fetchLatest(context.Background())
-		if err != nil {
-			return
-		}
-		writeCache(cacheEntry{LatestVersion: latest, CheckedAt: time.Now()})
+		refreshCache()
 	}()
+}
+
+func refreshCache() {
+	c := readCache()
+	latest, err := fetchLatestVersion(context.Background())
+	if err != nil {
+		writeCache(cacheEntry{LatestVersion: c.LatestVersion, CheckedAt: now()})
+		return
+	}
+	writeCache(cacheEntry{LatestVersion: latest, CheckedAt: now()})
 }
 
 // fetchLatest queries the npm registry for the latest published version.
@@ -138,14 +146,13 @@ func fetchLatest(ctx context.Context) (string, error) {
 	return payload.Version, nil
 }
 
+func checksDisabled() bool {
+	return os.Getenv("VIBECODING_NO_UPDATE_CHECK") != ""
+}
+
 // isCheckable reports whether current is a real release version worth checking.
 func isCheckable(current string) bool {
-	v := normalize(current)
-	if v == "" || v == "dev" {
-		return false
-	}
-	// Must start with a digit to be a real semver release.
-	return v[0] >= '0' && v[0] <= '9'
+	return semverVersion(current) != ""
 }
 
 // normalize strips a leading "v" and surrounding whitespace.
@@ -153,52 +160,22 @@ func normalize(v string) string {
 	return strings.TrimPrefix(strings.TrimSpace(v), "v")
 }
 
-// compareVersions compares two semver-ish strings. It returns -1 if a < b,
-// 0 if equal, and 1 if a > b. Pre-release suffixes (e.g. "-pre") make a version
-// lower than the same version without a suffix. Unparseable parts compare as 0.
+// compareVersions compares two semantic version strings. It returns -1 if a < b,
+// 0 if equal, and 1 if a > b.
 func compareVersions(a, b string) int {
-	ac, ap := splitPre(normalize(a))
-	bc, bp := splitPre(normalize(b))
-
-	an := parseParts(ac)
-	bn := parseParts(bc)
-	for i := 0; i < 3; i++ {
-		if an[i] != bn[i] {
-			if an[i] < bn[i] {
-				return -1
-			}
-			return 1
-		}
-	}
-	// Core versions equal: a release outranks a pre-release.
-	switch {
-	case ap == "" && bp == "":
-		return 0
-	case ap == "" && bp != "":
-		return 1
-	case ap != "" && bp == "":
-		return -1
-	default:
-		return strings.Compare(ap, bp)
-	}
+	return semver.Compare(semverVersion(a), semverVersion(b))
 }
 
-func splitPre(v string) (core, pre string) {
-	if i := strings.IndexAny(v, "-+"); i >= 0 {
-		return v[:i], v[i+1:]
+func semverVersion(v string) string {
+	v = normalize(v)
+	if v == "" || strings.EqualFold(v, "dev") {
+		return ""
 	}
-	return v, ""
-}
-
-func parseParts(core string) [3]int {
-	var out [3]int
-	parts := strings.Split(core, ".")
-	for i := 0; i < 3 && i < len(parts); i++ {
-		n, err := strconv.Atoi(strings.TrimSpace(parts[i]))
-		if err != nil {
-			return out
-		}
-		out[i] = n
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
 	}
-	return out
+	if !semver.IsValid(v) {
+		return ""
+	}
+	return semver.Canonical(v)
 }

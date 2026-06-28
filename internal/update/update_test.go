@@ -1,6 +1,11 @@
 package update
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestCompareVersions(t *testing.T) {
 	cases := []struct {
@@ -26,11 +31,11 @@ func TestCompareVersions(t *testing.T) {
 
 func TestIsCheckable(t *testing.T) {
 	cases := map[string]bool{
-		"dev":      false,
-		"":         false,
-		"v1.1.50":  true,
-		"1.1.50":   true,
-		"unknown":  false,
+		"dev":     false,
+		"":        false,
+		"v1.1.50": true,
+		"1.1.50":  true,
+		"unknown": false,
 	}
 	for v, want := range cases {
 		if got := isCheckable(v); got != want {
@@ -42,5 +47,53 @@ func TestIsCheckable(t *testing.T) {
 func TestNormalize(t *testing.T) {
 	if got := normalize(" v1.2.3 "); got != "1.2.3" {
 		t.Errorf("normalize=%q", got)
+	}
+}
+
+func TestCachedNoticeRespectsDisableFlag(t *testing.T) {
+	t.Setenv("VIBECODING_DIR", t.TempDir())
+	t.Setenv("VIBECODING_NO_UPDATE_CHECK", "1")
+
+	writeCache(cacheEntry{LatestVersion: "v1.2.4", CheckedAt: time.Now()})
+	if got := CachedNotice("v1.2.3"); got != "" {
+		t.Fatalf("CachedNotice with disable flag = %q, want empty", got)
+	}
+}
+
+func TestCheckInBackgroundRecordsFailureCooldown(t *testing.T) {
+	t.Setenv("VIBECODING_DIR", t.TempDir())
+	t.Setenv("VIBECODING_NO_UPDATE_CHECK", "")
+
+	oldFetch := fetchLatestVersion
+	oldNow := now
+	defer func() {
+		fetchLatestVersion = oldFetch
+		now = oldNow
+	}()
+
+	nowValue := time.Unix(1000, 0)
+	now = func() time.Time { return nowValue }
+	fetchLatestVersion = func(context.Context) (string, error) {
+		return "", errors.New("boom")
+	}
+
+	refreshCache()
+
+	c := readCache()
+	if c.CheckedAt.IsZero() {
+		t.Fatal("expected failed check to record cooldown timestamp")
+	}
+	if !c.CheckedAt.Equal(nowValue) {
+		t.Fatalf("CheckedAt = %v, want %v", c.CheckedAt, nowValue)
+	}
+}
+
+func TestCachedNoticeUsesSemverComparison(t *testing.T) {
+	t.Setenv("VIBECODING_DIR", t.TempDir())
+	t.Setenv("VIBECODING_NO_UPDATE_CHECK", "")
+
+	writeCache(cacheEntry{LatestVersion: "v1.10.0", CheckedAt: time.Now()})
+	if got := CachedNotice("v1.2.3"); got == "" {
+		t.Fatal("expected semver comparison to detect newer version")
 	}
 }

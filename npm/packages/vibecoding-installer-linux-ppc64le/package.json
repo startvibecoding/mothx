@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer-linux-ppc64le",
-  "version": "1.1.53",
+  "version": "1.1.54",
   "description": "VibeCoding native binary for linux-ppc64",
   "os": ["linux"],
   "cpu": ["ppc64"],
