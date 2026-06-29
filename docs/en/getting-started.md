@@ -18,7 +18,21 @@ npm install -g vibecoding-installer
 
 This will automatically download the correct binary for your platform.
 
-### Method 2: One-line Install
+### Method 2: PyPI
+
+```bash
+pipx install vibecoding-installer
+```
+
+Or without pipx:
+
+```bash
+python -m pip install --user vibecoding-installer
+```
+
+This installs the platform-specific wheel for your machine.
+
+### Method 3: One-line Install
 
 **Linux/macOS:**
 
@@ -45,6 +59,12 @@ $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercon
 **Uninstall:**
 
 ```bash
+# npm
+npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
+
 # Linux/macOS
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall
 
@@ -56,13 +76,13 @@ This will automatically download the latest release from GitHub and install the 
 - Linux/macOS: `/usr/local/bin`
 - Windows: `%LOCALAPPDATA%\vibecoding`
 
-### Method 3: Go Install
+### Method 4: Go Install
 
 ```bash
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```
 
-### Method 4: Build from Source
+### Method 5: Build from Source
 
 ```bash
 # Clone repository
@@ -75,7 +95,7 @@ make build
 # Binary is located at bin/vibecoding
 ```
 
-### Method 5: Install to System
+### Method 6: Install to System
 
 ```bash
 # After building from source

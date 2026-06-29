@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
@@ -53,7 +54,13 @@
 npm install -g vibecoding-installer
 ```
 
-**选项 2：一键安装**
+**选项 2：PyPI**
+
+```bash
+pipx install vibecoding-installer
+```
+
+**选项 3：一键安装**
 
 Linux/macOS：
 
@@ -77,13 +84,13 @@ INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibec
 $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
 ```
 
-**选项 3：Go 安装**
+**选项 4：Go 安装**
 
 ```bash
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```
 
-**选项 4：从源码构建**
+**选项 5：从源码构建**
 
 ```bash
 git clone https://github.com/startvibecoding/vibecoding.git

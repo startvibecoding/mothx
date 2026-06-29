@@ -12,6 +12,11 @@
   - Improved `/sessions del` slash command to support prefix matching for session IDs and prevent deleting the currently active session.
   - Preserved the gateway session slot on `/clear` while cleanly resetting all messages in the session manager.
 
+- **PyPI Installer Packaging**
+  - Added a PyPI package wrapper for `vibecoding-installer` that exposes the `vibecoding` console command and ships platform-specific wheels with embedded native binaries.
+  - Added `make pypi-*` release targets plus version-sync and wheel-build scripts, mirroring the npm release workflow while using pip's native platform wheel selection.
+  - Updated installation and release documentation with `pipx install vibecoding-installer`.
+
 ### 💅 Improvements
 
 - **Reliable Fallback Tool Call ID Generation**

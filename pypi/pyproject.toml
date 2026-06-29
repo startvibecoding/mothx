@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=77.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vibecoding-installer"
+version = "1.1.54rc0"
+description = "AI coding assistant for the terminal"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [{ name = "VibeCoding" }]
+keywords = ["ai", "coding", "assistant", "terminal", "cli", "llm"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development",
+  "Topic :: Terminals",
+]
+
+[project.urls]
+Homepage = "https://github.com/startvibecoding/vibecoding"
+Repository = "https://github.com/startvibecoding/vibecoding"
+Documentation = "https://github.com/startvibecoding/vibecoding/tree/main/docs"
+
+[project.scripts]
+vibecoding = "vibecoding_installer.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vibecoding_installer = ["bin/vibecoding", "bin/vibecoding.exe"]

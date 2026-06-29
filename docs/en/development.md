@@ -397,7 +397,7 @@ make build-all
 
 ```bash
 # Publish release version
-make npm-publish
+make npm-publish-all
 
 # Publish pre-release version
 make npm-publish-pre
@@ -407,6 +407,25 @@ Users can install via npm:
 
 ```bash
 npm install -g vibecoding-installer
+```
+
+### Publish to PyPI
+
+```bash
+# Install publishing tools
+python3 -m pip install --user "setuptools>=77.0.0" build twine
+
+# Publish release wheels
+make pypi-publish
+
+# Publish pre-release wheels
+make pypi-publish-pre
+```
+
+Users can install via PyPI:
+
+```bash
+pipx install vibecoding-installer
 ```
 
 ## Frequently Asked Questions

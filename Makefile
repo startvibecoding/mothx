@@ -7,6 +7,7 @@
 .PHONY: dist-deb dist-tarball dist-zip
 .PHONY: clean-all checksums
 .PHONY: npm-version npm-binaries npm-packages npm-pack npm-publish-all npm-publish-pre npm-publish
+.PHONY: pypi-version pypi-packages pypi-pack pypi-publish pypi-publish-pre
 
 # Variables
 BINARY_NAME=vibecoding
@@ -16,6 +17,7 @@ LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X github.com/startvibecoding
 GOBUILD_FLAGS=-trimpath
 DIST_DIR=dist
 CHECKSUM_FILE=$(DIST_DIR)/checksums.txt
+PYTHON ?= python3
 
 # UPX compression (skip for macOS - not supported)
 USE_UPX ?= true
@@ -73,6 +75,13 @@ help:
 	@echo "  npm-publish-pre   Publish pre-release packages"
 	@echo "  npm-binaries      [Legacy] Build all binaries into single package"
 	@echo "  npm-publish       [Legacy] Publish main package only"
+	@echo ""
+	@echo "PyPI targets:"
+	@echo "  pypi-version      Sync version to PyPI package"
+	@echo "  pypi-packages     Build platform-specific PyPI wheels"
+	@echo "  pypi-pack         Pack all PyPI wheels"
+	@echo "  pypi-publish      Publish PyPI wheels"
+	@echo "  pypi-publish-pre  Publish pre-release PyPI wheels"
 	@echo ""
 	@echo "Other targets:"
 	@echo "  install        Install via go install"
@@ -178,6 +187,7 @@ clean:
 clean-all: clean
 	rm -rf $(DIST_DIR)
 	rm -f npm/*.tgz
+	rm -rf pypi/dist pypi/build pypi/*.egg-info
 
 # Run
 run: build
@@ -356,3 +366,25 @@ npm-publish-pre:
 npm-publish: npm-version npm-binaries
 	@echo "WARNING: npm-publish is deprecated, use npm-publish-all instead" >&2
 	cd npm && npm publish --tag latest
+
+# PyPI targets
+pypi-version:
+	PYTHON="$(PYTHON)" ./scripts/sync-pypi-version.sh $(VERSION)
+
+# Build platform-specific wheels
+pypi-packages: build-all
+	PYTHON="$(PYTHON)" ./scripts/build-pypi-packages.sh
+
+# Pack PyPI wheels
+pypi-pack: pypi-version pypi-packages
+	@echo "Done. Wheels in pypi/dist/"
+
+# Publish PyPI wheels
+pypi-publish: pypi-pack
+	$(PYTHON) -m twine upload pypi/dist/*.whl
+
+# Publish PyPI pre-release wheels
+pypi-publish-pre:
+	PYTHON="$(PYTHON)" ./scripts/sync-pypi-version.sh $(PRE_VERSION)
+	$(MAKE) pypi-packages VERSION=$(PRE_VERSION)
+	$(PYTHON) -m twine upload pypi/dist/*.whl

@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
   <a href="https://gitee.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
@@ -58,6 +59,7 @@
 ```bash
 # 安装（任选其一）
 npm install -g vibecoding-installer          # npm（推荐）
+pipx install vibecoding-installer           # PyPI
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash  # Linux/macOS
 
 # 设置 API 密钥
@@ -74,6 +76,9 @@ vibecoding
 ```bash
 # npm
 npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
 
 # Linux/macOS（一键安装）
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall

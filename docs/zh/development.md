@@ -392,7 +392,7 @@ make build-all
 
 ```bash
 # 发布正式版本
-make npm-publish
+make npm-publish-all
 
 # 发布预发布版本
 make npm-publish-pre
@@ -402,6 +402,25 @@ make npm-publish-pre
 
 ```bash
 npm install -g vibecoding-installer
+```
+
+### 发布到 PyPI
+
+```bash
+# 安装发布工具
+python3 -m pip install --user "setuptools>=77.0.0" build twine
+
+# 发布正式版本 wheels
+make pypi-publish
+
+# 发布预发布版本 wheels
+make pypi-publish-pre
+```
+
+用户可以通过 PyPI 安装:
+
+```bash
+pipx install vibecoding-installer
 ```
 
 ## 常见问题

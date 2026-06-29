@@ -8,10 +8,13 @@
 # Option 1: npm (recommended, auto-downloads correct binary)
 npm install -g vibecoding-installer
 
-# Option 2: One-line install (Linux/macOS)
+# Option 2: PyPI
+pipx install vibecoding-installer
+
+# Option 3: One-line install (Linux/macOS)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
 
-# Option 3: Go install
+# Option 4: Go install
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```
 
@@ -20,6 +23,9 @@ go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```bash
 # npm
 npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall

@@ -33,6 +33,9 @@ Thumbs.db
 dist/
 /vibecoding
 npm/*.tgz
+pypi/build/
+pypi/dist/
+pypi/*.egg-info/
 *.png
 internal/vendored/bin/
 .vibe

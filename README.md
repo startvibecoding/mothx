@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
   <a href="https://gitee.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
@@ -60,6 +61,7 @@
 ```bash
 # Install (pick one)
 npm install -g vibecoding-installer          # npm (recommended)
+pipx install vibecoding-installer           # PyPI
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash  # Linux/macOS (GitHub)
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash  # Linux/macOS (Gitee 国内镜像)
 
@@ -77,6 +79,9 @@ That's it. You're coding with AI.
 ```bash
 # npm
 npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall

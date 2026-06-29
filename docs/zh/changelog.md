@@ -12,6 +12,11 @@
   - 优化 `/sessions del` 斜杠命令，支持对会话 ID 的前缀模糊匹配，并防止误删当前正在使用的活跃会话。
   - `/clear` 斜杠命令改为清空会话历史消息，但保持会话卡槽（Session Slot）不变，无需重建。
 
+- **PyPI 安装包**
+  - 新增 `vibecoding-installer` 的 PyPI 包装器，提供 `vibecoding` 命令入口，并通过内嵌原生二进制的平台 wheel 分发。
+  - 新增 `make pypi-*` 发布目标，以及版本同步和 wheel 构建脚本，在流程上对齐 npm 发布方式，同时使用 pip 原生的平台 wheel 选择机制。
+  - 更新安装与发布文档，补充 `pipx install vibecoding-installer`。
+
 ### 💅 优化
 
 - **更可靠的后备工具调用 ID 生成机制**

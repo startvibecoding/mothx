@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
@@ -101,6 +102,9 @@ Welcome to the VibeCoding Documentation Center!
 # npm (recommended)
 npm install -g vibecoding-installer
 
+# PyPI
+pipx install vibecoding-installer
+
 # One-line install (Linux/macOS)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
 
@@ -113,6 +117,9 @@ go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```bash
 # npm
 npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall

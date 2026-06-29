@@ -8,10 +8,13 @@
 # 方式一：npm（推荐，自动下载对应平台二进制文件）
 npm install -g vibecoding-installer
 
-# 方式二：一键安装（Linux/macOS）
+# 方式二：PyPI
+pipx install vibecoding-installer
+
+# 方式三：一键安装（Linux/macOS）
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash
 
-# 方式三：Go 安装
+# 方式四：Go 安装
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```
 
@@ -20,6 +23,9 @@ go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```bash
 # npm
 npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
 
 # Linux/macOS（一键安装）
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall

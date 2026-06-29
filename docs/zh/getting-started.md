@@ -18,7 +18,21 @@ npm install -g vibecoding-installer
 
 这将自动下载适合你平台的二进制文件。
 
-### 方法二: 一键安装
+### 方法二: PyPI 安装
+
+```bash
+pipx install vibecoding-installer
+```
+
+不使用 pipx 时也可以安装到用户目录：
+
+```bash
+python -m pip install --user vibecoding-installer
+```
+
+这会安装适合当前平台的 wheel 包。
+
+### 方法三: 一键安装
 
 **Linux/macOS:**
 
@@ -45,6 +59,12 @@ $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvi
 **卸载:**
 
 ```bash
+# npm
+npm uninstall -g vibecoding-installer
+
+# PyPI
+pipx uninstall vibecoding-installer
+
 # Linux/macOS
 curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
 
@@ -56,13 +76,13 @@ irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uni
 - Linux/macOS: `/usr/local/bin`
 - Windows: `%LOCALAPPDATA%\vibecoding`
 
-### 方法三: Go Install
+### 方法四: Go Install
 
 ```bash
 go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
 ```
 
-### 方法四: 从源码构建
+### 方法五: 从源码构建
 
 ```bash
 # 克隆仓库
@@ -75,7 +95,7 @@ make build
 # 二进制文件位于 bin/vibecoding
 ```
 
-### 方法五: 安装到系统
+### 方法六: 安装到系统
 
 ```bash
 # 从源码构建后
