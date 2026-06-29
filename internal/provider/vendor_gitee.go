@@ -3,6 +3,6 @@ package provider
 func init() {
 	RegisterVendorAdapter(simpleVendorAdapter{
 		name:    "gitee",
-		domains: []string{"ai.gitee.com"},
+		domains: []string{"ai.gitee.com", "api.moark.com"},
 	})
 }

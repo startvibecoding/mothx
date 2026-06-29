@@ -843,7 +843,7 @@ func authProviderSortPriority(id string) int {
 		return 20
 	case strings.Contains(name, "xiaomi") || strings.Contains(name, "mimo"):
 		return 30
-	case strings.Contains(name, "doubao") || strings.Contains(name, "volc") || strings.Contains(name, "ark") || strings.Contains(name, "seed"):
+	case strings.Contains(name, "doubao") || strings.Contains(name, "volc") || strings.Contains(name, "ark"):
 		return 40
 	case name == "openai" || strings.Contains(name, "openai"):
 		return 50

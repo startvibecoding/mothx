@@ -72,7 +72,7 @@ func TestVendorFromBaseURL(t *testing.T) {
 		{"https://api.z.ai/api/coding/paas/v4", "zai"},
 		{"https://open.bigmodel.cn/api/coding/paas/v4", "zai"},
 		{"https://api.minimax.chat/v1", "minimax"},
-		{"https://ark.cn-beijing.volces.com/api", "seed"},
+		{"https://ark.cn-beijing.volces.com/api", "volcengine"},
 		{"https://aip.baidubce.com/rpc", "qianfan"},
 		{"https://dashscope.aliyuncs.com/api", "bailian"},
 		{"https://ai.gitee.com/v1", "gitee"},
