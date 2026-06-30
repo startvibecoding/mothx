@@ -922,6 +922,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.finishRequestTimer()
 		if msg.err != nil {
 			a.addMessage(errorStyle.Render("Error: ") + msg.err.Error())
+		} else if msg.stopReason != "" {
+			a.addMessage(statusStyle.Render("Session ended: ") + msg.stopReason)
 		}
 		return a, a.timer.Stop()
 	}

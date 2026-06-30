@@ -4,16 +4,33 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 )
 
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
+}
+
+type wrappingTestSandbox struct{}
+
+func (wrappingTestSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts sandbox.ExecOpts) *exec.Cmd {
+	c := exec.CommandContext(ctx, shell, platform.ShellArgs(shell, cmd)...)
+	c.Dir = opts.WorkDir
+	c.Env = os.Environ()
+	return c
+}
+
+func (wrappingTestSandbox) IsAvailable() bool { return true }
+func (wrappingTestSandbox) Name() string      { return "test" }
+func (wrappingTestSandbox) Level() sandbox.Level {
+	return sandbox.LevelStandard
 }
 
 func TestNewRegistry(t *testing.T) {
@@ -525,6 +542,32 @@ func TestBashToolExecuteNonZeroExitCode(t *testing.T) {
 	}
 	if !strings.Contains(result.Text, "[exit_code]\n7") {
 		t.Fatalf("expected exit code 7, got: %s", result.Text)
+	}
+}
+
+func TestBashToolSandboxCommandDoesNotWaitForBackgroundChildStdio(t *testing.T) {
+	if platform.IsWindows() {
+		t.Skip("shell background process syntax differs on Windows")
+	}
+
+	tmpDir := t.TempDir()
+	r := NewRegistry(tmpDir, wrappingTestSandbox{})
+	tool := NewBashTool(r)
+
+	start := time.Now()
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "sh -c 'sleep 2; echo late' & echo started",
+		"timeout": float64(0),
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("command waited for background child stdio: elapsed %s, result: %s", elapsed, result.Text)
+	}
+	if !strings.Contains(result.Text, "[stdout]\nstarted") {
+		t.Fatalf("expected foreground output without waiting for background child, got: %s", result.Text)
 	}
 }
 

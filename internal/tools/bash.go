@@ -187,6 +187,7 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	if sb != nil && sb.IsAvailable() {
 		opts := sandbox.ExecOpts{WorkDir: workDir, Timeout: timeout}
 		cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
+		t.configureCommand(cmd)
 	} else {
 		cmd = t.buildCommand(cmdCtx, shell, command, workDir, env)
 	}
@@ -200,12 +201,16 @@ func (t *BashTool) buildCommand(ctx context.Context, shell, command, workDir str
 	cmd := exec.CommandContext(ctx, shell, args...)
 	cmd.Dir = workDir
 	cmd.Env = env
+	t.configureCommand(cmd)
+	return cmd
+}
+
+func (t *BashTool) configureCommand(cmd *exec.Cmd) {
 	// Detach child process group so background children don't block the shell.
 	setSysProcAttr(cmd)
 	// If the shell exits while a background child still holds stdio,
-	// don't wait forever – give it 100ms then force-close.
+	// don't wait forever; give it 100ms then force-close copied pipes.
 	cmd.WaitDelay = 100 * time.Millisecond
-	return cmd
 }
 
 func (t *BashTool) windowsShellCandidates() []string {
@@ -235,16 +240,14 @@ func (t *BashTool) buildWindowsCommand(ctx context.Context, sb sandbox.Sandbox, 
 		cmd := exec.CommandContext(ctx, shell, "sh", "-c", command)
 		cmd.Dir = workDir
 		cmd.Env = env
-		setSysProcAttr(cmd)
-		cmd.WaitDelay = 100 * time.Millisecond
+		t.configureCommand(cmd)
 		return cmd, runtimeForShell(shell)
 	}
 
 	cmd := exec.CommandContext(ctx, shell, platform.ShellArgs(shell, command)...)
 	cmd.Dir = workDir
 	cmd.Env = env
-	setSysProcAttr(cmd)
-	cmd.WaitDelay = 100 * time.Millisecond
+	t.configureCommand(cmd)
 	return cmd, runtimeForShell(shell)
 }
 
