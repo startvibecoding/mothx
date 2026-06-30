@@ -49,6 +49,7 @@ func convertCompat(c *config.ModelCompat) *provider.ModelCompat {
 		ThinkingFormat:                      c.ThinkingFormat,
 		RequiresReasoningContentOnAssistant: c.RequiresReasoningContentOnAssistant || c.RequiresReasoningContentOnAssistantMessages,
 		ForceAdaptiveThinking:               c.ForceAdaptiveThinking,
+		ParseReasoningInContent:             c.ParseReasoningInContent,
 		SupportsDeveloperRole:               cloneBool(c.SupportsDeveloperRole),
 		SupportsStore:                       cloneBool(c.SupportsStore),
 		SupportsReasoningEffort:             cloneBool(c.SupportsReasoningEffort),

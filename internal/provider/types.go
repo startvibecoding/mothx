@@ -231,6 +231,9 @@ type ModelCompat struct {
 	ThinkingFormat                      string `json:"thinkingFormat,omitempty"`
 	RequiresReasoningContentOnAssistant bool   `json:"requiresReasoningContentOnAssistant,omitempty"`
 	ForceAdaptiveThinking               bool   `json:"forceAdaptiveThinking,omitempty"`
+	// ParseReasoningInContent extracts <think>...</think> wrapped reasoning from
+	// the content stream for models that inline thinking in the body.
+	ParseReasoningInContent bool `json:"parseReasoningInContent,omitempty"`
 
 	SupportsDeveloperRole   *bool  `json:"supportsDeveloperRole,omitempty"`
 	SupportsStore           *bool  `json:"supportsStore,omitempty"`

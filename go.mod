@@ -9,12 +9,13 @@ require (
 	github.com/charmbracelet/x/ansi v0.10.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.3
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.9
 	github.com/startvibecoding/GoStreamingMarkdown v0.0.4
-	github.com/startvibecoding/go-fd v0.0.4
-	github.com/startvibecoding/go-ripgrep v0.0.4
+	github.com/startvibecoding/go-fd v0.0.7
+	github.com/startvibecoding/go-ripgrep v0.0.5
 	github.com/startvibecoding/vibeEmacsLispVm v0.0.2
-	golang.org/x/net v0.38.0
 	golang.org/x/mod v0.36.0
+	golang.org/x/net v0.38.0
 	golang.org/x/sys v0.46.0
 	golang.org/x/term v0.36.0
 	modernc.org/sqlite v1.53.0
@@ -42,7 +43,6 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.30.0 // indirect

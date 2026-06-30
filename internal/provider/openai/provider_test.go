@@ -983,3 +983,67 @@ func TestOpenAIResponsesFactoryEnablesResponsesMode(t *testing.T) {
 		t.Fatal("expected responses API mode to be enabled")
 	}
 }
+
+func TestOpenAIParseReasoningInContent(t *testing.T) {
+	sse := "data: {\"choices\":[{\"delta\":{\"content\":\"<think>rea\"}}]}\n" +
+		"data: {\"choices\":[{\"delta\":{\"content\":\"soning</think>vis\"}}]}\n" +
+		"data: {\"choices\":[{\"delta\":{\"content\":\"ible\"},\"finish_reason\":\"stop\"}]}\n" +
+		"data: [DONE]\n"
+	models := []*provider.Model{{
+		ID:        "mock",
+		Reasoning: true,
+		Compat:    &provider.ModelCompat{ParseReasoningInContent: true},
+	}}
+	p := newMockOpenAIProvider(t, models, sse, nil, nil)
+
+	events := chatAndCollect(t, p, provider.ChatParams{
+		ModelID:  "mock",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	})
+
+	var text, think string
+	for _, e := range events {
+		switch e.Type {
+		case provider.StreamTextDelta:
+			text += e.TextDelta
+		case provider.StreamThinkDelta:
+			think += e.ThinkDelta
+		}
+	}
+	if think != "reasoning" {
+		t.Fatalf("think = %q, want %q", think, "reasoning")
+	}
+	if text != "visible" {
+		t.Fatalf("text = %q, want %q", text, "visible")
+	}
+}
+
+func TestOpenAIParseReasoningInContentDisabled(t *testing.T) {
+	sse := "data: {\"choices\":[{\"delta\":{\"content\":\"<think>x</think>y\"},\"finish_reason\":\"stop\"}]}\n" +
+		"data: [DONE]\n"
+	models := []*provider.Model{{ID: "mock", Reasoning: true}}
+	p := newMockOpenAIProvider(t, models, sse, nil, nil)
+
+	events := chatAndCollect(t, p, provider.ChatParams{
+		ModelID:  "mock",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	})
+
+	var text, think string
+	for _, e := range events {
+		switch e.Type {
+		case provider.StreamTextDelta:
+			text += e.TextDelta
+		case provider.StreamThinkDelta:
+			think += e.ThinkDelta
+		}
+	}
+	if think != "" {
+		t.Fatalf("think = %q, want empty", think)
+	}
+	if text != "<think>x</think>y" {
+		t.Fatalf("text = %q, want literal tags", text)
+	}
+}

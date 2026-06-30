@@ -105,6 +105,10 @@ type ModelCompat struct {
 	RequiresReasoningContentOnAssistant         bool   `json:"requiresReasoningContentOnAssistant,omitempty"`
 	RequiresReasoningContentOnAssistantMessages bool   `json:"requiresReasoningContentOnAssistantMessages,omitempty"`
 	ForceAdaptiveThinking                       bool   `json:"forceAdaptiveThinking,omitempty"`
+	// ParseReasoningInContent extracts reasoning wrapped in <think>...</think>
+	// tags from the content stream (for models that inline thinking in the body
+	// instead of using a separate reasoning_content field).
+	ParseReasoningInContent bool `json:"parseReasoningInContent,omitempty"`
 
 	// API parameter compatibility
 	SupportsDeveloperRole   *bool  `json:"supportsDeveloperRole,omitempty"`

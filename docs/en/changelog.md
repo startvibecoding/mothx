@@ -1,6 +1,15 @@
 # Changelog
 
 
+## v1.1.55
+
+### ✨ Features
+
+- **Inline `<think>` Reasoning for OpenAI-Compatible Models**
+  - Added a `parseReasoningInContent` model compat flag for OpenAI-compatible providers. When enabled, reasoning emitted inline in the content stream and wrapped in `<think>...</think>` tags is extracted and surfaced as thinking deltas instead of regular text.
+  - The streaming parser correctly handles tags split across multiple SSE chunks and treats dangling partial tags as literal text at stream end.
+
+
 ## v1.1.54
 
 ### ✨ Features

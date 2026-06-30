@@ -441,6 +441,11 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		visibleOutput   bool
 	)
 
+	var splitter *thinkSplitter
+	if model := p.GetModel(params.ModelID); model != nil && model.Compat != nil && model.Compat.ParseReasoningInContent {
+		splitter = &thinkSplitter{}
+	}
+
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
 
 	for scanner.Scan() {
@@ -474,8 +479,20 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
-				visibleOutput = true
-				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: choice.Delta.Content}
+				if splitter != nil {
+					text, think := splitter.push(choice.Delta.Content)
+					if think != "" {
+						visibleOutput = true
+						ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: think}
+					}
+					if text != "" {
+						visibleOutput = true
+						ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: text}
+					}
+				} else {
+					visibleOutput = true
+					ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: choice.Delta.Content}
+				}
 			}
 			if !p.disableReasoning && choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
 				visibleOutput = true
@@ -513,6 +530,18 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 
 	if err := scanner.Err(); err != nil {
 		return visibleOutput, err
+	}
+
+	if splitter != nil {
+		text, think := splitter.flush()
+		if think != "" {
+			visibleOutput = true
+			ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: think}
+		}
+		if text != "" {
+			visibleOutput = true
+			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: text}
+		}
 	}
 
 	for i, tc := range toolCalls {

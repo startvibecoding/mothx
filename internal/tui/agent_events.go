@@ -180,8 +180,9 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.finishRequestTimer()
 		if event.Error != nil {
 			a.addMessage(errorStyle.Render("Error: ") + a.formatAgentError(event))
-		} else if event.StopReason != "" {
-			a.addMessage(errorStyle.Render("Error: session ended with reason: ") + event.StopReason)
+		}
+		if event.StopReason != "" {
+			a.addMessage(statusStyle.Render("Session ended: ") + event.StopReason)
 		}
 		a.pendingAbortReason = ""
 		a.currentAssistantIdx = -1
