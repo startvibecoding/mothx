@@ -1010,6 +1010,11 @@ func defaultBaseURLForAPI(api string) string {
 
 func baseURLOptionsForProvider(providerID string) []authOption {
 	switch providerID {
+	case "longcat":
+		return []authOption{
+			{Title: "OpenAI Compatible", Description: "https://api.longcat.chat/openai", Value: "https://api.longcat.chat/openai"},
+			{Title: "Anthropic Compatible", Description: "https://api.longcat.chat/anthropic", Value: "https://api.longcat.chat/anthropic"},
+		}
 	case "minimax":
 		return []authOption{
 			{Title: "International", Description: "https://api.minimax.io/v1", Value: "https://api.minimax.io/v1"},

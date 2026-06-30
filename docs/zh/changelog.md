@@ -1,6 +1,17 @@
 # 更新日志
 
 
+## v1.1.56
+
+### ✨ 新功能
+
+- **LongCat 厂商支持**
+  - 新增 `longcat` 厂商适配器，支持 OpenAI 兼容协议（`https://api.longcat.chat/openai`）与 Anthropic 兼容协议（`https://api.longcat.chat/anthropic`）两种接入方式。
+  - 默认设置中注册了两个内置 provider：`longcat`（OpenAI 协议，`LONGCAT_API_KEY`）与 `longcat-anthropic`（Anthropic 协议，`LONGCAT_ANTHROPIC_API_KEY`）。
+  - 默认模型 `LongCat-2.0`：上下文长度 1M，最大输出长度 128K Tokens。
+  - TUI 授权对话框中，在 `longcat` 厂商下提供 OpenAI / Anthropic 两种 BaseURL 的选择。
+
+
 ## v1.1.55
 
 ### ✨ 新功能

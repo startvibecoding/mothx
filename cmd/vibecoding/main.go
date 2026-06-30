@@ -565,13 +565,13 @@ func setupSession(cwd string, settings *config.Settings, opts runOptions) (sessi
 		if err != nil {
 			return sessionSetup{}, fmt.Errorf("open session: %w", err)
 		}
-		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Opened session: %s", sess.GetFile())}, nil
+		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Opened session: %s", sess.GetHeader().ID)}, nil
 	case opts.resume != "":
 		sess, err := session.OpenByPathOrID(cwd, sessionDir, opts.resume)
 		if err != nil {
 			return sessionSetup{}, fmt.Errorf("resume session: %w", err)
 		}
-		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Resumed session: %s", sess.GetFile())}, nil
+		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Resumed session: %s", sess.GetHeader().ID)}, nil
 	default:
 		sess := session.New(cwd, sessionDir)
 		if err := sess.Init(); err != nil {
@@ -585,7 +585,7 @@ func continuingSessionInfo(sess *session.Manager) string {
 	if sess.GetHeader() == nil {
 		return ""
 	}
-	info := fmt.Sprintf("📂 Continuing session: %s", sess.GetFile())
+	info := fmt.Sprintf("📂 Continuing session: %s", sess.GetHeader().ID)
 	if messages := sess.GetMessages(); len(messages) > 0 {
 		info += fmt.Sprintf(" (%d messages)", len(messages))
 	}

@@ -1,6 +1,17 @@
 # Changelog
 
 
+## v1.1.56
+
+### ✨ Features
+
+- **LongCat Provider Support**
+  - Added the `longcat` vendor adapter, supporting both OpenAI-compatible (`https://api.longcat.chat/openai`) and Anthropic-compatible (`https://api.longcat.chat/anthropic`) endpoints.
+  - Registered two default providers in settings: `longcat` (OpenAI format, `LONGCAT_API_KEY`) and `longcat-anthropic` (Anthropic format, `LONGCAT_ANTHROPIC_API_KEY`).
+  - Default model `LongCat-2.0`: 1M context window, 128K max output tokens.
+  - TUI auth dialog offers selectable base URLs for OpenAI vs Anthropic format under the `longcat` provider.
+
+
 ## v1.1.55
 
 ### ✨ Features
