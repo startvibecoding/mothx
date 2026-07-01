@@ -213,11 +213,27 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyLeft:
-		m.buf.MoveLeft()
+		if msg.Alt {
+			m.buf.MoveWordLeft()
+		} else {
+			m.buf.MoveLeft()
+		}
 		return m, nil
 
 	case tea.KeyRight:
-		m.buf.MoveRight()
+		if msg.Alt {
+			m.buf.MoveWordRight()
+		} else {
+			m.buf.MoveRight()
+		}
+		return m, nil
+
+	case tea.KeyCtrlLeft:
+		m.buf.MoveWordLeft()
+		return m, nil
+
+	case tea.KeyCtrlRight:
+		m.buf.MoveWordRight()
 		return m, nil
 
 	case tea.KeyUp:

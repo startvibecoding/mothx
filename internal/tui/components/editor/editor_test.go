@@ -150,6 +150,63 @@ func TestBufferMoveLeftRight(t *testing.T) {
 	}
 }
 
+func TestBufferMoveWordLeftRight(t *testing.T) {
+	b := newBuffer()
+	b.SetValue("hello  world")
+	b.MoveEndAll()
+
+	b.MoveWordLeft()
+	if b.cursorLine != 0 || b.cursorCol != 7 {
+		t.Errorf("after MoveWordLeft: (%d,%d), want (0,7)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordLeft()
+	if b.cursorLine != 0 || b.cursorCol != 0 {
+		t.Errorf("after second MoveWordLeft: (%d,%d), want (0,0)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordRight()
+	if b.cursorLine != 0 || b.cursorCol != 5 {
+		t.Errorf("after MoveWordRight: (%d,%d), want (0,5)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordRight()
+	if b.cursorLine != 0 || b.cursorCol != 12 {
+		t.Errorf("after second MoveWordRight: (%d,%d), want (0,12)", b.cursorLine, b.cursorCol)
+	}
+}
+
+func TestBufferMoveWordAcrossLines(t *testing.T) {
+	b := newBuffer()
+	b.SetValue("one\ntwo three")
+	b.MoveEndAll()
+
+	b.MoveWordLeft()
+	if b.cursorLine != 1 || b.cursorCol != 4 {
+		t.Errorf("after MoveWordLeft: (%d,%d), want (1,4)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordLeft()
+	if b.cursorLine != 1 || b.cursorCol != 0 {
+		t.Errorf("after second MoveWordLeft: (%d,%d), want (1,0)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordLeft()
+	if b.cursorLine != 0 || b.cursorCol != 0 {
+		t.Errorf("after third MoveWordLeft: (%d,%d), want (0,0)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordRight()
+	if b.cursorLine != 0 || b.cursorCol != 3 {
+		t.Errorf("after MoveWordRight: (%d,%d), want (0,3)", b.cursorLine, b.cursorCol)
+	}
+
+	b.MoveWordRight()
+	if b.cursorLine != 1 || b.cursorCol != 3 {
+		t.Errorf("after second MoveWordRight: (%d,%d), want (1,3)", b.cursorLine, b.cursorCol)
+	}
+}
+
 func TestBufferHomeEnd(t *testing.T) {
 	b := newBuffer()
 	b.SetValue("hello world")
@@ -281,6 +338,36 @@ func TestEditorCtrlJNewline(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	if got := m.Value(); got != "x\ny" {
 		t.Errorf("Value() = %q, want %q", got, "x\ny")
+	}
+}
+
+func TestEditorCtrlArrowMovesByWord(t *testing.T) {
+	m := New(80)
+	m = m.SetValue("hello world")
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlLeft})
+	if line, col := m.CursorPos(); line != 0 || col != 6 {
+		t.Errorf("after ctrl+left: (%d,%d), want (0,6)", line, col)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlRight})
+	if line, col := m.CursorPos(); line != 0 || col != 11 {
+		t.Errorf("after ctrl+right: (%d,%d), want (0,11)", line, col)
+	}
+}
+
+func TestEditorAltArrowMovesByWord(t *testing.T) {
+	m := New(80)
+	m = m.SetValue("hello world")
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft, Alt: true})
+	if line, col := m.CursorPos(); line != 0 || col != 6 {
+		t.Errorf("after alt+left: (%d,%d), want (0,6)", line, col)
+	}
+
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight, Alt: true})
+	if line, col := m.CursorPos(); line != 0 || col != 11 {
+		t.Errorf("after alt+right: (%d,%d), want (0,11)", line, col)
 	}
 }
 

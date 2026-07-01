@@ -259,6 +259,42 @@ func (b *buffer) MoveRight() {
 	}
 }
 
+// MoveWordLeft moves cursor to the start of the previous word.
+func (b *buffer) MoveWordLeft() {
+	b.clampCursor()
+	runes := []rune(b.Value())
+	pos := b.absoluteCursor()
+	if pos == 0 || len(runes) == 0 {
+		return
+	}
+
+	for pos > 0 && unicode.IsSpace(runes[pos-1]) {
+		pos--
+	}
+	for pos > 0 && !unicode.IsSpace(runes[pos-1]) {
+		pos--
+	}
+	b.setAbsoluteCursor(pos)
+}
+
+// MoveWordRight moves cursor to the end of the next word.
+func (b *buffer) MoveWordRight() {
+	b.clampCursor()
+	runes := []rune(b.Value())
+	pos := b.absoluteCursor()
+	if pos >= len(runes) || len(runes) == 0 {
+		return
+	}
+
+	for pos < len(runes) && unicode.IsSpace(runes[pos]) {
+		pos++
+	}
+	for pos < len(runes) && !unicode.IsSpace(runes[pos]) {
+		pos++
+	}
+	b.setAbsoluteCursor(pos)
+}
+
 // MoveUp moves cursor one line up.
 func (b *buffer) MoveUp() bool {
 	b.clampCursor()
@@ -317,6 +353,37 @@ func (b *buffer) MoveEndAll() {
 // CursorPos returns the current cursor position as (line, col).
 func (b *buffer) CursorPos() (int, int) {
 	return b.cursorLine, b.cursorCol
+}
+
+func (b *buffer) absoluteCursor() int {
+	pos := 0
+	for i := 0; i < b.cursorLine && i < len(b.lines); i++ {
+		pos += len([]rune(b.lines[i])) + 1
+	}
+	return pos + b.cursorCol
+}
+
+func (b *buffer) setAbsoluteCursor(pos int) {
+	total := b.RuneCount()
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > total {
+		pos = total
+	}
+
+	for i, line := range b.lines {
+		lineLen := len([]rune(line))
+		if pos <= lineLen {
+			b.cursorLine = i
+			b.cursorCol = pos
+			b.preferredCol = b.cursorCol
+			return
+		}
+		pos -= lineLen + 1
+	}
+
+	b.MoveEndAll()
 }
 
 // clampCursor ensures the cursor is within valid bounds.
