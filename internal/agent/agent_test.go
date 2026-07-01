@@ -84,6 +84,10 @@ func (p *recordingToolProvider) Name() string {
 	return "recording"
 }
 
+func (p *recordingToolProvider) API() string {
+	return "openai-chat"
+}
+
 func (p *recordingToolProvider) Models() []*provider.Model {
 	return p.models
 }
@@ -121,6 +125,10 @@ func (p *compactionReplayProvider) Chat(ctx context.Context, params provider.Cha
 
 func (p *compactionReplayProvider) Name() string {
 	return "compaction-replay"
+}
+
+func (p *compactionReplayProvider) API() string {
+	return "openai-chat"
 }
 
 func (p *compactionReplayProvider) Models() []*provider.Model {
@@ -163,6 +171,10 @@ func (p *workflowRunToolProvider) Chat(ctx context.Context, params provider.Chat
 
 func (p *workflowRunToolProvider) Name() string {
 	return "workflow-run-tool"
+}
+
+func (p *workflowRunToolProvider) API() string {
+	return "openai-chat"
 }
 
 func (p *workflowRunToolProvider) Models() []*provider.Model {
@@ -293,6 +305,10 @@ func (p *loopingToolProvider) Chat(ctx context.Context, params provider.ChatPara
 
 func (p *loopingToolProvider) Name() string {
 	return "looping"
+}
+
+func (p *loopingToolProvider) API() string {
+	return "openai-chat"
 }
 
 func (p *loopingToolProvider) Models() []*provider.Model {

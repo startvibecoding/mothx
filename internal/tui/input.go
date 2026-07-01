@@ -206,6 +206,7 @@ func (a *App) cycleMode() {
 		agentCfg := agent.Config{
 			ID:                 agentpkg.AgentID("agent-master"),
 			Provider:           a.provider,
+			Vendor:             a.providerName,
 			Model:              a.model,
 			Mode:               a.mode,
 			ThinkingLevel:      provider.ThinkingLevel(a.settings.DefaultThinkingLevel),
@@ -367,6 +368,7 @@ func (a *App) ensureAgent() {
 	agentCfg := agent.Config{
 		ID:                 agentpkg.AgentID("agent-master"),
 		Provider:           a.provider,
+		Vendor:             a.providerName,
 		Model:              a.model,
 		Mode:               a.mode,
 		ThinkingLevel:      provider.ThinkingLevel(a.settings.DefaultThinkingLevel),

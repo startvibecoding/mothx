@@ -181,6 +181,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	agentCfg := agent.Config{
 		Provider:           currentProvider,
+		Vendor:             s.providerName,
 		Model:              currentModel,
 		Mode:               mode,
 		ThinkingLevel:      thinkingLevel,

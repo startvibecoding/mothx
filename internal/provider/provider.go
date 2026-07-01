@@ -10,6 +10,9 @@ type Provider interface {
 	// Name returns the provider's name (e.g. "openai", "anthropic").
 	Name() string
 
+	// API returns the protocol/API type (e.g. "openai-chat", "anthropic-messages").
+	API() string
+
 	// Models returns the list of available models.
 	Models() []*Model
 

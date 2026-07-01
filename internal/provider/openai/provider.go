@@ -25,6 +25,9 @@ type Provider struct {
 	client  *http.Client
 	headers map[string]string
 
+	// api is the protocol type: "openai-chat" or "openai-responses"
+	api string
+
 	// Configuration options
 	disableReasoning bool   // Disable reasoning_content support for incompatible APIs
 	thinkingFormat   string // "", "openai", "deepseek", "xiaomi"
@@ -102,11 +105,12 @@ func newProviderWithHTTPClient(apiKey, baseURL string, models []*provider.Model,
 		apiKey = os.Getenv("OPENAI_API_KEY")
 	}
 
-	p := &Provider{
+p := &Provider{
 		BaseProvider: provider.NewBaseProvider("openai", models),
 		apiKey:       apiKey,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		client:       client,
+		api:          "openai-chat",
 		responsesConfig: &responsesConfig{
 			reasoningSummary:   "auto",
 			promptCacheEnabled: true,
@@ -121,9 +125,15 @@ func newProviderWithHTTPClient(apiKey, baseURL string, models []*provider.Model,
 	return p
 }
 
+// API returns the protocol/API type.
+func (p *Provider) API() string {
+	return p.api
+}
+
 // SetUseResponsesAPI switches the provider to the Responses API.
 func (p *Provider) SetUseResponsesAPI(enabled bool) {
 	p.useResponsesAPI = enabled
+	p.api = "openai-responses"
 }
 
 // SetResponsesConfig applies Responses API-specific configuration.

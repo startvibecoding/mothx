@@ -40,6 +40,7 @@ func (p *recordingHermesProvider) Chat(ctx context.Context, params provider.Chat
 }
 
 func (p *recordingHermesProvider) Name() string              { return "recording-hermes" }
+func (p *recordingHermesProvider) API() string                 { return "openai-chat" }
 func (p *recordingHermesProvider) Models() []*provider.Model { return p.models }
 func (p *recordingHermesProvider) GetModel(id string) *provider.Model {
 	for _, m := range p.models {

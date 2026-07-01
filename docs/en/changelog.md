@@ -1,6 +1,16 @@
 # Changelog
 
 
+## v1.1.57
+
+### 🔧 Improvements
+
+- **Stats Dashboard: Protocol + Vendor Split**
+  - The "Provider" column in the stats dashboard has been semantically split into **Vendor** (the company/provider name) and **Protocol** (the API protocol, e.g. `openai-chat`, `anthropic-messages`, `google-gemini`).
+  - Added `Provider.API()` to the provider interface so the protocol type is recorded alongside the vendor name in `request_stats`.
+  - New filter dropdowns for Vendor and Protocol; pie chart and table now show both dimensions.
+  - Schema migration 006 adds the `protocol` column to `request_stats` (backfilled with empty string for existing rows).
+
 ## v1.1.56
 
 ### ✨ Features

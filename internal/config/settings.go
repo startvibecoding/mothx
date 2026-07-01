@@ -587,15 +587,15 @@ func cloneProviderConfig(src *ProviderConfig) *ProviderConfig {
 		return nil
 	}
 	dst := *src
-	dst.Headers = cloneStringMap(src.Headers)
-	dst.CacheControl = cloneBoolPtr(src.CacheControl)
+	dst.Headers = CloneStringMap(src.Headers)
+	dst.CacheControl = CloneBoolPtr(src.CacheControl)
 	dst.Responses = cloneResponsesConfig(src.Responses)
 	dst.Models = cloneModelConfigs(src.Models)
 	return &dst
 }
 
 func cloneResponsesConfig(src ResponsesConfig) ResponsesConfig {
-	src.PromptCacheEnabled = cloneBoolPtr(src.PromptCacheEnabled)
+	src.PromptCacheEnabled = CloneBoolPtr(src.PromptCacheEnabled)
 	return src
 }
 
@@ -611,13 +611,13 @@ func cloneModelConfigs(src []ModelConfig) []ModelConfig {
 }
 
 func cloneModelConfig(src ModelConfig) ModelConfig {
-	src.Temperature = cloneFloat64Ptr(src.Temperature)
-	src.TopP = cloneFloat64Ptr(src.TopP)
+	src.Temperature = CloneFloat64Ptr(src.Temperature)
+	src.TopP = CloneFloat64Ptr(src.TopP)
 	if src.Cost != nil {
 		cost := *src.Cost
 		src.Cost = &cost
 	}
-	src.Input = cloneStringSlice(src.Input)
+	src.Input = CloneStringSlice(src.Input)
 	src.Compat = cloneModelCompat(src.Compat)
 	return src
 }
@@ -627,19 +627,20 @@ func cloneModelCompat(src *ModelCompat) *ModelCompat {
 		return nil
 	}
 	dst := *src
-	dst.SupportsDeveloperRole = cloneBoolPtr(src.SupportsDeveloperRole)
-	dst.SupportsStore = cloneBoolPtr(src.SupportsStore)
-	dst.SupportsReasoningEffort = cloneBoolPtr(src.SupportsReasoningEffort)
-	dst.SupportsStrictMode = cloneBoolPtr(src.SupportsStrictMode)
-	dst.SupportsCacheControlOnTools = cloneBoolPtr(src.SupportsCacheControlOnTools)
-	dst.SupportsLongCacheRetention = cloneBoolPtr(src.SupportsLongCacheRetention)
-	dst.SupportsPromptCacheKey = cloneBoolPtr(src.SupportsPromptCacheKey)
-	dst.SupportsReasoningSummary = cloneBoolPtr(src.SupportsReasoningSummary)
-	dst.SupportsEagerToolInputStreaming = cloneBoolPtr(src.SupportsEagerToolInputStreaming)
+	dst.SupportsDeveloperRole = CloneBoolPtr(src.SupportsDeveloperRole)
+	dst.SupportsStore = CloneBoolPtr(src.SupportsStore)
+	dst.SupportsReasoningEffort = CloneBoolPtr(src.SupportsReasoningEffort)
+	dst.SupportsStrictMode = CloneBoolPtr(src.SupportsStrictMode)
+	dst.SupportsCacheControlOnTools = CloneBoolPtr(src.SupportsCacheControlOnTools)
+	dst.SupportsLongCacheRetention = CloneBoolPtr(src.SupportsLongCacheRetention)
+	dst.SupportsPromptCacheKey = CloneBoolPtr(src.SupportsPromptCacheKey)
+	dst.SupportsReasoningSummary = CloneBoolPtr(src.SupportsReasoningSummary)
+	dst.SupportsEagerToolInputStreaming = CloneBoolPtr(src.SupportsEagerToolInputStreaming)
 	return &dst
 }
 
-func cloneStringMap(src map[string]string) map[string]string {
+// CloneStringMap returns a deep copy of a string map, or nil if src is nil.
+func CloneStringMap(src map[string]string) map[string]string {
 	if src == nil {
 		return nil
 	}
@@ -650,7 +651,8 @@ func cloneStringMap(src map[string]string) map[string]string {
 	return out
 }
 
-func cloneStringSlice(src []string) []string {
+// CloneStringSlice returns a deep copy of a string slice, or nil if src is nil.
+func CloneStringSlice(src []string) []string {
 	if src == nil {
 		return nil
 	}
@@ -659,7 +661,8 @@ func cloneStringSlice(src []string) []string {
 	return out
 }
 
-func cloneBoolPtr(src *bool) *bool {
+// CloneBoolPtr returns a deep copy of a bool pointer, or nil if src is nil.
+func CloneBoolPtr(src *bool) *bool {
 	if src == nil {
 		return nil
 	}
@@ -667,7 +670,8 @@ func cloneBoolPtr(src *bool) *bool {
 	return &v
 }
 
-func cloneFloat64Ptr(src *float64) *float64 {
+// CloneFloat64Ptr returns a deep copy of a float64 pointer, or nil if src is nil.
+func CloneFloat64Ptr(src *float64) *float64 {
 	if src == nil {
 		return nil
 	}
@@ -1103,4 +1107,158 @@ func normalizeWebSearchSettings(cfg WebSearchSettings) WebSearchSettings {
 		}
 	}
 	return cfg
+}
+
+// DefaultProviderConfigs returns a deep copy of all built-in provider presets.
+// The returned map is safe for callers to modify without affecting the global defaults.
+func DefaultProviderConfigs() map[string]*ProviderConfig {
+	return cloneProviderConfigs(defaultProviderConfigs)
+}
+
+// DefaultProviderConfig returns a deep copy of a single built-in provider preset,
+// or nil if the provider ID has no built-in default.
+func DefaultProviderConfig(providerID string) *ProviderConfig {
+	src, ok := defaultProviderConfigs[providerID]
+	if !ok || src == nil {
+		return nil
+	}
+	return cloneProviderConfig(src)
+}
+
+// DefaultModelConfig returns a deep copy of a specific model's built-in config
+// under a given provider. Returns nil if the provider or model is unknown.
+func DefaultModelConfig(providerID, modelID string) *ModelConfig {
+	pc, ok := defaultProviderConfigs[providerID]
+	if !ok || pc == nil {
+		return nil
+	}
+	for i := range pc.Models {
+		if pc.Models[i].ID == modelID {
+			cm := cloneModelConfig(pc.Models[i])
+			return &cm
+		}
+	}
+	return nil
+}
+
+// ResolveProviderConfig merges built-in provider defaults with runtime overrides.
+// Priority: runtime settings > built-in defaults > safe generic defaults.
+func ResolveProviderConfig(providerID string, runtime *Settings) *ProviderConfig {
+	base := DefaultProviderConfig(providerID)
+	if base == nil {
+		base = &ProviderConfig{API: "openai-chat"}
+	}
+	if runtime != nil {
+		if existing, ok := runtime.Providers[providerID]; ok && existing != nil {
+			base = mergeProviderConfig(base, existing)
+		}
+	}
+	return base
+}
+
+// ResolveModelConfig merges built-in model defaults with runtime overrides.
+func ResolveModelConfig(providerID, modelID string, runtime *Settings) *ModelConfig {
+	base := DefaultModelConfig(providerID, modelID)
+	if runtime != nil && runtime.Providers != nil {
+		if existing := runtime.GetModelConfig(providerID, modelID); existing != nil {
+			if base == nil {
+				cm := cloneModelConfig(*existing)
+				return &cm
+			}
+			merged := mergeModelConfig(*base, *existing)
+			return &merged
+		}
+	}
+	if base != nil {
+		return base
+	}
+	if runtime != nil {
+		if existing := runtime.GetModelConfig(providerID, modelID); existing != nil {
+			cm := cloneModelConfig(*existing)
+			return &cm
+		}
+	}
+	return nil
+}
+
+// mergeProviderConfig overlays non-zero fields from `overlay` onto `base`.
+// nil *bool fields in overlay are treated as "unset" and do not overwrite base.
+func mergeProviderConfig(base, overlay *ProviderConfig) *ProviderConfig {
+	if overlay == nil {
+		return base
+	}
+	if base == nil {
+		return cloneProviderConfig(overlay)
+	}
+	result := cloneProviderConfig(base)
+	if overlay.APIKey != "" {
+		result.APIKey = overlay.APIKey
+	}
+	if overlay.BaseURL != "" {
+		result.BaseURL = overlay.BaseURL
+	}
+	if overlay.API != "" {
+		result.API = overlay.API
+	}
+	if overlay.Vendor != "" {
+		result.Vendor = overlay.Vendor
+	}
+	if overlay.HTTPProxy != "" {
+		result.HTTPProxy = overlay.HTTPProxy
+	}
+	if overlay.ForceHTTP11 {
+		result.ForceHTTP11 = overlay.ForceHTTP11
+	}
+	if overlay.ThinkingFormat != "" {
+		result.ThinkingFormat = overlay.ThinkingFormat
+	}
+	if overlay.CacheControl != nil {
+		result.CacheControl = CloneBoolPtr(overlay.CacheControl)
+	}
+	if len(overlay.Headers) > 0 {
+		result.Headers = CloneStringMap(overlay.Headers)
+	}
+	if overlay.Responses.ReasoningSummary != "" || overlay.Responses.PromptCacheEnabled != nil ||
+		overlay.Responses.PromptCacheKey != "" || overlay.Responses.PromptCacheRetention != "" {
+		result.Responses = cloneResponsesConfig(overlay.Responses)
+	}
+	if len(overlay.Models) > 0 {
+		result.Models = cloneModelConfigs(overlay.Models)
+	}
+	return result
+}
+
+// mergeModelConfig overlays non-zero fields from `overlay` onto `base`.
+func mergeModelConfig(base, overlay ModelConfig) ModelConfig {
+	result := cloneModelConfig(base)
+	if overlay.ID != "" {
+		result.ID = overlay.ID
+	}
+	if overlay.Name != "" {
+		result.Name = overlay.Name
+	}
+	if overlay.ContextWindow > 0 {
+		result.ContextWindow = overlay.ContextWindow
+	}
+	if overlay.MaxTokens > 0 {
+		result.MaxTokens = overlay.MaxTokens
+	}
+	result.Reasoning = overlay.Reasoning
+	if len(overlay.Input) > 0 {
+		result.Input = CloneStringSlice(overlay.Input)
+	}
+	if overlay.Temperature != nil {
+		result.Temperature = CloneFloat64Ptr(overlay.Temperature)
+	}
+	if overlay.TopP != nil {
+		result.TopP = CloneFloat64Ptr(overlay.TopP)
+	}
+	if overlay.Cost != nil {
+		c := *overlay.Cost
+		result.Cost = &c
+	}
+	if overlay.Compat != nil {
+		result.Compat = cloneModelCompat(overlay.Compat)
+	}
+	return result
 }

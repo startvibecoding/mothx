@@ -98,6 +98,11 @@ func newProviderWithHTTPClient(apiKey, baseURL string, models []*provider.Model,
 	}
 }
 
+// API returns the protocol/API type.
+func (p *Provider) API() string {
+	return "anthropic-messages"
+}
+
 // SetThinkingFormat sets the thinking parameter format.
 // "anthropic" = thinking with budget_tokens, "deepseek" = thinking with output_config,
 // "xiaomi" = legacy thinking-only format.
@@ -370,7 +375,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 					}
 					continue
 				}
-				ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("API %d: %s", resp.StatusCode, string(b))}
+				ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("API error %d: %s", resp.StatusCode, string(b))}
 				return
 			}
 

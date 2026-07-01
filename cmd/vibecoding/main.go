@@ -54,6 +54,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	rootCmd.AddCommand(newA2ACommand())
 	rootCmd.AddCommand(newDoctorCommand())
 	rootCmd.AddCommand(newSystemInitCommand(runFn, &flags.provider, &flags.model))
+	rootCmd.AddCommand(newStatsCommand())
 	return rootCmd
 }
 
@@ -380,6 +381,7 @@ func run(args []string, opts runOptions) error {
 
 	return runInteractive(runInteractiveConfig{
 		provider:         p,
+		providerKey:      selection.name,
 		model:            model,
 		settings:         settings,
 		settingsMeta:     settingsMeta,
@@ -712,6 +714,7 @@ func logRuntimeModes(opts runOptions) {
 
 type runInteractiveConfig struct {
 	provider         provider.Provider
+	providerKey      string // user-configured settings.json key (e.g. "xiaomi")
 	model            *provider.Model
 	settings         *config.Settings
 	settingsMeta     config.LoadMeta
@@ -747,6 +750,7 @@ func runInteractive(cfg runInteractiveConfig) error {
 		cfg.runtime.agentManager,
 		cfg.runtime.cronStore,
 		cfg.runtime.cronScheduler,
+		cfg.providerKey,
 		cfg.runtime.allow,
 	)
 	if initialMsg := buildInitialMessage(cfg); initialMsg != "" {

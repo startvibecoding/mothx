@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/session"
 )
 
@@ -15,11 +16,7 @@ func (a *App) getSessionDir() string {
 	if a.settings != nil {
 		return a.settings.GetSessionDir()
 	}
-	home, _ := os.UserHomeDir()
-	if home == "" {
-		home = "."
-	}
-	return filepath.Join(home, ".vibecoding", "sessions")
+	return platform.SessionDir()
 }
 
 // getCurrentSessionID returns the current session's short ID (first 8 chars).

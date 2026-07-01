@@ -466,6 +466,13 @@ func NewProviderAdapter(pub agentpkg.Provider) *ProviderAdapter {
 	}
 }
 
+// API returns the protocol/API type.
+// The public provider interface does not expose API type, so we default to
+// "openai-chat" which is the de-facto standard protocol.
+func (pa *ProviderAdapter) API() string {
+	return "openai-chat"
+}
+
 // Chat delegates to the public provider, converting between public and internal types.
 func (pa *ProviderAdapter) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
 	pubParams := ChatParamsToPublic(params)

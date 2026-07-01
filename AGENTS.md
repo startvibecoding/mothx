@@ -24,8 +24,9 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/provider/factory/` — shared provider/model construction from config
 - `internal/provider/vendor*.go` — vendor adapter registry and per-vendor defaults
 - `internal/sandbox/` — sandbox backends
-- `internal/session/` — SQLite session storage
+- `internal/session/` — SQLite session storage, schema migrations
 - `internal/skills/` — skills loading
+- `internal/stats/` — usage stats web dashboard
 - `internal/tools/` — built-in tools
 - `internal/tui/` — terminal UI
 - `internal/acp/` — ACP / MCP related integration
@@ -45,6 +46,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - Tools should stay stateless when possible; shared execution state belongs in registries/managers.
 - Context files and skills are first-class prompt inputs.
 - Sessions are stored in SQLite with parent/child relationships. CLI/Gateway sessions use a single root `sessions.db` database (where all session metadata and message entries live, with dynamically computed virtual `.db` paths for listing/switching); Hermes uses the same `sessions.db` database and additionally writes physical `active.db` handle files in per-user directories on disk.
+- Schema migrations are managed via `internal/session/migrations.go`. A `schema_migrations` table tracks which migrations have been applied. `ApplyMigrations(db)` runs any pending migrations and is called on every DB open from both `session.withDB()` and `stats.Open()`. To add a schema change, append a new entry to the `migrations` slice — do not use `CREATE TABLE IF NOT EXISTS` directly in new code.
 
 ### Gateway Mode
 
@@ -75,6 +77,17 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - The `messaging.InboundMessage.ProgressFunc` callback is set by each platform bot; nil means no progress updates.
 - `formatToolProgress` in `dispatcher.go` formats tool events as `[tool]: args ✅/❌`.
 - Think deltas are accumulated and flushed as `💭 ...` (truncated to 500 chars) before tool/text events.
+
+### Stats Dashboard Mode
+
+- `internal/stats/` implements a web server that displays usage statistics (tokens, requests, duration) with charts.
+- The `vibecoding stats` CLI subcommand starts the dashboard server (default `127.0.0.1:7878`).
+- Flags: `--addr` (listen address), `--db` (path to sessions.db, defaults to `~/.vibecoding/sessions/sessions.db`).
+- Stats are recorded automatically by the agent loop after every LLM call via `session.RecordUsageFromProviderUsage()`.
+- The dashboard is pure HTML/CSS/JS — no external JS/CSS libraries. Charts are drawn on `<canvas>`.
+- API endpoints: `/api/summary`, `/api/timeseries`, `/api/by-provider`, `/api/by-model`, `/api/recent`.
+- All stats queries go through the shared `sessions.db`. The stats server calls `session.ApplyMigrations()` on open to ensure the `request_stats` table exists.
+- The dashboard supports filtering by time range (today/week/month/all), provider, and model.
 
 ## Working Rules
 

@@ -2,11 +2,11 @@ package agent
 
 import (
 	"os"
-	"path/filepath"
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -265,11 +265,7 @@ func (f *AgentFactory) defaultSession(workDir string) *session.Manager {
 		sessionDir = f.settings.GetSessionDir()
 	}
 	if sessionDir == "" {
-		home, _ := os.UserHomeDir()
-		if home == "" {
-			home = "."
-		}
-		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		sessionDir = platform.SessionDir()
 	}
 	return session.New(workDir, sessionDir)
 }

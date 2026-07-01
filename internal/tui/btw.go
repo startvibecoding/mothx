@@ -72,6 +72,7 @@ func (a *App) handleBtwCommand(cmd string) tea.Cmd {
 	sub := agent.New(agent.Config{
 		ID:            agentpkg.AgentID("btw"),
 		Provider:      a.provider,
+		Vendor:        a.providerName,
 		Model:         a.model,
 		Mode:          "agent", // read-only tool set anyway; no write/edit/bash registered
 		ThinkingLevel: provider.ThinkingLevel(a.settings.DefaultThinkingLevel),

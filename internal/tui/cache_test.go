@@ -2115,6 +2115,7 @@ func (p *historyInjectMockProvider) Chat(ctx context.Context, params provider.Ch
 }
 
 func (p *historyInjectMockProvider) Name() string { return "mock" }
+func (p *historyInjectMockProvider) API() string { return "openai-chat" }
 func (p *historyInjectMockProvider) Models() []*provider.Model {
 	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}
 }
@@ -2166,6 +2167,7 @@ func (p *recordingHistoryProvider) Chat(ctx context.Context, params provider.Cha
 }
 
 func (p *recordingHistoryProvider) Name() string { return "mock" }
+func (p *recordingHistoryProvider) API() string { return "openai-chat" }
 
 func (p *recordingHistoryProvider) Models() []*provider.Model {
 	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}

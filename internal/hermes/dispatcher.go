@@ -44,8 +44,9 @@ type Dispatcher struct {
 	hooksMgr   *hooks.Manager
 
 	// Cached provider/model for creating agent instances
-	provider provider.Provider
-	model    *provider.Model
+	provider     provider.Provider
+	providerName string // user-configured vendor name
+	model        *provider.Model
 
 	// Multi-agent mode
 	multiAgent bool
@@ -110,6 +111,7 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 		security:         NewSecurity(cfg),
 		hooksMgr:         hooks.NewManager(cfg.Hooks.PreToolCall, cfg.Hooks.PostToolCall),
 		provider:         p,
+		providerName:     providerName,
 		model:            model,
 		multiAgent:       cfg.MultiAgent,
 		sandbox:          cfg.Sandbox,
@@ -411,6 +413,7 @@ func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approv
 
 	agentCfg := agent.Config{
 		Provider:           d.provider,
+		Vendor:             d.providerName,
 		Model:              d.model,
 		Mode:               sess.Mode,
 		ThinkingLevel:      provider.ThinkingLevel(d.settings.DefaultThinkingLevel),

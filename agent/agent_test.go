@@ -78,6 +78,8 @@ func (p *modelCaptureInternalProvider) Chat(ctx context.Context, params internal
 
 func (p *modelCaptureInternalProvider) Name() string { return "capture" }
 
+func (p *modelCaptureInternalProvider) API() string { return "openai-chat" }
+
 func (p *modelCaptureInternalProvider) Models() []*internalprovider.Model {
 	return []*internalprovider.Model{{ID: "fallback"}}
 }

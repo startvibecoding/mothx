@@ -54,8 +54,9 @@ type server struct {
 	allow    *config.AllowConfig
 	cwd      string
 
-	p provider.Provider
-	m *provider.Model
+	p            provider.Provider
+	providerName string
+	m            *provider.Model
 
 	mode          string
 	thinkingLevel provider.ThinkingLevel
@@ -268,6 +269,10 @@ func Run(opts RunOptions) error {
 		return err
 	}
 	srv.p = p
+	srv.providerName = opts.Provider
+	if srv.providerName == "" {
+		srv.providerName = settings.DefaultProvider
+	}
 	srv.m = model
 
 	mode := opts.Mode
@@ -585,6 +590,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 	} else {
 		inner := agent.New(agent.Config{
 			Provider:      s.p,
+			Vendor:        s.providerName,
 			Model:         s.m,
 			Mode:          effectiveMode,
 			ThinkingLevel: s.thinkingLevel,

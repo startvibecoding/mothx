@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -83,6 +84,7 @@ type Config struct {
 	ID                 agentpkg.AgentID
 	ParentID           agentpkg.AgentID
 	Provider           provider.Provider
+	Vendor             string // user-configured provider/vendor name (e.g. "longcat", "openai")
 	Model              *provider.Model
 	Mode               string // "plan", "agent", "yolo"
 	ThinkingLevel      provider.ThinkingLevel
@@ -647,6 +649,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 			Abort:         a.abort,
 		}
 
+		streamStart := time.Now()
 		streamCh := a.config.Provider.Chat(ctx, params)
 
 		var (
@@ -756,6 +759,20 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		// Calculate cost
 		if usage != nil && a.config.Model != nil {
 			usage.CalculateCost(a.config.Model)
+		}
+
+		// Record usage stats
+		if a.config.Session != nil && usage != nil {
+			vendor := a.config.Vendor
+			if vendor == "" {
+				vendor = a.config.Provider.Name()
+			}
+			protocol := a.config.Provider.API()
+			modelID := a.config.Model.ID
+			durationMs := int(time.Since(streamStart).Milliseconds())
+			if err := a.config.Session.RecordUsageFromProviderUsage(vendor, protocol, modelID, usage, durationMs); err != nil {
+				log.Printf("[agent] failed to record usage stats: %v", err)
+			}
 		}
 
 		// Track progress for loop detection. Tool-only warnings are injected

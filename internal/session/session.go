@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	_ "modernc.org/sqlite"
 )
@@ -51,11 +52,7 @@ func encodePath(p string) string {
 // New creates a new session manager for a new session.
 func New(cwd, sessionDir string) *Manager {
 	if sessionDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = "."
-		}
-		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		sessionDir = platform.SessionDir()
 	}
 
 	return &Manager{
@@ -76,11 +73,7 @@ func Open(path string) (*Manager, error) {
 // ContinueRecent continues the most recent session for a directory, or creates new.
 func ContinueRecent(cwd, sessionDir string) (*Manager, error) {
 	if sessionDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = "."
-		}
-		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		sessionDir = platform.SessionDir()
 	}
 
 	sessions, err := ListForDir(cwd, sessionDir)
@@ -131,11 +124,7 @@ func sessionDirForCwd(cwd, sessionDir string) string {
 // ListForDir lists session files for a given working directory.
 func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 	if sessionDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = "."
-		}
-		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		sessionDir = platform.SessionDir()
 	}
 
 	dbPath := filepath.Join(sessionDir, "sessions.db")
@@ -251,11 +240,7 @@ func (m *Manager) ensureInitializedLocked() error {
 // Supports prefix matching — if sessionID matches multiple sessions, an error is returned.
 func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 	if sessionDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = "."
-		}
-		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		sessionDir = platform.SessionDir()
 	}
 
 	dbPath := filepath.Join(sessionDir, "sessions.db")
@@ -325,11 +310,7 @@ func OpenByIDExact(sessionDir, sessionID string) (*Manager, error) {
 		return nil, fmt.Errorf("session id is empty")
 	}
 	if sessionDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			home = "."
-		}
-		sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		sessionDir = platform.SessionDir()
 	}
 	dbPath := filepath.Join(sessionDir, "sessions.db")
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
@@ -767,10 +748,7 @@ func resolveDBPath(sessionFilePath string) string {
 
 	// If dir is "." or empty, or does not exist, use default home fallback if possible
 	if dir == "." || dir == "" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			return filepath.Join(home, ".vibecoding", "sessions", "sessions.db")
-		}
+		return filepath.Join(platform.SessionDir(), "sessions.db")
 	}
 
 	return filepath.Join(dir, "sessions.db")
@@ -811,39 +789,13 @@ func (m *Manager) withDB(fn func(*sql.DB) error) error {
 			_, _ = db.Exec("PRAGMA journal_mode=WAL;")
 		}
 		_, _ = db.Exec("PRAGMA synchronous=NORMAL;")
-
-		_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sessions (
-			id TEXT PRIMARY KEY,
-			cwd TEXT,
-			timestamp TEXT,
-			parent_session TEXT,
-			version INTEGER
-		);`)
-		if err != nil {
-			dbLock.Unlock()
-			return fmt.Errorf("create sessions table: %w", err)
-		}
-
-		_, err = db.Exec(`CREATE TABLE IF NOT EXISTS entries (
-			seq INTEGER PRIMARY KEY AUTOINCREMENT,
-			session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
-			id TEXT UNIQUE,
-			type TEXT NOT NULL,
-			parent_id TEXT,
-			timestamp TEXT NOT NULL,
-			data TEXT NOT NULL
-		);`)
-		if err != nil {
-			dbLock.Unlock()
-			return fmt.Errorf("create entries table: %w", err)
-		}
-
-		// Index for fast session lookups and ordering
-		_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_entries_session_id ON entries(session_id);")
-		_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_entries_type ON entries(type);")
-		_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_sessions_cwd ON sessions(cwd);")
-
 		initializedDBs[dbPath] = true
+	}
+
+	// Run pending migrations (idempotent — skips already-applied ones)
+	if err := ApplyMigrations(db); err != nil {
+		dbLock.Unlock()
+		return fmt.Errorf("apply migrations: %w", err)
 	}
 	dbLock.Unlock()
 
@@ -1127,6 +1079,34 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 	})
 
 	return details, nil
+}
+
+// RecordUsage records a single LLM request's token usage and timing.
+func (m *Manager) RecordUsage(provider, protocol, model string, inputTokens, outputTokens, totalTokens, durationMs int) error {
+	m.mu.RLock()
+	sessionID := ""
+	if m.header != nil {
+		sessionID = m.header.ID
+	}
+	m.mu.RUnlock()
+
+	now := time.Now().Format(time.RFC3339Nano)
+
+	return m.withDB(func(db *sql.DB) error {
+		_, err := db.Exec(
+			"INSERT INTO request_stats (timestamp, session_id, provider, protocol, model, input_tokens, output_tokens, total_tokens, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			now, sessionID, provider, protocol, model, inputTokens, outputTokens, totalTokens, durationMs,
+		)
+		return err
+	})
+}
+
+// RecordUsageFromProviderUsage records usage from a provider.Usage struct.
+func (m *Manager) RecordUsageFromProviderUsage(provider, protocol, model string, usage *provider.Usage, durationMs int) error {
+	if usage == nil {
+		return nil
+	}
+	return m.RecordUsage(provider, protocol, model, usage.Input, usage.Output, usage.TotalTokens, durationMs)
 }
 
 func (m *Manager) writeEntry(entry interface{}) error {

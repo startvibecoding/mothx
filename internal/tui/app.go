@@ -103,6 +103,7 @@ type toolResult struct {
 // App is the main TUI application.
 type App struct {
 	provider     provider.Provider
+	providerName string
 	model        *provider.Model
 	settings     *config.Settings
 	allow        *config.AllowConfig
@@ -318,10 +319,13 @@ func NewApp(p provider.Provider, model *provider.Model, settings *config.Setting
 }
 
 func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
-	return NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sandboxInfo, extraContext, skillsMgr, initialMode, multiAgent, delegateMode, workflows, agentMgr, cronStore, scheduler, config.LoadAllow())
+	return NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sandboxInfo, extraContext, skillsMgr, initialMode, multiAgent, delegateMode, workflows, agentMgr, cronStore, scheduler, "", config.LoadAllow())
 }
 
-func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler, allow *config.AllowConfig) *App {
+// NewAppWithWorkflowsAndAllow creates a new TUI application. providerKey is the
+// user-configured settings.json provider key (e.g. "xiaomi", "doubao"); when
+// empty the resolved vendor name from p.Name() is used as a fallback.
+func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler, providerKey string, allow *config.AllowConfig) *App {
 	input := editor.New(80).SetPlaceholder("Type a message...").SetMaxLines(5)
 
 	// Determine initial mode: use provided mode, fall back to settings default
@@ -336,9 +340,15 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 		allow = config.LoadAllow()
 	}
 
+	providerName := providerKey
+	if providerName == "" {
+		providerName = safeProviderName(p)
+	}
+
 	app := &App{
-		provider:            p,
-		model:               model,
+		provider:     p,
+		providerName: providerName,
+		model:        model,
 		settings:            settings,
 		allow:               allow,
 		session:             sess,
@@ -1125,3 +1135,10 @@ type agentStreamStartMsg struct {
 	compacting bool
 }
 type renderRequestMsg struct{}
+
+func safeProviderName(p provider.Provider) string {
+	if p == nil {
+		return ""
+	}
+	return p.Name()
+}

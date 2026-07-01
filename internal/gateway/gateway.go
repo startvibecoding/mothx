@@ -46,9 +46,10 @@ type Server struct {
 	allow    *config.AllowConfig
 	version  string
 
-	provider   provider.Provider
-	model      *provider.Model
-	sandboxMgr *sandbox.Manager
+	provider     provider.Provider
+	providerName string // user-configured vendor name (e.g. "longcat")
+	model        *provider.Model
+	sandboxMgr   *sandbox.Manager
 	skillsMgr  *skills.Manager
 	pool       *SessionPool
 
@@ -175,6 +176,7 @@ func Run(opts RunOptions, version string) error {
 		allow:             config.LoadAllow(),
 		version:           version,
 		provider:          p,
+		providerName:      providerName,
 		model:             model,
 		sandboxMgr:        sbMgr,
 		skillsMgr:         skillsMgr,

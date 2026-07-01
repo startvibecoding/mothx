@@ -11,6 +11,7 @@ import (
 func commandSuggestionItems() []suggest.Item {
 	return []suggest.Item{
 		{Label: "/auth", Value: "/auth", Description: "Configure provider token, base URL, proxy and models"},
+		{Label: "/settings", Value: "/settings", Description: "View/edit existing provider and model settings"},
 		{Label: "/mode", Value: "/mode ", Description: "Switch or show mode"},
 		{Label: "/model", Value: "/model ", Description: "Switch or show model"},
 		{Label: "/defaultModel", Value: "/defaultModel ", Description: "Set default provider/model; defaults to global settings"},

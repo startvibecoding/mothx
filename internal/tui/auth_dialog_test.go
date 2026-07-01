@@ -1,36 +1,51 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
 )
 
 func TestAuthBuildSettingsPreservesExistingModelConfig(t *testing.T) {
+	temp := 0.7
+	topP := 0.9
 	s := config.DefaultSettings()
 	a := &App{
 		settings: s,
 		auth: authDialogState{
-			ProviderID:          "deepseek-openai",
-			API:                 "openai-chat",
-			BaseURL:             "https://api.deepseek.com",
-			HTTPProxy:           "http://127.0.0.1:7890",
-			ForceHTTP11:         true,
-			APIKey:              "test-key",
-			ModelIDs:            "deepseek-v4-pro, custom-model",
-			ContextWindow:       "200000",
-			MaxTokens:           "10000",
-			Reasoning:           true,
-			InputTypes:          "text,image",
-			Temperature:         "0.7",
-			TopP:                "0.9",
-			SetDefault:          true,
-			ContextWindowEdited: true,
-			MaxTokensEdited:     true,
-			ReasoningEdited:     true,
-			InputTypesEdited:    true,
-			TemperatureEdited:   true,
-			TopPEdited:          true,
+			ProviderID: "deepseek-openai",
+			SetDefault: true,
+			Provider: providerEditState{
+				API:         "openai-chat",
+				BaseURL:     "https://api.deepseek.com",
+				HTTPProxy:   "http://127.0.0.1:7890",
+				ForceHTTP11: true,
+				APIKey:      "test-key",
+			},
+			Models: map[string]*modelEditState{
+				"deepseek-v4-pro": {
+					ID:            "deepseek-v4-pro",
+					Name:          "DeepSeek V4 Pro",
+					ContextWindow: 200000,
+					MaxTokens:     10000,
+					Reasoning:     true,
+					Input:         []string{"text", "image"},
+					Temperature:   &temp,
+					TopP:          &topP,
+				},
+				"custom-model": {
+					ID:            "custom-model",
+					Name:          "custom-model",
+					ContextWindow: 200000,
+					MaxTokens:     10000,
+					Reasoning:     true,
+					Input:         []string{"text", "image"},
+					Temperature:   &temp,
+					TopP:          &topP,
+				},
+			},
+			ModelOrder: []string{"deepseek-v4-pro", "custom-model"},
 		},
 	}
 
@@ -70,7 +85,25 @@ func TestAuthBuildSettingsFromUsesProvidedBase(t *testing.T) {
 	runtime.DefaultProvider = "project-provider"
 	runtime.Providers["project-only"] = &config.ProviderConfig{API: "openai-chat", BaseURL: "https://project.test", APIKey: "project", Models: []config.ModelConfig{{ID: "project-model", Name: "Project"}}}
 	global := &config.Settings{Providers: map[string]*config.ProviderConfig{"xiaomi": runtime.Providers["xiaomi"]}}
-	a := &App{settings: runtime, auth: authDialogState{ProviderID: "openrouter", API: "openai-chat", BaseURL: "https://openrouter.ai/api/v1", APIKey: "test", ModelIDs: "z-ai/glm-4.5-air:free", SetDefault: true}}
+	a := &App{settings: runtime, auth: authDialogState{
+		ProviderID: "openrouter",
+		SetDefault: true,
+		Provider: providerEditState{
+			API:     "openai-chat",
+			BaseURL: "https://openrouter.ai/api/v1",
+			APIKey:  "test",
+		},
+		Models: map[string]*modelEditState{
+			"z-ai/glm-4.5-air:free": {
+				ID:            "z-ai/glm-4.5-air:free",
+				Name:          "z-ai/glm-4.5-air:free",
+				ContextWindow: 128000,
+				MaxTokens:     8192,
+				Input:         []string{"text"},
+			},
+		},
+		ModelOrder: []string{"z-ai/glm-4.5-air:free"},
+	}}
 
 	next, _ := a.buildAuthSettingsFrom(global)
 	if next.GetProviderConfig("project-only") != nil {
@@ -116,7 +149,19 @@ func TestAuthSparsePatchPreservesExistingProviders(t *testing.T) {
 		"gitee-cc": {API: "openai-chat", BaseURL: "https://cc.gitee.test", APIKey: "gitee-cc", Models: []config.ModelConfig{{ID: "cc-model", Name: "Gitee CC"}}},
 		"doubao":   {API: "openai-chat", BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKey: "doubao", Models: []config.ModelConfig{{ID: "doubao-model", Name: "Doubao"}}},
 	}}
-	a := &App{settings: config.DefaultSettings(), auth: authDialogState{ProviderID: "xiaomi", API: "openai-chat", BaseURL: "https://new.xiaomi", APIKey: "new", ModelIDs: "mimo", SetDefault: true}}
+	a := &App{settings: config.DefaultSettings(), auth: authDialogState{
+		ProviderID: "xiaomi",
+		SetDefault: true,
+		Provider: providerEditState{
+			API:     "openai-chat",
+			BaseURL: "https://new.xiaomi",
+			APIKey:  "new",
+		},
+		Models: map[string]*modelEditState{
+			"mimo": {ID: "mimo", Name: "MiMo", ContextWindow: 128000, MaxTokens: 8192, Input: []string{"text"}},
+		},
+		ModelOrder: []string{"mimo"},
+	}}
 	next, _ := a.buildAuthSettingsFrom(global)
 	for _, want := range []string{"xiaomi", "gitee", "gitee-cc", "doubao"} {
 		if next.GetProviderConfig(want) == nil {
@@ -131,34 +176,6 @@ func TestAuthSparsePatchPreservesExistingProviders(t *testing.T) {
 	}
 }
 
-func TestAuthExistingProviderDoesNotSkipBaseURL(t *testing.T) {
-	a := &App{auth: authDialogState{Open: true, View: authViewAPIKey, ProviderID: "gitee", API: "openai-chat", BaseURL: "https://old.gitee", ModelIDs: "gitee-model"}}
-	a.prepareAuthInput()
-	a.authInput = a.authInput.SetValue("new-key")
-	a.submitAuthInput()
-	if a.auth.View != authViewBaseURL {
-		t.Fatalf("view = %v, want authViewBaseURL", a.auth.View)
-	}
-	if a.authInput.Value() != "https://old.gitee" {
-		t.Fatalf("baseURL input = %q, want old base URL", a.authInput.Value())
-	}
-	a.authInput = a.authInput.SetValue("https://new.gitee")
-	a.submitAuthInput()
-	if a.auth.View != authViewHTTPProxy {
-		t.Fatalf("view = %v, want authViewHTTPProxy", a.auth.View)
-	}
-}
-
-func TestAuthCustomProviderAPIKeyAdvancesToModels(t *testing.T) {
-	a := &App{auth: authDialogState{Open: true, View: authViewAPIKey, Mode: "custom", ProviderID: "openrouter", API: "openai-chat"}}
-	a.prepareAuthInput()
-	a.authInput = a.authInput.SetValue("test-key")
-	a.submitAuthInput()
-	if a.auth.View != authViewModels {
-		t.Fatalf("view = %v, want authViewModels", a.auth.View)
-	}
-}
-
 func TestAuthExistingProviderLoadsForceHTTP11(t *testing.T) {
 	a := &App{
 		settings: &config.Settings{Providers: map[string]*config.ProviderConfig{
@@ -167,18 +184,14 @@ func TestAuthExistingProviderLoadsForceHTTP11(t *testing.T) {
 		auth: authDialogState{Open: true, View: authViewExistingProvider},
 	}
 
+	// Simulate selecting the provider from the list (cursor at "custom")
+	a.auth.Cursor = 0
 	a.selectAuthOption()
-	if !a.auth.ForceHTTP11 {
+	if !a.auth.Provider.ForceHTTP11 {
 		t.Fatal("ForceHTTP11 was not loaded from provider config")
 	}
-
-	a.auth.Stack = []authView{authViewEditMenu}
-	a.jumpAuthEdit("forceHTTP11")
-	if a.auth.ForceHTTP11 {
-		t.Fatal("ForceHTTP11 was not toggled from edit menu")
-	}
-	if a.auth.View != authViewReview {
-		t.Fatalf("view = %v, want authViewReview", a.auth.View)
+	if a.auth.View != authViewProviderGroupList {
+		t.Fatalf("view = %v, want authViewProviderGroupList", a.auth.View)
 	}
 }
 
@@ -270,6 +283,317 @@ func TestAuthVisibleRange(t *testing.T) {
 	}
 }
 
+func TestResolveProviderConfigMergesDefaults(t *testing.T) {
+	// Unknown provider gets safe defaults
+	pc := config.ResolveProviderConfig("unknown-provider", nil)
+	if pc == nil {
+		t.Fatal("expected non-nil provider config")
+	}
+	if pc.API != "openai-chat" {
+		t.Fatalf("API = %q, want openai-chat", pc.API)
+	}
+
+	// Known provider gets built-in defaults
+	pc = config.ResolveProviderConfig("deepseek-openai", nil)
+	if pc == nil {
+		t.Fatal("expected non-nil")
+	}
+	if pc.BaseURL != "https://api.deepseek.com" {
+		t.Fatalf("BaseURL = %q", pc.BaseURL)
+	}
+	if len(pc.Models) != 2 {
+		t.Fatalf("Models = %d, want 2", len(pc.Models))
+	}
+
+	// Runtime overrides take priority
+	runtime := &config.Settings{Providers: map[string]*config.ProviderConfig{
+		"deepseek-openai": {BaseURL: "https://custom.deepseek", APIKey: "override-key"},
+	}}
+	pc = config.ResolveProviderConfig("deepseek-openai", runtime)
+	if pc.BaseURL != "https://custom.deepseek" {
+		t.Fatalf("BaseURL = %q, want override", pc.BaseURL)
+	}
+	if pc.APIKey != "override-key" {
+		t.Fatalf("APIKey = %q, want override", pc.APIKey)
+	}
+	// Models from built-in default should still be present
+	if len(pc.Models) != 2 {
+		t.Fatalf("Models = %d, want 2 (built-in defaults preserved)", len(pc.Models))
+	}
+}
+
+func TestDefaultModelConfigLookup(t *testing.T) {
+	mc := config.DefaultModelConfig("deepseek-openai", "deepseek-v4-flash")
+	if mc == nil {
+		t.Fatal("expected non-nil")
+	}
+	if mc.ContextWindow != 1000000 {
+		t.Fatalf("ContextWindow = %d", mc.ContextWindow)
+	}
+	if !mc.Reasoning {
+		t.Fatal("Reasoning should be true")
+	}
+	if mc.Cost == nil {
+		t.Fatal("Cost should be set")
+	}
+
+	// Unknown model returns nil
+	mc = config.DefaultModelConfig("deepseek-openai", "nonexistent")
+	if mc != nil {
+		t.Fatal("expected nil for unknown model")
+	}
+}
+
+func TestProviderEditStateRoundTrip(t *testing.T) {
+	original := config.ProviderConfig{
+		APIKey:         "test-key",
+		BaseURL:        "https://api.test.com/v1",
+		API:            "openai-chat",
+		Vendor:         "test-vendor",
+		HTTPProxy:      "http://proxy:8080",
+		ForceHTTP11:    true,
+		Headers:        map[string]string{"X-Custom": "value"},
+		ThinkingFormat: "deepseek",
+		CacheControl:   config.BoolPtr(true),
+		Responses: config.ResponsesConfig{
+			ReasoningSummary: "concise",
+		},
+		Models: []config.ModelConfig{{ID: "m1", Name: "Model 1"}},
+	}
+
+	pe := providerEditStateFrom(&original)
+	result := pe.toConfig()
+
+	if result.APIKey != original.APIKey {
+		t.Fatalf("APIKey = %q", result.APIKey)
+	}
+	if result.BaseURL != original.BaseURL {
+		t.Fatalf("BaseURL = %q", result.BaseURL)
+	}
+	if result.Vendor != original.Vendor {
+		t.Fatalf("Vendor = %q", result.Vendor)
+	}
+	if !result.ForceHTTP11 {
+		t.Fatal("ForceHTTP11 lost")
+	}
+	if result.Headers["X-Custom"] != "value" {
+		t.Fatalf("Headers = %#v", result.Headers)
+	}
+	if result.ThinkingFormat != "deepseek" {
+		t.Fatalf("ThinkingFormat = %q", result.ThinkingFormat)
+	}
+	if result.CacheControl == nil || !*result.CacheControl {
+		t.Fatal("CacheControl lost")
+	}
+	if result.Responses.ReasoningSummary != "concise" {
+		t.Fatalf("Responses.ReasoningSummary = %q", result.Responses.ReasoningSummary)
+	}
+}
+
+func TestModelEditStateRoundTrip(t *testing.T) {
+	temp := 0.7
+	topP := 0.9
+	original := config.ModelConfig{
+		ID:            "test-model",
+		Name:          "Test Model",
+		ContextWindow: 200000,
+		MaxTokens:     16000,
+		Reasoning:     true,
+		Input:         []string{"text", "image"},
+		Temperature:   &temp,
+		TopP:          &topP,
+		Cost: &config.CostConfig{
+			Input:  0.5,
+			Output: 1.0,
+		},
+		Compat: &config.ModelCompat{
+			ThinkingFormat: "deepseek",
+		},
+	}
+
+	me := modelEditStateFromMC(&original)
+	if me == nil {
+		t.Fatal("expected non-nil")
+	}
+	result := me.toConfig()
+
+	if result.ID != original.ID {
+		t.Fatalf("ID = %q", result.ID)
+	}
+	if result.Name != original.Name {
+		t.Fatalf("Name = %q", result.Name)
+	}
+	if result.ContextWindow != original.ContextWindow {
+		t.Fatalf("ContextWindow = %d", result.ContextWindow)
+	}
+	if result.MaxTokens != original.MaxTokens {
+		t.Fatalf("MaxTokens = %d", result.MaxTokens)
+	}
+	if !result.Reasoning {
+		t.Fatal("Reasoning lost")
+	}
+	if len(result.Input) != 2 || result.Input[0] != "text" || result.Input[1] != "image" {
+		t.Fatalf("Input = %#v", result.Input)
+	}
+	if result.Temperature == nil || *result.Temperature != 0.7 {
+		t.Fatalf("Temperature = %#v", result.Temperature)
+	}
+	if result.TopP == nil || *result.TopP != 0.9 {
+		t.Fatalf("TopP = %#v", result.TopP)
+	}
+	if result.Cost == nil || result.Cost.Input != 0.5 || result.Cost.Output != 1.0 {
+		t.Fatalf("Cost = %#v", result.Cost)
+	}
+	if result.Compat == nil || result.Compat.ThinkingFormat != "deepseek" {
+		t.Fatalf("Compat = %#v", result.Compat)
+	}
+}
+
+func TestModelEditStateDefaultName(t *testing.T) {
+	original := config.ModelConfig{ID: "my-model", ContextWindow: 128000}
+	me := modelEditStateFromMC(&original)
+	if me.Name != "my-model" {
+		t.Fatalf("Name = %q, should default to ID", me.Name)
+	}
+	result := me.toConfig()
+	if result.Name != "my-model" {
+		t.Fatalf("Name = %q after round-trip", result.Name)
+	}
+}
+
+func TestInitAuthForProviderPopulatesStructuredState(t *testing.T) {
+	s := config.DefaultSettings()
+	a := &App{settings: s}
+	a.auth = authDialogState{}
+	a.initAuthForProvider("deepseek-openai")
+
+	if a.auth.ProviderID != "deepseek-openai" {
+		t.Fatalf("ProviderID = %q", a.auth.ProviderID)
+	}
+	if a.auth.Provider.API != "openai-chat" {
+		t.Fatalf("Provider.API = %q", a.auth.Provider.API)
+	}
+	if a.auth.Provider.BaseURL != "https://api.deepseek.com" {
+		t.Fatalf("Provider.BaseURL = %q", a.auth.Provider.BaseURL)
+	}
+	if len(a.auth.ModelOrder) != 2 {
+		t.Fatalf("ModelOrder = %d, want 2", len(a.auth.ModelOrder))
+	}
+	if len(a.auth.Models) != 2 {
+		t.Fatalf("Models = %d, want 2", len(a.auth.Models))
+	}
+	// Check per-model params are preserved
+	if me, ok := a.auth.Models["deepseek-v4-flash"]; ok {
+		if me.ContextWindow != 1000000 {
+			t.Fatalf("flash ContextWindow = %d", me.ContextWindow)
+		}
+		if me.MaxTokens != 384000 {
+			t.Fatalf("flash MaxTokens = %d", me.MaxTokens)
+		}
+		if !me.Reasoning {
+			t.Fatal("flash Reasoning should be true")
+		}
+		if !me.CostEnabled || me.CostInput == 0 {
+			t.Fatal("flash Cost should be enabled with non-zero input")
+		}
+	}
+}
+
+func TestInitAuthForCustomUsesGenericTemplate(t *testing.T) {
+	s := config.DefaultSettings()
+	a := &App{settings: s}
+	a.auth = authDialogState{}
+	a.initAuthForCustom("my-local-llm")
+
+	if a.auth.ProviderID != "my-local-llm" {
+		t.Fatalf("ProviderID = %q", a.auth.ProviderID)
+	}
+	if a.auth.Provider.API != "openai-chat" {
+		t.Fatalf("Provider.API = %q", a.auth.Provider.API)
+	}
+	if len(a.auth.Models) != 0 {
+		t.Fatalf("Models = %d, want 0 for custom", len(a.auth.Models))
+	}
+}
+
+func TestInitModelFromDefaultFallsBackToGeneric(t *testing.T) {
+	s := config.DefaultSettings()
+	a := &App{settings: s}
+	a.auth = authDialogState{ProviderID: "deepseek-openai"}
+
+	// Known model gets built-in defaults
+	me := a.initModelFromDefault("deepseek-v4-flash")
+	if me.ContextWindow != 1000000 {
+		t.Fatalf("ContextWindow = %d, want 1000000", me.ContextWindow)
+	}
+
+	// Unknown model gets generic template
+	me = a.initModelFromDefault("totally-unknown-model")
+	if me.ContextWindow != 128000 {
+		t.Fatalf("ContextWindow = %d, want 128000", me.ContextWindow)
+	}
+	if me.MaxTokens != 8192 {
+		t.Fatalf("MaxTokens = %d, want 8192", me.MaxTokens)
+	}
+}
+
+func TestBuildAuthSettingsFromStructuredState(t *testing.T) {
+	s := config.DefaultSettings()
+	a := &App{settings: s}
+	a.auth = authDialogState{
+		ProviderID: "deepseek-openai",
+		SetDefault: true,
+		Provider: providerEditState{
+			APIKey:  "test-key",
+			BaseURL: "https://api.deepseek.com",
+			API:     "openai-chat",
+			Vendor:  "deepseek",
+		},
+		Models: map[string]*modelEditState{
+			"deepseek-v4-flash": {
+				ID:            "deepseek-v4-flash",
+				Name:          "DeepSeek V4 Flash",
+				ContextWindow: 1000000,
+				MaxTokens:     384000,
+				Reasoning:     true,
+				Input:         []string{"text"},
+				CostEnabled:   true,
+				CostInput:     0.14,
+				CostOutput:    0.28,
+			},
+		},
+		ModelOrder: []string{"deepseek-v4-flash"},
+	}
+
+	next, modelID := a.buildAuthSettings()
+	if modelID != "deepseek-v4-flash" {
+		t.Fatalf("modelID = %q", modelID)
+	}
+	pc := next.GetProviderConfig("deepseek-openai")
+	if pc == nil {
+		t.Fatal("provider config missing")
+	}
+	if pc.APIKey != "test-key" {
+		t.Fatalf("APIKey = %q", pc.APIKey)
+	}
+	if pc.Vendor != "deepseek" {
+		t.Fatalf("Vendor = %q", pc.Vendor)
+	}
+	if len(pc.Models) != 1 {
+		t.Fatalf("Models = %d", len(pc.Models))
+	}
+	m := pc.Models[0]
+	if m.ContextWindow != 1000000 || m.MaxTokens != 384000 {
+		t.Fatalf("ctx/max = %d/%d", m.ContextWindow, m.MaxTokens)
+	}
+	if m.Cost == nil || m.Cost.Input != 0.14 {
+		t.Fatalf("Cost = %#v", m.Cost)
+	}
+	if next.DefaultProvider != "deepseek-openai" || next.DefaultModel != "deepseek-v4-flash" {
+		t.Fatalf("defaults = %s/%s", next.DefaultProvider, next.DefaultModel)
+	}
+}
+
 func TestRenderAuthPreviewTruncates(t *testing.T) {
 	var preview string
 	for i := 0; i < authMaxPreviewVisibleLines+5; i++ {
@@ -281,5 +605,221 @@ func TestRenderAuthPreviewTruncates(t *testing.T) {
 	}
 	if lines[len(lines)-1] == "line" {
 		t.Fatalf("expected truncation marker, got %q", lines[len(lines)-1])
+	}
+}
+
+func TestCycleTriState(t *testing.T) {
+	// nil → true
+	p := cycleTriState(nil)
+	if p == nil || !*p {
+		t.Fatal("nil → true")
+	}
+	// true → false
+	p = cycleTriState(p)
+	if p == nil || *p {
+		t.Fatal("true → false")
+	}
+	// false → nil
+	p = cycleTriState(p)
+	if p != nil {
+		t.Fatal("false → nil")
+	}
+}
+
+func TestToggleModelTriState(t *testing.T) {
+	a := &App{
+		auth: authDialogState{
+			CurrentModelID: "m1",
+			Models: map[string]*modelEditState{
+				"m1": {ID: "m1", Compat: compatEditState{}},
+			},
+			ParamFieldKey: "tristate",
+		},
+	}
+
+	// supportsDeveloperRole: nil → true
+	a.auth.ParamField = "supportsDeveloperRole"
+	a.toggleModelTriState("supportsDeveloperRole")
+	me := a.auth.Models["m1"]
+	if me.Compat.SupportsDeveloperRole == nil || !*me.Compat.SupportsDeveloperRole {
+		t.Fatal("nil → true")
+	}
+	if !me.Compat.Active {
+		t.Fatal("Active should be set")
+	}
+
+	// true → false
+	a.toggleModelTriState("supportsDeveloperRole")
+	if me.Compat.SupportsDeveloperRole == nil || *me.Compat.SupportsDeveloperRole {
+		t.Fatal("true → false")
+	}
+
+	// false → nil
+	a.toggleModelTriState("supportsDeveloperRole")
+	if me.Compat.SupportsDeveloperRole != nil {
+		t.Fatal("false → nil")
+	}
+
+	// Unknown field should be no-op
+	a.toggleModelTriState("unknownField")
+}
+
+func TestCostEnabledToggle(t *testing.T) {
+	me := &modelEditState{
+		ID:          "m1",
+		CostEnabled: false,
+		CostInput:   0.5,
+		CostOutput:  1.0,
+	}
+
+	// Cost disabled → cost should be nil
+	mc := me.toConfig()
+	if mc.Cost != nil {
+		t.Fatal("cost should be nil when disabled")
+	}
+
+	// Cost enabled → cost should be set
+	me.CostEnabled = true
+	mc = me.toConfig()
+	if mc.Cost == nil || mc.Cost.Input != 0.5 || mc.Cost.Output != 1.0 {
+		t.Fatalf("cost = %#v, want input=0.5 output=1.0", mc.Cost)
+	}
+}
+
+func TestHeadersEditFlow(t *testing.T) {
+	a := &App{
+		auth: authDialogState{
+			Provider: providerEditState{},
+		},
+	}
+
+	pe := &a.auth.Provider
+	if pe.Headers != nil {
+		t.Fatal("headers should start nil")
+	}
+	pe.Headers = map[string]string{"X-Custom": "value1"}
+	if pe.Headers["X-Custom"] != "value1" {
+		t.Fatal("header not added")
+	}
+
+	// Edit header
+	pe.Headers["X-Custom"] = "value2"
+	if pe.Headers["X-Custom"] != "value2" {
+		t.Fatal("header not edited")
+	}
+
+	// Delete header
+	delete(pe.Headers, "X-Custom")
+	if len(pe.Headers) != 0 {
+		t.Fatal("header not deleted")
+	}
+	pe.Headers = nil
+	mc := pe.toConfig()
+	if mc.Headers != nil {
+		t.Fatal("headers should be nil after clearing")
+	}
+}
+
+func TestCompatEditStateActiveCount(t *testing.T) {
+	ce := compatEditState{Active: false}
+	if ce.activeCount() != 0 {
+		t.Fatal("inactive compat should have 0 count")
+	}
+
+	ce.Active = true
+	ce.ThinkingFormat = "deepseek"
+	ce.RequiresReasoningContentOnAssistant = true
+	b := true
+	ce.SupportsDeveloperRole = &b
+	ce.MaxTokensField = "max_completion_tokens"
+	if ce.activeCount() != 4 {
+		t.Fatalf("activeCount = %d, want 4", ce.activeCount())
+	}
+}
+
+func TestCompatResetToAuto(t *testing.T) {
+	ce := compatEditState{
+		Active:                              true,
+		ThinkingFormat:                      "deepseek",
+		RequiresReasoningContentOnAssistant: true,
+		SupportsDeveloperRole:               config.BoolPtr(true),
+	}
+	ce = compatEditState{}
+	if ce.Active {
+		t.Fatal("Active should be false after reset")
+	}
+	if ce.ThinkingFormat != "" {
+		t.Fatal("ThinkingFormat should be empty after reset")
+	}
+	if ce.SupportsDeveloperRole != nil {
+		t.Fatal("SupportsDeveloperRole should be nil after reset")
+	}
+}
+
+func TestPreviewBuildFoldedJSONMultipleModels(t *testing.T) {
+	temp := 0.7
+	s := &config.Settings{
+		DefaultProvider: "test",
+		DefaultModel:    "m1",
+		Providers: map[string]*config.ProviderConfig{
+			"test": {
+				API: "openai-chat",
+				Models: []config.ModelConfig{
+					{ID: "m1", Name: "Model 1", Cost: &config.CostConfig{Input: 0.5}, Compat: &config.ModelCompat{ThinkingFormat: "deepseek"}},
+					{ID: "m2", Name: "Model 2", Cost: &config.CostConfig{Input: 1.0}, Temperature: &temp},
+				},
+			},
+		},
+	}
+
+	result := previewBuildFoldedJSON(s, "test", false)
+	costCount := strings.Count(result, previewFoldMarker+"cost")
+	if costCount != 2 {
+		t.Fatalf("expected 2 cost fold markers, got %d", costCount)
+	}
+	compatCount := strings.Count(result, previewFoldMarker+"compat")
+	if compatCount != 1 {
+		t.Fatalf("expected 1 compat fold marker, got %d", compatCount)
+	}
+
+	// Collapsed rendering — may be truncated, so check raw folded output
+	exp := previewExpansion{}
+	collapsed := renderFoldedPreview(result, exp)
+	// At least one ▶ cost should be visible (the other may be truncated)
+	if !strings.Contains(collapsed, "▶ cost") {
+		t.Fatal("collapsed should contain ▶ cost")
+	}
+	if !strings.Contains(collapsed, "▶ compat") {
+		t.Fatal("collapsed should contain ▶ compat")
+	}
+
+	// Expand cost — all cost values should be visible in the raw JSON
+	exp.CostExpand = true
+	expanded := renderFoldedPreview(result, exp)
+	if strings.Contains(expanded, "▶ cost") {
+		t.Fatal("cost should be expanded")
+	}
+}
+
+func TestPreviewFoldMaskedKey(t *testing.T) {
+	s := &config.Settings{
+		DefaultProvider: "test",
+		Providers: map[string]*config.ProviderConfig{
+			"test": {
+				APIKey: "secret-key-12345",
+				API:    "openai-chat",
+				Models: []config.ModelConfig{
+					{ID: "m1", Cost: &config.CostConfig{Input: 0.5}},
+				},
+			},
+		},
+	}
+
+	result := previewBuildFoldedJSON(s, "test", true)
+	if strings.Contains(result, "secret-key-12345") {
+		t.Fatal("API key should be masked")
+	}
+	if !strings.Contains(result, "****") {
+		t.Fatal("masked key should contain ****")
 	}
 }

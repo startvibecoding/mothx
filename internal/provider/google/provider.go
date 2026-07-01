@@ -119,6 +119,16 @@ func newProviderWithHTTPClient(name string, kind APIKind, apiKey, baseURL, defau
 	}
 }
 
+// API returns the protocol/API type.
+func (p *Provider) API() string {
+	switch p.apiKind {
+	case APIKindVertex:
+		return "google-vertex"
+	default:
+		return "google-gemini"
+	}
+}
+
 func (p *Provider) SetRetryConfig(cfg *provider.RetryConfig) {
 	p.retryConfig = cfg
 }

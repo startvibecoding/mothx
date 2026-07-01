@@ -48,6 +48,10 @@ func (p *compactRecordingProvider) Name() string {
 	return "compact-recording"
 }
 
+func (p *compactRecordingProvider) API() string {
+	return "openai-chat"
+}
+
 func (p *compactRecordingProvider) Models() []*provider.Model {
 	return p.models
 }

@@ -383,6 +383,7 @@ func (f *hermesA2AFactory) CreateForA2A(workDir string, mode string) (*agent.Age
 	// Create a new agent using the dispatcher's provider and settings
 	a := agent.New(agent.Config{
 		Provider:   f.dispatcher.provider,
+		Vendor:     f.dispatcher.providerName,
 		Model:      f.dispatcher.model,
 		Mode:       mode,
 		SandboxMgr: sandbox.NewManager(workDir),

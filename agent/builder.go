@@ -3,7 +3,8 @@ package agent
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+
+	"github.com/startvibecoding/vibecoding/internal/platform"
 )
 
 // Builder provides a fluent API for creating Agent instances.
@@ -193,11 +194,7 @@ func (b *Builder) Build() (Agent, error) {
 		b.modelID = models[0].ID
 	}
 	if b.sessionDir == "" {
-		home, _ := os.UserHomeDir()
-		if home == "" {
-			home = "."
-		}
-		b.sessionDir = filepath.Join(home, ".vibecoding", "sessions")
+		b.sessionDir = platform.SessionDir()
 	}
 
 	// Delegate to internal builder

@@ -8,6 +8,7 @@ import (
 // MockProvider is a mock implementation of Provider for testing.
 type MockProvider struct {
 	name      string
+	api       string
 	models    []*Model
 	responses []StreamEvent
 	mu        sync.Mutex
@@ -18,9 +19,15 @@ type MockProvider struct {
 func NewMockProvider(name string, models []*Model, responses []StreamEvent) *MockProvider {
 	return &MockProvider{
 		name:      name,
+		api:       "mock",
 		models:    models,
 		responses: responses,
 	}
+}
+
+// SetAPI sets the mock provider's API type.
+func (p *MockProvider) SetAPI(api string) {
+	p.api = api
 }
 
 // Chat sends a chat request and returns a channel of streaming events.
@@ -57,6 +64,11 @@ func (p *MockProvider) Chat(ctx context.Context, params ChatParams) <-chan Strea
 // Name returns the provider's name.
 func (p *MockProvider) Name() string {
 	return p.name
+}
+
+// API returns the protocol/API type.
+func (p *MockProvider) API() string {
+	return p.api
 }
 
 // Models returns the list of available models.

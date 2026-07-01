@@ -49,6 +49,7 @@ func (p *recordingGatewayProvider) Chat(ctx context.Context, params provider.Cha
 }
 
 func (p *recordingGatewayProvider) Name() string              { return "recording-gateway" }
+func (p *recordingGatewayProvider) API() string                 { return "openai-chat" }
 func (p *recordingGatewayProvider) Models() []*provider.Model { return p.models }
 func (p *recordingGatewayProvider) GetModel(id string) *provider.Model {
 	for _, m := range p.models {

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	_ "modernc.org/sqlite"
 )
 
 func TestNew(t *testing.T) {
@@ -1094,5 +1096,90 @@ func TestWriteEntryDurable(t *testing.T) {
 	last := loadedMsgs[4]
 	if last.Content != "message 4" {
 		t.Errorf("last message content = %q, want 'message 4'", last.Content)
+	}
+}
+
+// TestApplyMigrationsOnOldDB verifies that creating a session on an old-format
+// DB (without schema_migrations) triggers migration and creates all tables.
+func TestApplyMigrationsOnOldDB(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+
+	// Simulate an old DB: create sessions + entries only, no schema_migrations
+	if err := os.MkdirAll(sessionDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`CREATE TABLE sessions (
+		id TEXT PRIMARY KEY,
+		cwd TEXT,
+		timestamp TEXT,
+		parent_session TEXT,
+		version INTEGER
+	);`)
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`CREATE TABLE entries (
+		seq INTEGER PRIMARY KEY AUTOINCREMENT,
+		session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+		id TEXT UNIQUE,
+		type TEXT NOT NULL,
+		parent_id TEXT,
+		timestamp TEXT NOT NULL,
+		data TEXT NOT NULL
+	);`)
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	db.Close()
+
+	// Reset the in-memory cache so the session package treats this as a new DB
+	dbLock.Lock()
+	delete(initializedDBs, dbPath)
+	delete(cachedDBs, dbPath)
+	dbLock.Unlock()
+
+	// Creating a new session should trigger migrations
+	m := New("/tmp/test-migration", sessionDir)
+	if err := m.Init(); err != nil {
+		t.Fatalf("Init on old DB should trigger migration: %v", err)
+	}
+
+	// Re-open DB to verify tables exist
+	db2, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db2.Close()
+
+	var migrationCount int
+	if err := db2.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
+		t.Fatalf("schema_migrations should exist: %v", err)
+	}
+	if migrationCount != 6 {
+		t.Errorf("expected 6 migrations applied, got %d", migrationCount)
+	}
+
+	// request_stats should exist
+	var tblName string
+	if err := db2.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='request_stats'").Scan(&tblName); err != nil {
+		t.Fatalf("request_stats table should exist after migration: %v", err)
+	}
+
+	// Old data should still work
+	var entryCount int
+	if err := db2.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&entryCount); err != nil {
+		t.Fatalf("sessions table should still work: %v", err)
+	}
+	if entryCount != 1 {
+		t.Errorf("expected 1 session header row after init, got %d", entryCount)
 	}
 }

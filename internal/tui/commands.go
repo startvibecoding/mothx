@@ -598,6 +598,12 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		} else {
 			a.openAuthDialog()
 		}
+	case "/settings":
+		if a.isThinking {
+			a.addCommandError("Cannot open /settings while the agent is running.")
+		} else {
+			a.openSettingsDialog(parts[1:])
+		}
 	case "/skills":
 		a.listSkills()
 	case "/skill":
