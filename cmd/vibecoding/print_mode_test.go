@@ -68,7 +68,7 @@ func TestRunSetsProviderDebugEnvWhenDebugFlagSet(t *testing.T) {
 		},
 		nil,
 	)
-	cmd.SetArgs([]string{"--debug", "hello"})
+	cmd.SetArgs([]string{"--debug", "-P", "hello"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute command: %v", err)

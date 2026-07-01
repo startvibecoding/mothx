@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/acp"
@@ -105,7 +107,7 @@ func TestRootParsesWorkflowFlagIndependently(t *testing.T) {
 			return nil
 		},
 	)
-	cmd.SetArgs([]string{"--workflows", "plan workflow"})
+	cmd.SetArgs([]string{"--workflows", "-P", "plan workflow"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute command: %v", err)
@@ -131,7 +133,7 @@ func TestRootMultiAgentDoesNotEnableWorkflows(t *testing.T) {
 			return nil
 		},
 	)
-	cmd.SetArgs([]string{"--multi-agent", "delegate"})
+	cmd.SetArgs([]string{"--multi-agent", "-P", "delegate"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute command: %v", err)
@@ -208,5 +210,217 @@ func TestRootStillDispatchesACPSubcommand(t *testing.T) {
 	}
 	if !calledACP {
 		t.Fatal("expected ACP command execution")
+	}
+}
+
+func TestUnknownRootFlagSuggestsSimilarFlag(t *testing.T) {
+	cmd := newRootCommand(
+		func([]string, runOptions) error {
+			t.Fatal("unexpected root command execution")
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--modle", "hello"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected unknown flag error")
+	}
+	got := err.Error()
+	for _, want := range []string{
+		"invalid argument: unknown flag: --modle",
+		"Did you mean --model?",
+		"Run 'vibecoding --help' to see all commands.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("error missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestUnknownSubcommandFlagSuggestsSimilarFlag(t *testing.T) {
+	cmd := newRootCommand(
+		func([]string, runOptions) error {
+			t.Fatal("unexpected root command execution")
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"gateway", "--wur-dir", "."})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected unknown flag error")
+	}
+	got := err.Error()
+	for _, want := range []string{
+		"invalid argument: unknown flag: --wur-dir",
+		"Did you mean --work-dir?",
+		"Run 'vibecoding --help' to see all commands.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("error missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestUnknownFlagWithoutSimilarFlagShowsHelpHint(t *testing.T) {
+	cmd := newRootCommand(
+		func([]string, runOptions) error {
+			t.Fatal("unexpected root command execution")
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--definitely-not-a-real-option"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected unknown flag error")
+	}
+	got := err.Error()
+	for _, want := range []string{
+		"invalid argument: unknown flag: --definitely-not-a-real-option",
+		"Run 'vibecoding --help' to see all commands.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("error missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestMistypedRootSubcommandSuggestsCommand(t *testing.T) {
+	cmd := newRootCommand(
+		func([]string, runOptions) error {
+			t.Fatal("unexpected root command execution")
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"gatway"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected mistyped command error")
+	}
+	got := err.Error()
+	for _, want := range []string{
+		`invalid argument: unknown command "gatway" for "vibecoding"`,
+		"Did you mean gateway?",
+		"Run 'vibecoding --help' to see all commands.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("error missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRootPrintMessageDoesNotRequireCommandSuggestion(t *testing.T) {
+	var gotArgs []string
+
+	cmd := newRootCommand(
+		func(args []string, opts runOptions) error {
+			gotArgs = args
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	cmd.SetArgs([]string{"-P", "explain", "this", "code"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute command: %v", err)
+	}
+	if want := []string{"explain", "this", "code"}; !reflect.DeepEqual(gotArgs, want) {
+		t.Fatalf("args = %#v, want %#v", gotArgs, want)
+	}
+}
+
+func TestRootArgsWithoutPrintAreUnknownCommand(t *testing.T) {
+	cmd := newRootCommand(
+		func([]string, runOptions) error {
+			t.Fatal("unexpected root command execution")
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"explain"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected unknown command error")
+	}
+	got := err.Error()
+	for _, want := range []string{
+		`invalid argument: unknown command "explain" for "vibecoding"`,
+		"Run 'vibecoding --help' to see all commands.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("error missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestInputErrorDoesNotPrintFullHelp(t *testing.T) {
+	cmd := newRootCommand(
+		func([]string, runOptions) error {
+			t.Fatal("unexpected root command execution")
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"gatway"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected mistyped command error")
+	}
+	got := out.String()
+	for _, notWant := range []string{
+		"Available Commands:",
+		"Usage:",
+		"Flags:",
+	} {
+		if strings.Contains(got, notWant) {
+			t.Fatalf("output should not include full help section %q:\n%s", notWant, got)
+		}
 	}
 }

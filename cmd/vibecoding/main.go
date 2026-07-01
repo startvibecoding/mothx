@@ -56,6 +56,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	rootCmd.AddCommand(newDoctorCommand())
 	rootCmd.AddCommand(newSystemInitCommand(runFn, &flags.provider, &flags.model))
 	rootCmd.AddCommand(newStatsCommand())
+	installFriendlyFlagErrors(rootCmd)
 	return rootCmd
 }
 
@@ -87,13 +88,16 @@ type cliFlags struct {
 
 func newCLICommand(flags *cliFlags, runFn func([]string, runOptions) error) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "vibecoding [message...]",
+		Use:     "vibecoding",
 		Aliases: []string{"vc"},
 		Short:   "VibeCoding - AI coding assistant",
 		Long:    "VibeCoding is an AI-powered coding assistant that runs in your terminal.\nSupports OpenAI and Anthropic APIs with sandboxed execution.",
 		Version: version,
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateRootArgs(cmd, args, flags); err != nil {
+				return err
+			}
 			return runCLICommand(args, flags, runFn)
 		},
 	}
