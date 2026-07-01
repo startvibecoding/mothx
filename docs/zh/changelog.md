@@ -1,7 +1,7 @@
 # 更新日志
 
 
-## v1.1.57
+## v1.1.56
 
 ### ✨ 新功能
 
@@ -30,16 +30,13 @@
   - 默认模型 `LongCat-2.0`：上下文长度 1M，最大输出长度 128K Tokens。
   - TUI 授权对话框中，在 `longcat` 厂商下提供 OpenAI / Anthropic 两种 BaseURL 的选择。
 
-### 🔧 改进
+- **OpenAI 兼容模型的内联 `<think>` 推理**
+  - 为 OpenAI 兼容供应商新增 `parseReasoningInContent` 模型兼容标志。启用后，正文流中以 `<think>...</think>` 包裹的推理内容会被提取并作为思考增量输出，而不再作为普通文本。
+  - 流式解析器能正确处理跨多个 SSE 分块的标签，并在流结束时将残留的不完整标签按字面文本处理。
 
-- 将约 1000 行内嵌仪表板 HTML 从 `internal/stats/dashboard.go` 提取至独立的 `internal/stats/dashboard.html` 文件，启动时通过 `go:embed` 加载。
-- 每次 LLM 调用后 agent loop 自动记录统计数据。stats 服务器启动时调用 `session.ApplyMigrations()` 确保 `request_stats` 表存在。
-- 更新火山引擎 provider：新增 `agentplan` 和 `codingplan` 供应商，统一 gitee/moark 适配器，移除 `seed` 供应商。
-- PyPI 构建新增 venv 隔离（`.venv-build`），使构建脱离系统 Python。
-
-## v1.1.56
-
-### ✨ 新功能
+- **Auth V2 设置追踪**
+  - 为 `ProviderConfig` 和 `ModelConfig` 新增 `fieldSet` 字段追踪，通过自定义 `UnmarshalJSON` 实现对 JSON 显式设置字段的检测，支持 auth V2 合并逻辑。
+  - 自定义 `Settings.UnmarshalJSON` 处理映射风格的 `providers` 键，无需修改结构体字段。
 
 - **项目级 Bash 自动审批规则**
   - `allow.json` 新增 `bashCommands`（精确匹配）和 `bashPrefixes`（前缀匹配），支持在 agent 模式下为项目配置 bash 自动审批。
@@ -59,60 +56,15 @@
 
 ### 🔧 改进
 
+- 将约 1000 行内嵌仪表板 HTML 从 `internal/stats/dashboard.go` 提取至独立的 `internal/stats/dashboard.html` 文件，启动时通过 `go:embed` 加载。
+- 每次 LLM 调用后 agent loop 自动记录统计数据。stats 服务器启动时调用 `session.ApplyMigrations()` 确保 `request_stats` 表存在。
+- 更新火山引擎 provider：新增 `agentplan` 和 `codingplan` 供应商，统一 gitee/moark 适配器，移除 `seed` 供应商。
+- PyPI 构建新增 venv 隔离（`.venv-build`），使构建脱离系统 Python。
 - 抽取 `bashCommandArg()` 辅助函数，在审批路径中统一支持 `command` 和 `cmd` 两种参数键名。
 - 将 TUI Esc 处理重构为 `abortPendingRequest()`，正确清理审批和问题状态。
 - 修复 auth 对话框切换视图时 `ParamField` / `ParamFieldKey` 残留问题；切换和子菜单不再残留输入模式。
-- Makefile 新增 PyPI 构建 venv 隔离（`.venv-build`），使 PyPI 构建脱离系统 Python。
-- 更新 PyPI README 为完整功能文档，版本升级至 `v1.1.55`。
-
-## v1.1.55
-
-### ✨ 新功能
-
-- **TUI 会话选择器与延迟创建会话**
-  - `/sessions` 现在会打开交互式选择框，支持方向键上下选择、回车切换、`n` 新建会话、`d` 删除会话。原有 `/sessions ls`、`/sessions set <id>`、`/sessions clear`、`/sessions del <id>` 命令仍然保留。
-  - TUI 启动时不再立即创建空会话；只有在用户第一次发送消息时才初始化新会话。`--continue`、`--resume`、`--session` 和 `/sessions set` 仍会绑定已有会话。
-  - 在 TUI 中继续或切换会话时，现在会把加载到的会话历史打印到正常终端 scrollback 中，与启动时展示历史的行为保持一致。
-
-- **OpenAI 兼容模型的内联 `<think>` 推理**
-  - 为 OpenAI 兼容供应商新增 `parseReasoningInContent` 模型兼容标志。启用后，正文流中以 `<think>...</think>` 包裹的推理内容会被提取并作为思考增量输出，而不再作为普通文本。
-  - 流式解析器能正确处理跨多个 SSE 分块的标签，并在流结束时将残留的不完整标签按字面文本处理。
-
-- **统计面板 CLI 模式**
-  - 新增 `vibecoding stats --cli` 参数，可直接在终端中打印使用统计，无需启动 Web 面板。
-  - 显示总览（token、请求数、费用、时长）、按厂商分类统计、按模型分类统计及最近 10 条请求。
-
-- **仪表板 HTML 文件分离**
-  - 将约 1000 行内嵌仪表板 HTML 从 `internal/stats/dashboard.go` 提取至独立的 `internal/stats/dashboard.html` 文件，启动时通过 `http.FS` 加载。
-
-- **Auth V2 设置追踪**
-  - 为 `ProviderConfig` 和 `ModelConfig` 新增 `fieldSet` 字段追踪，通过自定义 `UnmarshalJSON` 实现对 JSON 显式设置字段的检测，支持 auth V2 合并逻辑。
-  - 自定义 `Settings.UnmarshalJSON` 处理映射风格的 `providers` 键，无需修改结构体字段。
-
-- **会话设置改进**
-  - TUI 启动时不再在非打印模式下自动创建空会话；新会话延迟至用户第一条消息时才初始化。
-  - `--continue` 现在在打印模式下也能正常工作。
-
-- **LongCat 厂商支持**
-  - 新增 `longcat` 厂商适配器，支持 OpenAI 兼容协议（`https://api.longcat.chat/openai`）与 Anthropic 兼容协议（`https://api.longcat.chat/anthropic`）两种接入方式。
-  - 默认设置中注册了两个内置 provider：`longcat`（OpenAI 协议，`LONGCAT_API_KEY`）与 `longcat-anthropic`（Anthropic 协议，`LONGCAT_ANTHROPIC_API_KEY`）。
-  - 默认模型 `LongCat-2.0`：上下文长度 1M，最大输出长度 128K Tokens。
-  - TUI 授权对话框中，在 `longcat` 厂商下提供 OpenAI / Anthropic 两种 BaseURL 的选择。
-
-- **统计面板：协议与厂商分离**
-  - 统计面板中的「Provider」列已按语义拆分为**厂商**（公司名称）和**协议**（API 协议类型，如 `openai-chat`、`anthropic-messages`、`google-gemini`）。
-  - 新增 `Provider.API()` 接口方法，在 `request_stats` 中同时记录协议类型与厂商名称。
-  - 新增厂商与协议筛选下拉框；饼图与表格现在同时展示两个维度。
-  - 数据库迁移 006 为 `request_stats` 表添加 `protocol` 列（已有数据回填为空字符串）。
-
-### 🔧 改进
-
 - 修复默认 provider 配置中模型切片的缩进问题。
 - 新增 auth 对话框和配置字段追踪的测试。
-
-### 📝 文档
-
-- 更新 CLI 参考和会话文档（中/英文）。
 
 ## v1.1.54
 

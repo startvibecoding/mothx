@@ -1,7 +1,7 @@
 # Changelog
 
 
-## v1.1.57
+## v1.1.56
 
 ### ✨ Features
 
@@ -30,16 +30,13 @@
   - Default model `LongCat-2.0`: 1M context window, 128K max output tokens.
   - TUI auth dialog offers selectable base URLs for OpenAI vs Anthropic format under the `longcat` provider.
 
-### 🔧 Improvements
+- **Inline `<think>` Reasoning for OpenAI-Compatible Models**
+  - Added a `parseReasoningInContent` model compat flag for OpenAI-compatible providers. When enabled, reasoning emitted inline in the content stream and wrapped in `<think>...</think>` tags is extracted and surfaced as thinking deltas instead of regular text.
+  - The streaming parser correctly handles tags split across multiple SSE chunks and treats dangling partial tags as literal text at stream end.
 
-- Extracted ~1000 lines of embedded dashboard HTML from `internal/stats/dashboard.go` into `internal/stats/dashboard.html`, loaded via `go:embed`.
-- Stats are recorded automatically by the agent loop after every LLM call. The stats server calls `session.ApplyMigrations()` on open to ensure the `request_stats` table exists.
-- Updated Volcengine provider: added `agentplan` and `codingplan` vendors, unified gitee/moark adapters, and removed the `seed` vendor.
-- Updated PyPI build with venv isolation (`.venv-build`) to decouple PyPI builds from system Python.
-
-## v1.1.56
-
-### ✨ Features
+- **Auth V2 Settings Tracking**
+  - Added `fieldSet` tracking to `ProviderConfig` and `ModelConfig` via custom `UnmarshalJSON` implementations, enabling detection of explicitly set JSON fields for auth V2 merge behavior.
+  - Custom `Settings.UnmarshalJSON` handles the map-style `providers` key without requiring struct field changes.
 
 - **Project-Level Bash Auto-Approval Rules**
   - `allow.json` now supports `bashCommands` (exact match) and `bashPrefixes` (prefix match) for project-level bash auto-approval in agent mode.
@@ -59,60 +56,15 @@
 
 ### 🔧 Improvements
 
+- Extracted ~1000 lines of embedded dashboard HTML from `internal/stats/dashboard.go` into `internal/stats/dashboard.html`, loaded via `go:embed`.
+- Stats are recorded automatically by the agent loop after every LLM call. The stats server calls `session.ApplyMigrations()` on open to ensure the `request_stats` table exists.
+- Updated Volcengine provider: added `agentplan` and `codingplan` vendors, unified gitee/moark adapters, and removed the `seed` vendor.
+- Updated PyPI build with venv isolation (`.venv-build`) to decouple PyPI builds from system Python.
 - Extracted `bashCommandArg()` helper to support both `command` and `cmd` argument keys consistently across the approval path.
 - Refactored TUI Esc handling into `abortPendingRequest()` to properly clean up approval and question state.
 - Fixed stale `ParamField` / `ParamFieldKey` carry-over when navigating auth dialog views; toggles and submenus no longer leave input mode active.
-- Added PyPI build venv isolation (`.venv-build`) to `Makefile`, decoupling PyPI builds from system Python.
-- Updated PyPI README with full feature documentation and `v1.1.55` version bump.
-
-## v1.1.55
-
-### ✨ Features
-
-- **TUI Session Picker and Lazy Session Creation**
-  - `/sessions` now opens an interactive picker with Up/Down navigation, Enter-to-switch, `n` for a new session, and `d` for delete. Existing `/sessions ls`, `/sessions set <id>`, `/sessions clear`, and `/sessions del <id>` commands remain available.
-  - TUI startup no longer creates an empty session immediately. A new session is initialized only when the first user message is sent, while `--continue`, `--resume`, `--session`, and `/sessions set` still bind to existing sessions.
-  - Continuing or switching sessions in the TUI now prints the loaded session history into normal terminal scrollback, matching the startup history display behavior.
-
-- **Inline `<think>` Reasoning for OpenAI-Compatible Models**
-  - Added a `parseReasoningInContent` model compat flag for OpenAI-compatible providers. When enabled, reasoning emitted inline in the content stream and wrapped in `<think>...</think>` tags is extracted and surfaced as thinking deltas instead of regular text.
-  - The streaming parser correctly handles tags split across multiple SSE chunks and treats dangling partial tags as literal text at stream end.
-
-- **Stats CLI Mode**
-  - Added `vibecoding stats --cli` flag to print usage statistics directly in the terminal instead of starting the web dashboard.
-  - Prints summary (total tokens, requests, cost, duration), per-provider breakdown, per-model breakdown, and 10 most recent requests.
-
-- **Dashboard HTML Extraction**
-  - Extracted ~1000 lines of embedded dashboard HTML from `internal/stats/dashboard.go` into a separate `internal/stats/dashboard.html` file, loaded at startup via `http.FS`.
-
-- **Auth V2 Settings Tracking**
-  - Added `fieldSet` tracking to `ProviderConfig` and `ModelConfig` via custom `UnmarshalJSON` implementations, enabling detection of explicitly set JSON fields for auth V2 merge behavior.
-  - Custom `Settings.UnmarshalJSON` handles the map-style `providers` key without requiring struct field changes.
-
-- **Session Setup Improvements**
-  - TUI startup no longer auto-creates sessions in non-print mode; a new session is deferred until the first user message.
-  - `--continue` now works in print mode as well.
-
-- **LongCat Provider Support**
-  - Added the `longcat` vendor adapter, supporting both OpenAI-compatible (`https://api.longcat.chat/openai`) and Anthropic-compatible (`https://api.longcat.chat/anthropic`) endpoints.
-  - Registered two default providers in settings: `longcat` (OpenAI format, `LONGCAT_API_KEY`) and `longcat-anthropic` (Anthropic format, `LONGCAT_ANTHROPIC_API_KEY`).
-  - Default model `LongCat-2.0`: 1M context window, 128K max output tokens.
-  - TUI auth dialog offers selectable base URLs for OpenAI vs Anthropic format under the `longcat` provider.
-
-- **Stats Dashboard: Protocol + Vendor Split**
-  - The "Provider" column in the stats dashboard has been semantically split into **Vendor** (the company/provider name) and **Protocol** (the API protocol, e.g. `openai-chat`, `anthropic-messages`, `google-gemini`).
-  - Added `Provider.API()` to the provider interface so the protocol type is recorded alongside the vendor name in `request_stats`.
-  - New filter dropdowns for Vendor and Protocol; pie chart and table now show both dimensions.
-  - Schema migration 006 adds the `protocol` column to `request_stats` (backfilled with empty string for existing rows).
-
-### 🔧 Improvements
-
 - Fixed indentation in default provider config model slices.
 - Added tests for auth dialog and config field tracking.
-
-### 📝 Docs
-
-- Updated CLI reference and sessions docs (en/zh).
 
 ## v1.1.54
 
