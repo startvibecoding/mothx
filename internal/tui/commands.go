@@ -10,9 +10,12 @@ import (
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	browserfeature "github.com/startvibecoding/vibecoding/internal/browser"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/cron"
+	"github.com/startvibecoding/vibecoding/internal/skills"
 	"github.com/startvibecoding/vibecoding/internal/systeminit"
+	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/workflow"
 )
 
@@ -125,6 +128,91 @@ func (a *App) handleDelegateCommand(parts []string) {
 	default:
 		a.addCommandError("Usage: /delegate [on|off|status]")
 	}
+}
+
+func (a *App) handleBrowserCommand(parts []string) {
+	if len(parts) > 2 {
+		a.addCommandError("Usage: /browser [on|off|status]")
+		return
+	}
+	sub := "status"
+	if len(parts) == 2 {
+		sub = strings.ToLower(parts[1])
+	}
+	switch sub {
+	case "status":
+		state := "OFF"
+		if a.browserEnabled && browserfeature.IsToolRegistered(a.registry) {
+			state = "ON"
+		}
+		a.addCommandStatus(fmt.Sprintf("Browser tool: %s", state), "Usage: /browser [on|off|status]")
+	case "on":
+		a.enableBrowserTool()
+	case "off":
+		a.disableBrowserTool()
+	default:
+		a.addCommandError("Usage: /browser [on|off|status]")
+	}
+}
+
+func (a *App) enableBrowserTool() {
+	if a.isThinking {
+		a.addCommandError("Cannot change browser tool while the agent is running.")
+		return
+	}
+	if a.registry == nil {
+		a.addCommandError("Tool registry is not initialized.")
+		return
+	}
+	cwd := a.currentCwd()
+	path, created, err := browserfeature.EnsureProjectSkill(cwd)
+	if err != nil {
+		a.addCommandError(fmt.Sprintf("Failed to create browser skill: %v", err))
+		return
+	}
+
+	globalSkillsDir := ""
+	if a.settings != nil {
+		globalSkillsDir = a.settings.GetGlobalSkillsDir()
+	}
+	a.skillsMgr = skills.NewManagerWithProjectDirs(globalSkillsDir, skills.ProjectSkillDirs(cwd))
+	if err := a.skillsMgr.Load(); err != nil {
+		a.addCommandError(fmt.Sprintf("Failed to load skills: %v", err))
+		return
+	}
+
+	a.registry.Register(tools.NewSkillRefTool(a.skillsMgr))
+	browserfeature.RegisterTool(a.registry)
+	a.browserEnabled = true
+	a.browserSkillInBase = false
+	a.browserSkillContext = a.skillsMgr.BuildSkillContext(browserfeature.SkillName)
+	a.markBuiltinActiveSkills()
+	a.rebuildExtraContext()
+	a.resetAgent(fmt.Errorf("browser tool changed"))
+
+	action := "Using browser skill"
+	if created {
+		action = "Created browser skill"
+	}
+	a.addCommandStatus("Browser tool: ON", fmt.Sprintf("%s: %s", action, path))
+}
+
+func (a *App) disableBrowserTool() {
+	if a.isThinking {
+		a.addCommandError("Cannot change browser tool while the agent is running.")
+		return
+	}
+	browserfeature.RemoveTool(a.registry)
+	a.browserEnabled = false
+	delete(a.activeSkills, browserfeature.SkillName)
+	if a.browserSkillInBase && a.browserSkillContext != "" {
+		a.baseExtraContext = strings.Replace(a.baseExtraContext, a.browserSkillContext, "", 1)
+	}
+	a.browserSkillInBase = false
+	a.browserSkillContext = ""
+	a.rebuildExtraContext()
+	a.resetAgent(fmt.Errorf("browser tool changed"))
+	a.addCommandStatus("Browser tool: OFF")
 }
 
 // handleAllowEditPathCommand manages the auto-edit path whitelist (allow.json).
@@ -638,7 +726,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.pasteCounter = 0
 		a.activeSkills = make(map[string]string)
 		a.markBuiltinActiveSkills()
-		a.extraContext = a.baseExtraContext
+		a.rebuildExtraContext()
 		a.updateViewportContent()
 		a.printedMessageIdx = make(map[int]bool)
 		a.addCommandStatus("✅ Conversation cleared")
@@ -655,6 +743,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleAgentCommand(parts)
 	case "/delegate":
 		a.handleDelegateCommand(parts)
+	case "/browser":
+		a.handleBrowserCommand(parts)
 	case "/alloweditpath":
 		a.handleAllowEditPathCommand(parts)
 	case "/allowautoedit":
@@ -746,17 +836,21 @@ func (a *App) rebuildExtraContext() {
 }
 
 func (a *App) markBuiltinActiveSkills() {
-	if !a.workflows || a.skillsMgr == nil {
-		return
-	}
-	if a.skillsMgr.Get(workflow.SkillName) == nil {
+	if a.skillsMgr == nil {
 		return
 	}
 	if a.activeSkills == nil {
 		a.activeSkills = make(map[string]string)
 	}
-	if _, ok := a.activeSkills[workflow.SkillName]; !ok {
+	if a.workflows && a.skillsMgr.Get(workflow.SkillName) != nil {
 		a.activeSkills[workflow.SkillName] = ""
+	}
+	if a.browserEnabled && a.skillsMgr.Get(browserfeature.SkillName) != nil {
+		if a.browserSkillInBase {
+			a.activeSkills[browserfeature.SkillName] = ""
+		} else {
+			a.activeSkills[browserfeature.SkillName] = a.skillsMgr.BuildSkillContext(browserfeature.SkillName)
+		}
 	}
 }
 

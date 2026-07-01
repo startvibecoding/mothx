@@ -43,6 +43,17 @@ const (
 	authViewAddModelID
 	authViewAddModelName
 	authViewSettingsDetail
+	authViewSettingsRoot
+	authViewSettingsDefaults
+	authViewSettingsBehavior
+	authViewSettingsWebSearch
+	authViewSettingsContextFiles
+	authViewSettingsStatusLine
+	authViewSettingsCompaction
+	authViewSettingsSandbox
+	authViewSettingsPaths
+	authViewSettingsRetry
+	authViewSettingsApproval
 )
 
 type authOption struct {
@@ -100,8 +111,14 @@ func (a *App) closeAuthDialog() {
 	a.scheduleRender()
 }
 
+func (a *App) clearAuthParamField() {
+	a.auth.ParamField = ""
+	a.auth.ParamFieldKey = ""
+}
+
 func (a *App) pushAuthView(v authView) {
 	a.auth.Stack = append(a.auth.Stack, a.auth.View)
+	a.clearAuthParamField()
 	a.auth.View = v
 	a.auth.Cursor = 0
 	a.auth.Error = ""
@@ -115,6 +132,7 @@ func (a *App) popAuthView() {
 	}
 	last := a.auth.Stack[len(a.auth.Stack)-1]
 	a.auth.Stack = a.auth.Stack[:len(a.auth.Stack)-1]
+	a.clearAuthParamField()
 	a.auth.View = last
 	a.auth.Cursor = 0
 	a.auth.Error = ""
@@ -135,6 +153,11 @@ func (a *App) prepareAuthInput() {
 	case authViewModelBasics, authViewModelCapabilities,
 		authViewModelSampling, authViewModelCost, authViewModelCompat:
 		a.prepareModelInput()
+	case authViewSettingsDefaults, authViewSettingsBehavior, authViewSettingsWebSearch,
+		authViewSettingsContextFiles, authViewSettingsStatusLine, authViewSettingsCompaction,
+		authViewSettingsSandbox, authViewSettingsPaths, authViewSettingsRetry,
+		authViewSettingsApproval:
+		a.prepareAuthSettingsInput()
 	default:
 		a.prepareAuthProviderInput()
 	}
@@ -239,6 +262,11 @@ func (a *App) authInputActive() bool {
 	case authViewModelBasics, authViewModelCapabilities, authViewModelSampling,
 		authViewModelCost, authViewModelCompat:
 		return a.auth.ParamField != ""
+	case authViewSettingsDefaults, authViewSettingsBehavior, authViewSettingsWebSearch,
+		authViewSettingsContextFiles, authViewSettingsStatusLine, authViewSettingsCompaction,
+		authViewSettingsSandbox, authViewSettingsPaths, authViewSettingsRetry,
+		authViewSettingsApproval:
+		return a.auth.ParamField != ""
 	default:
 		return false
 	}
@@ -341,6 +369,13 @@ func (a *App) selectAuthOption() {
 		a.jumpAuthEdit(opt.Value)
 	case authViewSettingsDetail:
 		a.selectSettingsDetail(opt.Value)
+	case authViewSettingsRoot:
+		a.selectSettingsRoot(opt.Value)
+	case authViewSettingsDefaults, authViewSettingsBehavior, authViewSettingsWebSearch,
+		authViewSettingsContextFiles, authViewSettingsStatusLine, authViewSettingsCompaction,
+		authViewSettingsSandbox, authViewSettingsPaths, authViewSettingsRetry,
+		authViewSettingsApproval:
+		a.selectSettingsFieldValue(opt.Value)
 	}
 	a.scheduleRender()
 }
@@ -352,6 +387,7 @@ func (a *App) returnToReviewAfterEdit() bool {
 	a.auth.Stack = nil
 	a.auth.View = authViewReview
 	a.auth.Cursor = 0
+	a.clearAuthParamField()
 	a.auth.Error = ""
 	a.prepareAuthPreview()
 	a.prepareAuthInput()
@@ -476,6 +512,15 @@ func (a *App) submitAuthInput() {
 			return
 		}
 		a.scheduleRender()
+	case authViewSettingsDefaults, authViewSettingsBehavior, authViewSettingsWebSearch,
+		authViewSettingsContextFiles, authViewSettingsStatusLine, authViewSettingsCompaction,
+		authViewSettingsSandbox, authViewSettingsPaths, authViewSettingsRetry,
+		authViewSettingsApproval:
+		if err := a.authSettingsSubmitInput(); err != nil {
+			a.auth.Error = err.Error()
+			return
+		}
+		a.scheduleRender()
 	}
 	a.scheduleRender()
 }
@@ -563,6 +608,13 @@ func (a *App) authOptions() []authOption {
 		return items
 	case authViewSettingsDetail:
 		return a.authSettingsDetailOptions()
+	case authViewSettingsRoot:
+		return a.authSettingsRootOptions()
+	case authViewSettingsDefaults, authViewSettingsBehavior, authViewSettingsWebSearch,
+		authViewSettingsContextFiles, authViewSettingsStatusLine, authViewSettingsCompaction,
+		authViewSettingsSandbox, authViewSettingsPaths, authViewSettingsRetry,
+		authViewSettingsApproval:
+		return a.authSettingsTopLevelOptions(a.auth.View)
 	default:
 		return nil
 	}

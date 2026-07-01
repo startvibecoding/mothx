@@ -347,10 +347,10 @@ func (a *App) authProviderSubmitInput() error {
 			pe.Headers = map[string]string{}
 		}
 		pe.Headers[a.auth.ParamFieldKey] = value
-		a.auth.ParamField = ""
+		a.clearAuthParamField()
 		return nil
 	}
-	a.auth.ParamField = ""
+	a.clearAuthParamField()
 	return nil
 }
 
@@ -405,9 +405,6 @@ func (a *App) selectProviderFieldValue(value string) {
 		a.popAuthView()
 		return
 	}
-	// Set up input for the selected field
-	a.auth.ParamField = value
-	a.auth.ParamFieldKey = ""
 
 	// Special handling for toggle fields
 	switch value {
@@ -441,6 +438,8 @@ func (a *App) selectProviderFieldValue(value string) {
 		return
 	}
 
+	a.auth.ParamField = value
+	a.auth.ParamFieldKey = ""
 	a.prepareAuthProviderInput()
 	a.scheduleRender()
 }

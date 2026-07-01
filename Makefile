@@ -19,6 +19,17 @@ DIST_DIR=dist
 CHECKSUM_FILE=$(DIST_DIR)/checksums.txt
 PYTHON ?= python3
 
+# Python venv for PyPI builds (isolated from system Python)
+PYPI_VENV := $(CURDIR)/pypi/.venv-build
+PYPI_PYTHON := $(PYPI_VENV)/bin/python
+
+# Create venv and install build deps (idempotent — only runs if venv is missing)
+$(PYPI_VENV)/bin/python:
+	@echo "Creating PyPI build venv..."
+	python3 -m venv $(PYPI_VENV)
+	$(PYPI_VENV)/bin/pip install -q --upgrade "setuptools>=77.0.0" build twine
+	@echo "PyPI build deps ready: $(PYPI_VENV)"
+
 # UPX compression (skip for macOS - not supported)
 USE_UPX ?= true
 ifeq ($(shell which upx 2>/dev/null),)
@@ -187,7 +198,7 @@ clean:
 clean-all: clean
 	rm -rf $(DIST_DIR)
 	rm -f npm/*.tgz
-	rm -rf pypi/dist pypi/build pypi/*.egg-info
+	rm -rf pypi/dist pypi/build pypi/*.egg-info $(PYPI_VENV)
 
 # Run
 run: build
@@ -368,11 +379,19 @@ npm-publish: npm-version npm-binaries
 	cd npm && npm publish --tag latest
 
 # PyPI targets
-pypi-version:
+
+# Target-specific variable: use the isolated venv for all PyPI operations
+pypi-version: PYTHON := $(PYPI_PYTHON)
+pypi-packages: PYTHON := $(PYPI_PYTHON)
+pypi-pack: PYTHON := $(PYPI_PYTHON)
+pypi-publish: PYTHON := $(PYPI_PYTHON)
+pypi-publish-pre: PYTHON := $(PYPI_PYTHON)
+
+pypi-version: $(PYPI_VENV)/bin/python
 	PYTHON="$(PYTHON)" ./scripts/sync-pypi-version.sh $(VERSION)
 
 # Build platform-specific wheels
-pypi-packages: build-all
+pypi-packages: build-all $(PYPI_VENV)/bin/python
 	PYTHON="$(PYTHON)" ./scripts/build-pypi-packages.sh
 
 # Pack PyPI wheels
@@ -380,11 +399,11 @@ pypi-pack: pypi-version pypi-packages
 	@echo "Done. Wheels in pypi/dist/"
 
 # Publish PyPI wheels
-pypi-publish: pypi-pack
+pypi-publish: pypi-pack $(PYPI_VENV)/bin/python
 	$(PYTHON) -m twine upload pypi/dist/*.whl
 
 # Publish PyPI pre-release wheels
 pypi-publish-pre:
-	PYTHON="$(PYTHON)" ./scripts/sync-pypi-version.sh $(PRE_VERSION)
-	$(MAKE) pypi-packages VERSION=$(PRE_VERSION)
-	$(PYTHON) -m twine upload pypi/dist/*.whl
+	PYTHON="$(PYPI_PYTHON)" ./scripts/sync-pypi-version.sh $(PRE_VERSION)
+	$(MAKE) pypi-packages VERSION=$(PRE_VERSION) PYTHON=$(PYPI_PYTHON)
+	$(PYPI_PYTHON) -m twine upload pypi/dist/*.whl

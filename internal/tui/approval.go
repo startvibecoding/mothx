@@ -6,8 +6,27 @@ import (
 	"sort"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
 )
+
+type approvalAction int
+
+const (
+	approvalActionApprove approvalAction = iota
+	approvalActionDeny
+	approvalActionAllowCommand
+	approvalActionAllowPrefix
+)
+
+type approvalOption struct {
+	Action      approvalAction
+	Title       string
+	Description string
+}
 
 // showNextApproval pops the next approval request from the queue and displays it.
 func (a *App) showNextApproval() {
@@ -16,6 +35,7 @@ func (a *App) showNextApproval() {
 		a.pendingApprovalID = ""
 		a.currentApproval = pendingApproval{}
 		a.currentApprovalIdx = -1
+		a.approvalCursor = 0
 		return
 	}
 	next := a.approvalQueue[0]
@@ -23,6 +43,7 @@ func (a *App) showNextApproval() {
 	a.currentApproval = next
 	a.pendingApprovalID = next.approvalID
 	a.waitingForApproval = true
+	a.approvalCursor = 0
 
 	a.invalidateToolModalCache()
 	a.currentApprovalIdx = len(a.messages)
@@ -36,19 +57,333 @@ func (a *App) clearApprovalState() {
 	a.pendingApprovalID = ""
 	a.currentApproval = pendingApproval{}
 	a.currentApprovalIdx = -1
+	a.approvalCursor = 0
 	a.approvalQueue = a.approvalQueue[:0]
 }
 
 func (a *App) handleApprovalResponse(approvalID string, approved bool) {
-	if a.currentApproval.agentID != "" && a.agentMgr != nil {
-		if target, ok := a.agentMgr.Get(a.currentApproval.agentID); ok {
-			target.HandleApprovalResponse(approvalID, approved)
+	current := a.currentApproval
+	current.approvalID = approvalID
+	a.handlePendingApprovalResponse(current, approved)
+}
+
+func (a *App) handlePendingApprovalResponse(p pendingApproval, approved bool) {
+	if p.agentID != "" && a.agentMgr != nil {
+		if target, ok := a.agentMgr.Get(p.agentID); ok {
+			target.HandleApprovalResponse(p.approvalID, approved)
 			return
 		}
 	}
 	if a.agent != nil {
-		a.agent.HandleApprovalResponse(approvalID, approved)
+		a.agent.HandleApprovalResponse(p.approvalID, approved)
 	}
+}
+
+func (a *App) handleApprovalKey(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if !a.waitingForApproval {
+		return false, nil
+	}
+	opts := a.approvalOptions()
+	if len(opts) == 0 {
+		return true, nil
+	}
+	if a.approvalCursor < 0 {
+		a.approvalCursor = 0
+	}
+	if a.approvalCursor >= len(opts) {
+		a.approvalCursor = len(opts) - 1
+	}
+
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return false, nil
+	case tea.KeyEsc:
+		return true, a.abortPendingRequest("user pressed Esc")
+	case tea.KeyUp:
+		if a.approvalCursor > 0 {
+			a.approvalCursor--
+			a.scheduleRender()
+		}
+		return true, nil
+	case tea.KeyDown:
+		if a.approvalCursor < len(opts)-1 {
+			a.approvalCursor++
+			a.scheduleRender()
+		}
+		return true, nil
+	case tea.KeyEnter:
+		a.confirmApprovalSelection(opts[a.approvalCursor].Action)
+		return true, nil
+	case tea.KeyRunes:
+		switch strings.ToLower(strings.TrimSpace(string(msg.Runes))) {
+		case "y":
+			a.confirmApprovalSelection(approvalActionApprove)
+			return true, nil
+		case "n":
+			a.confirmApprovalSelection(approvalActionDeny)
+			return true, nil
+		}
+	}
+	return true, nil
+}
+
+func (a *App) confirmApprovalSelection(action approvalAction) {
+	switch action {
+	case approvalActionApprove:
+		a.finishApproval(true, "Approved once", false)
+	case approvalActionDeny:
+		a.finishApproval(false, "Denied", false)
+	case approvalActionAllowCommand:
+		command := a.currentApprovalCommand()
+		if command == "" {
+			a.addCommandError("Cannot save approval rule: missing bash command.")
+			return
+		}
+		if err := a.saveApprovalBashRule(command, ""); err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to save allow.json: %v", err))
+			return
+		}
+		a.finishApproval(true, "Approved and remembered this command for this project", true)
+	case approvalActionAllowPrefix:
+		prefix := suggestApprovalCommandPrefix(a.currentApprovalCommand())
+		if prefix == "" {
+			a.addCommandError("Cannot save approval rule: missing bash command prefix.")
+			return
+		}
+		if err := a.saveApprovalBashRule("", prefix); err != nil {
+			a.addCommandError(fmt.Sprintf("Failed to save allow.json: %v", err))
+			return
+		}
+		a.finishApproval(true, fmt.Sprintf("Approved and remembered project command prefix: %s", prefix), true)
+	}
+}
+
+func (a *App) saveApprovalBashRule(command string, prefix string) error {
+	if a.allow == nil {
+		a.allow = config.LoadAllow()
+	}
+	addedCommand := false
+	addedPrefix := false
+	if command != "" {
+		addedCommand = a.allow.AddBashCommand(command)
+	}
+	if prefix != "" {
+		addedPrefix = a.allow.AddBashPrefix(prefix)
+	}
+	if err := a.allow.SaveProject(); err != nil {
+		if addedCommand {
+			a.allow.RemoveBashCommand(command)
+		}
+		if addedPrefix {
+			a.allow.RemoveBashPrefix(prefix)
+		}
+		return err
+	}
+	return nil
+}
+
+func (a *App) finishApproval(approved bool, label string, approveQueuedAllowed bool) {
+	approvalIdx := a.currentApprovalIdx
+	if approvalIdx >= 0 {
+		a.printMessageOnce(approvalIdx)
+	}
+	a.handleApprovalResponse(a.pendingApprovalID, approved)
+	if approved {
+		a.addMessage(statusStyle.Render("✅ " + label))
+	} else {
+		a.addMessage(statusStyle.Render("❌ " + label))
+	}
+	if approveQueuedAllowed {
+		if count := a.approveQueuedAllowedBashApprovals(); count > 0 {
+			a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Approved %d queued matching command(s)", count)))
+		}
+	}
+	if len(a.approvalQueue) > 0 {
+		a.showNextApproval()
+	} else {
+		a.waitingForApproval = false
+		a.pendingApprovalID = ""
+		a.currentApproval = pendingApproval{}
+		a.currentApprovalIdx = -1
+		a.approvalCursor = 0
+	}
+	a.input.Reset()
+	a.resetInputHistoryNavigation()
+	a.clearQueuedInput()
+	a.scheduleRender()
+}
+
+func (a *App) approveQueuedAllowedBashApprovals() int {
+	if a.allow == nil || len(a.approvalQueue) == 0 {
+		return 0
+	}
+	kept := a.approvalQueue[:0]
+	approved := 0
+	for _, p := range a.approvalQueue {
+		if p.toolName == "bash" && a.allow.MatchBashCommand(approvalCommand(p.args)) {
+			a.handlePendingApprovalResponse(p, true)
+			approved++
+			continue
+		}
+		kept = append(kept, p)
+	}
+	a.approvalQueue = kept
+	return approved
+}
+
+func (a *App) hasPendingApproval(p pendingApproval) bool {
+	if p.approvalID == "" {
+		return false
+	}
+	if a.waitingForApproval && a.currentApproval.approvalID == p.approvalID && a.currentApproval.agentID == p.agentID {
+		return true
+	}
+	for _, queued := range a.approvalQueue {
+		if queued.approvalID == p.approvalID && queued.agentID == p.agentID {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) approvalOptions() []approvalOption {
+	opts := []approvalOption{
+		{Action: approvalActionApprove, Title: "Approve Once", Description: "Run only this pending tool call"},
+		{Action: approvalActionDeny, Title: "Deny", Description: "Reject this pending tool call"},
+	}
+	command := a.currentApprovalCommand()
+	if a.currentApproval.toolName != "bash" || strings.TrimSpace(command) == "" {
+		return opts
+	}
+	opts = append(opts,
+		approvalOption{
+			Action:      approvalActionAllowCommand,
+			Title:       "Always Allow Exact Command",
+			Description: "Project rule: " + truncatePlain(command, 96),
+		},
+		approvalOption{
+			Action:      approvalActionAllowPrefix,
+			Title:       "Always Allow Command Prefix",
+			Description: "Project rule: " + truncatePlain(suggestApprovalCommandPrefix(command), 96),
+		},
+	)
+	return opts
+}
+
+func (a *App) currentApprovalCommand() string {
+	return approvalCommand(a.currentApproval.args)
+}
+
+func approvalCommand(args map[string]any) string {
+	for _, key := range []string{"command", "cmd"} {
+		if command, ok := args[key].(string); ok {
+			command = strings.TrimSpace(command)
+			if command != "" {
+				return command
+			}
+		}
+	}
+	return ""
+}
+
+func suggestApprovalCommandPrefix(command string) string {
+	command = strings.TrimLeft(command, " \t\r\n")
+	fields := strings.Fields(command)
+	if len(fields) == 0 {
+		return ""
+	}
+	want := 2
+	if len(fields) < want {
+		want = len(fields)
+	}
+	prefixText := strings.Join(fields[:want], " ")
+	idx := strings.Index(command, prefixText)
+	if idx >= 0 {
+		prefixText = command[idx : idx+len(prefixText)]
+	}
+	if len(command) > len(prefixText) && command[len(prefixText)] == ' ' {
+		return prefixText + " "
+	}
+	return prefixText
+}
+
+func (a *App) renderApprovalDialog() string {
+	width := a.width - 4
+	if width < 50 {
+		width = 50
+	}
+	if width > 100 {
+		width = 100
+	}
+	innerWidth := width - 4
+	if innerWidth < 20 {
+		innerWidth = 20
+	}
+
+	title := fmt.Sprintf("Approval Required: %s", a.currentApproval.toolName)
+	if len(a.approvalQueue) > 0 {
+		title += fmt.Sprintf(" (%d more pending)", len(a.approvalQueue))
+	}
+	lines := []string{warningStyle.Render(title), ""}
+	if detail := a.renderApprovalDialogDetails(innerWidth); detail != "" {
+		lines = append(lines, detail, "")
+	}
+
+	opts := a.approvalOptions()
+	for i, opt := range opts {
+		cursor := "  "
+		style := statusStyle
+		if i == a.approvalCursor {
+			cursor = "> "
+			style = warningStyle
+		}
+		lines = append(lines, style.Render(cursor+opt.Title))
+		if opt.Description != "" {
+			desc := renderutil.WrapPlainText(opt.Description, innerWidth-4)
+			lines = append(lines, indentLines(statusStyle.Render(desc), "    "))
+		}
+	}
+	lines = append(lines, "", statusStyle.Render("Enter select · ↑/↓ move · y approve · n deny · Esc abort"))
+	return authDialogStyle.Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func (a *App) renderApprovalDialogDetails(width int) string {
+	switch a.currentApproval.toolName {
+	case "bash":
+		return renderBashApprovalDialogDetails(a.currentApproval.args, width)
+	case "edit":
+		return renderWrappedApprovalDetail(formatEditApprovalArgs(a.currentApproval.args), width)
+	case "write":
+		return renderWrappedApprovalDetail(formatWriteApprovalArgs(a.currentApproval.args), width)
+	default:
+		return renderWrappedApprovalDetail(formatGenericApprovalArgs(a.currentApproval.args), width)
+	}
+}
+
+func renderBashApprovalDialogDetails(args map[string]any, width int) string {
+	var lines []string
+	if command := approvalCommand(args); command != "" {
+		lines = append(lines, statusStyle.Render("Command:"))
+		lines = append(lines, indentLines(renderutil.WrapPlainText(command, width-2), "  "))
+	}
+	if timeout, ok := args["timeout"]; ok {
+		lines = append(lines, fmt.Sprintf("Timeout: %v", timeout))
+	}
+	if async, ok := args["async"]; ok {
+		lines = append(lines, fmt.Sprintf("Async: %v", async))
+	}
+	if len(lines) == 0 {
+		return renderWrappedApprovalDetail(formatGenericApprovalArgs(args), width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderWrappedApprovalDetail(detail string, width int) string {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return ""
+	}
+	return renderutil.WrapPlainText(detail, width)
 }
 
 // showNextQuestion pops the next question request from the queue and displays it.
@@ -104,8 +439,7 @@ func (a *App) renderApprovalRequest(next pendingApproval, remaining int) string 
 		sb.WriteByte('\n')
 	}
 
-	sb.WriteString(warningStyle.Render("Approve? "))
-	sb.WriteString(statusStyle.Render("y = approve, n = deny"))
+	sb.WriteString(statusStyle.Render("Choose in the approval dialog (↑/↓, Enter, y/n)."))
 	return sb.String()
 }
 
@@ -124,7 +458,7 @@ func formatApprovalArgs(toolName string, args map[string]any) string {
 
 func formatBashApprovalArgs(args map[string]any) string {
 	var lines []string
-	if command, ok := args["command"].(string); ok && command != "" {
+	if command := approvalCommand(args); command != "" {
 		lines = append(lines, statusStyle.Render("command:"))
 		lines = append(lines, indentLines(command, "  "))
 	}

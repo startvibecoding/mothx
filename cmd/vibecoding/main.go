@@ -16,6 +16,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/a2a"
 	"github.com/startvibecoding/vibecoding/internal/acp"
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	browserfeature "github.com/startvibecoding/vibecoding/internal/browser"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
@@ -74,6 +75,7 @@ type cliFlags struct {
 	delegate        bool
 	workflows       bool
 	webSearch       bool
+	browser         bool
 	initGateway     bool
 	force           bool
 	enableA2AMaster bool
@@ -192,6 +194,7 @@ func registerSharedExecutionFlags(fs *pflag.FlagSet, flags *cliFlags, webSearchU
 	fs.BoolVar(&flags.delegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
 	fs.BoolVar(&flags.workflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
 	fs.BoolVar(&flags.webSearch, "web-search", false, webSearchUsage)
+	fs.BoolVar(&flags.browser, "browser", false, "Enable browser automation tool")
 }
 
 func (f *cliFlags) runOptions() runOptions {
@@ -211,6 +214,7 @@ func (f *cliFlags) runOptions() runOptions {
 		delegate:        f.delegate,
 		workflows:       f.workflows,
 		webSearch:       f.webSearch,
+		browser:         f.browser,
 		enableA2AMaster: f.enableA2AMaster,
 	}
 }
@@ -228,6 +232,7 @@ func (f *cliFlags) acpOptions() acp.RunOptions {
 		Delegate:   f.delegate,
 		Workflows:  f.workflows,
 		WebSearch:  f.webSearch,
+		Browser:    f.browser,
 	}
 }
 
@@ -286,6 +291,7 @@ type runOptions struct {
 	delegate        bool
 	workflows       bool
 	webSearch       bool
+	browser         bool
 	enableA2AMaster bool
 	systemInit      bool
 	systemInitExtra string
@@ -502,6 +508,15 @@ func loadSkills(cwd string, settings *config.Settings, opts runOptions) (skillSe
 			fmt.Fprintf(os.Stderr, "Created workflow skill: %s\n", path)
 		}
 	}
+	if opts.browser {
+		path, created, err := browserfeature.EnsureProjectSkill(cwd)
+		if err != nil {
+			return skillSetup{}, fmt.Errorf("create browser skill: %w", err)
+		}
+		if opts.verbose && created {
+			fmt.Fprintf(os.Stderr, "Created browser skill: %s\n", path)
+		}
+	}
 
 	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	if err := skillsMgr.Load(); err != nil && opts.verbose {
@@ -510,6 +525,9 @@ func loadSkills(cwd string, settings *config.Settings, opts runOptions) (skillSe
 	skillsContext := skillsMgr.BuildAllSkillsContext()
 	if opts.workflows {
 		skillsContext += skillsMgr.BuildSkillContext(workflow.SkillName)
+	}
+	if opts.browser {
+		skillsContext += skillsMgr.BuildSkillContext(browserfeature.SkillName)
 	}
 	if opts.verbose && skillsContext != "" {
 		fmt.Fprintf(os.Stderr, "Loaded %d skills\n", len(skillsMgr.List()))
@@ -623,6 +641,9 @@ func setupToolRegistry(cwd string, settings *config.Settings, opts runOptions, s
 	}
 	if skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(skillsMgr))
+	}
+	if opts.browser {
+		browserfeature.RegisterTool(registry)
 	}
 
 	mcpServers, err := mcp.LoadConfiguredServers(cwd)
@@ -773,6 +794,7 @@ func runInteractive(cfg runInteractiveConfig) error {
 	if initialMsg := buildInitialMessage(cfg); initialMsg != "" {
 		app.SetInitialMessage(initialMsg)
 	}
+	app.SetBrowserEnabled(cfg.opts.browser, cfg.opts.browser)
 	p2 := tea.NewProgram(app, teaProgramOptions()...)
 	app.SetProgram(p2)
 	if _, err := p2.Run(); err != nil {

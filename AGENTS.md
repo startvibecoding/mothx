@@ -48,6 +48,14 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - Sessions are stored in SQLite with parent/child relationships. CLI/Gateway sessions use a single root `sessions.db` database (where all session metadata and message entries live, with dynamically computed virtual `.db` paths for listing/switching); Hermes uses the same `sessions.db` database and additionally writes physical `active.db` handle files in per-user directories on disk.
 - Schema migrations are managed via `internal/session/migrations.go`. A `schema_migrations` table tracks which migrations have been applied. `ApplyMigrations(db)` runs any pending migrations and is called on every DB open from both `session.withDB()` and `stats.Open()`. To add a schema change, append a new entry to the `migrations` slice — do not use `CREATE TABLE IF NOT EXISTS` directly in new code.
 
+### Settings Configuration
+
+- `settings.json` schema lives in `internal/config/settings.go`. Do not change existing field meanings when adding UI or provider behavior.
+- TUI `/settings` is the central editor for top-level `settings.json` groups. Provider/model configuration is one branch under that menu, not the whole command.
+- When writing a global top-level setting from the TUI, prefer `config.SaveGlobalSettingsPatch()` so only the affected JSON key is updated. Do not save a sparse `Settings` object with `SaveGlobalSettings()` for top-level edits, because non-`omitempty` struct fields can expand defaults and accidentally override unset config.
+- `/settings` provider edits should not change `defaultProvider` / `defaultModel` by default. Use the Defaults picker or an explicit "Set as Default" path for default model changes.
+- Approval bash whitelist/blacklist entries are command prefixes; trailing spaces can be meaningful (for example `go `). Preserve them and avoid comma-based trimming when editing those lists.
+
 ### Gateway Mode
 
 - `internal/gateway/` implements an HTTP server exposing a standard OpenAI Chat Completions API.
@@ -147,6 +155,7 @@ When changing code, prefer the least risky approach that satisfies the request.
 - Do not route completed transcript scrollback output through `tea.Println(...)` sent via `Program.Send`; that puts printing back into the update loop and can swallow or delay transcript output.
 - Keep only active streaming content in the managed Bubble Tea view. Completed user/assistant/tool/status blocks should leave the live view after they are printed so mouse scrolling and terminal selection use the terminal's own scrollback.
 - Show a visible tool "running" line before the final result line, rather than overwriting a single tool entry in place.
+- In auth/settings dialogs, clear stale `ParamField` / `ParamFieldKey` when changing views. Menu navigation and toggle fields must not leave input mode active for the next view.
 
 ## Docs and Release Notes
 

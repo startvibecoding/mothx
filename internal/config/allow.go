@@ -14,13 +14,17 @@ import (
 //   - AutoEdit: when true, write/edit tools auto-approve in agent mode.
 //   - EditPaths: glob whitelist of paths whose write/edit auto-approve in agent
 //     mode. Supports "**" (cross-directory) and "*" (single segment).
+//   - BashCommands/BashPrefixes: project-level command allow rules for bash
+//     auto-approval in agent mode.
 //
 // Loading follows the same global->project override order as settings.json:
 // AutoEdit is taken from the project file when present, otherwise the global
-// file. EditPaths is project-level only (never loaded from the global file).
+// file. EditPaths and bash allow rules are project-level only.
 type AllowConfig struct {
-	AutoEdit  bool     `json:"autoEdit,omitempty"`
-	EditPaths []string `json:"editPaths,omitempty"`
+	AutoEdit     bool     `json:"autoEdit,omitempty"`
+	EditPaths    []string `json:"editPaths,omitempty"`
+	BashCommands []string `json:"bashCommands,omitempty"`
+	BashPrefixes []string `json:"bashPrefixes,omitempty"`
 
 	mu                 sync.RWMutex `json:"-"`
 	projectAutoEditSet bool         `json:"-"`
@@ -37,10 +41,10 @@ func ProjectAllowPath() string {
 }
 
 // LoadAllow loads allow configuration with global->project override semantics.
-// AutoEdit follows the override order; EditPaths is project-level only.
-// A missing file is not an error; it yields a zero-value (non-permissive) config.
+// AutoEdit defaults to enabled unless global or project allow.json explicitly
+// sets it; EditPaths and bash allow rules are project-level only.
 func LoadAllow() *AllowConfig {
-	c := &AllowConfig{}
+	c := &AllowConfig{AutoEdit: true}
 
 	// Global: only autoEdit is honored.
 	if data, err := os.ReadFile(GlobalAllowPath()); err == nil {
@@ -58,6 +62,8 @@ func LoadAllow() *AllowConfig {
 				c.projectAutoEditSet = true
 			}
 			c.EditPaths = p.EditPaths
+			c.BashCommands = p.BashCommands
+			c.BashPrefixes = p.BashPrefixes
 		}
 	}
 
@@ -146,6 +152,90 @@ func (c *AllowConfig) ClearEditPaths() {
 	c.mu.Unlock()
 }
 
+// AddBashCommand appends an exact bash command allow rule if not already present.
+func (c *AllowConfig) AddBashCommand(command string) bool {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, existing := range c.BashCommands {
+		if existing == command {
+			return false
+		}
+	}
+	c.BashCommands = append(c.BashCommands, command)
+	return true
+}
+
+// RemoveBashCommand removes an exact bash command allow rule if present.
+func (c *AllowConfig) RemoveBashCommand(command string) bool {
+	command = strings.TrimSpace(command)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, existing := range c.BashCommands {
+		if existing == command {
+			c.BashCommands = append(c.BashCommands[:i], c.BashCommands[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// AddBashPrefix appends a bash command prefix allow rule if not already present.
+// Trailing spaces are preserved because command prefixes are matched literally.
+func (c *AllowConfig) AddBashPrefix(prefix string) bool {
+	prefix = strings.TrimLeft(prefix, " \t\r\n")
+	if strings.TrimSpace(prefix) == "" {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, existing := range c.BashPrefixes {
+		if existing == prefix {
+			return false
+		}
+	}
+	c.BashPrefixes = append(c.BashPrefixes, prefix)
+	return true
+}
+
+// RemoveBashPrefix removes a bash command prefix allow rule if present.
+func (c *AllowConfig) RemoveBashPrefix(prefix string) bool {
+	prefix = strings.TrimLeft(prefix, " \t\r\n")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, existing := range c.BashPrefixes {
+		if existing == prefix {
+			c.BashPrefixes = append(c.BashPrefixes[:i], c.BashPrefixes[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// MatchBashCommand reports whether command matches any project bash allow rule.
+func (c *AllowConfig) MatchBashCommand(command string) bool {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, exact := range c.BashCommands {
+		if command == exact {
+			return true
+		}
+	}
+	for _, prefix := range c.BashPrefixes {
+		if prefix != "" && strings.HasPrefix(command, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // MatchEditPath reports whether path matches any whitelist glob.
 func (c *AllowConfig) MatchEditPath(path string) bool {
 	c.mu.RLock()
@@ -170,8 +260,10 @@ func (c *AllowConfig) SaveProject() error {
 	autoEdit := c.AutoEdit
 	autoEditSet := c.projectAutoEditSet
 	editPaths := append([]string(nil), c.EditPaths...)
+	bashCommands := append([]string(nil), c.BashCommands...)
+	bashPrefixes := append([]string(nil), c.BashPrefixes...)
 	c.mu.RUnlock()
-	return writeProjectAllowFile(ProjectAllowPath(), autoEdit, autoEditSet, editPaths)
+	return writeProjectAllowFile(ProjectAllowPath(), autoEdit, autoEditSet, editPaths, bashCommands, bashPrefixes)
 }
 
 // SaveGlobalAutoEdit persists only autoEdit to the global file, preserving any
@@ -200,6 +292,8 @@ func writeGlobalAllowAutoEdit(v bool) error {
 	}
 	existing["autoEdit"] = autoEditJSON
 	delete(existing, "editPaths") // editPaths are project-only.
+	delete(existing, "bashCommands")
+	delete(existing, "bashPrefixes")
 	return writeJSONFile(GlobalAllowPath(), existing)
 }
 
@@ -219,13 +313,19 @@ func readAllowAutoEdit(data []byte) (bool, bool) {
 	return b, true
 }
 
-func writeProjectAllowFile(path string, autoEdit bool, autoEditSet bool, editPaths []string) error {
+func writeProjectAllowFile(path string, autoEdit bool, autoEditSet bool, editPaths []string, bashCommands []string, bashPrefixes []string) error {
 	out := map[string]any{}
 	if autoEditSet {
 		out["autoEdit"] = autoEdit
 	}
 	if len(editPaths) > 0 {
 		out["editPaths"] = editPaths
+	}
+	if len(bashCommands) > 0 {
+		out["bashCommands"] = bashCommands
+	}
+	if len(bashPrefixes) > 0 {
+		out["bashPrefixes"] = bashPrefixes
 	}
 	return writeJSONFile(path, out)
 }

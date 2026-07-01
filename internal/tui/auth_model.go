@@ -418,8 +418,7 @@ func (a *App) selectModelFieldValue(value string) {
 	switch value {
 	case "supportsDeveloperRole", "supportsStore", "supportsReasoningEffort", "supportsStrictMode",
 		"cacheControlOnTools", "longCacheRetention", "promptCacheKey", "reasoningSummary", "eagerToolStreaming":
-		a.auth.ParamField = value
-		a.auth.ParamFieldKey = "tristate"
+		a.toggleModelTriState(value)
 		a.scheduleRender()
 		return
 	}
@@ -557,7 +556,7 @@ func (a *App) authModelSubmitInput() error {
 		me.Compat.Active = true
 	}
 
-	a.auth.ParamField = ""
+	a.clearAuthParamField()
 	return nil
 }
 

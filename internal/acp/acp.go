@@ -15,6 +15,7 @@ import (
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	browserfeature "github.com/startvibecoding/vibecoding/internal/browser"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/contextfiles"
@@ -44,6 +45,7 @@ type RunOptions struct {
 	Delegate   bool
 	Workflows  bool
 	WebSearch  bool
+	Browser    bool
 }
 
 type server struct {
@@ -68,6 +70,7 @@ type server struct {
 	multiAgent bool
 	delegate   bool
 	workflows  bool
+	browser    bool
 	factory    *agent.AgentFactory
 	agentMgr   *agent.AgentManager
 
@@ -256,6 +259,7 @@ func Run(opts RunOptions) error {
 		multiAgent: opts.MultiAgent,
 		delegate:   opts.Delegate,
 		workflows:  opts.Workflows,
+		browser:    opts.Browser,
 		sessions:   make(map[string]*sessionRuntime),
 		pending:    make(map[string]chan json.RawMessage),
 		toolTitles: make(map[string]string),
@@ -315,6 +319,11 @@ func Run(opts RunOptions) error {
 			return fmt.Errorf("create workflow skill: %w", err)
 		}
 	}
+	if opts.Browser {
+		if _, _, err := browserfeature.EnsureProjectSkill(cwd); err != nil {
+			return fmt.Errorf("create browser skill: %w", err)
+		}
+	}
 	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(cwd))
 	_ = skillsMgr.Load()
 	srv.skillsMgr = skillsMgr
@@ -326,6 +335,9 @@ func Run(opts RunOptions) error {
 	srv.extraContext += skillsMgr.BuildAllSkillsContext()
 	if opts.Workflows {
 		srv.extraContext += skillsMgr.BuildSkillContext(workflow.SkillName)
+	}
+	if opts.Browser {
+		srv.extraContext += skillsMgr.BuildSkillContext(browserfeature.SkillName)
 	}
 
 	// Agent manager backs multi-agent and delegate workflows.
@@ -412,6 +424,9 @@ func (s *server) newToolRegistry(cwd string) *tools.Registry {
 	registry.Register(tools.NewQuestionTool(registry))
 	if s.skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(s.skillsMgr))
+	}
+	if s.browser {
+		browserfeature.RegisterTool(registry)
 	}
 	if s.agentMgr != nil {
 		if s.multiAgent {

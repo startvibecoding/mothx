@@ -387,6 +387,7 @@ Commands available during interactive sessions:
 | `/systeminit [guidance]` | Generate or refresh project `AGENTS.md` |
 | `/reload` | Restart with a fresh session (TUI) |
 | `/btw <question>` | Ask a side question without interrupting main task |
+| `/settings` | Configure settings.json groups, including providers, defaults, behavior, and approval |
 | `/alloweditpath [add <glob>\|remove <glob>\|clear]` | Manage auto-edit path whitelist |
 | `/allowautoedit [on\|off] [global]` | Toggle full auto-edit in agent mode |
 | `/agent list` | List sub-agents in multi-agent mode |

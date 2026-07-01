@@ -870,9 +870,10 @@ Agent 请求执行工具
 │
 ▼
 Agent 模式下：
+├─ 匹配项目 allow.json → 自动批准（见下文）
+├─ 命令匹配设置白名单 → 自动批准
 ├─ Write/Edit 工具 + confirmBeforeWrite=true → 需要用户审批
 ├─ 非 Bash 工具 → 自动批准
-├─ 命令匹配白名单 → 自动批准
 └─ 其他 → 需要用户审批
 │
 ▼
@@ -909,6 +910,46 @@ Agent 模式下：
   }
 }
 ```
+
+### 项目级允许规则（`allow.json`）
+
+除全局 `settings.json` 审批配置外，VibeCoding 还支持项目级允许规则，保存在 `allow.json`（`.vibe/allow.json`）中。这些规则支持**按项目**自动批准特定 bash 命令，而无需修改全局设置。
+
+| 文件 | 范围 | 优先级 |
+|------|------|----------|
+| `.vibe/allow.json` | 当前项目 | 高 |
+| `~/.vibecoding/allow.json` | 全局回退 | 低 |
+
+#### 字段
+
+| 字段 | 类型 | 默认值 | 描述 |
+|-------|------|---------|-------------|
+| `autoEdit` | bool | `true` | agent 模式下自动批准 `write`/`edit` 工具。文件不存在时默认为 `true`，文件中显式设置 `"autoEdit": false` 则禁用。 |
+| `editPaths` | []string | `[]` | 匹配 `write`/`edit` 自动批准路径的 glob 模式。支持 `**`（跨目录）和 `*`（单段）。仅项目级。 |
+| `bashCommands` | []string | `[]` | 在 agent 模式下自动批准的精确 bash 命令字符串。仅项目级。 |
+| `bashPrefixes` | []string | `[]` | 在 agent 模式下自动批准的 bash 命令前缀。尾部空格有效（例如 `"go test "` 匹配 `go test ./...`）。仅项目级。 |
+
+#### 与设置的交互
+
+- **黑名单优先级高于允许规则**：匹配 `settings.json` 中 `bashBlacklist` 的命令始终需要审批，即使匹配项目级 `bashCommands` 或 `bashPrefixes` 条目。
+- **`autoEdit` 继承**：全局 `autoEdit` 会被继承，除非项目文件显式设置。编写不包含 `autoEdit` 的项目 `allow.json` **不会**持久化继承的全局值。
+
+#### 示例 `.vibe/allow.json`
+
+```json
+{
+  "autoEdit": true,
+  "editPaths": ["docs/**", "*.md"],
+  "bashCommands": ["make test", "make build"],
+  "bashPrefixes": ["go test ", "go vet "]
+}
+```
+
+#### TUI 管理
+
+- 当 bash 命令等待审批时，审批对话框提供**「始终允许此命令」**和**「始终允许命令前缀」**选项。选择后将规则持久化到 `.vibe/allow.json`。
+- 使用 `/alloweditpath add <glob>` 管理 `editPaths`。
+- 使用 `/allowautoedit [on|off]` 切换 `autoEdit`。
 
 ---
 

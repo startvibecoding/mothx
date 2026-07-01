@@ -15,6 +15,7 @@ import (
 
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/agent"
+	browserfeature "github.com/startvibecoding/vibecoding/internal/browser"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/cron"
@@ -238,6 +239,7 @@ type App struct {
 	pendingApprovalID  string
 	currentApproval    pendingApproval
 	currentApprovalIdx int
+	approvalCursor     int
 	approvalQueue      []pendingApproval
 
 	// Question state
@@ -247,13 +249,16 @@ type App struct {
 	questionQueue      []pendingQuestion
 
 	// Multi-agent / delegate state
-	multiAgent         bool
-	delegateMode       bool
-	workflows          bool
-	activeAgent        agentpkg.AgentID
-	agentMgr           *agent.AgentManager
-	agentActivities    map[agentpkg.AgentID]*agentActivity
-	agentActivityOrder []agentpkg.AgentID
+	multiAgent          bool
+	delegateMode        bool
+	workflows           bool
+	browserEnabled      bool
+	browserSkillInBase  bool
+	browserSkillContext string
+	activeAgent         agentpkg.AgentID
+	agentMgr            *agent.AgentManager
+	agentActivities     map[agentpkg.AgentID]*agentActivity
+	agentActivityOrder  []agentpkg.AgentID
 
 	// Cron state
 	cronStore cron.CronStore
@@ -292,6 +297,17 @@ type App struct {
 
 // ReloadRequested reports whether the user asked to reload via /reload.
 func (a *App) ReloadRequested() bool { return a.reloadRequested }
+
+// SetBrowserEnabled records browser-tool startup state. skillInBase is true
+// when the browser skill context has already been included in baseExtraContext.
+func (a *App) SetBrowserEnabled(enabled bool, skillInBase bool) {
+	a.browserEnabled = enabled
+	a.browserSkillInBase = skillInBase
+	if enabled && a.skillsMgr != nil {
+		a.browserSkillContext = a.skillsMgr.BuildSkillContext(browserfeature.SkillName)
+	}
+	a.markBuiltinActiveSkills()
+}
 
 // pendingApproval holds a queued approval request.
 type pendingApproval struct {
@@ -663,6 +679,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleMouse(msg)
 
 	case tea.KeyMsg:
+		if handled, cmd := a.handleApprovalKey(msg); handled {
+			return a, cmd
+		}
 		if handled, cmd := a.handleSessionsKey(msg); handled {
 			return a, cmd
 		}
@@ -737,20 +756,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, tea.Quit
 		case tea.KeyEsc:
 			if a.isThinking || a.waitingForApproval || a.waitingForQuestion {
-				a.pendingAbortReason = "user pressed Esc"
-				if a.agent != nil {
-					a.abortAndResetAgent("aborted")
-				}
-				a.clearApprovalState()
-				a.clearQuestionState()
-				a.clearQueuedInput()
-				a.input.Reset()
-				a.resetInputHistoryNavigation()
-				a.isThinking = false
-				a.manualCompactionActive = false
-				a.finishRequestTimer()
-				a.addMessage(statusStyle.Render("⏹ Aborted"))
-				return a, a.timer.Stop()
+				return a, a.abortPendingRequest("user pressed Esc")
 			} else {
 				a.input.Reset()
 				a.resetInputHistoryNavigation()
@@ -758,7 +764,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case tea.KeyEnter:
 			flushCmd := a.flushInputQueue()
-			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
+			if a.commandSuggestionsVisible() && a.commandNameInputActive() && a.applySelectedCommandSuggestion() {
 				return a, flushCmd
 			}
 			if msg.Alt {
@@ -767,36 +773,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, flushCmd
 			}
 
-			// Process enter immediately
 			input := strings.TrimSpace(a.input.Value())
-
-			// Check if waiting for approval
-			if a.waitingForApproval {
-				approved := strings.ToLower(input) == "y" || strings.ToLower(input) == "yes"
-				approvalIdx := a.currentApprovalIdx
-				if approvalIdx >= 0 {
-					a.printMessageOnce(approvalIdx)
-				}
-				a.handleApprovalResponse(a.pendingApprovalID, approved)
-				if approved {
-					a.addMessage(statusStyle.Render("✅ Approved"))
-				} else {
-					a.addMessage(statusStyle.Render("❌ Denied"))
-				}
-				// Show next queued approval or clear waiting state
-				if len(a.approvalQueue) > 0 {
-					a.showNextApproval()
-				} else {
-					a.waitingForApproval = false
-					a.pendingApprovalID = ""
-					a.currentApproval = pendingApproval{}
-					a.currentApprovalIdx = -1
-				}
-				a.input.Reset()
-				a.resetInputHistoryNavigation()
-				a.scheduleRender()
-				return a, nil
-			}
 
 			// Check if waiting for a question
 			if a.waitingForQuestion {
@@ -843,6 +820,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return a, nil
 				}
 				a.input.Reset()
+				a.suggest = a.suggest.SetItems(commandSuggestionItems())
+				a.suggest = a.suggest.Update("")
 				a.recordInputHistory(input)
 				expandedInput := a.expandPasteMarkers(input)
 				return a, a.processInput(expandedInput)
@@ -851,6 +830,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyTab:
 			flushCmd := a.flushInputQueue()
 			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
+				return a, flushCmd
+			}
+			if a.commandInputActive() {
 				return a, flushCmd
 			}
 			a.cycleMode()
@@ -1065,10 +1047,10 @@ func (a *App) View() string {
 	}
 
 	footer := a.renderFooter()
-	if a.toolModalOpen {
+	if !a.waitingForApproval && a.toolModalOpen {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderToolModal(), footer))
 	}
-	if a.btwOpen {
+	if !a.waitingForApproval && a.btwOpen {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderBtwOverlay(), footer))
 	}
 
@@ -1100,7 +1082,9 @@ func (a *App) View() string {
 	}
 
 	// 4. Dialog or input field
-	if a.sessionsDialog.Open {
+	if a.waitingForApproval {
+		parts = append(parts, a.renderApprovalDialog())
+	} else if a.sessionsDialog.Open {
 		parts = append(parts, a.renderSessionsDialog())
 	} else if a.defaultModelDialog.Open {
 		parts = append(parts, a.renderDefaultModelDialog())
@@ -1128,6 +1112,23 @@ func (a *App) View() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+func (a *App) abortPendingRequest(reason string) tea.Cmd {
+	a.pendingAbortReason = reason
+	if a.agent != nil {
+		a.abortAndResetAgent("aborted")
+	}
+	a.clearApprovalState()
+	a.clearQuestionState()
+	a.clearQueuedInput()
+	a.input.Reset()
+	a.resetInputHistoryNavigation()
+	a.isThinking = false
+	a.manualCompactionActive = false
+	a.finishRequestTimer()
+	a.addMessage(statusStyle.Render("⏹ Aborted"))
+	return a.timer.Stop()
 }
 
 // handlePaste handles large pastes by creating markers

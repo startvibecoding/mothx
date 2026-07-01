@@ -91,7 +91,7 @@ type Config struct {
 	MaxTokens          int
 	SandboxMgr         *sandbox.Manager
 	Settings           *config.Settings
-	Allow              *config.AllowConfig // auto-approval (allow.json): autoEdit + editPaths
+	Allow              *config.AllowConfig // auto-approval (allow.json): autoEdit, editPaths, bash rules
 	Session            *session.Manager
 	ExtraContext       string // extra context from files and skills
 	CompactionSettings ctxpkg.CompactionSettings

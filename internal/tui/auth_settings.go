@@ -7,7 +7,7 @@ import (
 )
 
 // openSettingsDialog handles the /settings command.
-// No args: opens the Existing Providers list directly.
+// No args: opens the full settings menu.
 // With a providerId arg: opens directly into that provider's settings detail.
 func (a *App) openSettingsDialog(args []string) {
 	if a.isThinking {
@@ -15,6 +15,8 @@ func (a *App) openSettingsDialog(args []string) {
 		return
 	}
 	a.openAuthDialog()
+	a.auth.Mode = "settings"
+	a.auth.SetDefault = false
 	if len(args) > 0 {
 		providerID := strings.TrimSpace(args[0])
 		if providerID != "" {
@@ -26,8 +28,7 @@ func (a *App) openSettingsDialog(args []string) {
 			return
 		}
 	}
-	// No args: go directly to Existing Providers list
-	a.auth.View = authViewExistingProvider
+	a.auth.View = authViewSettingsRoot
 	a.auth.Cursor = 0
 	a.scheduleRender()
 }

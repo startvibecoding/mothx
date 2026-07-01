@@ -107,6 +107,31 @@ func TestNeedsApproval_AgentModeWhitelistSkipsApproval(t *testing.T) {
 	}
 }
 
+func TestNeedsApproval_AgentModeProjectBashRulesSkipApproval(t *testing.T) {
+	allow := &config.AllowConfig{
+		BashCommands: []string{"make test"},
+		BashPrefixes: []string{"go test "},
+	}
+	a := newApprovalTestAgentWithAllow(t, "agent", config.ApprovalSettings{}, allow)
+	if a.NeedsApproval("bash", map[string]any{"command": "make test"}) {
+		t.Fatal("project exact bash command should not require approval in agent mode")
+	}
+	if a.NeedsApproval("bash", map[string]any{"command": "go test ./internal/tui"}) {
+		t.Fatal("project bash command prefix should not require approval in agent mode")
+	}
+	if !a.NeedsApproval("bash", map[string]any{"command": "go env"}) {
+		t.Fatal("non-matching bash command should still require approval in agent mode")
+	}
+}
+
+func TestNeedsApproval_BashRulesAcceptCmdAlias(t *testing.T) {
+	allow := &config.AllowConfig{BashCommands: []string{"make test"}}
+	a := newApprovalTestAgentWithAllow(t, "agent", config.ApprovalSettings{}, allow)
+	if a.NeedsApproval("bash", map[string]any{"cmd": "make test"}) {
+		t.Fatal("cmd alias should use project bash allow rule")
+	}
+}
+
 func TestNeedsApproval_AgentModeBlacklistForcesApproval(t *testing.T) {
 	a := newApprovalTestAgent(t, "agent", config.ApprovalSettings{
 		BashWhitelist: []string{"go ", "rm "},
@@ -114,6 +139,16 @@ func TestNeedsApproval_AgentModeBlacklistForcesApproval(t *testing.T) {
 	})
 	if !a.NeedsApproval("bash", map[string]any{"command": "rm -rf /tmp/demo"}) {
 		t.Fatal("blacklisted bash command should require approval in agent mode")
+	}
+}
+
+func TestNeedsApproval_BlacklistOverridesProjectBashAllow(t *testing.T) {
+	allow := &config.AllowConfig{BashCommands: []string{"rm -rf build"}}
+	a := newApprovalTestAgentWithAllow(t, "agent", config.ApprovalSettings{
+		BashBlacklist: []string{"rm -rf"},
+	}, allow)
+	if !a.NeedsApproval("bash", map[string]any{"command": "rm -rf build"}) {
+		t.Fatal("blacklist should override project bash allow rule")
 	}
 }
 

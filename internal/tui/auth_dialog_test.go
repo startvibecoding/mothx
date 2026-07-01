@@ -146,6 +146,104 @@ func TestAuthExistingCustomProvidersRemainVisible(t *testing.T) {
 	}
 }
 
+func TestOpenSettingsDialogShowsRootMenu(t *testing.T) {
+	a := &App{
+		settings: config.DefaultSettings(),
+		width:    80,
+		input:    editor.New(80),
+	}
+
+	a.openSettingsDialog(nil)
+	if !a.auth.Open {
+		t.Fatal("settings dialog not open")
+	}
+	if a.auth.View != authViewSettingsRoot {
+		t.Fatalf("view = %v, want authViewSettingsRoot", a.auth.View)
+	}
+	if a.auth.Mode != "settings" {
+		t.Fatalf("mode = %q, want settings", a.auth.Mode)
+	}
+	if a.auth.SetDefault {
+		t.Fatal("settings dialog should not default provider edits to changing default model")
+	}
+	opts := a.authOptions()
+	if len(opts) == 0 || opts[0].Value != "providers" {
+		t.Fatalf("first setting option = %#v, want providers", opts)
+	}
+}
+
+func TestSettingsRootProvidersBranchReturnsToRoot(t *testing.T) {
+	a := &App{
+		settings: config.DefaultSettings(),
+		width:    80,
+		input:    editor.New(80),
+		auth: authDialogState{
+			Open: true,
+			View: authViewSettingsRoot,
+			Mode: "settings",
+		},
+	}
+
+	a.selectSettingsRoot("providers")
+	if a.auth.View != authViewExistingProvider {
+		t.Fatalf("view = %v, want authViewExistingProvider", a.auth.View)
+	}
+	if len(a.auth.Stack) != 1 || a.auth.Stack[0] != authViewSettingsRoot {
+		t.Fatalf("stack = %#v, want root", a.auth.Stack)
+	}
+
+	a.popAuthView()
+	if a.auth.View != authViewSettingsRoot {
+		t.Fatalf("view after pop = %v, want authViewSettingsRoot", a.auth.View)
+	}
+}
+
+func TestSettingsFieldPatchSavesGlobalTopLevelOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("VIBECODING_DIR", tmpDir)
+	path := filepath.Join(tmpDir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"defaultProvider":"deepseek-openai"}`), 0600); err != nil {
+		t.Fatalf("write settings: %v", err)
+	}
+	a := &App{
+		settings:  config.DefaultSettings(),
+		width:     80,
+		mode:      "agent",
+		input:     editor.New(80),
+		authInput: editor.New(80).SetValue("4242"),
+		auth: authDialogState{
+			Open:       true,
+			View:       authViewSettingsBehavior,
+			Mode:       "settings",
+			ParamField: "maxOutputTokens",
+		},
+	}
+
+	if err := a.authSettingsSubmitInput(); err != nil {
+		t.Fatalf("submit settings input: %v", err)
+	}
+	if a.auth.ParamField != "" {
+		t.Fatalf("ParamField = %q, want cleared", a.auth.ParamField)
+	}
+	if a.settings.MaxOutputTokens != 4242 {
+		t.Fatalf("MaxOutputTokens = %d, want 4242", a.settings.MaxOutputTokens)
+	}
+	if a.mode != "agent" {
+		t.Fatalf("mode = %q, want unchanged agent", a.mode)
+	}
+	out, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	text := string(out)
+	if !strings.Contains(text, `"maxOutputTokens": 4242`) || !strings.Contains(text, `"defaultProvider": "deepseek-openai"`) {
+		t.Fatalf("settings patch missing expected fields:\n%s", text)
+	}
+	if strings.Contains(text, `"providers"`) || strings.Contains(text, `"statusLine"`) || strings.Contains(text, `"sandbox"`) {
+		t.Fatalf("settings patch expanded unrelated top-level config:\n%s", text)
+	}
+}
+
 func TestAuthSparsePatchPreservesExistingProviders(t *testing.T) {
 	global := &config.Settings{Providers: map[string]*config.ProviderConfig{
 		"xiaomi":   {API: "openai-chat", BaseURL: "https://old.xiaomi", APIKey: "old", Models: []config.ModelConfig{{ID: "mimo", Name: "MiMo"}}},
@@ -196,6 +294,58 @@ func TestAuthExistingProviderLoadsForceHTTP11(t *testing.T) {
 	}
 	if a.auth.View != authViewProviderGroupList {
 		t.Fatalf("view = %v, want authViewProviderGroupList", a.auth.View)
+	}
+}
+
+func TestAuthPushViewClearsStaleInputField(t *testing.T) {
+	a := &App{
+		auth: authDialogState{
+			Open:          true,
+			View:          authViewProviderGroupList,
+			ParamField:    "apiKey",
+			ParamFieldKey: "old",
+		},
+	}
+
+	a.pushAuthView(authViewProviderAdvanced)
+	if a.auth.View != authViewProviderAdvanced {
+		t.Fatalf("view = %v, want authViewProviderAdvanced", a.auth.View)
+	}
+	if a.auth.ParamField != "" || a.auth.ParamFieldKey != "" {
+		t.Fatalf("stale param field = %q/%q", a.auth.ParamField, a.auth.ParamFieldKey)
+	}
+	if a.authInputActive() {
+		t.Fatal("advanced view should open as a menu, not an input")
+	}
+}
+
+func TestAuthProviderToggleDoesNotLeaveInputActive(t *testing.T) {
+	a := &App{auth: authDialogState{Open: true, View: authViewProviderAdvanced}}
+
+	a.selectProviderFieldValue("cacheControl")
+	if a.auth.Provider.CacheControl == nil || !*a.auth.Provider.CacheControl {
+		t.Fatalf("cacheControl = %#v, want enabled", a.auth.Provider.CacheControl)
+	}
+	if a.auth.ParamField != "" || a.authInputActive() {
+		t.Fatalf("toggle left input active: field=%q", a.auth.ParamField)
+	}
+}
+
+func TestAuthProviderSubMenuDoesNotCarryInputField(t *testing.T) {
+	a := &App{
+		auth: authDialogState{
+			Open:       true,
+			View:       authViewProviderProtocol,
+			ParamField: "apiKey",
+		},
+	}
+
+	a.selectProviderFieldValue("responses")
+	if a.auth.View != authViewResponsesEdit {
+		t.Fatalf("view = %v, want authViewResponsesEdit", a.auth.View)
+	}
+	if a.auth.ParamField != "" || a.authInputActive() {
+		t.Fatalf("responses view opened as input: field=%q", a.auth.ParamField)
 	}
 }
 
@@ -857,6 +1007,28 @@ func TestToggleModelTriState(t *testing.T) {
 
 	// Unknown field should be no-op
 	a.toggleModelTriState("unknownField")
+}
+
+func TestModelCompatTriStateDoesNotEnterInputMode(t *testing.T) {
+	a := &App{
+		auth: authDialogState{
+			Open:           true,
+			View:           authViewModelCompat,
+			CurrentModelID: "m1",
+			Models: map[string]*modelEditState{
+				"m1": {ID: "m1", Compat: compatEditState{}},
+			},
+		},
+	}
+
+	a.selectModelFieldValue("supportsDeveloperRole")
+	me := a.auth.Models["m1"]
+	if me.Compat.SupportsDeveloperRole == nil || !*me.Compat.SupportsDeveloperRole {
+		t.Fatalf("supportsDeveloperRole = %#v, want enabled", me.Compat.SupportsDeveloperRole)
+	}
+	if a.auth.ParamField != "" || a.auth.ParamFieldKey != "" || a.authInputActive() {
+		t.Fatalf("compat tristate left input active: field=%q key=%q", a.auth.ParamField, a.auth.ParamFieldKey)
+	}
 }
 
 func TestCostEnabledToggle(t *testing.T) {

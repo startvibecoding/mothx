@@ -1123,13 +1123,13 @@ func TestRenderFooterShowsBlinkingApprovalAlert(t *testing.T) {
 		width:              120,
 	}
 	visible := stripANSI(a.renderFooter())
-	if !strings.Contains(visible, "! APPROVAL REQUIRED: y/n") {
+	if !strings.Contains(visible, "! APPROVAL REQUIRED: ↑/↓ Enter") {
 		t.Fatalf("approval footer alert missing: %q", visible)
 	}
 
 	a.spinnerIndex = 1
 	hidden := stripANSI(a.renderFooter())
-	if strings.Contains(hidden, "! APPROVAL REQUIRED: y/n") {
+	if strings.Contains(hidden, "! APPROVAL REQUIRED: ↑/↓ Enter") {
 		t.Fatalf("approval footer alert should blink off on odd tick: %q", hidden)
 	}
 }
@@ -1260,6 +1260,71 @@ func TestFormatApprovalArgsBashShowsCommandWithoutJSON(t *testing.T) {
 	}
 	if !strings.Contains(got, "timeout: 30") {
 		t.Fatalf("formatApprovalArgs(bash) missing timeout: %q", got)
+	}
+}
+
+func TestRenderApprovalDialogShowsBashChoicesAndWrapsLongCommand(t *testing.T) {
+	command := "go test ./internal/tui ./internal/config ./internal/agent ./internal/gateway -run TestVeryLongApprovalCommandName -count=1"
+	a := &App{
+		waitingForApproval: true,
+		currentApproval: pendingApproval{
+			approvalID: "approval-1",
+			toolName:   "bash",
+			args: map[string]any{
+				"command": command,
+				"timeout": 120,
+			},
+		},
+		width: 64,
+	}
+
+	plain := stripANSI(a.renderApprovalDialog())
+	for _, want := range []string{
+		"Approval Required: bash",
+		"Approve Once",
+		"Deny",
+		"Always Allow Exact Command",
+		"Always Allow Command Prefix",
+		"go test ./internal/tui",
+		"Timeout: 120",
+	} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("approval dialog missing %q: %q", want, plain)
+		}
+	}
+	for _, line := range strings.Split(plain, "\n") {
+		if lipgloss.Width(line) > 70 {
+			t.Fatalf("approval dialog line too wide (%d): %q\nfull dialog:\n%s", lipgloss.Width(line), line, plain)
+		}
+	}
+}
+
+func TestApprovalPrefixSelectionPersistsProjectAllowRule(t *testing.T) {
+	withTempTUIAllowPaths(t)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.waitingForApproval = true
+	a.pendingApprovalID = "approval-1"
+	a.currentApproval = pendingApproval{
+		approvalID: "approval-1",
+		toolName:   "bash",
+		args:       map[string]any{"command": "go test ./internal/tui -run TestApproval"},
+	}
+	a.approvalCursor = 3
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+
+	if a.waitingForApproval {
+		t.Fatal("waitingForApproval = true, want false")
+	}
+	if a.allow == nil || !a.allow.MatchBashCommand("go test ./internal/config") {
+		t.Fatal("saved prefix should match future go test commands")
+	}
+	data, err := os.ReadFile(config.ProjectAllowPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"bashPrefixes"`) || !strings.Contains(string(data), `"go test "`) {
+		t.Fatalf("project allow.json missing saved prefix: %s", string(data))
 	}
 }
 
@@ -1494,6 +1559,20 @@ func teaKeyMsgForTest(s string) tea.KeyMsg {
 
 func teaSpecialKeyMsgForTest(key tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: key}
+}
+
+func withTempTUIAllowPaths(t *testing.T) {
+	t.Helper()
+	tmp := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("VIBECODING_DIR", filepath.Join(tmp, "global"))
+	t.Cleanup(func() { _ = os.Chdir(oldWd) })
 }
 
 func TestInputHomeEndKeysReachTextInput(t *testing.T) {
@@ -1753,6 +1832,62 @@ func TestQueuedApprovalShowsNextDetailsInLiveView(t *testing.T) {
 	}
 	if got, want := a.pendingApprovalID, "approval-2"; got != want {
 		t.Fatalf("pendingApprovalID = %q, want %q", got, want)
+	}
+}
+
+func TestDuplicateApprovalIDIsNotQueuedTwice(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	event := agent.Event{
+		Type:         agent.EventToolApprovalRequest,
+		ApprovalID:   "approval-1",
+		ApprovalTool: "bash",
+		ApprovalArgs: map[string]any{"command": "go test ./internal/tui"},
+	}
+
+	a.handleAgentEvent(event)
+	a.handleAgentEvent(event)
+
+	if !a.waitingForApproval {
+		t.Fatal("waitingForApproval = false, want true")
+	}
+	if got := len(a.approvalQueue); got != 0 {
+		t.Fatalf("duplicate approval queued %d extra item(s), want 0", got)
+	}
+	if got := strings.Count(stripANSI(a.renderLiveTranscriptContent()), "Approval required: bash"); got != 1 {
+		t.Fatalf("approval prompt count = %d, want 1", got)
+	}
+}
+
+func TestAlwaysAllowApprovesQueuedMatchingBashApprovals(t *testing.T) {
+	withTempTUIAllowPaths(t)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.waitingForApproval = true
+	a.pendingApprovalID = "approval-1"
+	a.currentApproval = pendingApproval{
+		approvalID: "approval-1",
+		toolName:   "bash",
+		args:       map[string]any{"command": "go test ./internal/tui"},
+	}
+	a.approvalQueue = []pendingApproval{
+		{approvalID: "approval-2", toolName: "bash", args: map[string]any{"command": "go test ./internal/tui"}},
+		{approvalID: "approval-3", toolName: "bash", args: map[string]any{"command": "go env"}},
+	}
+	a.approvalCursor = 2
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+
+	if got, want := a.pendingApprovalID, "approval-3"; got != want {
+		t.Fatalf("pendingApprovalID = %q, want next non-matching approval %q", got, want)
+	}
+	if got := len(a.approvalQueue); got != 0 {
+		t.Fatalf("approvalQueue len = %d, want 0 after matching item is auto-approved", got)
+	}
+	if !a.allow.MatchBashCommand("go test ./internal/tui") {
+		t.Fatal("exact command allow rule was not saved")
+	}
+	joined := stripANSI(strings.Join(a.messages, "\n"))
+	if !strings.Contains(joined, "Approved 1 queued matching command") {
+		t.Fatalf("auto-approval status missing: %q", joined)
 	}
 }
 
@@ -2115,7 +2250,7 @@ func (p *historyInjectMockProvider) Chat(ctx context.Context, params provider.Ch
 }
 
 func (p *historyInjectMockProvider) Name() string { return "mock" }
-func (p *historyInjectMockProvider) API() string { return "openai-chat" }
+func (p *historyInjectMockProvider) API() string  { return "openai-chat" }
 func (p *historyInjectMockProvider) Models() []*provider.Model {
 	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}
 }
@@ -2167,7 +2302,7 @@ func (p *recordingHistoryProvider) Chat(ctx context.Context, params provider.Cha
 }
 
 func (p *recordingHistoryProvider) Name() string { return "mock" }
-func (p *recordingHistoryProvider) API() string { return "openai-chat" }
+func (p *recordingHistoryProvider) API() string  { return "openai-chat" }
 
 func (p *recordingHistoryProvider) Models() []*provider.Model {
 	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}

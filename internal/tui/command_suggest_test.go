@@ -25,8 +25,8 @@ func TestCommandSuggestionsHiddenAfterSpace(t *testing.T) {
 	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mode ")
 	a.updateCommandSuggestions()
-	if a.commandSuggestionsVisible() {
-		t.Fatal("expected suggestions hidden after space")
+	if !a.commandSuggestionsVisible() {
+		t.Fatal("expected argument suggestions after space")
 	}
 }
 
@@ -46,5 +46,50 @@ func TestCommandSuggestionEnterFlushesQueuedInputBeforeApplying(t *testing.T) {
 	}
 	if a.commandSuggestionsVisible() {
 		t.Fatal("expected suggestions hidden after queued input adds a space")
+	}
+}
+
+func TestCommandArgumentSuggestionForMode(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/mode a")
+	a.updateCommandSuggestions()
+	if !a.commandSuggestionsVisible() {
+		t.Fatal("expected mode argument suggestions to be visible")
+	}
+	if !a.applySelectedCommandSuggestion() {
+		t.Fatal("expected selected mode argument suggestion to apply")
+	}
+	if got := a.input.Value(); got != "/mode agent" {
+		t.Fatalf("input = %q, want /mode agent", got)
+	}
+}
+
+func TestTabCompletesCommandArgumentInsteadOfCyclingMode(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/mode ")
+	a.updateCommandSuggestions()
+
+	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	if got := a.mode; got != "agent" {
+		t.Fatalf("mode = %q, want agent", got)
+	}
+	if got := a.input.Value(); got != "/mode plan" {
+		t.Fatalf("input = %q, want /mode plan", got)
+	}
+}
+
+func TestTabInSlashCommandWithoutArgumentSuggestionDoesNotCycleMode(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/skill ")
+	a.updateCommandSuggestions()
+
+	a.Update(tea.KeyMsg{Type: tea.KeyTab})
+
+	if got := a.mode; got != "agent" {
+		t.Fatalf("mode = %q, want agent", got)
+	}
+	if got := a.input.Value(); got != "/skill " {
+		t.Fatalf("input = %q, want /skill ", got)
 	}
 }

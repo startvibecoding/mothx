@@ -410,9 +410,6 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		},
 	},
 	"xiaomi": {BaseURL: "https://api.xiaomimimo.com/v1", APIKey: "${XIAOMI_API_KEY}", API: "openai-chat", ThinkingFormat: "xiaomi", Models: []ModelConfig{
-		{ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
-		{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08}, Input: []string{"text", "image"}},
-		{ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2}, Input: []string{"text"}},
 		{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08}, Input: []string{"text", "image"}},
 		{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2}, Input: []string{"text"}},
 		{ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108}, Input: []string{"text"}},
@@ -526,9 +523,9 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 	"kimi-coding":           {BaseURL: "https://api.kimi.com/coding", APIKey: "${KIMI_CODING_API_KEY}", API: "anthropic-messages", Headers: map[string]string{"User-Agent": "KimiCLI/1.5"}, Models: []ModelConfig{{ID: "k2p7", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-for-coding", Name: "Kimi For Coding", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-k2-thinking", Name: "Kimi K2 Thinking", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
 	"fireworks":             {BaseURL: "https://api.fireworks.ai/inference", APIKey: "${FIREWORKS_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "accounts/fireworks/models/deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.03, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 1.74, Output: 3.48, CacheRead: 0.145, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/glm-5p1", Name: "GLM 5.1", Reasoning: true, ContextWindow: 202800, MaxTokens: 131072, Cost: &CostConfig{Input: 1.4, Output: 4.4, CacheRead: 0.26, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/kimi-k2p7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262000, MaxTokens: 262000, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "accounts/fireworks/routers/kimi-k2p7-code-fast", Name: "Kimi K2.7 Code Fast", Reasoning: true, ContextWindow: 262000, MaxTokens: 262000, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.38, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "accounts/fireworks/models/gpt-oss-120b", Name: "GPT OSS 120B", Reasoning: true, ContextWindow: 131072, MaxTokens: 32768, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.01, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/gpt-oss-20b", Name: "GPT OSS 20B", Reasoning: true, ContextWindow: 131072, MaxTokens: 32768, Cost: &CostConfig{Input: 0.07, Output: 0.3, CacheRead: 0.035, CacheWrite: 0}, Input: []string{"text"}}}},
 	"huggingface":           {BaseURL: "https://router.huggingface.co/v1", APIKey: "${HUGGINGFACE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMaxAI/MiniMax-M2.1", Name: "MiniMax-M2.1", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "MiniMaxAI/MiniMax-M2.5", Name: "MiniMax-M2.5", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.03, CacheWrite: 0}, Input: []string{"text"}}, {ID: "MiniMaxAI/MiniMax-M2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3-235B-A22B-Thinking-2507", Name: "Qwen3-235B-A22B-Thinking-2507", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 3, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3-Coder-480B-A35B-Instruct", Name: "Qwen3-Coder-480B-A35B-Instruct", ContextWindow: 262144, MaxTokens: 66536, Cost: &CostConfig{Input: 2, Output: 2, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
-	"xiaomi-token-plan-ams": {BaseURL: "https://token-plan-ams.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_AMS_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
-	"xiaomi-token-plan-cn":  {BaseURL: "https://token-plan-cn.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_CN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
-	"xiaomi-token-plan-sgp": {BaseURL: "https://token-plan-sgp.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_SGP_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
+	"xiaomi-token-plan-ams": {BaseURL: "https://token-plan-ams.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_AMS_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
+	"xiaomi-token-plan-cn":  {BaseURL: "https://token-plan-cn.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_CN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
+	"xiaomi-token-plan-sgp": {BaseURL: "https://token-plan-sgp.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_SGP_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
 	"zai-coding-cn":         {Vendor: "zai", BaseURL: "https://open.bigmodel.cn/api/coding/paas/v4", APIKey: "${ZAI_CODING_CN_API_KEY}", API: "openai-chat", ThinkingFormat: "zai", Models: []ModelConfig{{ID: "glm-4.5-air", Name: "GLM-4.5-Air", Reasoning: true, ContextWindow: 131072, MaxTokens: 98304, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5-turbo", Name: "GLM-5-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5v-turbo", Name: "GLM-5V-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}}},
 	"longcat":               {Vendor: "longcat", BaseURL: "https://api.longcat.chat/openai", APIKey: "${LONGCAT_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "LongCat-2.0", Name: "LongCat-2.0", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text"}}}},
 	"longcat-anthropic":     {Vendor: "longcat", BaseURL: "https://api.longcat.chat/anthropic", APIKey: "${LONGCAT_ANTHROPIC_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "LongCat-2.0", Name: "LongCat-2.0", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text"}}}},
@@ -961,13 +958,54 @@ func SaveGlobalSettings(s *Settings) error {
 	if s == nil {
 		return fmt.Errorf("settings is nil")
 	}
-	configDir := ConfigDir()
-	if err := os.MkdirAll(configDir, 0700); err != nil {
-		return fmt.Errorf("create config directory: %w", err)
-	}
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal settings: %w", err)
+	}
+	return writeGlobalSettingsData(data)
+}
+
+// SaveGlobalSettingsPatch updates only the given top-level keys in the global
+// settings file. It preserves keys that are already present without expanding
+// defaults into settings.json.
+func SaveGlobalSettingsPatch(updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+	existing := map[string]json.RawMessage{}
+	settingsPath := GlobalSettingsPath()
+	if data, err := os.ReadFile(settingsPath); err == nil {
+		if err := json.Unmarshal(data, &existing); err != nil {
+			return fmt.Errorf("parse global settings: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("read global settings %s: %w", settingsPath, err)
+	}
+	for key, value := range updates {
+		if key == "" {
+			continue
+		}
+		if value == nil {
+			delete(existing, key)
+			continue
+		}
+		data, err := json.Marshal(value)
+		if err != nil {
+			return fmt.Errorf("marshal settings key %s: %w", key, err)
+		}
+		existing[key] = data
+	}
+	data, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal settings patch: %w", err)
+	}
+	return writeGlobalSettingsData(data)
+}
+
+func writeGlobalSettingsData(data []byte) error {
+	configDir := ConfigDir()
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
 	}
 	settingsPath := GlobalSettingsPath()
 	tmp, err := os.CreateTemp(configDir, "settings-*.tmp")

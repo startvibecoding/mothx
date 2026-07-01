@@ -59,14 +59,70 @@ func TestAllowEditPathOps(t *testing.T) {
 	}
 }
 
-func TestAllowAutoEditFlag(t *testing.T) {
+func TestAllowBashCommandOps(t *testing.T) {
 	c := &AllowConfig{}
+	if !c.AddBashCommand("go test ./internal/tui") {
+		t.Fatal("AddBashCommand should return true on new command")
+	}
+	if c.AddBashCommand("go test ./internal/tui") {
+		t.Fatal("AddBashCommand should return false on duplicate")
+	}
+	if !c.MatchBashCommand("go test ./internal/tui") {
+		t.Fatal("expected exact bash command match")
+	}
+	if c.MatchBashCommand("go test ./internal/config") {
+		t.Fatal("unexpected match before prefix is added")
+	}
+	if !c.AddBashPrefix("go test ") {
+		t.Fatal("AddBashPrefix should return true on new prefix")
+	}
+	if c.AddBashPrefix("go test ") {
+		t.Fatal("AddBashPrefix should return false on duplicate")
+	}
+	if !c.MatchBashCommand("go test ./internal/config") {
+		t.Fatal("expected bash command prefix match")
+	}
+	if c.MatchBashCommand("go env") {
+		t.Fatal("unexpected match for non-prefix command")
+	}
+}
+
+func TestAllowAutoEditFlag(t *testing.T) {
+	c := &AllowConfig{AutoEdit: true}
+	if !c.GetAutoEdit() {
+		t.Fatal("default AutoEdit should be true")
+	}
+	c.SetAutoEdit(false)
 	if c.GetAutoEdit() {
-		t.Fatal("default AutoEdit should be false")
+		t.Fatal("AutoEdit should be false after SetAutoEdit(false)")
 	}
 	c.SetAutoEdit(true)
 	if !c.GetAutoEdit() {
 		t.Fatal("AutoEdit should be true after SetAutoEdit(true)")
+	}
+}
+
+func TestLoadAllowDefaultsAutoEditOn(t *testing.T) {
+	withTempAllowPaths(t)
+
+	c := LoadAllow()
+	if !c.GetAutoEdit() {
+		t.Fatal("missing allow.json should default autoEdit to true")
+	}
+}
+
+func TestAllowGlobalExplicitFalseOverridesDefaultAutoEdit(t *testing.T) {
+	withTempAllowPaths(t)
+	if err := os.MkdirAll(filepath.Dir(GlobalAllowPath()), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(GlobalAllowPath(), []byte(`{"autoEdit":false}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	c := LoadAllow()
+	if c.GetAutoEdit() {
+		t.Fatal("global autoEdit=false should override default autoEdit=true")
 	}
 }
 
@@ -104,6 +160,43 @@ func TestAllowProjectEditPathsDoNotPersistInheritedGlobalAutoEdit(t *testing.T) 
 	reloaded := LoadAllow()
 	if reloaded.GetAutoEdit() {
 		t.Fatal("project editPaths-only allow.json should not override global autoEdit=false")
+	}
+}
+
+func TestAllowProjectBashRulesPersistAndReload(t *testing.T) {
+	withTempAllowPaths(t)
+
+	c := &AllowConfig{}
+	if !c.AddBashCommand("make test") {
+		t.Fatal("expected bash command to be added")
+	}
+	if !c.AddBashPrefix("go test ") {
+		t.Fatal("expected bash prefix to be added")
+	}
+	if err := c.SaveProject(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(ProjectAllowPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if !strings.Contains(text, `"bashCommands"`) || !strings.Contains(text, `"make test"`) {
+		t.Fatalf("project allow.json missing bashCommands: %s", text)
+	}
+	if !strings.Contains(text, `"bashPrefixes"`) || !strings.Contains(text, `"go test "`) {
+		t.Fatalf("project allow.json missing bashPrefixes: %s", text)
+	}
+
+	reloaded := LoadAllow()
+	if !reloaded.MatchBashCommand("make test") {
+		t.Fatal("reloaded allow should match exact bash command")
+	}
+	if !reloaded.MatchBashCommand("go test ./internal/tui") {
+		t.Fatal("reloaded allow should match bash command prefix")
+	}
+	if strings.Contains(text, "autoEdit") {
+		t.Fatalf("project bash rules should not persist inherited autoEdit: %s", text)
 	}
 }
 

@@ -1,6 +1,70 @@
 # 更新日志
 
 
+## v1.1.57
+
+### ✨ 新功能
+
+- **交互式会话选择对话框**
+  - `/sessions` 现在打开交互式选择对话框，支持方向键上下导航、回车切换、`n` 新建会话、`d` 删除会话。原有 `/sessions ls`、`/sessions set <id>`、`/sessions clear`、`/sessions del <id>` 命令仍然保留。
+  - TUI 启动时延迟创建会话，直到用户发送第一条消息时才初始化。`--continue`、`--resume`、`--session` 和 `/sessions set` 仍会绑定已有会话。
+  - 在 TUI 中继续或切换会话时，会把加载到的会话历史打印到终端 scrollback 中。
+
+- **统计 Web 面板**
+  - `vibecoding stats` 启动 Web 面板，默认监听 `127.0.0.1:7878`，含图表与筛选功能。
+  - 纯 HTML/CSS/JS 面板，无外部依赖，图表通过 `<canvas>` 绘制。
+  - 显示总体概览（请求数、token、费用、时长）、时间序列图、按厂商/模型分类统计，以及分页的最近请求列表。
+  - 支持按时间范围（今日/本周/本月/全部）、厂商和协议筛选。
+  - `vibecoding stats --cli` 直接在终端打印统计信息。
+  - `vibecoding stats --db <path>` 可打开指定的 sessions.db 文件。
+
+- **统计面板：协议与厂商分离**
+  - 统计面板中的「Provider」列已按语义拆分为**厂商**（公司名称）和**协议**（API 协议类型，如 `openai-chat`、`anthropic-messages`、`google-gemini`）。
+  - 新增 `Provider.API()` 接口方法，在 `request_stats` 中同时记录协议类型与厂商名称。
+  - 新增厂商与协议筛选下拉框；饼图与表格现在同时展示两个维度。
+  - 数据库迁移 006 为 `request_stats` 表添加 `protocol` 列（已有数据回填为空字符串）。
+
+- **LongCat 厂商支持**
+  - 新增 `longcat` 厂商适配器，支持 OpenAI 兼容协议（`https://api.longcat.chat/openai`）与 Anthropic 兼容协议（`https://api.longcat.chat/anthropic`）两种接入方式。
+  - 默认设置中注册了两个内置 provider：`longcat`（OpenAI 协议，`LONGCAT_API_KEY`）与 `longcat-anthropic`（Anthropic 协议，`LONGCAT_ANTHROPIC_API_KEY`）。
+  - 默认模型 `LongCat-2.0`：上下文长度 1M，最大输出长度 128K Tokens。
+  - TUI 授权对话框中，在 `longcat` 厂商下提供 OpenAI / Anthropic 两种 BaseURL 的选择。
+
+### 🔧 改进
+
+- 将约 1000 行内嵌仪表板 HTML 从 `internal/stats/dashboard.go` 提取至独立的 `internal/stats/dashboard.html` 文件，启动时通过 `go:embed` 加载。
+- 每次 LLM 调用后 agent loop 自动记录统计数据。stats 服务器启动时调用 `session.ApplyMigrations()` 确保 `request_stats` 表存在。
+- 更新火山引擎 provider：新增 `agentplan` 和 `codingplan` 供应商，统一 gitee/moark 适配器，移除 `seed` 供应商。
+- PyPI 构建新增 venv 隔离（`.venv-build`），使构建脱离系统 Python。
+
+## v1.1.56
+
+### ✨ 新功能
+
+- **项目级 Bash 自动审批规则**
+  - `allow.json` 新增 `bashCommands`（精确匹配）和 `bashPrefixes`（前缀匹配），支持在 agent 模式下为项目配置 bash 自动审批。
+  - 审批对话框新增「始终允许此命令」和「始终允许命令前缀」选项，规则持久化到 `.vibe/allow.json`。
+  - 设置级 `bashBlacklist` 优先级高于项目允许规则（黑名单命令始终需要审批）。
+  - `allow.json` 中 `autoEdit` 默认值改为 `true`（文件不存在时），更贴合开发者日常工作流。
+
+- **完整的 `/settings` 设置对话框**
+  - `/settings` 现在打开结构化根菜单，而非直接跳入 provider 列表。分类包括：Providers、Defaults、Behavior、Web Search、Context Files、Status Line、Compaction、Sandbox、Paths、Retry 和 Approval。
+  - 每个顶层设置分组拥有独立的子菜单，支持字段编辑、布尔切换和列表编辑。
+  - 顶层设置编辑使用 `SaveGlobalSettingsPatch()` 仅更新受影响的 JSON 键，防止无关默认值被展开写入 `settings.json`。
+
+- **交互式审批对话框**
+  - 用专用对话框替代了行内「y/n」审批提示，支持 ↑/↓ 导航、Enter 确认、y/n 快捷操作和 Esc 中止。
+  - 审批对话框按工具类型展示结构化详情：bash 命令附带 timeout/async 元数据；edit/write 展示参数摘要。
+  - 底部提示改为「! APPROVAL REQUIRED: ↑/↓ Enter」以反映新的交互方式。
+
+### 🔧 改进
+
+- 抽取 `bashCommandArg()` 辅助函数，在审批路径中统一支持 `command` 和 `cmd` 两种参数键名。
+- 将 TUI Esc 处理重构为 `abortPendingRequest()`，正确清理审批和问题状态。
+- 修复 auth 对话框切换视图时 `ParamField` / `ParamFieldKey` 残留问题；切换和子菜单不再残留输入模式。
+- Makefile 新增 PyPI 构建 venv 隔离（`.venv-build`），使 PyPI 构建脱离系统 Python。
+- 更新 PyPI README 为完整功能文档，版本升级至 `v1.1.55`。
+
 ## v1.1.55
 
 ### ✨ 新功能

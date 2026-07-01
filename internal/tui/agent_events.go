@@ -100,13 +100,18 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventToolApprovalRequest:
 		a.commitActiveStream()
-		// Queue the approval request
-		a.approvalQueue = append(a.approvalQueue, pendingApproval{
+		nextApproval := pendingApproval{
 			agentID:    event.AgentID,
 			approvalID: event.ApprovalID,
 			toolName:   event.ApprovalTool,
 			args:       event.ApprovalArgs,
-		})
+		}
+		if a.hasPendingApproval(nextApproval) {
+			a.scheduleRender()
+			return a.listenAgentEvents()
+		}
+		// Queue the approval request
+		a.approvalQueue = append(a.approvalQueue, nextApproval)
 		// If not currently waiting, show the next one
 		if !a.waitingForApproval {
 			a.showNextApproval()

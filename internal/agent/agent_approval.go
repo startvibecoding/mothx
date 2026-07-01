@@ -34,7 +34,10 @@ func (a *Agent) NeedsApproval(toolName string, args map[string]any) bool {
 		// Plan mode: no tools should be executed (read-only tools don't need approval)
 		return false
 	case "agent":
-		// Agent mode: only whitelisted bash can skip approval.
+		// Agent mode: project allow rules and settings whitelists can skip approval.
+		if a.isBashProjectAllowed(args) {
+			return false
+		}
 		return !a.isBashWhitelisted(args)
 	case "yolo":
 		// YOLO mode: allow bash unless explicitly blacklisted above.
@@ -44,11 +47,22 @@ func (a *Agent) NeedsApproval(toolName string, args map[string]any) bool {
 	}
 }
 
+func (a *Agent) isBashProjectAllowed(args map[string]any) bool {
+	if a.config.Allow == nil {
+		return false
+	}
+	command, ok := bashCommandArg(args)
+	if !ok {
+		return false
+	}
+	return a.config.Allow.MatchBashCommand(command)
+}
+
 func (a *Agent) isBashWhitelisted(args map[string]any) bool {
 	if a.config.Settings == nil {
 		return false
 	}
-	command, ok := args["command"].(string)
+	command, ok := bashCommandArg(args)
 	if !ok {
 		return false
 	}
@@ -64,7 +78,7 @@ func (a *Agent) isBashBlacklisted(args map[string]any) bool {
 	if a.config.Settings == nil {
 		return false
 	}
-	command, ok := args["command"].(string)
+	command, ok := bashCommandArg(args)
 	if !ok {
 		return false
 	}
@@ -74,6 +88,20 @@ func (a *Agent) isBashBlacklisted(args map[string]any) bool {
 		}
 	}
 	return false
+}
+
+func bashCommandArg(args map[string]any) (string, bool) {
+	for _, key := range []string{"command", "cmd"} {
+		command, ok := args[key].(string)
+		if !ok {
+			continue
+		}
+		command = strings.TrimSpace(command)
+		if command != "" {
+			return command, true
+		}
+	}
+	return "", false
 }
 
 // RequestApproval sends an approval request and waits for the user's response.

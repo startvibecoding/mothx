@@ -156,7 +156,6 @@ func renderAuthPreview(preview string) []string {
 	return visible
 }
 
-
 func (a *App) renderAuthOptions() string {
 	opts := a.authOptions()
 	if len(opts) == 0 {
@@ -227,7 +226,32 @@ func (a *App) authTitle(v authView) string {
 	case authViewMain:
 		return "Connect a Provider"
 	case authViewExistingProvider:
+		if a.auth.Mode == "settings" {
+			return "Settings · Providers"
+		}
 		return "Existing Providers · Provider"
+	case authViewSettingsRoot:
+		return "Settings"
+	case authViewSettingsDefaults:
+		return "Settings · Defaults"
+	case authViewSettingsBehavior:
+		return "Settings · Behavior"
+	case authViewSettingsWebSearch:
+		return "Settings · Web Search"
+	case authViewSettingsContextFiles:
+		return "Settings · Context Files"
+	case authViewSettingsStatusLine:
+		return "Settings · Status Line"
+	case authViewSettingsCompaction:
+		return "Settings · Compaction"
+	case authViewSettingsSandbox:
+		return "Settings · Sandbox"
+	case authViewSettingsPaths:
+		return "Settings · Paths"
+	case authViewSettingsRetry:
+		return "Settings · Retry"
+	case authViewSettingsApproval:
+		return "Settings · Approval"
 	case authViewCustomID:
 		return "Custom Provider · Provider ID"
 	case authViewSettingsDetail:
@@ -294,6 +318,11 @@ func (a *App) authInputPrompt(v authView) string {
 	case authViewModelBasics, authViewModelCapabilities, authViewModelSampling,
 		authViewModelCost, authViewModelCompat:
 		return a.authModelInputPrompt()
+	case authViewSettingsDefaults, authViewSettingsBehavior, authViewSettingsWebSearch,
+		authViewSettingsContextFiles, authViewSettingsStatusLine, authViewSettingsCompaction,
+		authViewSettingsSandbox, authViewSettingsPaths, authViewSettingsRetry,
+		authViewSettingsApproval:
+		return a.authSettingsInputPrompt()
 	default:
 		return "Input:"
 	}

@@ -1,6 +1,70 @@
 # Changelog
 
 
+## v1.1.57
+
+### ✨ Features
+
+- **Interactive Sessions Dialog**
+  - `/sessions` now opens an interactive picker dialog with Up/Down navigation, Enter-to-switch, `n` for a new session, and `d` for delete. Existing `/sessions ls`, `/sessions set <id>`, `/sessions clear`, and `/sessions del <id>` commands remain available.
+  - TUI startup defers session creation until the first user message is sent, while `--continue`, `--resume`, `--session`, and `/sessions set` still bind to existing sessions.
+  - Continuing or switching sessions in the TUI prints the loaded session history into normal terminal scrollback.
+
+- **Stats Web Dashboard**
+  - `vibecoding stats` starts a web dashboard on `127.0.0.1:7878` with charts and filtering.
+  - Pure HTML/CSS/JS dashboard — no external dependencies. Charts drawn on `<canvas>`.
+  - Displays overall summary (requests, tokens, cost, duration), time-series charts, per-provider/model breakdowns, and a paginated recent requests table.
+  - Filters by time range (today/week/month/all), vendor, and protocol.
+  - `vibecoding stats --cli` prints the same statistics directly in the terminal.
+  - `vibecoding stats --db <path>` opens an alternate sessions.db.
+
+- **Stats Dashboard: Protocol + Vendor Split**
+  - The "Provider" column in the stats dashboard has been semantically split into **Vendor** (the company/provider name) and **Protocol** (the API protocol, e.g. `openai-chat`, `anthropic-messages`, `google-gemini`).
+  - Added `Provider.API()` to the provider interface so the protocol type is recorded alongside the vendor name in `request_stats`.
+  - New filter dropdowns for Vendor and Protocol; pie chart and table now show both dimensions.
+  - Schema migration 006 adds the `protocol` column to `request_stats` (backfilled with empty string for existing rows).
+
+- **LongCat Provider Support**
+  - Added the `longcat` vendor adapter, supporting both OpenAI-compatible (`https://api.longcat.chat/openai`) and Anthropic-compatible (`https://api.longcat.chat/anthropic`) endpoints.
+  - Registered two default providers in settings: `longcat` (OpenAI format, `LONGCAT_API_KEY`) and `longcat-anthropic` (Anthropic format, `LONGCAT_ANTHROPIC_API_KEY`).
+  - Default model `LongCat-2.0`: 1M context window, 128K max output tokens.
+  - TUI auth dialog offers selectable base URLs for OpenAI vs Anthropic format under the `longcat` provider.
+
+### 🔧 Improvements
+
+- Extracted ~1000 lines of embedded dashboard HTML from `internal/stats/dashboard.go` into `internal/stats/dashboard.html`, loaded via `go:embed`.
+- Stats are recorded automatically by the agent loop after every LLM call. The stats server calls `session.ApplyMigrations()` on open to ensure the `request_stats` table exists.
+- Updated Volcengine provider: added `agentplan` and `codingplan` vendors, unified gitee/moark adapters, and removed the `seed` vendor.
+- Updated PyPI build with venv isolation (`.venv-build`) to decouple PyPI builds from system Python.
+
+## v1.1.56
+
+### ✨ Features
+
+- **Project-Level Bash Auto-Approval Rules**
+  - `allow.json` now supports `bashCommands` (exact match) and `bashPrefixes` (prefix match) for project-level bash auto-approval in agent mode.
+  - The approval dialog offers "Always Allow Exact Command" and "Always Allow Command Prefix" options that persist rules to `.vibe/allow.json`.
+  - Settings-level `bashBlacklist` takes precedence over project allow rules (blacklisted commands always require approval).
+  - `autoEdit` in `allow.json` now defaults to `true` when no file exists, matching the typical developer workflow.
+
+- **Full Settings Dialog via `/settings`**
+  - `/settings` now opens a structured root menu instead of jumping directly into the provider list. Categories: Providers, Defaults, Behavior, Web Search, Context Files, Status Line, Compaction, Sandbox, Paths, Retry, and Approval.
+  - Each top-level setting group has its own sub-menu with editable fields, boolean toggles, and list editors.
+  - Top-level setting edits use `SaveGlobalSettingsPatch()` to update only the affected JSON key, preventing unrelated defaults from being expanded into `settings.json`.
+
+- **Interactive Approval Dialog**
+  - Replaced the inline "y/n" approval prompt with a dedicated dialog supporting ↑/↓ navigation, Enter to select, y/n shortcuts, and Esc to abort.
+  - Approval dialog shows structured details per tool type: bash commands display with timeout/async metadata; edit/write show wrapped argument summaries.
+  - The footer alert now reads "! APPROVAL REQUIRED: ↑/↓ Enter" to reflect the new interaction model.
+
+### 🔧 Improvements
+
+- Extracted `bashCommandArg()` helper to support both `command` and `cmd` argument keys consistently across the approval path.
+- Refactored TUI Esc handling into `abortPendingRequest()` to properly clean up approval and question state.
+- Fixed stale `ParamField` / `ParamFieldKey` carry-over when navigating auth dialog views; toggles and submenus no longer leave input mode active.
+- Added PyPI build venv isolation (`.venv-build`) to `Makefile`, decoupling PyPI builds from system Python.
+- Updated PyPI README with full feature documentation and `v1.1.55` version bump.
+
 ## v1.1.55
 
 ### ✨ Features

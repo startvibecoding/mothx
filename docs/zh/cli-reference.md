@@ -416,6 +416,7 @@ vibecoding acp --sandbox --mode agent
 | `/systeminit [guidance]` | 生成或刷新项目 `AGENTS.md` |
 | `/reload` | 以新 session 重启（TUI） |
 | `/btw <问题>` | 不中断主任务提问旁路问题 |
+| `/settings` | 配置 settings.json 各组，包括 providers、defaults、behavior、审批等 |
 | `/alloweditpath [add <glob>\|remove <glob>\|clear]` | 管理可编辑路径白名单 |
 | `/allowautoedit [on\|off] [global]` | 切换 Agent 模式全自动编辑 |
 | `/agent list` | 在多 Agent 模式下列出子 Agent |

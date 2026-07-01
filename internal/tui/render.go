@@ -366,7 +366,7 @@ func (a *App) renderBuiltinFooter() string {
 }
 
 func (a *App) renderApprovalFooterAlert() string {
-	const alert = "! APPROVAL REQUIRED: y/n"
+	const alert = "! APPROVAL REQUIRED: ↑/↓ Enter"
 	if a.spinnerIndex%2 == 0 {
 		return warningStyle.Render(alert)
 	}

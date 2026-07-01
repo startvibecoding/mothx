@@ -13,6 +13,7 @@ require (
 	github.com/startvibecoding/GoStreamingMarkdown v0.0.4
 	github.com/startvibecoding/go-fd v0.0.7
 	github.com/startvibecoding/go-ripgrep v0.0.5
+	github.com/startvibecoding/vibe-browser v0.0.0
 	github.com/startvibecoding/vibeEmacsLispVm v0.0.2
 	golang.org/x/mod v0.36.0
 	golang.org/x/net v0.38.0
@@ -20,6 +21,8 @@ require (
 	golang.org/x/term v0.36.0
 	modernc.org/sqlite v1.53.0
 )
+
+replace github.com/startvibecoding/vibe-browser => /home/free/src/vibe-browser
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
@@ -31,7 +34,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/websocket v1.5.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

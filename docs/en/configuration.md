@@ -870,9 +870,10 @@ Blacklist check (highest priority):
 │
 ▼
 In Agent mode:
+├─ Project allow.json matches → Auto-approve (see below)
+├─ Command matches settings whitelist → Auto-approve
 ├─ Write/Edit tool + confirmBeforeWrite=true → Require user approval
 ├─ Non-Bash tool → Auto-approve
-├─ Command matches whitelist → Auto-approve
 └─ Otherwise → Require user approval
 │
 ▼
@@ -909,6 +910,46 @@ In --print mode:
   }
 }
 ```
+
+### Project-Level Allow Rules (`allow.json`)
+
+In addition to the global `settings.json` approval configuration, VibeCoding supports project-level allow rules in `allow.json` (`.vibe/allow.json`). These rules enable auto-approval of specific bash commands **per project** without modifying global settings.
+
+| File | Scope | Priority |
+|------|-------|----------|
+| `.vibe/allow.json` | Current project | High |
+| `~/.vibecoding/allow.json` | Global fallback | Low |
+
+#### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `autoEdit` | bool | `true` | Auto-approve `write`/`edit` tools in agent mode. When no `allow.json` exists, defaults to `true`. A file with `"autoEdit": false` explicitly disables it. |
+| `editPaths` | []string | `[]` | Glob patterns for paths whose `write`/`edit` auto-approve in agent mode. Supports `**` (cross-directory) and `*` (single segment). Project-level only. |
+| `bashCommands` | []string | `[]` | Exact bash command strings that auto-approve in agent mode. Project-level only. |
+| `bashPrefixes` | []string | `[]` | Bash command prefixes that auto-approve in agent mode. Trailing spaces are significant (e.g. `"go test "` matches `go test ./...`). Project-level only. |
+
+#### Interaction with Settings
+
+- **Blacklist overrides allow rules**: A command matching `bashBlacklist` in `settings.json` will always require approval, even if it matches a project-level `bashCommands` or `bashPrefixes` entry.
+- **`autoEdit` inheritance**: Global `autoEdit` is inherited unless the project file explicitly sets it. Writing a project `allow.json` without `autoEdit` will **not** persist the inherited global value.
+
+#### Example `.vibe/allow.json`
+
+```json
+{
+  "autoEdit": true,
+  "editPaths": ["docs/**", "*.md"],
+  "bashCommands": ["make test", "make build"],
+  "bashPrefixes": ["go test ", "go vet "]
+}
+```
+
+#### Managing from the TUI
+
+- The approval dialog offers **"Always Allow Exact Command"** and **"Always Allow Command Prefix"** options when a bash command is pending. Selecting one persists the rule to `.vibe/allow.json`.
+- Use `/alloweditpath add <glob>` to manage `editPaths`.
+- Use `/allowautoedit [on|off]` to toggle `autoEdit`.
 
 ---
 

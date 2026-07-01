@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibecoding-installer"
-version = "1.1.54rc0"
+version = "1.1.55"
 description = "AI coding assistant for the terminal"
 readme = "README.md"
 requires-python = ">=3.8"
