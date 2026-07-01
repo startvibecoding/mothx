@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -308,7 +309,11 @@ func (a *App) selectAuthOption() {
 		a.selectAPIChoice(opt.Value)
 	case authViewModelGroupList:
 		if opt.Value == "done" {
-			a.pushAuthView(authViewModelList)
+			if a.isReviewEdit() {
+				a.returnToReviewAfterEdit()
+			} else {
+				a.popAuthView()
+			}
 			return
 		}
 		a.pushAuthView(authModelGroupFromID(opt.Value))
@@ -396,7 +401,6 @@ func (a *App) jumpAuthEdit(value string) {
 	}
 }
 
-
 func (a *App) submitAuthInput() {
 	value := strings.TrimSpace(a.authInput.Value())
 	a.auth.Error = ""
@@ -437,8 +441,12 @@ func (a *App) submitAuthInput() {
 		}
 		a.scheduleRender()
 	case authViewAddModelID:
-		if value == "" || strings.ContainsAny(value, " /\\\t\n") {
-			a.auth.Error = "Model ID must be non-empty and contain no spaces or slashes."
+		if value == "" || strings.ContainsFunc(value, unicode.IsSpace) {
+			a.auth.Error = "Model ID must be non-empty and contain no whitespace."
+			return
+		}
+		if _, exists := a.auth.Models[value]; exists {
+			a.auth.Error = "Model ID already exists."
 			return
 		}
 		a.auth.CurrentModelID = value
@@ -746,7 +754,17 @@ func (a *App) saveAuthProvider() {
 		a.auth.Error = fmt.Sprintf("Save failed: %v", err)
 		return
 	}
-	a.settings = runtimePatched
+	effective, err := config.LoadSettings()
+	if err != nil {
+		a.auth.Error = fmt.Sprintf("Saved global settings, but reload failed: %v", err)
+		return
+	}
+	p, m, err = providerfactory.Create(effective, a.auth.ProviderID, modelID)
+	if err != nil {
+		a.auth.Error = fmt.Sprintf("Saved global settings, but effective provider validation failed: %v", err)
+		return
+	}
+	a.settings = effective
 	a.provider = p
 	a.model = m
 	a.resetAgent(fmt.Errorf("provider changed"))
@@ -755,4 +773,3 @@ func (a *App) saveAuthProvider() {
 	a.closeAuthDialog()
 	a.addCommandStatus(fmt.Sprintf("✅ Provider saved: %s / %s", providerID, model), "Next message will use the new provider/model.")
 }
-

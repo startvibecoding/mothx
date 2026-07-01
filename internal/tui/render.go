@@ -276,10 +276,7 @@ func (a *App) renderBuiltinFooter() string {
 		modeStr = strings.ToUpper(a.mode)
 	}
 
-	cwd := "."
-	if a.session != nil && a.session.GetHeader() != nil {
-		cwd = a.session.GetHeader().Cwd
-	}
+	cwd := a.currentCwd()
 	if len(cwd) > 30 {
 		cwd = "..." + cwd[len(cwd)-27:]
 	}

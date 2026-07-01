@@ -143,6 +143,27 @@ vibecoding hermes [command]
 
 See [Hermes Mode](hermes.md) documentation for details.
 
+### `stats` - Usage Statistics
+
+Start the usage dashboard, or print token and request statistics directly in the terminal.
+
+```
+vibecoding stats [flags]
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--addr` | - | `127.0.0.1:7878` | Listen address for the web dashboard |
+| `--db` | - | Default sessions database | Path to `sessions.db` |
+| `--cli` | - | false | Print stats in the terminal instead of starting the web server |
+
+Examples:
+```bash
+vibecoding stats
+vibecoding stats --cli
+vibecoding stats --cli --db ~/.vibecoding/sessions/sessions.db
+```
+
 ### `doctor` - Environment Diagnostics
 
 Diagnose your VibeCoding environment: OS info, config files, providers, models, sandbox, MCP, and more.
@@ -315,6 +336,8 @@ vibecoding -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-1200
 vibecoding --session ./20260625-120000_abcd1234.db
 ```
 
+In the TUI, startup without `--continue`, `--resume`, or `--session` does not create an empty session immediately. A new session is created when the first user message is sent. When an existing session is continued, resumed, or selected, its history is shown in the normal terminal scrollback.
+
 ### Sandbox
 
 ```bash
@@ -374,12 +397,14 @@ Commands available during interactive sessions:
 
 | Command | Description |
 |---------|-------------|
-| `/sessions` | List sessions for current project |
-| `/sessions ls` | List all sessions across all projects |
+| `/sessions` | Open the interactive session picker |
+| `/sessions ls` | List sessions for the current project |
 | `/sessions set <id>` | Switch to a session by ID prefix |
-| `/sessions clear` | Create a new fresh session |
+| `/sessions clear` | Start fresh; the new session is created on the next message |
 | `/sessions del <id>` | Delete a session by ID prefix |
 | `/clear` | Clear conversation |
+
+The `/sessions` picker supports Up/Down to select, Enter to switch, `n` to start fresh, `d` to delete the selected session, and Esc to close.
 
 ### Skills
 

@@ -557,6 +557,20 @@ func setupSession(cwd string, settings *config.Settings, opts runOptions) (sessi
 	sessionDir := settings.GetSessionDir()
 	switch {
 	case opts.continue_:
+		if opts.print {
+			sess, err := session.ContinueRecent(cwd, sessionDir)
+			if err != nil {
+				return sessionSetup{}, fmt.Errorf("continue session: %w", err)
+			}
+			return sessionSetup{manager: sess, info: continuingSessionInfo(sess)}, nil
+		}
+		sessions, err := session.ListForDir(cwd, sessionDir)
+		if err != nil {
+			return sessionSetup{}, fmt.Errorf("continue session: %w", err)
+		}
+		if len(sessions) == 0 {
+			return sessionSetup{}, nil
+		}
 		sess, err := session.ContinueRecent(cwd, sessionDir)
 		if err != nil {
 			return sessionSetup{}, fmt.Errorf("continue session: %w", err)
@@ -575,6 +589,9 @@ func setupSession(cwd string, settings *config.Settings, opts runOptions) (sessi
 		}
 		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Resumed session: %s", sess.GetHeader().ID)}, nil
 	default:
+		if !opts.print {
+			return sessionSetup{}, nil
+		}
 		sess := session.New(cwd, sessionDir)
 		if err := sess.Init(); err != nil {
 			return sessionSetup{}, fmt.Errorf("init session: %w", err)

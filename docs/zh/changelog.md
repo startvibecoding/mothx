@@ -26,6 +26,11 @@
 
 ### ✨ 新功能
 
+- **TUI 会话选择器与延迟创建会话**
+  - `/sessions` 现在会打开交互式选择框，支持方向键上下选择、回车切换、`n` 新建会话、`d` 删除会话。原有 `/sessions ls`、`/sessions set <id>`、`/sessions clear`、`/sessions del <id>` 命令仍然保留。
+  - TUI 启动时不再立即创建空会话；只有在用户第一次发送消息时才初始化新会话。`--continue`、`--resume`、`--session` 和 `/sessions set` 仍会绑定已有会话。
+  - 在 TUI 中继续或切换会话时，现在会把加载到的会话历史打印到正常终端 scrollback 中，与启动时展示历史的行为保持一致。
+
 - **OpenAI 兼容模型的内联 `<think>` 推理**
   - 为 OpenAI 兼容供应商新增 `parseReasoningInContent` 模型兼容标志。启用后，正文流中以 `<think>...</think>` 包裹的推理内容会被提取并作为思考增量输出，而不再作为普通文本。
   - 流式解析器能正确处理跨多个 SSE 分块的标签，并在流结束时将残留的不完整标签按字面文本处理。

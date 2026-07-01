@@ -261,8 +261,12 @@ func (a *App) selectAPIChoice(api string) {
 	if api == "" {
 		return
 	}
+	oldAPI := a.auth.Provider.API
+	oldDefaultURL := defaultBaseURLForAPI(oldAPI)
 	a.auth.Provider.API = api
-	a.auth.Provider.BaseURL = defaultBaseURLForAPI(api)
+	if strings.TrimSpace(a.auth.Provider.BaseURL) == "" || a.auth.Provider.BaseURL == oldDefaultURL {
+		a.auth.Provider.BaseURL = defaultBaseURLForAPI(api)
+	}
 	a.popAuthView()
 }
 
@@ -508,4 +512,3 @@ func authViewProviderFromID(id string) authView {
 	}
 	return authViewProviderGroupList
 }
-

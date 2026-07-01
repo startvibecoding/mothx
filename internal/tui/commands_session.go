@@ -7,10 +7,27 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/session"
 )
+
+type sessionsDialogState struct {
+	Open    bool
+	Cursor  int
+	Items   []session.SessionDetail
+	Cwd     string
+	Error   string
+	Message string
+}
+
+var sessionsDialogStyle = lipgloss.NewStyle().
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("63")).
+	Padding(1, 2)
 
 func (a *App) getSessionDir() string {
 	if a.settings != nil {
@@ -23,6 +40,9 @@ func (a *App) getSessionDir() string {
 func (a *App) getCurrentSessionID() string {
 	if a.session == nil {
 		return ""
+	}
+	if a.session.GetHeader() != nil {
+		return a.session.GetHeader().ID
 	}
 	file := a.session.GetFile()
 	if file == "" {
@@ -38,11 +58,12 @@ func (a *App) getCurrentSessionID() string {
 
 // handleSessionsCommand handles the /sessions command and its subcommands.
 func (a *App) handleSessionsCommand(parts []string) {
-	sub := "ls"
-	if len(parts) > 1 {
-		sub = strings.ToLower(parts[1])
+	if len(parts) == 1 {
+		a.openSessionsDialog()
+		return
 	}
 
+	sub := strings.ToLower(parts[1])
 	switch sub {
 	case "ls", "list":
 		a.sessionsList()
@@ -61,22 +82,150 @@ func (a *App) handleSessionsCommand(parts []string) {
 		}
 		a.sessionsDel(parts[2])
 	default:
-		a.addCommandError(fmt.Sprintf("Unknown subcommand: %s. Use ls, set, clear, del.", sub))
+		a.addCommandError(fmt.Sprintf("Unknown subcommand: %s. Use /sessions, or ls, set, clear, del.", sub))
 	}
+}
+
+func (a *App) sessionsCwd() string {
+	if a.session != nil && a.session.GetHeader() != nil && a.session.GetHeader().Cwd != "" {
+		return a.session.GetHeader().Cwd
+	}
+	if a.cwd != "" {
+		return a.cwd
+	}
+	if w, err := os.Getwd(); err == nil {
+		return w
+	}
+	return "."
+}
+
+func (a *App) openSessionsDialog() {
+	if a.isThinking {
+		a.addCommandError("Cannot switch sessions while the agent is running.")
+		return
+	}
+	cwd := a.sessionsCwd()
+	details, err := session.ListForDirDetailed(cwd, a.getSessionDir())
+	state := sessionsDialogState{
+		Open:  true,
+		Items: details,
+		Cwd:   cwd,
+	}
+	if err != nil {
+		state.Error = fmt.Sprintf("Error listing sessions: %v", err)
+	}
+	currentID := a.getCurrentSessionID()
+	for i, d := range details {
+		if d.ID == currentID {
+			state.Cursor = i
+			break
+		}
+	}
+	a.sessionsDialog = state
+	a.input = a.input.Blur()
+	a.scheduleRender()
+}
+
+func (a *App) closeSessionsDialog() {
+	a.sessionsDialog = sessionsDialogState{}
+	a.input = a.input.Focus()
+	a.scheduleRender()
+}
+
+func (a *App) moveSessionsCursor(delta int) {
+	if len(a.sessionsDialog.Items) == 0 {
+		return
+	}
+	a.sessionsDialog.Cursor += delta
+	if a.sessionsDialog.Cursor < 0 {
+		a.sessionsDialog.Cursor = len(a.sessionsDialog.Items) - 1
+	}
+	if a.sessionsDialog.Cursor >= len(a.sessionsDialog.Items) {
+		a.sessionsDialog.Cursor = 0
+	}
+	a.scheduleRender()
+}
+
+func (a *App) confirmSessionsDialog() {
+	if len(a.sessionsDialog.Items) == 0 {
+		return
+	}
+	item := a.sessionsDialog.Items[a.sessionsDialog.Cursor]
+	if item.ID == a.getCurrentSessionID() {
+		a.closeSessionsDialog()
+		a.addCommandStatus("Already on this session.")
+		return
+	}
+	if err := a.switchToSession(item); err != nil {
+		a.sessionsDialog.Error = err.Error()
+		a.scheduleRender()
+		return
+	}
+	a.closeSessionsDialog()
+	a.addCommandStatus(fmt.Sprintf("✅ Switched to session %s (%d msgs)", item.ID, item.MessageCount))
+}
+
+func (a *App) deleteSelectedSessionDialog() {
+	if len(a.sessionsDialog.Items) == 0 {
+		return
+	}
+	item := a.sessionsDialog.Items[a.sessionsDialog.Cursor]
+	if item.ID == a.getCurrentSessionID() {
+		a.sessionsDialog.Error = "Cannot delete the current session. Switch to another session first."
+		a.scheduleRender()
+		return
+	}
+	if err := session.DeleteSession(item.Path, a.getSessionDir()); err != nil {
+		a.sessionsDialog.Error = fmt.Sprintf("Error deleting session: %v", err)
+		a.scheduleRender()
+		return
+	}
+	a.sessionsDialog.Items = append(a.sessionsDialog.Items[:a.sessionsDialog.Cursor], a.sessionsDialog.Items[a.sessionsDialog.Cursor+1:]...)
+	if a.sessionsDialog.Cursor >= len(a.sessionsDialog.Items) {
+		a.sessionsDialog.Cursor = max(0, len(a.sessionsDialog.Items)-1)
+	}
+	a.sessionsDialog.Message = fmt.Sprintf("Deleted session %s.", item.ID)
+	a.sessionsDialog.Error = ""
+	a.scheduleRender()
+}
+
+func (a *App) handleSessionsKey(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if !a.sessionsDialog.Open {
+		return false, nil
+	}
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		a.closeSessionsDialog()
+		return true, nil
+	case tea.KeyUp:
+		a.moveSessionsCursor(-1)
+		return true, nil
+	case tea.KeyDown:
+		a.moveSessionsCursor(1)
+		return true, nil
+	case tea.KeyEnter:
+		a.confirmSessionsDialog()
+		return true, nil
+	case tea.KeyRunes:
+		switch strings.ToLower(string(msg.Runes)) {
+		case "q":
+			a.closeSessionsDialog()
+			return true, nil
+		case "d":
+			a.deleteSelectedSessionDialog()
+			return true, nil
+		case "n":
+			a.closeSessionsDialog()
+			a.sessionsClear()
+			return true, nil
+		}
+	}
+	return true, nil
 }
 
 // sessionsList lists all sessions for the current project directory.
 func (a *App) sessionsList() {
-	cwd := ""
-	if a.session != nil && a.session.GetHeader() != nil {
-		cwd = a.session.GetHeader().Cwd
-	}
-	if cwd == "" {
-		if w, err := os.Getwd(); err == nil {
-			cwd = w
-		}
-	}
-
+	cwd := a.sessionsCwd()
 	sessionDir := a.getSessionDir()
 	details, err := session.ListForDirDetailed(cwd, sessionDir)
 	if err != nil {
@@ -112,15 +261,7 @@ func (a *App) sessionsList() {
 
 // sessionsSet switches to a different session by ID prefix.
 func (a *App) sessionsSet(id string) {
-	cwd := ""
-	if a.session != nil && a.session.GetHeader() != nil {
-		cwd = a.session.GetHeader().Cwd
-	}
-	if cwd == "" {
-		if w, err := os.Getwd(); err == nil {
-			cwd = w
-		}
-	}
+	cwd := a.sessionsCwd()
 
 	// Don't switch to the same session
 	if id == a.getCurrentSessionID() {
@@ -152,18 +293,26 @@ func (a *App) sessionsSet(id string) {
 		return
 	}
 
-	// Open the session
-	newSess, err := session.OpenByID(cwd, sessionDir, match.ID)
-	if err != nil {
-		a.addCommandError(fmt.Sprintf("Error opening session: %v", err))
+	if err := a.switchToSession(*match); err != nil {
+		a.addCommandError(err.Error())
 		return
 	}
 
-	// Switch session
-	a.session = newSess
-	a.historyLoaded = false
+	a.addCommandStatus(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
+		match.ID, match.MessageCount))
+}
 
-	// Reset agent and UI state
+func (a *App) switchToSession(detail session.SessionDetail) error {
+	newSess, err := session.OpenByID(a.sessionsCwd(), a.getSessionDir(), detail.ID)
+	if err != nil {
+		return fmt.Errorf("Error opening session: %v", err)
+	}
+
+	a.session = newSess
+	a.cwd = newSess.GetHeader().Cwd
+	a.historyLoaded = false
+	a.agentHistoryLoaded = false
+
 	a.resetAgent(fmt.Errorf("session changed"))
 	a.resetTranscriptState()
 	a.contextUsage = nil
@@ -171,18 +320,13 @@ func (a *App) sessionsSet(id string) {
 	a.totalCacheRead = 0
 	a.totalCacheWrite = 0
 
-	// Load history messages from the new session
 	a.LoadHistoryMessages()
-	// Recompute context usage so the status bar reflects the switched session
-	// immediately instead of waiting for the next agent turn.
 	a.contextUsage = a.computeContextUsage()
 	a.updateViewportContent()
 	for idx := range a.messages {
 		a.printMessageOnce(idx)
 	}
-
-	a.addCommandStatus(fmt.Sprintf("✅ Switched to session %s (%d msgs)",
-		match.ID, match.MessageCount))
+	return nil
 }
 
 func (a *App) handleInitMCPCommand(parts []string) {
@@ -282,25 +426,9 @@ func (a *App) handleMCPsCommand() {
 
 // sessionsClear creates a new session, starting fresh.
 func (a *App) sessionsClear() {
-	cwd := ""
-	if a.session != nil && a.session.GetHeader() != nil {
-		cwd = a.session.GetHeader().Cwd
-	}
-	if cwd == "" {
-		if w, err := os.Getwd(); err == nil {
-			cwd = w
-		}
-	}
-
-	sessionDir := a.getSessionDir()
-	newSess := session.New(cwd, sessionDir)
-	if err := newSess.Init(); err != nil {
-		a.addCommandError(fmt.Sprintf("Error creating session: %v", err))
-		return
-	}
-
-	a.session = newSess
+	a.session = nil
 	a.historyLoaded = false
+	a.agentHistoryLoaded = false
 
 	// Reset agent and UI state
 	a.resetAgent(fmt.Errorf("session changed"))
@@ -311,20 +439,12 @@ func (a *App) sessionsClear() {
 	a.totalCacheWrite = 0
 	a.updateViewportContent()
 
-	a.addCommandStatus("✅ New session created.")
+	a.addCommandStatus("✅ New session will be created when you send the next message.")
 }
 
 // sessionsDel deletes a session by ID prefix.
 func (a *App) sessionsDel(id string) {
-	cwd := ""
-	if a.session != nil && a.session.GetHeader() != nil {
-		cwd = a.session.GetHeader().Cwd
-	}
-	if cwd == "" {
-		if w, err := os.Getwd(); err == nil {
-			cwd = w
-		}
-	}
+	cwd := a.sessionsCwd()
 
 	// Don't delete the current session
 	if id == a.getCurrentSessionID() {
@@ -362,6 +482,95 @@ func (a *App) sessionsDel(id string) {
 	}
 
 	a.addCommandStatus(fmt.Sprintf("✅ Deleted session %s.", match.ID))
+}
+
+func (a *App) renderSessionsDialog() string {
+	if !a.sessionsDialog.Open {
+		return ""
+	}
+	width := a.width - 4
+	if width < 60 {
+		width = 60
+	}
+	if width > 110 {
+		width = 110
+	}
+
+	var lines []string
+	lines = append(lines, "Sessions")
+	path := a.sessionsDialog.Cwd
+	if xansi.StringWidth(path) > width-4 {
+		path = xansi.Truncate(path, width-4, "…")
+	}
+	lines = append(lines, statusStyle.Render(path), "")
+
+	if len(a.sessionsDialog.Items) == 0 {
+		lines = append(lines, "No sessions found for this project.")
+	} else {
+		limit := 10
+		if a.height > 0 && a.height-10 < limit {
+			limit = a.height - 10
+			if limit < 4 {
+				limit = 4
+			}
+		}
+		start, end := visibleRange(a.sessionsDialog.Cursor, len(a.sessionsDialog.Items), limit)
+		currentID := a.getCurrentSessionID()
+		for i := start; i < end; i++ {
+			d := a.sessionsDialog.Items[i]
+			cursor := "  "
+			style := lipgloss.NewStyle()
+			if i == a.sessionsDialog.Cursor {
+				cursor = "› "
+				style = style.Foreground(lipgloss.Color("86")).Bold(true)
+			}
+			marker := "  "
+			if d.ID == currentID {
+				marker = "* "
+			}
+			preview := d.Preview
+			if preview != "" {
+				preview = " - " + strings.ReplaceAll(preview, "\n", " ")
+			}
+			line := fmt.Sprintf("%s%s%s  %d msgs  %s%s", cursor, marker, d.ID, d.MessageCount, formatAge(d.ModTime), preview)
+			if xansi.StringWidth(line) > width-4 {
+				line = xansi.Truncate(line, width-4, "…")
+			}
+			lines = append(lines, style.Render(line))
+		}
+		if len(a.sessionsDialog.Items) > limit {
+			lines = append(lines, "", statusStyle.Render(fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(a.sessionsDialog.Items))))
+		}
+	}
+
+	if a.sessionsDialog.Message != "" {
+		lines = append(lines, "", statusStyle.Render(a.sessionsDialog.Message))
+	}
+	if a.sessionsDialog.Error != "" {
+		lines = append(lines, "", errorStyle.Render(a.sessionsDialog.Error))
+	}
+	lines = append(lines, "", "Enter switch  Up/Down select  n new  d delete  Esc close")
+
+	return sessionsDialogStyle.Width(width).Render(strings.Join(lines, "\n"))
+}
+
+func visibleRange(cursor, total, limit int) (int, int) {
+	if total <= 0 {
+		return 0, 0
+	}
+	if limit <= 0 || limit >= total {
+		return 0, total
+	}
+	start := cursor - limit/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + limit
+	if end > total {
+		end = total
+		start = end - limit
+	}
+	return start, end
 }
 
 // formatAge returns a human-readable age string for a time.

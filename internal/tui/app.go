@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -110,6 +111,7 @@ type App struct {
 	session      *session.Manager
 	registry     *tools.Registry
 	sandboxInfo  string
+	cwd          string
 	mode         string
 	extraContext string
 	skillsMgr    *skills.Manager
@@ -130,6 +132,7 @@ type App struct {
 	auth                   authDialogState
 	modelDialog            modelDialogState
 	defaultModelDialog     defaultModelDialogState
+	sessionsDialog         sessionsDialogState
 	toolResults            []toolResult // Store tool results for expansion
 	isThinking             bool
 	manualCompactionActive bool
@@ -346,14 +349,15 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 	}
 
 	app := &App{
-		provider:     p,
-		providerName: providerName,
-		model:        model,
+		provider:            p,
+		providerName:        providerName,
+		model:               model,
 		settings:            settings,
 		allow:               allow,
 		session:             sess,
 		registry:            registry,
 		sandboxInfo:         sandboxInfo,
+		cwd:                 currentWorkingDir(sess),
 		mode:                mode,
 		extraContext:        extraContext,
 		baseExtraContext:    extraContext,
@@ -512,10 +516,7 @@ func (a *App) Init() tea.Cmd {
 		providerName = a.model.Provider
 		modelName = a.model.Name
 	}
-	cwd := "."
-	if a.session != nil && a.session.GetHeader() != nil {
-		cwd = a.session.GetHeader().Cwd
-	}
+	cwd := a.currentCwd()
 	header := renderHeader(headerW, ua.Version, providerName, modelName, cwd)
 	if header != "" {
 		a.messages = append(a.messages, header)
@@ -538,6 +539,26 @@ func (a *App) Init() tea.Cmd {
 	}
 	cmds = append(cmds, a.processInputQueue())
 	return tea.Batch(cmds...)
+}
+
+func currentWorkingDir(sess *session.Manager) string {
+	if sess != nil && sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
+		return sess.GetHeader().Cwd
+	}
+	if cwd, err := os.Getwd(); err == nil && cwd != "" {
+		return cwd
+	}
+	return "."
+}
+
+func (a *App) currentCwd() string {
+	if a.session != nil && a.session.GetHeader() != nil && a.session.GetHeader().Cwd != "" {
+		return a.session.GetHeader().Cwd
+	}
+	if a.cwd != "" {
+		return a.cwd
+	}
+	return "."
 }
 
 // processInputQueue returns a command that processes queued input events
@@ -642,6 +663,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleMouse(msg)
 
 	case tea.KeyMsg:
+		if handled, cmd := a.handleSessionsKey(msg); handled {
+			return a, cmd
+		}
 		if handled, cmd := a.handleDefaultModelKey(msg); handled {
 			return a, cmd
 		}
@@ -1076,7 +1100,9 @@ func (a *App) View() string {
 	}
 
 	// 4. Dialog or input field
-	if a.defaultModelDialog.Open {
+	if a.sessionsDialog.Open {
+		parts = append(parts, a.renderSessionsDialog())
+	} else if a.defaultModelDialog.Open {
 		parts = append(parts, a.renderDefaultModelDialog())
 	} else if a.modelDialog.Open {
 		parts = append(parts, a.renderModelDialog())

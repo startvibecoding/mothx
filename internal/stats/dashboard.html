@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VibeCoding Stats</title>
+<style>
+:root {
+	--bg: #f6f7f9;
+	--surface: #ffffff;
+	--surface-muted: #f9fafb;
+	--text: #111827;
+	--muted: #6b7280;
+	--line: #e5e7eb;
+	--line-strong: #d1d5db;
+	--blue: #2563eb;
+	--green: #059669;
+	--amber: #d97706;
+	--violet: #7c3aed;
+	--red: #dc2626;
+	--cyan: #0891b2;
+	--shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+	margin: 0;
+	min-height: 100vh;
+	background:
+		linear-gradient(180deg, rgba(255,255,255,0.96), rgba(246,247,249,0.98) 300px),
+		var(--bg);
+	color: var(--text);
+	font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+button, input, select { font: inherit; }
+button { color: inherit; }
+
+.shell {
+	width: min(1240px, calc(100% - 32px));
+	margin: 0 auto;
+	padding: 28px 0 36px;
+}
+
+.topbar {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 24px;
+	margin-bottom: 24px;
+}
+
+.title-block h1 {
+	margin: 0;
+	font-size: 26px;
+	line-height: 1.15;
+	letter-spacing: 0;
+	font-weight: 700;
+}
+
+.subtitle {
+	margin-top: 6px;
+	color: var(--muted);
+	font-size: 13px;
+}
+
+.filter-toggle {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	min-height: 38px;
+	padding: 7px 12px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+	color: #374151;
+	box-shadow: 0 1px 0 rgba(17, 24, 39, 0.03);
+	cursor: pointer;
+}
+
+.filter-toggle:hover {
+	border-color: var(--line-strong);
+	background: var(--surface-muted);
+}
+
+.filter-toggle:focus {
+	outline: 2px solid rgba(37, 99, 235, 0.16);
+	border-color: rgba(37, 99, 235, 0.55);
+}
+
+.filters {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(132px, 1fr));
+	gap: 10px;
+	min-width: min(650px, 100%);
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.field label {
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.field select {
+	width: 100%;
+	min-height: 38px;
+	padding: 7px 34px 7px 10px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+	color: var(--text);
+	box-shadow: 0 1px 0 rgba(17, 24, 39, 0.03);
+}
+
+.field select:focus {
+	outline: 2px solid rgba(37, 99, 235, 0.16);
+	border-color: rgba(37, 99, 235, 0.55);
+}
+
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 14px;
+	margin-bottom: 18px;
+}
+
+.stat-card,
+.panel {
+	background: rgba(255, 255, 255, 0.92);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	box-shadow: var(--shadow);
+}
+
+.stat-card {
+	position: relative;
+	overflow: hidden;
+	padding: 16px;
+	min-height: 116px;
+}
+
+.stat-card:before {
+	content: "";
+	position: absolute;
+	inset: 0 0 auto;
+	height: 3px;
+	background: var(--accent, var(--blue));
+}
+
+.stat-label {
+	margin: 0 0 10px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 650;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+.stat-value {
+	color: var(--text);
+	font-size: 30px;
+	font-weight: 750;
+	line-height: 1.1;
+	letter-spacing: 0;
+}
+
+.stat-note {
+	margin-top: 8px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.accent-blue { --accent: var(--blue); }
+.accent-green { --accent: var(--green); }
+.accent-amber { --accent: var(--amber); }
+.accent-violet { --accent: var(--violet); }
+
+.content-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 18px;
+}
+
+.panel {
+	margin-bottom: 18px;
+	overflow: hidden;
+}
+
+.panel-wide { grid-column: 1 / -1; }
+
+.panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 16px 18px 12px;
+	border-bottom: 1px solid var(--line);
+}
+
+.panel-title {
+	margin: 0;
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 0;
+}
+
+.panel-meta {
+	color: var(--muted);
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.panel-body { padding: 16px 18px 18px; }
+.chart-container { position: relative; width: 100%; height: 280px; }
+canvas { display: block; width: 100%; height: 100%; }
+
+.heatmap-scroll {
+	overflow-x: auto;
+	padding-bottom: 6px;
+	direction: rtl;
+}
+
+.heatmap-inner {
+	width: max-content;
+	min-width: 100%;
+	direction: ltr;
+}
+
+.heatmap-header {
+	position: relative;
+	height: 18px;
+	margin-bottom: 5px;
+}
+
+.heatmap-header span {
+	position: absolute;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.heatmap-body {
+	display: inline-flex;
+	gap: 3px;
+}
+
+.hm-week {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.hm-cell {
+	width: 12px;
+	height: 12px;
+	border: 1px solid #e3e8ef;
+	border-radius: 3px;
+	background: #edf2f7;
+	cursor: default;
+}
+
+.hm-cell[data-level="1"] { background: #c7e9d4; border-color: #b7dfc6; }
+.hm-cell[data-level="2"] { background: #7fcf9b; border-color: #72be8e; }
+.hm-cell[data-level="3"] { background: #34a853; border-color: #2f984b; }
+.hm-cell[data-level="4"] { background: #176b35; border-color: #155f30; }
+.hm-cell:hover { outline: 2px solid rgba(37, 99, 235, 0.28); outline-offset: 1px; }
+
+.hm-scale {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 5px;
+	margin-top: 12px;
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.hm-tooltip {
+	position: fixed;
+	z-index: 20;
+	display: none;
+	padding: 7px 9px;
+	border: 1px solid var(--line-strong);
+	border-radius: 7px;
+	background: #111827;
+	color: #fff;
+	box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+	font-size: 12px;
+	pointer-events: none;
+	white-space: nowrap;
+}
+
+.table-wrap {
+	overflow-x: auto;
+}
+
+table {
+	width: 100%;
+	min-width: 820px;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+
+thead th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--surface-muted);
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	text-align: left;
+	text-transform: uppercase;
+}
+
+th, td {
+	padding: 11px 12px;
+	border-bottom: 1px solid var(--line);
+	vertical-align: middle;
+}
+
+tbody tr:hover td { background: #f8fafc; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+td.model-cell {
+	max-width: 280px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pill {
+	display: inline-flex;
+	align-items: center;
+	min-height: 22px;
+	max-width: 180px;
+	padding: 2px 8px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--surface-muted);
+	color: #374151;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pagination {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	padding: 14px 18px 18px;
+	flex-wrap: wrap;
+}
+
+.page-btn {
+	min-height: 34px;
+	padding: 6px 10px;
+	border: 1px solid var(--line);
+	border-radius: 7px;
+	background: var(--surface);
+	color: #374151;
+	cursor: pointer;
+}
+
+.page-btn:hover:not(:disabled) {
+	border-color: var(--line-strong);
+	background: var(--surface-muted);
+}
+
+.page-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.page-btn.active {
+	border-color: rgba(37, 99, 235, 0.35);
+	background: rgba(37, 99, 235, 0.1);
+	color: var(--blue);
+	font-weight: 700;
+}
+
+.page-info {
+	color: var(--muted);
+	font-size: 12px;
+	padding: 0 4px;
+}
+
+.empty {
+	padding: 36px 12px;
+	color: var(--muted);
+	text-align: center;
+}
+
+@media (max-width: 980px) {
+	.topbar { flex-direction: column; }
+	.filters { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.content-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+	.shell {
+		width: min(100% - 20px, 1240px);
+		padding-top: 18px;
+	}
+	.title-block h1 { font-size: 22px; }
+	.topbar {
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+	.title-block {
+		width: 100%;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		align-items: start;
+		gap: 12px;
+	}
+	.subtitle {
+		grid-column: 1 / -1;
+		margin-top: 0;
+	}
+	.filter-toggle { display: inline-flex; }
+	.filters {
+		grid-template-columns: 1fr;
+		padding: 12px;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		background: rgba(255, 255, 255, 0.92);
+		box-shadow: var(--shadow);
+	}
+	.filters[hidden] { display: none; }
+	.summary-grid { grid-template-columns: 1fr; }
+	.panel-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+	.pagination { justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+<main class="shell">
+	<header class="topbar">
+		<div class="title-block">
+			<h1>VibeCoding Stats</h1>
+			<button class="filter-toggle" id="filterToggle" type="button" aria-controls="filters" aria-expanded="false">Filters</button>
+			<div class="subtitle">Usage, token volume, and recent model requests.</div>
+		</div>
+		<div class="filters" id="filters" aria-label="Dashboard filters">
+			<div class="field">
+				<label for="range">Range</label>
+				<select id="range">
+					<option value="today">Today</option>
+					<option value="week">This Week</option>
+					<option value="month" selected>This Month</option>
+					<option value="all">All Time</option>
+				</select>
+			</div>
+			<div class="field">
+				<label for="vendor">Provider</label>
+				<select id="vendor"><option value="">All</option></select>
+			</div>
+			<div class="field">
+				<label for="protocol">Protocol</label>
+				<select id="protocol"><option value="">All</option></select>
+			</div>
+			<div class="field">
+				<label for="model">Model</label>
+				<select id="model"><option value="">All</option></select>
+			</div>
+		</div>
+	</header>
+
+	<section class="summary-grid" id="summary" aria-label="Summary">
+		<div class="stat-card accent-blue">
+			<p class="stat-label">Requests</p>
+			<div class="stat-value" id="stat-requests">-</div>
+			<div class="stat-note">Completed LLM calls</div>
+		</div>
+		<div class="stat-card accent-green">
+			<p class="stat-label">Input Tokens</p>
+			<div class="stat-value" id="stat-input">-</div>
+			<div class="stat-note">Prompt and context</div>
+		</div>
+		<div class="stat-card accent-amber">
+			<p class="stat-label">Output Tokens</p>
+			<div class="stat-value" id="stat-output">-</div>
+			<div class="stat-note">Model responses</div>
+		</div>
+		<div class="stat-card accent-violet">
+			<p class="stat-label">Total Tokens</p>
+			<div class="stat-value" id="stat-total">-</div>
+			<div class="stat-note">Input plus output</div>
+		</div>
+	</section>
+
+	<section class="panel">
+		<div class="panel-header">
+			<h2 class="panel-title">Daily Token Heatmap</h2>
+			<div class="panel-meta">Last 365 days</div>
+		</div>
+		<div class="panel-body">
+			<div class="heatmap-scroll" id="heatmapScroll">
+				<div class="heatmap-inner">
+					<div class="heatmap-header" id="hmHeader"></div>
+					<div class="heatmap-body" id="heatmapBody"></div>
+				</div>
+			</div>
+			<div class="hm-scale">Less <div class="hm-cell"></div><div class="hm-cell" data-level="1"></div><div class="hm-cell" data-level="2"></div><div class="hm-cell" data-level="3"></div><div class="hm-cell" data-level="4"></div> More</div>
+		</div>
+	</section>
+
+	<section class="content-grid">
+		<div class="panel">
+			<div class="panel-header">
+				<h2 class="panel-title">By Provider</h2>
+				<div class="panel-meta">Total tokens</div>
+			</div>
+			<div class="panel-body">
+				<div class="chart-container"><canvas id="chartProvider"></canvas></div>
+			</div>
+		</div>
+		<div class="panel">
+			<div class="panel-header">
+				<h2 class="panel-title">By Model</h2>
+				<div class="panel-meta">Total tokens</div>
+			</div>
+			<div class="panel-body">
+				<div class="chart-container"><canvas id="chartModel"></canvas></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="panel">
+		<div class="panel-header">
+			<h2 class="panel-title">Recent Requests</h2>
+			<div class="panel-meta" id="recentMeta">-</div>
+		</div>
+		<div class="table-wrap">
+			<table>
+				<thead>
+					<tr>
+						<th>Time</th>
+						<th>Provider</th>
+						<th>Protocol</th>
+						<th>Model</th>
+						<th>Input</th>
+						<th>Output</th>
+						<th>Duration</th>
+					</tr>
+				</thead>
+				<tbody id="recentTable"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+			</table>
+		</div>
+		<div class="pagination" id="recentPagination"></div>
+	</section>
+</main>
+<div id="hmTooltip" class="hm-tooltip"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const chartColors = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#4b5563', '#0f766e'];
+
+function fmt(n) {
+	const value = Number(n || 0);
+	if (value >= 1e9) return (value / 1e9).toFixed(1) + 'B';
+	if (value >= 1e6) return (value / 1e6).toFixed(1) + 'M';
+	if (value >= 1e3) return (value / 1e3).toFixed(1) + 'K';
+	return String(value);
+}
+
+function fmtFull(n) {
+	return Number(n || 0).toLocaleString();
+}
+
+function localDate(d) {
+	return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function esc(value) {
+	return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+		'&': '&amp;',
+		'<': '&lt;',
+		'>': '&gt;',
+		'"': '&quot;',
+		"'": '&#39;'
+	})[ch]);
+}
+
+function getRange() {
+	const r = $('range').value;
+	if (r === 'all') return { from: '', to: '' };
+	const now = new Date();
+	let from, to;
+	if (r === 'today') {
+		from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		to = new Date(from.getTime() + 86400000);
+	} else if (r === 'week') {
+		const dow = now.getDay() || 7;
+		from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow + 1);
+		to = new Date(from.getTime() + 7 * 86400000);
+	} else {
+		from = new Date(now.getFullYear(), now.getMonth(), 1);
+		to = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+	}
+	return { from: localDate(from), to: localDate(to) };
+}
+
+function buildQS(extra) {
+	const { from, to } = getRange();
+	const params = new URLSearchParams();
+	if (from) params.set('from', from);
+	if (to) params.set('to', to);
+	const vendor = $('vendor').value;
+	const protocol = $('protocol').value;
+	const model = $('model').value;
+	if (vendor) params.set('vendor', vendor);
+	if (protocol) params.set('protocol', protocol);
+	if (model) params.set('model', model);
+	if (extra) for (const [k, v] of Object.entries(extra)) params.set(k, v);
+	return params.toString();
+}
+
+async function fetchAPI(path, extra) {
+	const qs = buildQS(extra);
+	const r = await fetch(path + (qs ? '?' + qs : ''));
+	if (!r.ok && r.status !== 206) throw new Error('Request failed: ' + path);
+	return r.json();
+}
+
+function drawHeatmap(days, maxTokens) {
+	const body = $('heatmapBody');
+	const header = $('hmHeader');
+	body.innerHTML = '';
+	header.innerHTML = '';
+
+	if (!days.length) {
+		body.innerHTML = '<div class="empty">No data</div>';
+		return;
+	}
+
+	const t1 = maxTokens * 0.25;
+	const t2 = maxTokens * 0.5;
+	const t3 = maxTokens * 0.75;
+	function level(v) {
+		if (!v) return 0;
+		if (v <= t1) return 1;
+		if (v <= t2) return 2;
+		if (v <= t3) return 3;
+		return 4;
+	}
+
+	const weeks = [];
+	let currentWeek = [];
+	for (let i = 0; i < days.length; i++) {
+		const day = days[i];
+		const dt = new Date(day.date + 'T00:00:00');
+		const dow = dt.getDay();
+		if (dow === 0 && currentWeek.length > 0) {
+			weeks.push(currentWeek);
+			currentWeek = [];
+		}
+		if (weeks.length === 0 && currentWeek.length === 0 && dow > 0) {
+			for (let j = 0; j < dow; j++) currentWeek.push(null);
+		}
+		currentWeek.push(day);
+		if (dow === 6) {
+			weeks.push(currentWeek);
+			currentWeek = [];
+		}
+	}
+	if (currentWeek.length > 0) {
+		while (currentWeek.length < 7) currentWeek.push(null);
+		weeks.push(currentWeek);
+	}
+
+	const cellStep = 15;
+	let lastMonth = -1;
+	for (let w = 0; w < weeks.length; w++) {
+		for (let d = 0; d < weeks[w].length; d++) {
+			const day = weeks[w][d];
+			if (!day) continue;
+			const dt = new Date(day.date + 'T00:00:00');
+			if (dt.getMonth() !== lastMonth) {
+				const span = document.createElement('span');
+				span.textContent = dt.toLocaleString('en', { month: 'short' });
+				span.style.left = (w * cellStep) + 'px';
+				header.appendChild(span);
+				lastMonth = dt.getMonth();
+			}
+			break;
+		}
+	}
+
+	const tip = $('hmTooltip');
+	for (const week of weeks) {
+		const weekDiv = document.createElement('div');
+		weekDiv.className = 'hm-week';
+		for (const day of week) {
+			const cell = document.createElement('div');
+			cell.className = 'hm-cell';
+			if (day) {
+				cell.dataset.level = String(level(day.totalTokens));
+				cell.addEventListener('mouseover', () => {
+					tip.textContent = day.date + ': ' + fmtFull(day.totalTokens) + ' tokens';
+					tip.style.display = 'block';
+				});
+				cell.addEventListener('mouseout', () => { tip.style.display = 'none'; });
+				cell.addEventListener('mousemove', e => {
+					tip.style.left = (e.clientX + 12) + 'px';
+					tip.style.top = (e.clientY - 30) + 'px';
+				});
+			} else {
+				cell.style.visibility = 'hidden';
+			}
+			weekDiv.appendChild(cell);
+		}
+		body.appendChild(weekDiv);
+	}
+}
+
+function drawPieChart(canvas, labels, values, colors) {
+	const ctx = canvas.getContext('2d');
+	const dpr = window.devicePixelRatio || 1;
+	const rect = canvas.parentElement.getBoundingClientRect();
+	const width = Math.max(1, rect.width);
+	const height = Math.max(1, rect.height);
+	canvas.width = Math.floor(width * dpr);
+	canvas.height = Math.floor(height * dpr);
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	ctx.clearRect(0, 0, width, height);
+
+	const total = values.reduce((a, b) => a + Number(b || 0), 0);
+	if (!total) {
+		ctx.fillStyle = '#6b7280';
+		ctx.textAlign = 'center';
+		ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+		ctx.fillText('No data', width / 2, height / 2);
+		return;
+	}
+
+	const chartArea = Math.min(width * 0.48, 260);
+	const cx = Math.min(width * 0.28, chartArea / 2 + 12);
+	const cy = height / 2;
+	const radius = Math.min(chartArea / 2, height * 0.37);
+	const innerRadius = radius * 0.58;
+	let startAngle = -Math.PI / 2;
+
+	for (let i = 0; i < values.length; i++) {
+		const slice = values[i] / total * Math.PI * 2;
+		ctx.beginPath();
+		ctx.arc(cx, cy, radius, startAngle, startAngle + slice);
+		ctx.arc(cx, cy, innerRadius, startAngle + slice, startAngle, true);
+		ctx.closePath();
+		ctx.fillStyle = colors[i % colors.length];
+		ctx.fill();
+		startAngle += slice;
+	}
+
+	ctx.fillStyle = '#111827';
+	ctx.textAlign = 'center';
+	ctx.font = '700 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+	ctx.fillText(fmt(total), cx, cy - 2);
+	ctx.fillStyle = '#6b7280';
+	ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+	ctx.fillText('tokens', cx, cy + 16);
+
+	const legendX = Math.min(width * 0.58, cx + radius + 34);
+	const maxRows = Math.min(labels.length, Math.floor((height - 24) / 24));
+	ctx.textAlign = 'left';
+	ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+	for (let i = 0; i < maxRows; i++) {
+		const y = 18 + i * 24;
+		ctx.fillStyle = colors[i % colors.length];
+		ctx.beginPath();
+		ctx.roundRect(legendX, y, 10, 10, 2);
+		ctx.fill();
+		ctx.fillStyle = '#374151';
+		const pct = (values[i] / total * 100).toFixed(1);
+		const maxChars = width < 560 ? 18 : 26;
+		const label = labels[i].length > maxChars ? labels[i].slice(0, maxChars - 2) + '..' : labels[i];
+		ctx.fillText(label + ' (' + pct + '%)', legendX + 16, y + 9);
+	}
+	if (labels.length > maxRows) {
+		ctx.fillStyle = '#6b7280';
+		ctx.fillText('+' + (labels.length - maxRows) + ' more', legendX, 18 + maxRows * 24);
+	}
+}
+
+async function loadSummary() {
+	const s = await fetchAPI('/api/summary');
+	$('stat-requests').textContent = fmt(s.totalRequests);
+	$('stat-input').textContent = fmt(s.inputTokens);
+	$('stat-output').textContent = fmt(s.outputTokens);
+	$('stat-total').textContent = fmt(s.totalTokens);
+}
+
+async function loadHeatmap() {
+	const now = new Date();
+	const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 364);
+	const params = new URLSearchParams();
+	params.set('from', localDate(from));
+	params.set('to', localDate(now));
+	params.set('groupBy', 'day');
+	const data = await fetch('/api/timeseries?' + params.toString()).then(r => r.json());
+	const dayMap = {};
+	data.forEach(d => { dayMap[d.label] = d; });
+	const days = [];
+	let maxTokens = 0;
+	for (let i = 0; i < 365; i++) {
+		const dt = new Date(from.getTime() + i * 86400000);
+		const key = localDate(dt);
+		const entry = dayMap[key] || { totalTokens: 0 };
+		days.push({ date: key, totalTokens: entry.totalTokens });
+		if (entry.totalTokens > maxTokens) maxTokens = entry.totalTokens;
+	}
+	drawHeatmap(days, maxTokens);
+}
+
+async function loadByProvider() {
+	const data = await fetchAPI('/api/by-provider');
+	const labels = data.map(d => d.protocol ? d.vendor + ' (' + d.protocol + ')' : d.vendor);
+	const values = data.map(d => d.totalTokens);
+	drawPieChart($('chartProvider'), labels, values, chartColors);
+}
+
+async function loadByModel() {
+	const data = await fetchAPI('/api/by-model');
+	const labels = data.map(d => d.label || d.model || '-');
+	const values = data.map(d => d.totalTokens);
+	drawPieChart($('chartModel'), labels, values, chartColors);
+}
+
+let recentPage = 1;
+let recentPageSize = 20;
+let recentTotal = 0;
+
+function renderPagination() {
+	const container = $('recentPagination');
+	const totalPages = Math.ceil(recentTotal / recentPageSize) || 1;
+	if (totalPages <= 1) {
+		container.innerHTML = '';
+		return;
+	}
+
+	let html = '';
+	html += '<button class="page-btn" onclick="goRecentPage(1)"' + (recentPage <= 1 ? ' disabled' : '') + '>First</button>';
+	html += '<button class="page-btn" onclick="goRecentPage(' + (recentPage - 1) + ')"' + (recentPage <= 1 ? ' disabled' : '') + '>Prev</button>';
+	const maxVisible = 5;
+	let start = Math.max(1, recentPage - Math.floor(maxVisible / 2));
+	let end = Math.min(totalPages, start + maxVisible - 1);
+	if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+	if (start > 1) html += '<span class="page-info">...</span>';
+	for (let i = start; i <= end; i++) {
+		html += '<button class="page-btn' + (i === recentPage ? ' active' : '') + '" onclick="goRecentPage(' + i + ')">' + i + '</button>';
+	}
+	if (end < totalPages) html += '<span class="page-info">...</span>';
+	html += '<button class="page-btn" onclick="goRecentPage(' + (recentPage + 1) + ')"' + (recentPage >= totalPages ? ' disabled' : '') + '>Next</button>';
+	html += '<button class="page-btn" onclick="goRecentPage(' + totalPages + ')"' + (recentPage >= totalPages ? ' disabled' : '') + '>Last</button>';
+	html += '<span class="page-info">' + recentPage + ' / ' + totalPages + '</span>';
+	container.innerHTML = html;
+}
+
+function goRecentPage(p) {
+	const totalPages = Math.ceil(recentTotal / recentPageSize) || 1;
+	if (p < 1 || p > totalPages) return;
+	recentPage = p;
+	loadRecent();
+}
+
+async function loadRecent() {
+	const r = await fetch('/api/recent?page=' + recentPage + '&pageSize=' + recentPageSize);
+	const data = await r.json();
+	recentTotal = data.total || 0;
+	recentPage = data.page || 1;
+	const tbody = $('recentTable');
+	$('recentMeta').textContent = recentTotal ? fmtFull(recentTotal) + ' total' : 'No entries';
+	if (!data.items || !data.items.length) {
+		tbody.innerHTML = '<tr><td colspan="7" class="empty">No data</td></tr>';
+		$('recentPagination').innerHTML = '';
+		return;
+	}
+	tbody.innerHTML = data.items.map(e => '<tr>' +
+		'<td>' + esc(new Date(e.timestamp).toLocaleString()) + '</td>' +
+		'<td><span class="pill">' + esc(e.vendor || '-') + '</span></td>' +
+		'<td>' + esc(e.protocol || '-') + '</td>' +
+		'<td class="model-cell" title="' + esc(e.model || '-') + '">' + esc(e.model || '-') + '</td>' +
+		'<td class="num">' + fmt(e.inputTokens) + '</td>' +
+		'<td class="num">' + fmt(e.outputTokens) + '</td>' +
+		'<td class="num">' + (e.durationMs > 0 ? (e.durationMs / 1000).toFixed(1) + 's' : '-') + '</td>' +
+		'</tr>').join('');
+	renderPagination();
+}
+
+async function loadFilters() {
+	const provData = await fetchAPI('/api/by-provider');
+	const vendorSel = $('vendor');
+	const protocolSel = $('protocol');
+	const seenVendors = new Set();
+	const seenProtocols = new Set();
+	provData.forEach(d => {
+		if (d.vendor && !seenVendors.has(d.vendor)) {
+			seenVendors.add(d.vendor);
+			const opt = document.createElement('option');
+			opt.value = d.vendor;
+			opt.textContent = d.vendor;
+			vendorSel.appendChild(opt);
+		}
+		if (d.protocol && !seenProtocols.has(d.protocol)) {
+			seenProtocols.add(d.protocol);
+			const opt = document.createElement('option');
+			opt.value = d.protocol;
+			opt.textContent = d.protocol;
+			protocolSel.appendChild(opt);
+		}
+	});
+	const modelData = await fetchAPI('/api/by-model');
+	const modelSel = $('model');
+	const seenModels = new Set();
+	modelData.forEach(d => {
+		const model = d.model || d.label;
+		if (!model || seenModels.has(model)) return;
+		seenModels.add(model);
+		const opt = document.createElement('option');
+		opt.value = model;
+		opt.textContent = model;
+		modelSel.appendChild(opt);
+	});
+}
+
+async function refresh() {
+	recentPage = 1;
+	try {
+		await Promise.all([loadSummary(), loadHeatmap(), loadByProvider(), loadByModel()]);
+		await loadRecent();
+	} catch (err) {
+		console.error(err);
+	}
+}
+
+let resizeTimer = 0;
+function redrawChartsSoon() {
+	clearTimeout(resizeTimer);
+	resizeTimer = setTimeout(() => {
+		loadByProvider();
+		loadByModel();
+	}, 120);
+}
+
+const mobileQuery = window.matchMedia('(max-width: 560px)');
+function syncFilterCollapse() {
+	const filters = $('filters');
+	const toggle = $('filterToggle');
+	if (!mobileQuery.matches) {
+		filters.hidden = false;
+		toggle.setAttribute('aria-expanded', 'true');
+		toggle.textContent = 'Filters';
+		return;
+	}
+	const expanded = toggle.getAttribute('aria-expanded') === 'true';
+	filters.hidden = !expanded;
+	toggle.textContent = expanded ? 'Hide' : 'Filters';
+}
+
+$('filterToggle').addEventListener('click', () => {
+	const toggle = $('filterToggle');
+	toggle.setAttribute('aria-expanded', toggle.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+	syncFilterCollapse();
+});
+
+$('range').addEventListener('change', refresh);
+$('vendor').addEventListener('change', refresh);
+$('protocol').addEventListener('change', refresh);
+$('model').addEventListener('change', refresh);
+window.addEventListener('resize', () => {
+	syncFilterCollapse();
+	redrawChartsSoon();
+});
+
+syncFilterCollapse();
+loadFilters().then(refresh);
+</script>
+</body>
+</html>

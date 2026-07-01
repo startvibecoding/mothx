@@ -39,6 +39,48 @@ type Settings struct {
 	UpdateCheck          *bool                      `json:"updateCheck,omitempty"` // nil/true = check npm for updates on startup, false = disabled
 }
 
+func (s *Settings) UnmarshalJSON(data []byte) error {
+	type settingsJSON Settings
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	providersRaw, hasProviders := raw["providers"]
+	delete(raw, "providers")
+
+	withoutProviders, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	aux := settingsJSON(*s)
+	if err := json.Unmarshal(withoutProviders, &aux); err != nil {
+		return err
+	}
+	*s = Settings(aux)
+
+	if !hasProviders {
+		return nil
+	}
+	var providerEntries map[string]json.RawMessage
+	if err := json.Unmarshal(providersRaw, &providerEntries); err != nil {
+		return err
+	}
+	if s.Providers == nil {
+		s.Providers = map[string]*ProviderConfig{}
+	}
+	for id, providerData := range providerEntries {
+		pc := s.Providers[id]
+		if pc == nil {
+			pc = &ProviderConfig{}
+		}
+		if err := json.Unmarshal(providerData, pc); err != nil {
+			return err
+		}
+		s.Providers[id] = pc
+	}
+	return nil
+}
+
 type ProviderConfig struct {
 	Vendor         string            `json:"vendor,omitempty"`    // Explicit vendor adapter (Decision 12/13)
 	APIKey         string            `json:"apiKey,omitempty"`    // API key or env/shell reference
@@ -51,6 +93,8 @@ type ProviderConfig struct {
 	CacheControl   *bool             `json:"cacheControl,omitempty"`   // enable Anthropic prompt caching (nil/false=off, true=on; set true for Claude models)
 	Responses      ResponsesConfig   `json:"responses,omitempty"`
 	Models         []ModelConfig     `json:"models"`
+
+	fieldSet map[string]bool `json:"-"`
 }
 
 type ResponsesConfig struct {
@@ -88,6 +132,8 @@ type ModelConfig struct {
 	Cost          *CostConfig  `json:"cost,omitempty"`
 	Input         []string     `json:"input,omitempty"`
 	Compat        *ModelCompat `json:"compat,omitempty"` // Vendor compatibility flags (Decision 14)
+
+	fieldSet map[string]bool `json:"-"`
 }
 
 type CostConfig struct {
@@ -95,6 +141,52 @@ type CostConfig struct {
 	Output     float64 `json:"output"`
 	CacheRead  float64 `json:"cacheRead,omitempty"`
 	CacheWrite float64 `json:"cacheWrite,omitempty"`
+}
+
+func (pc *ProviderConfig) UnmarshalJSON(data []byte) error {
+	type providerConfigJSON ProviderConfig
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	aux := providerConfigJSON(*pc)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*pc = ProviderConfig(aux)
+	pc.fieldSet = cloneFieldSet(pc.fieldSet)
+	if pc.fieldSet == nil {
+		pc.fieldSet = make(map[string]bool, len(raw))
+	}
+	for k := range raw {
+		pc.fieldSet[k] = true
+	}
+	return nil
+}
+
+func (mc *ModelConfig) UnmarshalJSON(data []byte) error {
+	type modelConfigJSON ModelConfig
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	aux := modelConfigJSON(*mc)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*mc = ModelConfig(aux)
+	mc.fieldSet = cloneFieldSet(mc.fieldSet)
+	if mc.fieldSet == nil {
+		mc.fieldSet = make(map[string]bool, len(raw))
+	}
+	for k := range raw {
+		mc.fieldSet[k] = true
+	}
+	return nil
+}
+
+func configFieldWasSet(fields map[string]bool, name string) bool {
+	return fields != nil && fields[name]
 }
 
 // ModelCompat defines per-model compatibility flags (Decision 14).
@@ -183,175 +275,175 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		APIKey:  "${ANTHROPIC_API_KEY}",
 		API:     "anthropic-messages",
 		Models: []ModelConfig{
-				{ID: "claude-3-5-haiku-20241022", Name: "Claude Haiku 3.5", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 0.8, Output: 4, CacheRead: 0.08, CacheWrite: 1}, Input: []string{"text", "image"}},
-				{ID: "claude-3-5-haiku-latest", Name: "Claude Haiku 3.5 (latest)", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 0.8, Output: 4, CacheRead: 0.08, CacheWrite: 1}, Input: []string{"text", "image"}},
-				{ID: "claude-3-5-sonnet-20240620", Name: "Claude Sonnet 3.5", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-3-5-sonnet-20241022", Name: "Claude Sonnet 3.5 v2", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-3-7-sonnet-20250219", Name: "Claude Sonnet 3.7", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-3-haiku-20240307", Name: "Claude Haiku 3", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 0.25, Output: 1.25, CacheRead: 0.03, CacheWrite: 0.3}, Input: []string{"text", "image"}},
-				{ID: "claude-3-opus-20240229", Name: "Claude Opus 3", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
-				{ID: "claude-3-sonnet-20240229", Name: "Claude Sonnet 3", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 0.3}, Input: []string{"text", "image"}},
-				{ID: "claude-fable-5", Name: "Claude Fable 5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 10, Output: 50, CacheRead: 1, CacheWrite: 12.5}, Input: []string{"text", "image"}},
-				{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 1, Output: 5, CacheRead: 0.1, CacheWrite: 1.25}, Input: []string{"text", "image"}},
-				{ID: "claude-haiku-4-5-20251001", Name: "Claude Haiku 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 1, Output: 5, CacheRead: 0.1, CacheWrite: 1.25}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-0", Name: "Claude Opus 4 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-1", Name: "Claude Opus 4.1 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-1-20250805", Name: "Claude Opus 4.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-5", Name: "Claude Opus 4.5 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-5-20251101", Name: "Claude Opus 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-6", Name: "Claude Opus 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-7", Name: "Claude Opus 4.7", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
-				{ID: "claude-opus-4-8", Name: "Claude Opus 4.8", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
-				{ID: "claude-sonnet-4-0", Name: "Claude Sonnet 4 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-sonnet-4-5", Name: "Claude Sonnet 4.5 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-sonnet-4-5-20250929", Name: "Claude Sonnet 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-				{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
-			},
+			{ID: "claude-3-5-haiku-20241022", Name: "Claude Haiku 3.5", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 0.8, Output: 4, CacheRead: 0.08, CacheWrite: 1}, Input: []string{"text", "image"}},
+			{ID: "claude-3-5-haiku-latest", Name: "Claude Haiku 3.5 (latest)", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 0.8, Output: 4, CacheRead: 0.08, CacheWrite: 1}, Input: []string{"text", "image"}},
+			{ID: "claude-3-5-sonnet-20240620", Name: "Claude Sonnet 3.5", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-3-5-sonnet-20241022", Name: "Claude Sonnet 3.5 v2", ContextWindow: 200000, MaxTokens: 8192, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-3-7-sonnet-20250219", Name: "Claude Sonnet 3.7", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-3-haiku-20240307", Name: "Claude Haiku 3", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 0.25, Output: 1.25, CacheRead: 0.03, CacheWrite: 0.3}, Input: []string{"text", "image"}},
+			{ID: "claude-3-opus-20240229", Name: "Claude Opus 3", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
+			{ID: "claude-3-sonnet-20240229", Name: "Claude Sonnet 3", ContextWindow: 200000, MaxTokens: 4096, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 0.3}, Input: []string{"text", "image"}},
+			{ID: "claude-fable-5", Name: "Claude Fable 5", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 10, Output: 50, CacheRead: 1, CacheWrite: 12.5}, Input: []string{"text", "image"}},
+			{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 1, Output: 5, CacheRead: 0.1, CacheWrite: 1.25}, Input: []string{"text", "image"}},
+			{ID: "claude-haiku-4-5-20251001", Name: "Claude Haiku 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 1, Output: 5, CacheRead: 0.1, CacheWrite: 1.25}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-0", Name: "Claude Opus 4 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-1", Name: "Claude Opus 4.1 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-1-20250805", Name: "Claude Opus 4.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-5", Name: "Claude Opus 4.5 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-5-20251101", Name: "Claude Opus 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-6", Name: "Claude Opus 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-7", Name: "Claude Opus 4.7", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
+			{ID: "claude-opus-4-8", Name: "Claude Opus 4.8", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
+			{ID: "claude-sonnet-4-0", Name: "Claude Sonnet 4 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-sonnet-4-5", Name: "Claude Sonnet 4.5 (latest)", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-sonnet-4-5-20250929", Name: "Claude Sonnet 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+			{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
+		},
 	},
 	"deepseek-anthropic": &ProviderConfig{
 		BaseURL: "https://api.deepseek.com/anthropic",
 		APIKey:  "${DEEPSEEK_API_KEY}",
 		API:     "anthropic-messages",
 		Models: []ModelConfig{
-				{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text"}},
-				{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.003625}, Input: []string{"text"}},
-			},
+			{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text"}},
+			{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.003625}, Input: []string{"text"}},
+		},
 	},
 	"deepseek-openai": &ProviderConfig{
 		BaseURL: "https://api.deepseek.com",
 		APIKey:  "${DEEPSEEK_API_KEY}",
 		API:     "openai-chat",
 		Models: []ModelConfig{
-				{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text"}},
-				{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.003625}, Input: []string{"text"}},
-			},
+			{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.0028}, Input: []string{"text"}},
+			{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.435, Output: 0.87, CacheRead: 0.003625}, Input: []string{"text"}},
+		},
 	},
 	"openai": &ProviderConfig{
 		BaseURL: "https://api.openai.com/v1",
 		APIKey:  "${OPENAI_API_KEY}",
 		API:     "openai-responses",
 		Models: []ModelConfig{
-				{ID: "gpt-4", Name: "GPT-4", ContextWindow: 8192, MaxTokens: 8192, Cost: &CostConfig{Input: 30, Output: 60}, Input: []string{"text"}},
-				{ID: "gpt-4-turbo", Name: "GPT-4 Turbo", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 10, Output: 30}, Input: []string{"text", "image"}},
-				{ID: "gpt-4.1", Name: "GPT-4.1", ContextWindow: 1047576, MaxTokens: 32768, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.5}, Input: []string{"text", "image"}},
-				{ID: "gpt-4.1-mini", Name: "GPT-4.1 mini", ContextWindow: 1047576, MaxTokens: 32768, Cost: &CostConfig{Input: 0.4, Output: 1.6, CacheRead: 0.1}, Input: []string{"text", "image"}},
-				{ID: "gpt-4.1-nano", Name: "GPT-4.1 nano", ContextWindow: 1047576, MaxTokens: 32768, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gpt-4o", Name: "GPT-4o", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10, CacheRead: 1.25}, Input: []string{"text", "image"}},
-				{ID: "gpt-4o-2024-05-13", Name: "GPT-4o (2024-05-13)", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 5, Output: 15}, Input: []string{"text", "image"}},
-				{ID: "gpt-4o-2024-08-06", Name: "GPT-4o (2024-08-06)", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10, CacheRead: 1.25}, Input: []string{"text", "image"}},
-				{ID: "gpt-4o-2024-11-20", Name: "GPT-4o (2024-11-20)", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10, CacheRead: 1.25}, Input: []string{"text", "image"}},
-				{ID: "gpt-4o-mini", Name: "GPT-4o mini", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.075}, Input: []string{"text", "image"}},
-				{ID: "gpt-5", Name: "GPT-5", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5-chat-latest", Name: "GPT-5 Chat Latest", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5-codex", Name: "GPT-5-Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5-mini", Name: "GPT-5 Mini", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.25, Output: 2, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gpt-5-nano", Name: "GPT-5 Nano", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.05, Output: 0.4, CacheRead: 0.005}, Input: []string{"text", "image"}},
-				{ID: "gpt-5-pro", Name: "GPT-5 Pro", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 15, Output: 120}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.1", Name: "GPT-5.1", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.1-chat-latest", Name: "GPT-5.1 Chat", Reasoning: true, ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.1-codex", Name: "GPT-5.1 Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.1-codex-max", Name: "GPT-5.1 Codex Max", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.1-codex-mini", Name: "GPT-5.1 Codex mini", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.25, Output: 2, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.2", Name: "GPT-5.2", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.2-chat-latest", Name: "GPT-5.2 Chat", Reasoning: true, ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.2-codex", Name: "GPT-5.2 Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.2-pro", Name: "GPT-5.2 Pro", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 21, Output: 168}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.3-chat-latest", Name: "GPT-5.3 Chat (latest)", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.3-codex", Name: "GPT-5.3 Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.3-codex-spark", Name: "GPT-5.3 Codex Spark", Reasoning: true, ContextWindow: 128000, MaxTokens: 32000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.4", Name: "GPT-5.4", Reasoning: true, ContextWindow: 272000, MaxTokens: 128000, Cost: &CostConfig{Input: 2.5, Output: 15, CacheRead: 0.25}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.4-mini", Name: "GPT-5.4 mini", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.75, Output: 4.5, CacheRead: 0.075}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.4-nano", Name: "GPT-5.4 nano", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.2, Output: 1.25, CacheRead: 0.02}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.4-pro", Name: "GPT-5.4 Pro", Reasoning: true, ContextWindow: 1050000, MaxTokens: 128000, Cost: &CostConfig{Input: 30, Output: 180}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.5", Name: "GPT-5.5", Reasoning: true, ContextWindow: 272000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 30, CacheRead: 0.5}, Input: []string{"text", "image"}},
-				{ID: "gpt-5.5-pro", Name: "GPT-5.5 Pro", Reasoning: true, ContextWindow: 1050000, MaxTokens: 128000, Cost: &CostConfig{Input: 30, Output: 180}, Input: []string{"text", "image"}},
-				{ID: "o1", Name: "o1", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 15, Output: 60, CacheRead: 7.5}, Input: []string{"text", "image"}},
-				{ID: "o1-pro", Name: "o1-pro", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 150, Output: 600}, Input: []string{"text", "image"}},
-				{ID: "o3", Name: "o3", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.5}, Input: []string{"text", "image"}},
-				{ID: "o3-deep-research", Name: "o3-deep-research", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 10, Output: 40, CacheRead: 2.5}, Input: []string{"text", "image"}},
-				{ID: "o3-mini", Name: "o3-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 1.1, Output: 4.4, CacheRead: 0.55}, Input: []string{"text"}},
-				{ID: "o3-pro", Name: "o3-pro", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 20, Output: 80}, Input: []string{"text", "image"}},
-				{ID: "o4-mini", Name: "o4-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 1.1, Output: 4.4, CacheRead: 0.275}, Input: []string{"text", "image"}},
-				{ID: "o4-mini-deep-research", Name: "o4-mini-deep-research", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.5}, Input: []string{"text", "image"}},
-			},
+			{ID: "gpt-4", Name: "GPT-4", ContextWindow: 8192, MaxTokens: 8192, Cost: &CostConfig{Input: 30, Output: 60}, Input: []string{"text"}},
+			{ID: "gpt-4-turbo", Name: "GPT-4 Turbo", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 10, Output: 30}, Input: []string{"text", "image"}},
+			{ID: "gpt-4.1", Name: "GPT-4.1", ContextWindow: 1047576, MaxTokens: 32768, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.5}, Input: []string{"text", "image"}},
+			{ID: "gpt-4.1-mini", Name: "GPT-4.1 mini", ContextWindow: 1047576, MaxTokens: 32768, Cost: &CostConfig{Input: 0.4, Output: 1.6, CacheRead: 0.1}, Input: []string{"text", "image"}},
+			{ID: "gpt-4.1-nano", Name: "GPT-4.1 nano", ContextWindow: 1047576, MaxTokens: 32768, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gpt-4o", Name: "GPT-4o", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10, CacheRead: 1.25}, Input: []string{"text", "image"}},
+			{ID: "gpt-4o-2024-05-13", Name: "GPT-4o (2024-05-13)", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 5, Output: 15}, Input: []string{"text", "image"}},
+			{ID: "gpt-4o-2024-08-06", Name: "GPT-4o (2024-08-06)", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10, CacheRead: 1.25}, Input: []string{"text", "image"}},
+			{ID: "gpt-4o-2024-11-20", Name: "GPT-4o (2024-11-20)", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2.5, Output: 10, CacheRead: 1.25}, Input: []string{"text", "image"}},
+			{ID: "gpt-4o-mini", Name: "GPT-4o mini", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.075}, Input: []string{"text", "image"}},
+			{ID: "gpt-5", Name: "GPT-5", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5-chat-latest", Name: "GPT-5 Chat Latest", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5-codex", Name: "GPT-5-Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5-mini", Name: "GPT-5 Mini", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.25, Output: 2, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gpt-5-nano", Name: "GPT-5 Nano", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.05, Output: 0.4, CacheRead: 0.005}, Input: []string{"text", "image"}},
+			{ID: "gpt-5-pro", Name: "GPT-5 Pro", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 15, Output: 120}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.1", Name: "GPT-5.1", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.1-chat-latest", Name: "GPT-5.1 Chat", Reasoning: true, ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.1-codex", Name: "GPT-5.1 Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.1-codex-max", Name: "GPT-5.1 Codex Max", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.1-codex-mini", Name: "GPT-5.1 Codex mini", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.25, Output: 2, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.2", Name: "GPT-5.2", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.2-chat-latest", Name: "GPT-5.2 Chat", Reasoning: true, ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.2-codex", Name: "GPT-5.2 Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.2-pro", Name: "GPT-5.2 Pro", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 21, Output: 168}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.3-chat-latest", Name: "GPT-5.3 Chat (latest)", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.3-codex", Name: "GPT-5.3 Codex", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.3-codex-spark", Name: "GPT-5.3 Codex Spark", Reasoning: true, ContextWindow: 128000, MaxTokens: 32000, Cost: &CostConfig{Input: 1.75, Output: 14, CacheRead: 0.175}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.4", Name: "GPT-5.4", Reasoning: true, ContextWindow: 272000, MaxTokens: 128000, Cost: &CostConfig{Input: 2.5, Output: 15, CacheRead: 0.25}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.4-mini", Name: "GPT-5.4 mini", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.75, Output: 4.5, CacheRead: 0.075}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.4-nano", Name: "GPT-5.4 nano", Reasoning: true, ContextWindow: 400000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.2, Output: 1.25, CacheRead: 0.02}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.4-pro", Name: "GPT-5.4 Pro", Reasoning: true, ContextWindow: 1050000, MaxTokens: 128000, Cost: &CostConfig{Input: 30, Output: 180}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.5", Name: "GPT-5.5", Reasoning: true, ContextWindow: 272000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 30, CacheRead: 0.5}, Input: []string{"text", "image"}},
+			{ID: "gpt-5.5-pro", Name: "GPT-5.5 Pro", Reasoning: true, ContextWindow: 1050000, MaxTokens: 128000, Cost: &CostConfig{Input: 30, Output: 180}, Input: []string{"text", "image"}},
+			{ID: "o1", Name: "o1", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 15, Output: 60, CacheRead: 7.5}, Input: []string{"text", "image"}},
+			{ID: "o1-pro", Name: "o1-pro", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 150, Output: 600}, Input: []string{"text", "image"}},
+			{ID: "o3", Name: "o3", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.5}, Input: []string{"text", "image"}},
+			{ID: "o3-deep-research", Name: "o3-deep-research", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 10, Output: 40, CacheRead: 2.5}, Input: []string{"text", "image"}},
+			{ID: "o3-mini", Name: "o3-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 1.1, Output: 4.4, CacheRead: 0.55}, Input: []string{"text"}},
+			{ID: "o3-pro", Name: "o3-pro", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 20, Output: 80}, Input: []string{"text", "image"}},
+			{ID: "o4-mini", Name: "o4-mini", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 1.1, Output: 4.4, CacheRead: 0.275}, Input: []string{"text", "image"}},
+			{ID: "o4-mini-deep-research", Name: "o4-mini-deep-research", Reasoning: true, ContextWindow: 200000, MaxTokens: 100000, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.5}, Input: []string{"text", "image"}},
+		},
 	},
 	"google-gemini": &ProviderConfig{
 		BaseURL: "https://generativelanguage.googleapis.com/v1beta/models",
 		APIKey:  "${GOOGLE_API_KEY}",
 		API:     "google-gemini",
 		Models: []ModelConfig{
-				{ID: "gemini-2.0-flash", Name: "Gemini 2.0 Flash", ContextWindow: 1048576, MaxTokens: 8192, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gemini-2.0-flash-lite", Name: "Gemini 2.0 Flash-Lite", ContextWindow: 1048576, MaxTokens: 8192, Cost: &CostConfig{Input: 0.075, Output: 0.3}, Input: []string{"text", "image"}},
-				{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.3, Output: 2.5, CacheRead: 0.03}, Input: []string{"text", "image"}},
-				{ID: "gemini-2.5-flash-lite", Name: "Gemini 2.5 Flash-Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.01}, Input: []string{"text", "image"}},
-				{ID: "gemini-2.5-pro", Name: "Gemini 2.5 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gemini-3-flash-preview", Name: "Gemini 3 Flash Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.5, Output: 3, CacheRead: 0.05}, Input: []string{"text", "image"}},
-				{ID: "gemini-3-pro-preview", Name: "Gemini 3 Pro Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-flash-lite", Name: "Gemini 3.1 Flash Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-flash-lite-preview", Name: "Gemini 3.1 Flash Lite Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-pro-preview-customtools", Name: "Gemini 3.1 Pro Preview Custom Tools", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.5-flash", Name: "Gemini 3.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
-				{ID: "gemini-flash-latest", Name: "Gemini Flash Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
-				{ID: "gemini-flash-lite-latest", Name: "Gemini Flash-Lite Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gemma-4-26b-a4b-it", Name: "Gemma 4 26B A4B IT", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Input: []string{"text", "image"}},
-				{ID: "gemma-4-31b-it", Name: "Gemma 4 31B IT", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Input: []string{"text", "image"}},
-			},
+			{ID: "gemini-2.0-flash", Name: "Gemini 2.0 Flash", ContextWindow: 1048576, MaxTokens: 8192, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gemini-2.0-flash-lite", Name: "Gemini 2.0 Flash-Lite", ContextWindow: 1048576, MaxTokens: 8192, Cost: &CostConfig{Input: 0.075, Output: 0.3}, Input: []string{"text", "image"}},
+			{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.3, Output: 2.5, CacheRead: 0.03}, Input: []string{"text", "image"}},
+			{ID: "gemini-2.5-flash-lite", Name: "Gemini 2.5 Flash-Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.01}, Input: []string{"text", "image"}},
+			{ID: "gemini-2.5-pro", Name: "Gemini 2.5 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gemini-3-flash-preview", Name: "Gemini 3 Flash Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.5, Output: 3, CacheRead: 0.05}, Input: []string{"text", "image"}},
+			{ID: "gemini-3-pro-preview", Name: "Gemini 3 Pro Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-flash-lite", Name: "Gemini 3.1 Flash Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-flash-lite-preview", Name: "Gemini 3.1 Flash Lite Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-pro-preview-customtools", Name: "Gemini 3.1 Pro Preview Custom Tools", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.5-flash", Name: "Gemini 3.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
+			{ID: "gemini-flash-latest", Name: "Gemini Flash Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
+			{ID: "gemini-flash-lite-latest", Name: "Gemini Flash-Lite Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gemma-4-26b-a4b-it", Name: "Gemma 4 26B A4B IT", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Input: []string{"text", "image"}},
+			{ID: "gemma-4-31b-it", Name: "Gemma 4 31B IT", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Input: []string{"text", "image"}},
+		},
 	},
 	"google-vertex": &ProviderConfig{
 		BaseURL: "https://aiplatform.googleapis.com/v1/publishers/google/models",
 		APIKey:  "${GOOGLE_CLOUD_API_KEY}",
 		API:     "google-vertex",
 		Models: []ModelConfig{
-				{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.3, Output: 2.5, CacheRead: 0.03}, Input: []string{"text", "image"}},
-				{ID: "gemini-2.5-flash-lite", Name: "Gemini 2.5 Flash-Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.01}, Input: []string{"text", "image"}},
-				{ID: "gemini-2.5-pro", Name: "Gemini 2.5 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
-				{ID: "gemini-3-flash-preview", Name: "Gemini 3 Flash Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.5, Output: 3, CacheRead: 0.05}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-flash-lite", Name: "Gemini 3.1 Flash Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.1-pro-preview-customtools", Name: "Gemini 3.1 Pro Preview Custom Tools", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "gemini-3.5-flash", Name: "Gemini 3.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
-				{ID: "gemini-flash-latest", Name: "Gemini Flash Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
-				{ID: "gemini-flash-lite-latest", Name: "Gemini Flash-Lite Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
-			},
+			{ID: "gemini-2.5-flash", Name: "Gemini 2.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.3, Output: 2.5, CacheRead: 0.03}, Input: []string{"text", "image"}},
+			{ID: "gemini-2.5-flash-lite", Name: "Gemini 2.5 Flash-Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.4, CacheRead: 0.01}, Input: []string{"text", "image"}},
+			{ID: "gemini-2.5-pro", Name: "Gemini 2.5 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.25, Output: 10, CacheRead: 0.125}, Input: []string{"text", "image"}},
+			{ID: "gemini-3-flash-preview", Name: "Gemini 3 Flash Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.5, Output: 3, CacheRead: 0.05}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-flash-lite", Name: "Gemini 3.1 Flash Lite", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-pro-preview", Name: "Gemini 3.1 Pro Preview", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.1-pro-preview-customtools", Name: "Gemini 3.1 Pro Preview Custom Tools", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 2, Output: 12, CacheRead: 0.2}, Input: []string{"text", "image"}},
+			{ID: "gemini-3.5-flash", Name: "Gemini 3.5 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
+			{ID: "gemini-flash-latest", Name: "Gemini Flash Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 1.5, Output: 9, CacheRead: 0.15}, Input: []string{"text", "image"}},
+			{ID: "gemini-flash-lite-latest", Name: "Gemini Flash-Lite Latest", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Cost: &CostConfig{Input: 0.25, Output: 1.5, CacheRead: 0.025}, Input: []string{"text", "image"}},
+		},
 	},
-	"xiaomi":     {BaseURL: "https://api.xiaomimimo.com/v1", APIKey: "${XIAOMI_API_KEY}", API: "openai-chat", ThinkingFormat: "xiaomi", Models: []ModelConfig{
-				{ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
-				{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08}, Input: []string{"text", "image"}},
-				{ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2}, Input: []string{"text"}},
-				{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08}, Input: []string{"text", "image"}},
-				{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2}, Input: []string{"text"}},
-				{ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108}, Input: []string{"text"}},
-			}},
+	"xiaomi": {BaseURL: "https://api.xiaomimimo.com/v1", APIKey: "${XIAOMI_API_KEY}", API: "openai-chat", ThinkingFormat: "xiaomi", Models: []ModelConfig{
+		{ID: "mimo-v2-flash", Name: "MiMo-V2-Flash", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
+		{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08}, Input: []string{"text", "image"}},
+		{ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2}, Input: []string{"text"}},
+		{ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08}, Input: []string{"text", "image"}},
+		{ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2}, Input: []string{"text"}},
+		{ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108}, Input: []string{"text"}},
+	}},
 	"volcengine-agentplan": {Vendor: "volcengine-agentplan", BaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-			{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text"}},
-			{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Input: []string{"text"}},
-			{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 4096, Input: []string{"text", "image"}},
-			{ID: "minimax-m2.7", Name: "MiniMax M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "kimi-k2.6", Name: "Kimi K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		}},
-		"volcengine-codingplan": {Vendor: "volcengine-codingplan", BaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-			{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-			{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-			{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text"}},
-			{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Input: []string{"text"}},
-			{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 4096, Input: []string{"text", "image"}},
-		}},
-		"volcengine": {Vendor: "volcengine", BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "doubao-seed-2-1-turbo-260628", Name: "Doubao Seed 2.1 Turbo", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}}, {ID: "doubao-seed-evolving", Name: "Doubao Seed Evolving", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}, {ID: "doubao-seed-2-1-pro-260628", Name: "Doubao Seed 2.1 Pro", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}}},
+		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text"}},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Input: []string{"text"}},
+		{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 4096, Input: []string{"text", "image"}},
+		{ID: "minimax-m2.7", Name: "MiniMax M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "kimi-k2.6", Name: "Kimi K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+	}},
+	"volcengine-codingplan": {Vendor: "volcengine-codingplan", BaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
+		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
+		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text"}},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 65536, Input: []string{"text"}},
+		{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 4096, Input: []string{"text", "image"}},
+	}},
+	"volcengine": {Vendor: "volcengine", BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "doubao-seed-2-1-turbo-260628", Name: "Doubao Seed 2.1 Turbo", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}}, {ID: "doubao-seed-evolving", Name: "Doubao Seed Evolving", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}, {ID: "doubao-seed-2-1-pro-260628", Name: "Doubao Seed 2.1 Pro", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}}},
 	"openrouter": {Vendor: "openrouter", BaseURL: "https://openrouter.ai/api/v1", APIKey: "${OPENROUTER_API_KEY}", API: "openai-chat", Models: []ModelConfig{
 		{ID: "anthropic/claude-sonnet-4.6", Name: "Claude Sonnet 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 64000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
 		{ID: "anthropic/claude-opus-4.8", Name: "Claude Opus 4.8", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
@@ -373,64 +465,64 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "x-ai/grok-4.3", Name: "Grok 4.3", Reasoning: true, ContextWindow: 1000000, MaxTokens: 4096, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
 		{ID: "openai/gpt-oss-120b:free", Name: "GPT-OSS-120B (free)", Reasoning: true, ContextWindow: 131072, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0}, Input: []string{"text"}},
 	}},
-	"minimax":               {Vendor: "minimax", BaseURL: "https://api.minimax.io/v1", APIKey: "${MINIMAX_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMax-M3", Name: "MiniMax-M3", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "MiniMax-M2.7", Name: "MiniMax-M2.7", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.7-highspeed", Name: "MiniMax-M2.7-highspeed", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5-highspeed", Name: "MiniMax-M2.5-highspeed", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}}},
-	"zai":                   {Vendor: "zai", BaseURL: "https://api.z.ai/api/coding/paas/v4", APIKey: "${ZAI_API_KEY}", API: "openai-chat", ThinkingFormat: "zai", Models: []ModelConfig{{ID: "glm-4.5-air", Name: "GLM-4.5-Air", Reasoning: true, ContextWindow: 131072, MaxTokens: 98304, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5-turbo", Name: "GLM-5-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5v-turbo", Name: "GLM-5V-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}}},
-	"modelscope":            {BaseURL: "https://api-inference.modelscope.cn/v1", APIKey: "${MODELSCOPE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "deepseek-ai/DeepSeek-V4-Flash", Name: "DeepSeek-V4-Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "Qwen/Qwen3.5-397B-A17B", Name: "Qwen3.5-397B-A17B", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "ZhipuAI/GLM-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}}},
-	"alibaba-coding-plan":   {Vendor: "bailian", BaseURL: "https://coding.dashscope.aliyuncs.com/v1", APIKey: "${BAILIAN_CODING_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.5-plus", Name: "Qwen3.5 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "kimi-k2.5", Name: "Kimi-K2.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", Reasoning: true, ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-coder-plus", Name: "Qwen3 Coder Plus", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-coder-next", Name: "Qwen3 Coder Next", ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-max-2026-01-23", Name: "Qwen3 Max", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}}},
-	"alibaba-token-plan":    {Vendor: "bailian", BaseURL: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1", APIKey: "${BAILIAN_TOKEN_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.6-flash", Name: "Qwen3.6 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v3.2", Name: "DeepSeek-V3.2", ContextWindow: 131072, MaxTokens: 8192, Input: []string{"text"}}, {ID: "kimi-k2.6", Name: "Kimi-K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "kimi-k2.5", Name: "Kimi-K2.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}}},
-	"gitee":                 {Vendor: "gitee", BaseURL: "https://ai.gitee.com/v1", APIKey: "${GITEE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-			{ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.6-max", Name: "Qwen3.6 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "kimi-k2.7-code", Name: "Kimi-K2.7-Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image"}},
-			{ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "minimax-m2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "minimax-m3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 8192, Input: []string{"text", "image"}},
-			{ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-		}},
-		"moark":                 {Vendor: "gitee", BaseURL: "https://api.moark.com/v1", APIKey: "${MOARK_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-			{ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.6-max", Name: "Qwen3.6 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "kimi-k2.7-code", Name: "Kimi-K2.7-Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image"}},
-			{ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "minimax-m2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}},
-			{ID: "minimax-m3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 8192, Input: []string{"text", "image"}},
-			{ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
-		}},
-	"alibaba-standard":      {Vendor: "bailian", BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", APIKey: "${DASHSCOPE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}}},
-	"ant-ling":              {BaseURL: "https://api.ant-ling.com/v1", APIKey: "${ANT_LING_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "Ling-2.6-1T", Name: "Ling 2.6 1T", ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.06, Output: 0.25, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Ling-2.6-flash", Name: "Ling 2.6 Flash", ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.01, Output: 0.02, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Ring-2.6-1T", Name: "Ring 2.6 1T", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.06, Output: 0.25, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
-	"cerebras":              {BaseURL: "https://api.cerebras.ai/v1", APIKey: "${CEREBRAS_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "gpt-oss-120b", Name: "GPT OSS 120B", Reasoning: true, ContextWindow: 131072, MaxTokens: 40960, Cost: &CostConfig{Input: 0.35, Output: 0.75, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "zai-glm-4.7", Name: "Z.AI GLM-4.7", Reasoning: true, ContextWindow: 131072, MaxTokens: 40960, Cost: &CostConfig{Input: 2.25, Output: 2.75, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
-	"groq":                  {BaseURL: "https://api.groq.com/openai/v1", APIKey: "${GROQ_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-				{ID: "llama-3.1-8b-instant", Name: "Llama 3.1 8B", ContextWindow: 131072, MaxTokens: 131072, Cost: &CostConfig{Input: 0.05, Output: 0.08}, Input: []string{"text"}},
-				{ID: "llama-3.3-70b-versatile", Name: "Llama 3.3 70B", ContextWindow: 131072, MaxTokens: 32768, Cost: &CostConfig{Input: 0.59, Output: 0.79}, Input: []string{"text"}},
-				{ID: "meta-llama/llama-4-scout-17b-16e-instruct", Name: "Llama 4 Scout 17B 16E", ContextWindow: 131072, MaxTokens: 8192, Cost: &CostConfig{Input: 0.11, Output: 0.34}, Input: []string{"text", "image"}},
-				{ID: "openai/gpt-oss-120b", Name: "GPT OSS 120B", Reasoning: true, ContextWindow: 131072, MaxTokens: 65536, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.075}, Input: []string{"text"}},
-				{ID: "openai/gpt-oss-20b", Name: "GPT OSS 20B", Reasoning: true, ContextWindow: 131072, MaxTokens: 65536, Cost: &CostConfig{Input: 0.075, Output: 0.3, CacheRead: 0.0375}, Input: []string{"text"}},
-				{ID: "openai/gpt-oss-safeguard-20b", Name: "Safety GPT OSS 20B", Reasoning: true, ContextWindow: 131072, MaxTokens: 65536, Cost: &CostConfig{Input: 0.075, Output: 0.3, CacheRead: 0.037}, Input: []string{"text"}},
-				{ID: "qwen/qwen3-32b", Name: "Qwen3-32B", Reasoning: true, ContextWindow: 131072, MaxTokens: 40960, Cost: &CostConfig{Input: 0.29, Output: 0.59}, Input: []string{"text"}},
-			}},
-	"moonshotai":            {BaseURL: "https://api.moonshot.ai/v1", APIKey: "${MOONSHOTAI_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "kimi-k2-0711-preview", Name: "Kimi K2 0711", ContextWindow: 131072, MaxTokens: 16384, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-0905-preview", Name: "Kimi K2 0905", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking", Name: "Kimi K2 Thinking", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking-turbo", Name: "Kimi K2 Thinking Turbo", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.15, Output: 8, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-turbo-preview", Name: "Kimi K2 Turbo", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 2.4, Output: 10, CacheRead: 0.6, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-k2.7-code-highspeed", Name: "Kimi K2.7 Code HighSpeed", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.9, Output: 8, CacheRead: 0.38, CacheWrite: 0}, Input: []string{"text", "image"}}}},
-	"moonshotai-cn":         {BaseURL: "https://api.moonshot.cn/v1", APIKey: "${MOONSHOTAI_CN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "kimi-k2-0711-preview", Name: "Kimi K2 0711", ContextWindow: 131072, MaxTokens: 16384, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-0905-preview", Name: "Kimi K2 0905", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking", Name: "Kimi K2 Thinking", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking-turbo", Name: "Kimi K2 Thinking Turbo", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.15, Output: 8, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-turbo-preview", Name: "Kimi K2 Turbo", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 2.4, Output: 10, CacheRead: 0.6, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-k2.7-code-highspeed", Name: "Kimi K2.7 Code HighSpeed", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.9, Output: 8, CacheRead: 0.38, CacheWrite: 0}, Input: []string{"text", "image"}}}},
-	"nvidia":                {BaseURL: "https://integrate.api.nvidia.com/v1", APIKey: "${NVIDIA_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "meta/llama-3.1-70b-instruct", Name: "Llama 3.1 70b Instruct", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "meta/llama-3.1-8b-instruct", Name: "Llama 3.1 8B Instruct", ContextWindow: 16000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "meta/llama-3.2-11b-vision-instruct", Name: "Llama 3.2 11b Vision Instruct", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "meta/llama-3.2-90b-vision-instruct", Name: "Llama-3.2-90B-Vision-Instruct", ContextWindow: 128000, MaxTokens: 8192, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "meta/llama-3.3-70b-instruct", Name: "Llama 3.3 70b Instruct", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
-	"together":              {BaseURL: "https://api.together.ai/v1", APIKey: "${TOGETHER_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMaxAI/MiniMax-M2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 202752, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0}, Input: []string{"text"}}, {ID: "MiniMaxAI/MiniMax-M3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 524288, MaxTokens: 250000, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "Qwen/Qwen2.5-7B-Instruct-Turbo", Name: "Qwen 2.5 7B Instruct Turbo", ContextWindow: 32768, MaxTokens: 32768, Cost: &CostConfig{Input: 0.3, Output: 0.3, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput", Name: "Qwen3 235B A22B Instruct 2507 FP8", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.2, Output: 0.6, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3.5-397B-A17B", Name: "Qwen3.5 397B A17B", Reasoning: true, ContextWindow: 262144, MaxTokens: 130000, Cost: &CostConfig{Input: 0.6, Output: 3.6, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}}},
-	"xai":                   {BaseURL: "https://api.x.ai/v1", APIKey: "${XAI_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-				{ID: "grok-3", Name: "Grok 3", ContextWindow: 131072, MaxTokens: 8192, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.75}, Input: []string{"text"}},
-				{ID: "grok-3-fast", Name: "Grok 3 Fast", ContextWindow: 131072, MaxTokens: 8192, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 1.25}, Input: []string{"text"}},
-				{ID: "grok-4.20-0309-non-reasoning", Name: "Grok 4.20 (Non-Reasoning)", ContextWindow: 1000000, MaxTokens: 30000, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "grok-4.20-0309-reasoning", Name: "Grok 4.20 (Reasoning)", Reasoning: true, ContextWindow: 1000000, MaxTokens: 30000, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "grok-4.3", Name: "Grok 4.3", Reasoning: true, ContextWindow: 1000000, MaxTokens: 30000, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "grok-build-0.1", Name: "Grok Build 0.1", Reasoning: true, ContextWindow: 256000, MaxTokens: 256000, Cost: &CostConfig{Input: 1, Output: 2, CacheRead: 0.2}, Input: []string{"text", "image"}},
-				{ID: "grok-code-fast-1", Name: "Grok Code Fast 1", ContextWindow: 32768, MaxTokens: 8192, Cost: &CostConfig{Input: 0.2, Output: 1.5, CacheRead: 0.02}, Input: []string{"text"}},
-			}},
+	"minimax":             {Vendor: "minimax", BaseURL: "https://api.minimax.io/v1", APIKey: "${MINIMAX_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMax-M3", Name: "MiniMax-M3", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "MiniMax-M2.7", Name: "MiniMax-M2.7", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.7-highspeed", Name: "MiniMax-M2.7-highspeed", ContextWindow: 204800, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5-highspeed", Name: "MiniMax-M2.5-highspeed", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}}},
+	"zai":                 {Vendor: "zai", BaseURL: "https://api.z.ai/api/coding/paas/v4", APIKey: "${ZAI_API_KEY}", API: "openai-chat", ThinkingFormat: "zai", Models: []ModelConfig{{ID: "glm-4.5-air", Name: "GLM-4.5-Air", Reasoning: true, ContextWindow: 131072, MaxTokens: 98304, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5-turbo", Name: "GLM-5-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5v-turbo", Name: "GLM-5V-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}}},
+	"modelscope":          {BaseURL: "https://api-inference.modelscope.cn/v1", APIKey: "${MODELSCOPE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "deepseek-ai/DeepSeek-V4-Flash", Name: "DeepSeek-V4-Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "Qwen/Qwen3.5-397B-A17B", Name: "Qwen3.5-397B-A17B", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "ZhipuAI/GLM-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}}},
+	"alibaba-coding-plan": {Vendor: "bailian", BaseURL: "https://coding.dashscope.aliyuncs.com/v1", APIKey: "${BAILIAN_CODING_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.5-plus", Name: "Qwen3.5 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "kimi-k2.5", Name: "Kimi-K2.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", Reasoning: true, ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-coder-plus", Name: "Qwen3 Coder Plus", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-coder-next", Name: "Qwen3 Coder Next", ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3-max-2026-01-23", Name: "Qwen3 Max", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}}},
+	"alibaba-token-plan":  {Vendor: "bailian", BaseURL: "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1", APIKey: "${BAILIAN_TOKEN_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.6-flash", Name: "Qwen3.6 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v3.2", Name: "DeepSeek-V3.2", ContextWindow: 131072, MaxTokens: 8192, Input: []string{"text"}}, {ID: "kimi-k2.6", Name: "Kimi-K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "kimi-k2.5", Name: "Kimi-K2.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "MiniMax-M2.5", Name: "MiniMax-M2.5", ContextWindow: 196608, MaxTokens: 8192, Input: []string{"text"}}}},
+	"gitee": {Vendor: "gitee", BaseURL: "https://ai.gitee.com/v1", APIKey: "${GITEE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
+		{ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.6-max", Name: "Qwen3.6 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "kimi-k2.7-code", Name: "Kimi-K2.7-Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image"}},
+		{ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "minimax-m2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "minimax-m3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 8192, Input: []string{"text", "image"}},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+	}},
+	"moark": {Vendor: "gitee", BaseURL: "https://api.moark.com/v1", APIKey: "${MOARK_API_KEY}", API: "openai-chat", Models: []ModelConfig{
+		{ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.6-max", Name: "Qwen3.6 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "kimi-k2.7-code", Name: "Kimi-K2.7-Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text", "image"}},
+		{ID: "glm-5", Name: "GLM-5", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "minimax-m2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 8192, Input: []string{"text"}},
+		{ID: "minimax-m3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 8192, Input: []string{"text", "image"}},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}},
+	}},
+	"alibaba-standard": {Vendor: "bailian", BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", APIKey: "${DASHSCOPE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 202752, MaxTokens: 8192, Input: []string{"text"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text", "image", "video"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", ContextWindow: 1000000, MaxTokens: 8192, Input: []string{"text"}}}},
+	"ant-ling":         {BaseURL: "https://api.ant-ling.com/v1", APIKey: "${ANT_LING_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "Ling-2.6-1T", Name: "Ling 2.6 1T", ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.06, Output: 0.25, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Ling-2.6-flash", Name: "Ling 2.6 Flash", ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.01, Output: 0.02, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Ring-2.6-1T", Name: "Ring 2.6 1T", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Cost: &CostConfig{Input: 0.06, Output: 0.25, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
+	"cerebras":         {BaseURL: "https://api.cerebras.ai/v1", APIKey: "${CEREBRAS_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "gpt-oss-120b", Name: "GPT OSS 120B", Reasoning: true, ContextWindow: 131072, MaxTokens: 40960, Cost: &CostConfig{Input: 0.35, Output: 0.75, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "zai-glm-4.7", Name: "Z.AI GLM-4.7", Reasoning: true, ContextWindow: 131072, MaxTokens: 40960, Cost: &CostConfig{Input: 2.25, Output: 2.75, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
+	"groq": {BaseURL: "https://api.groq.com/openai/v1", APIKey: "${GROQ_API_KEY}", API: "openai-chat", Models: []ModelConfig{
+		{ID: "llama-3.1-8b-instant", Name: "Llama 3.1 8B", ContextWindow: 131072, MaxTokens: 131072, Cost: &CostConfig{Input: 0.05, Output: 0.08}, Input: []string{"text"}},
+		{ID: "llama-3.3-70b-versatile", Name: "Llama 3.3 70B", ContextWindow: 131072, MaxTokens: 32768, Cost: &CostConfig{Input: 0.59, Output: 0.79}, Input: []string{"text"}},
+		{ID: "meta-llama/llama-4-scout-17b-16e-instruct", Name: "Llama 4 Scout 17B 16E", ContextWindow: 131072, MaxTokens: 8192, Cost: &CostConfig{Input: 0.11, Output: 0.34}, Input: []string{"text", "image"}},
+		{ID: "openai/gpt-oss-120b", Name: "GPT OSS 120B", Reasoning: true, ContextWindow: 131072, MaxTokens: 65536, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.075}, Input: []string{"text"}},
+		{ID: "openai/gpt-oss-20b", Name: "GPT OSS 20B", Reasoning: true, ContextWindow: 131072, MaxTokens: 65536, Cost: &CostConfig{Input: 0.075, Output: 0.3, CacheRead: 0.0375}, Input: []string{"text"}},
+		{ID: "openai/gpt-oss-safeguard-20b", Name: "Safety GPT OSS 20B", Reasoning: true, ContextWindow: 131072, MaxTokens: 65536, Cost: &CostConfig{Input: 0.075, Output: 0.3, CacheRead: 0.037}, Input: []string{"text"}},
+		{ID: "qwen/qwen3-32b", Name: "Qwen3-32B", Reasoning: true, ContextWindow: 131072, MaxTokens: 40960, Cost: &CostConfig{Input: 0.29, Output: 0.59}, Input: []string{"text"}},
+	}},
+	"moonshotai":    {BaseURL: "https://api.moonshot.ai/v1", APIKey: "${MOONSHOTAI_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "kimi-k2-0711-preview", Name: "Kimi K2 0711", ContextWindow: 131072, MaxTokens: 16384, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-0905-preview", Name: "Kimi K2 0905", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking", Name: "Kimi K2 Thinking", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking-turbo", Name: "Kimi K2 Thinking Turbo", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.15, Output: 8, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-turbo-preview", Name: "Kimi K2 Turbo", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 2.4, Output: 10, CacheRead: 0.6, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-k2.7-code-highspeed", Name: "Kimi K2.7 Code HighSpeed", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.9, Output: 8, CacheRead: 0.38, CacheWrite: 0}, Input: []string{"text", "image"}}}},
+	"moonshotai-cn": {BaseURL: "https://api.moonshot.cn/v1", APIKey: "${MOONSHOTAI_CN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "kimi-k2-0711-preview", Name: "Kimi K2 0711", ContextWindow: 131072, MaxTokens: 16384, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-0905-preview", Name: "Kimi K2 0905", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking", Name: "Kimi K2 Thinking", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.6, Output: 2.5, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-thinking-turbo", Name: "Kimi K2 Thinking Turbo", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.15, Output: 8, CacheRead: 0.15, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2-turbo-preview", Name: "Kimi K2 Turbo", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 2.4, Output: 10, CacheRead: 0.6, CacheWrite: 0}, Input: []string{"text"}}, {ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-k2.7-code-highspeed", Name: "Kimi K2.7 Code HighSpeed", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.9, Output: 8, CacheRead: 0.38, CacheWrite: 0}, Input: []string{"text", "image"}}}},
+	"nvidia":        {BaseURL: "https://integrate.api.nvidia.com/v1", APIKey: "${NVIDIA_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "meta/llama-3.1-70b-instruct", Name: "Llama 3.1 70b Instruct", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "meta/llama-3.1-8b-instruct", Name: "Llama 3.1 8B Instruct", ContextWindow: 16000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "meta/llama-3.2-11b-vision-instruct", Name: "Llama 3.2 11b Vision Instruct", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "meta/llama-3.2-90b-vision-instruct", Name: "Llama-3.2-90B-Vision-Instruct", ContextWindow: 128000, MaxTokens: 8192, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "meta/llama-3.3-70b-instruct", Name: "Llama 3.3 70b Instruct", ContextWindow: 128000, MaxTokens: 4096, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
+	"together":      {BaseURL: "https://api.together.ai/v1", APIKey: "${TOGETHER_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMaxAI/MiniMax-M2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 202752, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0}, Input: []string{"text"}}, {ID: "MiniMaxAI/MiniMax-M3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 524288, MaxTokens: 250000, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "Qwen/Qwen2.5-7B-Instruct-Turbo", Name: "Qwen 2.5 7B Instruct Turbo", ContextWindow: 32768, MaxTokens: 32768, Cost: &CostConfig{Input: 0.3, Output: 0.3, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput", Name: "Qwen3 235B A22B Instruct 2507 FP8", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.2, Output: 0.6, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3.5-397B-A17B", Name: "Qwen3.5 397B A17B", Reasoning: true, ContextWindow: 262144, MaxTokens: 130000, Cost: &CostConfig{Input: 0.6, Output: 3.6, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}}},
+	"xai": {BaseURL: "https://api.x.ai/v1", APIKey: "${XAI_API_KEY}", API: "openai-chat", Models: []ModelConfig{
+		{ID: "grok-3", Name: "Grok 3", ContextWindow: 131072, MaxTokens: 8192, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.75}, Input: []string{"text"}},
+		{ID: "grok-3-fast", Name: "Grok 3 Fast", ContextWindow: 131072, MaxTokens: 8192, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 1.25}, Input: []string{"text"}},
+		{ID: "grok-4.20-0309-non-reasoning", Name: "Grok 4.20 (Non-Reasoning)", ContextWindow: 1000000, MaxTokens: 30000, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
+		{ID: "grok-4.20-0309-reasoning", Name: "Grok 4.20 (Reasoning)", Reasoning: true, ContextWindow: 1000000, MaxTokens: 30000, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
+		{ID: "grok-4.3", Name: "Grok 4.3", Reasoning: true, ContextWindow: 1000000, MaxTokens: 30000, Cost: &CostConfig{Input: 1.25, Output: 2.5, CacheRead: 0.2}, Input: []string{"text", "image"}},
+		{ID: "grok-build-0.1", Name: "Grok Build 0.1", Reasoning: true, ContextWindow: 256000, MaxTokens: 256000, Cost: &CostConfig{Input: 1, Output: 2, CacheRead: 0.2}, Input: []string{"text", "image"}},
+		{ID: "grok-code-fast-1", Name: "Grok Code Fast 1", ContextWindow: 32768, MaxTokens: 8192, Cost: &CostConfig{Input: 0.2, Output: 1.5, CacheRead: 0.02}, Input: []string{"text"}},
+	}},
 	"kimi-coding":           {BaseURL: "https://api.kimi.com/coding", APIKey: "${KIMI_CODING_API_KEY}", API: "anthropic-messages", Headers: map[string]string{"User-Agent": "KimiCLI/1.5"}, Models: []ModelConfig{{ID: "k2p7", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-for-coding", Name: "Kimi For Coding", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "kimi-k2-thinking", Name: "Kimi K2 Thinking", Reasoning: true, ContextWindow: 262144, MaxTokens: 32768, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
 	"fireworks":             {BaseURL: "https://api.fireworks.ai/inference", APIKey: "${FIREWORKS_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "accounts/fireworks/models/deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 0.14, Output: 0.28, CacheRead: 0.03, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Cost: &CostConfig{Input: 1.74, Output: 3.48, CacheRead: 0.145, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/glm-5p1", Name: "GLM 5.1", Reasoning: true, ContextWindow: 202800, MaxTokens: 131072, Cost: &CostConfig{Input: 1.4, Output: 4.4, CacheRead: 0.26, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/kimi-k2p7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262000, MaxTokens: 262000, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "accounts/fireworks/routers/kimi-k2p7-code-fast", Name: "Kimi K2.7 Code Fast", Reasoning: true, ContextWindow: 262000, MaxTokens: 262000, Cost: &CostConfig{Input: 2, Output: 8, CacheRead: 0.38, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "accounts/fireworks/models/gpt-oss-120b", Name: "GPT OSS 120B", Reasoning: true, ContextWindow: 131072, MaxTokens: 32768, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.01, CacheWrite: 0}, Input: []string{"text"}}, {ID: "accounts/fireworks/models/gpt-oss-20b", Name: "GPT OSS 20B", Reasoning: true, ContextWindow: 131072, MaxTokens: 32768, Cost: &CostConfig{Input: 0.07, Output: 0.3, CacheRead: 0.035, CacheWrite: 0}, Input: []string{"text"}}}},
 	"huggingface":           {BaseURL: "https://router.huggingface.co/v1", APIKey: "${HUGGINGFACE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "MiniMaxAI/MiniMax-M2.1", Name: "MiniMax-M2.1", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "MiniMaxAI/MiniMax-M2.5", Name: "MiniMax-M2.5", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.03, CacheWrite: 0}, Input: []string{"text"}}, {ID: "MiniMaxAI/MiniMax-M2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3-235B-A22B-Thinking-2507", Name: "Qwen3-235B-A22B-Thinking-2507", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 3, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "Qwen/Qwen3-Coder-480B-A35B-Instruct", Name: "Qwen3-Coder-480B-A35B-Instruct", ContextWindow: 262144, MaxTokens: 66536, Cost: &CostConfig{Input: 2, Output: 2, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}}},
@@ -438,8 +530,8 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 	"xiaomi-token-plan-cn":  {BaseURL: "https://token-plan-cn.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_CN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
 	"xiaomi-token-plan-sgp": {BaseURL: "https://token-plan-sgp.xiaomimimo.com/v1", APIKey: "${XIAOMI_TOKEN_PLAN_SGP_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "mimo-v2-omni", Name: "MiMo-V2-Omni", Reasoning: true, ContextWindow: 262144, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2-pro", Name: "MiMo-V2-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5", Name: "MiMo-V2.5", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.08, CacheWrite: 0}, Input: []string{"text", "image"}}, {ID: "mimo-v2.5-pro", Name: "MiMo-V2.5-Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1, Output: 3, CacheRead: 0.2, CacheWrite: 0}, Input: []string{"text"}}, {ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108, CacheWrite: 0}, Input: []string{"text"}}}},
 	"zai-coding-cn":         {Vendor: "zai", BaseURL: "https://open.bigmodel.cn/api/coding/paas/v4", APIKey: "${ZAI_CODING_CN_API_KEY}", API: "openai-chat", ThinkingFormat: "zai", Models: []ModelConfig{{ID: "glm-4.5-air", Name: "GLM-4.5-Air", Reasoning: true, ContextWindow: 131072, MaxTokens: 98304, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-4.7", Name: "GLM-4.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5-turbo", Name: "GLM-5-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.1", Name: "GLM-5.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5.2", Name: "GLM-5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "glm-5v-turbo", Name: "GLM-5V-Turbo", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text", "image"}}}},
-	"longcat":              {Vendor: "longcat", BaseURL: "https://api.longcat.chat/openai", APIKey: "${LONGCAT_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "LongCat-2.0", Name: "LongCat-2.0", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text"}}}},
-	"longcat-anthropic":    {Vendor: "longcat", BaseURL: "https://api.longcat.chat/anthropic", APIKey: "${LONGCAT_ANTHROPIC_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "LongCat-2.0", Name: "LongCat-2.0", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text"}}}},
+	"longcat":               {Vendor: "longcat", BaseURL: "https://api.longcat.chat/openai", APIKey: "${LONGCAT_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "LongCat-2.0", Name: "LongCat-2.0", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text"}}}},
+	"longcat-anthropic":     {Vendor: "longcat", BaseURL: "https://api.longcat.chat/anthropic", APIKey: "${LONGCAT_ANTHROPIC_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "LongCat-2.0", Name: "LongCat-2.0", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text"}}}},
 	"minimax-anthropic":     {BaseURL: "https://api.minimax.io/anthropic", APIKey: "${MINIMAX_ANTHROPIC_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "MiniMax-M2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0.375}, Input: []string{"text"}}, {ID: "MiniMax-M2.7-highspeed", Name: "MiniMax-M2.7-highspeed", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.6, Output: 2.4, CacheRead: 0.06, CacheWrite: 0.375}, Input: []string{"text"}}, {ID: "MiniMax-M3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 512000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.6, Output: 2.4, CacheRead: 0.12, CacheWrite: 0}, Input: []string{"text", "image"}}}},
 	"minimax-cn-anthropic":  {BaseURL: "https://api.minimaxi.com/anthropic", APIKey: "${MINIMAX_CN_ANTHROPIC_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "MiniMax-M2.7", Name: "MiniMax-M2.7", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.3, Output: 1.2, CacheRead: 0.06, CacheWrite: 0.375}, Input: []string{"text"}}, {ID: "MiniMax-M2.7-highspeed", Name: "MiniMax-M2.7-highspeed", Reasoning: true, ContextWindow: 204800, MaxTokens: 131072, Cost: &CostConfig{Input: 0.6, Output: 2.4, CacheRead: 0.06, CacheWrite: 0.375}, Input: []string{"text"}}, {ID: "MiniMax-M3", Name: "MiniMax-M3", Reasoning: true, ContextWindow: 512000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.6, Output: 2.4, CacheRead: 0.12, CacheWrite: 0}, Input: []string{"text", "image"}}}},
 	"opencode":              {BaseURL: "https://opencode.ai/zen/v1", APIKey: "${OPENCODE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "big-pickle", Name: "Big Pickle", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 0, Output: 0, CacheRead: 0, CacheWrite: 0}, Input: []string{"text"}}, {ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 1, Output: 5, CacheRead: 0.1, CacheWrite: 1.25}, Input: []string{"text", "image"}}, {ID: "claude-opus-4-1", Name: "Claude Opus 4.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 32000, Cost: &CostConfig{Input: 15, Output: 75, CacheRead: 1.5, CacheWrite: 18.75}, Input: []string{"text", "image"}}, {ID: "claude-opus-4-5", Name: "Claude Opus 4.5", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}}, {ID: "claude-opus-4-6", Name: "Claude Opus 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}}}},
@@ -461,37 +553,37 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "zai/glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.2, Output: 4.1, CacheRead: 0.2}, Input: []string{"text"}},
 	}},
 	"mistral": {Vendor: "mistral", BaseURL: "https://api.mistral.ai/v1", APIKey: "${MISTRAL_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-				{ID: "codestral-latest", Name: "Codestral (latest)", ContextWindow: 256000, MaxTokens: 4096, Cost: &CostConfig{Input: 0.3, Output: 0.9, CacheRead: 0.03}, Input: []string{"text"}},
-				{ID: "devstral-2512", Name: "Devstral 2", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
-				{ID: "devstral-latest", Name: "Devstral 2", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
-				{ID: "devstral-medium-2507", Name: "Devstral Medium", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
-				{ID: "devstral-medium-latest", Name: "Devstral 2 (latest)", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
-				{ID: "devstral-small-2505", Name: "Devstral Small 2505", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
-				{ID: "devstral-small-2507", Name: "Devstral Small", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
-				{ID: "labs-devstral-small-2512", Name: "Devstral Small 2", ContextWindow: 256000, MaxTokens: 256000, Input: []string{"text", "image"}},
-				{ID: "magistral-medium-latest", Name: "Magistral Medium (latest)", Reasoning: true, ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2, Output: 5, CacheRead: 0.2}, Input: []string{"text"}},
-				{ID: "magistral-small", Name: "Magistral Small", Reasoning: true, ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.5, Output: 1.5, CacheRead: 0.05}, Input: []string{"text"}},
-				{ID: "ministral-3b-latest", Name: "Ministral 3B (latest)", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.04, Output: 0.04, CacheRead: 0.004}, Input: []string{"text"}},
-				{ID: "ministral-8b-latest", Name: "Ministral 8B (latest)", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.1, Output: 0.1, CacheRead: 0.01}, Input: []string{"text"}},
-				{ID: "mistral-large-2411", Name: "Mistral Large 2.1", ContextWindow: 131072, MaxTokens: 16384, Cost: &CostConfig{Input: 2, Output: 6, CacheRead: 0.2}, Input: []string{"text"}},
-				{ID: "mistral-large-2512", Name: "Mistral Large 3", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.5, Output: 1.5, CacheRead: 0.05}, Input: []string{"text", "image"}},
-				{ID: "mistral-large-latest", Name: "Mistral Large (latest)", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.5, Output: 1.5, CacheRead: 0.05}, Input: []string{"text", "image"}},
-				{ID: "mistral-medium-2505", Name: "Mistral Medium 3", ContextWindow: 131072, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text", "image"}},
-				{ID: "mistral-medium-2508", Name: "Mistral Medium 3.1", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text", "image"}},
-				{ID: "mistral-medium-2604", Name: "Mistral Medium 3.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.5, Output: 7.5, CacheRead: 0.15}, Input: []string{"text", "image"}},
-				{ID: "mistral-medium-3.5", Name: "Mistral Medium 3.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.5, Output: 7.5}, Input: []string{"text", "image"}},
-				{ID: "mistral-medium-latest", Name: "Mistral Medium (latest)", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text", "image"}},
-				{ID: "mistral-nemo", Name: "Mistral Nemo", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.15, Output: 0.15, CacheRead: 0.015}, Input: []string{"text"}},
-				{ID: "mistral-small-2506", Name: "Mistral Small 3.2", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text", "image"}},
-				{ID: "mistral-small-2603", Name: "Mistral Small 4", Reasoning: true, ContextWindow: 256000, MaxTokens: 256000, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.015}, Input: []string{"text", "image"}},
-				{ID: "mistral-small-latest", Name: "Mistral Small (latest)", Reasoning: true, ContextWindow: 256000, MaxTokens: 256000, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.015}, Input: []string{"text", "image"}},
-				{ID: "open-mistral-7b", Name: "Mistral 7B", ContextWindow: 8000, MaxTokens: 8000, Cost: &CostConfig{Input: 0.25, Output: 0.25, CacheRead: 0.025}, Input: []string{"text"}},
-				{ID: "open-mistral-nemo", Name: "Open Mistral Nemo", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.15, Output: 0.15, CacheRead: 0.015}, Input: []string{"text"}},
-				{ID: "open-mixtral-8x22b", Name: "Mixtral 8x22B", ContextWindow: 64000, MaxTokens: 64000, Cost: &CostConfig{Input: 2, Output: 6, CacheRead: 0.2}, Input: []string{"text"}},
-				{ID: "open-mixtral-8x7b", Name: "Mixtral 8x7B", ContextWindow: 32000, MaxTokens: 32000, Cost: &CostConfig{Input: 0.7, Output: 0.7, CacheRead: 0.07}, Input: []string{"text"}},
-				{ID: "pixtral-12b", Name: "Pixtral 12B", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.15, Output: 0.15, CacheRead: 0.015}, Input: []string{"text", "image"}},
-				{ID: "pixtral-large-latest", Name: "Pixtral Large (latest)", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 2, Output: 6, CacheRead: 0.2}, Input: []string{"text", "image"}},
-			}},
+		{ID: "codestral-latest", Name: "Codestral (latest)", ContextWindow: 256000, MaxTokens: 4096, Cost: &CostConfig{Input: 0.3, Output: 0.9, CacheRead: 0.03}, Input: []string{"text"}},
+		{ID: "devstral-2512", Name: "Devstral 2", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
+		{ID: "devstral-latest", Name: "Devstral 2", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
+		{ID: "devstral-medium-2507", Name: "Devstral Medium", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
+		{ID: "devstral-medium-latest", Name: "Devstral 2 (latest)", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text"}},
+		{ID: "devstral-small-2505", Name: "Devstral Small 2505", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
+		{ID: "devstral-small-2507", Name: "Devstral Small", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text"}},
+		{ID: "labs-devstral-small-2512", Name: "Devstral Small 2", ContextWindow: 256000, MaxTokens: 256000, Input: []string{"text", "image"}},
+		{ID: "magistral-medium-latest", Name: "Magistral Medium (latest)", Reasoning: true, ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 2, Output: 5, CacheRead: 0.2}, Input: []string{"text"}},
+		{ID: "magistral-small", Name: "Magistral Small", Reasoning: true, ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.5, Output: 1.5, CacheRead: 0.05}, Input: []string{"text"}},
+		{ID: "ministral-3b-latest", Name: "Ministral 3B (latest)", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.04, Output: 0.04, CacheRead: 0.004}, Input: []string{"text"}},
+		{ID: "ministral-8b-latest", Name: "Ministral 8B (latest)", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.1, Output: 0.1, CacheRead: 0.01}, Input: []string{"text"}},
+		{ID: "mistral-large-2411", Name: "Mistral Large 2.1", ContextWindow: 131072, MaxTokens: 16384, Cost: &CostConfig{Input: 2, Output: 6, CacheRead: 0.2}, Input: []string{"text"}},
+		{ID: "mistral-large-2512", Name: "Mistral Large 3", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.5, Output: 1.5, CacheRead: 0.05}, Input: []string{"text", "image"}},
+		{ID: "mistral-large-latest", Name: "Mistral Large (latest)", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.5, Output: 1.5, CacheRead: 0.05}, Input: []string{"text", "image"}},
+		{ID: "mistral-medium-2505", Name: "Mistral Medium 3", ContextWindow: 131072, MaxTokens: 131072, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text", "image"}},
+		{ID: "mistral-medium-2508", Name: "Mistral Medium 3.1", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text", "image"}},
+		{ID: "mistral-medium-2604", Name: "Mistral Medium 3.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.5, Output: 7.5, CacheRead: 0.15}, Input: []string{"text", "image"}},
+		{ID: "mistral-medium-3.5", Name: "Mistral Medium 3.5", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 1.5, Output: 7.5}, Input: []string{"text", "image"}},
+		{ID: "mistral-medium-latest", Name: "Mistral Medium (latest)", ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.4, Output: 2, CacheRead: 0.04}, Input: []string{"text", "image"}},
+		{ID: "mistral-nemo", Name: "Mistral Nemo", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.15, Output: 0.15, CacheRead: 0.015}, Input: []string{"text"}},
+		{ID: "mistral-small-2506", Name: "Mistral Small 3.2", ContextWindow: 128000, MaxTokens: 16384, Cost: &CostConfig{Input: 0.1, Output: 0.3, CacheRead: 0.01}, Input: []string{"text", "image"}},
+		{ID: "mistral-small-2603", Name: "Mistral Small 4", Reasoning: true, ContextWindow: 256000, MaxTokens: 256000, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.015}, Input: []string{"text", "image"}},
+		{ID: "mistral-small-latest", Name: "Mistral Small (latest)", Reasoning: true, ContextWindow: 256000, MaxTokens: 256000, Cost: &CostConfig{Input: 0.15, Output: 0.6, CacheRead: 0.015}, Input: []string{"text", "image"}},
+		{ID: "open-mistral-7b", Name: "Mistral 7B", ContextWindow: 8000, MaxTokens: 8000, Cost: &CostConfig{Input: 0.25, Output: 0.25, CacheRead: 0.025}, Input: []string{"text"}},
+		{ID: "open-mistral-nemo", Name: "Open Mistral Nemo", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.15, Output: 0.15, CacheRead: 0.015}, Input: []string{"text"}},
+		{ID: "open-mixtral-8x22b", Name: "Mixtral 8x22B", ContextWindow: 64000, MaxTokens: 64000, Cost: &CostConfig{Input: 2, Output: 6, CacheRead: 0.2}, Input: []string{"text"}},
+		{ID: "open-mixtral-8x7b", Name: "Mixtral 8x7B", ContextWindow: 32000, MaxTokens: 32000, Cost: &CostConfig{Input: 0.7, Output: 0.7, CacheRead: 0.07}, Input: []string{"text"}},
+		{ID: "pixtral-12b", Name: "Pixtral 12B", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 0.15, Output: 0.15, CacheRead: 0.015}, Input: []string{"text", "image"}},
+		{ID: "pixtral-large-latest", Name: "Pixtral Large (latest)", ContextWindow: 128000, MaxTokens: 128000, Cost: &CostConfig{Input: 2, Output: 6, CacheRead: 0.2}, Input: []string{"text", "image"}},
+	}},
 	"github-copilot": {Vendor: "github-copilot", BaseURL: "https://api.individual.githubcopilot.com", APIKey: "${COPILOT_GITHUB_TOKEN}", API: "openai-chat", Models: []ModelConfig{
 		{ID: "claude-sonnet-4.6", Name: "Claude Sonnet 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 32000, Cost: &CostConfig{Input: 3, Output: 15, CacheRead: 0.3, CacheWrite: 3.75}, Input: []string{"text", "image"}},
 		{ID: "claude-opus-4.8", Name: "Claude Opus 4.8", Reasoning: true, ContextWindow: 200000, MaxTokens: 64000, Cost: &CostConfig{Input: 5, Output: 25, CacheRead: 0.5, CacheWrite: 6.25}, Input: []string{"text", "image"}},
@@ -591,6 +683,7 @@ func cloneProviderConfig(src *ProviderConfig) *ProviderConfig {
 	dst.CacheControl = CloneBoolPtr(src.CacheControl)
 	dst.Responses = cloneResponsesConfig(src.Responses)
 	dst.Models = cloneModelConfigs(src.Models)
+	dst.fieldSet = cloneFieldSet(src.fieldSet)
 	return &dst
 }
 
@@ -619,7 +712,19 @@ func cloneModelConfig(src ModelConfig) ModelConfig {
 	}
 	src.Input = CloneStringSlice(src.Input)
 	src.Compat = cloneModelCompat(src.Compat)
+	src.fieldSet = cloneFieldSet(src.fieldSet)
 	return src
+}
+
+func cloneFieldSet(src map[string]bool) map[string]bool {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]bool, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }
 
 func cloneModelCompat(src *ModelCompat) *ModelCompat {
@@ -1191,38 +1296,38 @@ func mergeProviderConfig(base, overlay *ProviderConfig) *ProviderConfig {
 		return cloneProviderConfig(overlay)
 	}
 	result := cloneProviderConfig(base)
-	if overlay.APIKey != "" {
+	if configFieldWasSet(overlay.fieldSet, "apiKey") || (overlay.fieldSet == nil && overlay.APIKey != "") {
 		result.APIKey = overlay.APIKey
 	}
-	if overlay.BaseURL != "" {
+	if configFieldWasSet(overlay.fieldSet, "baseUrl") || (overlay.fieldSet == nil && overlay.BaseURL != "") {
 		result.BaseURL = overlay.BaseURL
 	}
-	if overlay.API != "" {
+	if configFieldWasSet(overlay.fieldSet, "api") || (overlay.fieldSet == nil && overlay.API != "") {
 		result.API = overlay.API
 	}
-	if overlay.Vendor != "" {
+	if configFieldWasSet(overlay.fieldSet, "vendor") || (overlay.fieldSet == nil && overlay.Vendor != "") {
 		result.Vendor = overlay.Vendor
 	}
-	if overlay.HTTPProxy != "" {
+	if configFieldWasSet(overlay.fieldSet, "httpProxy") || (overlay.fieldSet == nil && overlay.HTTPProxy != "") {
 		result.HTTPProxy = overlay.HTTPProxy
 	}
-	if overlay.ForceHTTP11 {
+	if configFieldWasSet(overlay.fieldSet, "forceHTTP11") || (overlay.fieldSet == nil && overlay.ForceHTTP11) {
 		result.ForceHTTP11 = overlay.ForceHTTP11
 	}
-	if overlay.ThinkingFormat != "" {
+	if configFieldWasSet(overlay.fieldSet, "thinkingFormat") || (overlay.fieldSet == nil && overlay.ThinkingFormat != "") {
 		result.ThinkingFormat = overlay.ThinkingFormat
 	}
-	if overlay.CacheControl != nil {
+	if configFieldWasSet(overlay.fieldSet, "cacheControl") || (overlay.fieldSet == nil && overlay.CacheControl != nil) {
 		result.CacheControl = CloneBoolPtr(overlay.CacheControl)
 	}
-	if len(overlay.Headers) > 0 {
+	if configFieldWasSet(overlay.fieldSet, "headers") || (overlay.fieldSet == nil && len(overlay.Headers) > 0) {
 		result.Headers = CloneStringMap(overlay.Headers)
 	}
-	if overlay.Responses.ReasoningSummary != "" || overlay.Responses.PromptCacheEnabled != nil ||
+	if configFieldWasSet(overlay.fieldSet, "responses") || overlay.Responses.ReasoningSummary != "" || overlay.Responses.PromptCacheEnabled != nil ||
 		overlay.Responses.PromptCacheKey != "" || overlay.Responses.PromptCacheRetention != "" {
 		result.Responses = cloneResponsesConfig(overlay.Responses)
 	}
-	if len(overlay.Models) > 0 {
+	if configFieldWasSet(overlay.fieldSet, "models") || (overlay.fieldSet == nil && len(overlay.Models) > 0) {
 		result.Models = cloneModelConfigs(overlay.Models)
 	}
 	return result
@@ -1231,33 +1336,39 @@ func mergeProviderConfig(base, overlay *ProviderConfig) *ProviderConfig {
 // mergeModelConfig overlays non-zero fields from `overlay` onto `base`.
 func mergeModelConfig(base, overlay ModelConfig) ModelConfig {
 	result := cloneModelConfig(base)
-	if overlay.ID != "" {
+	if configFieldWasSet(overlay.fieldSet, "id") || (overlay.fieldSet == nil && overlay.ID != "") {
 		result.ID = overlay.ID
 	}
-	if overlay.Name != "" {
+	if configFieldWasSet(overlay.fieldSet, "name") || (overlay.fieldSet == nil && overlay.Name != "") {
 		result.Name = overlay.Name
 	}
-	if overlay.ContextWindow > 0 {
+	if configFieldWasSet(overlay.fieldSet, "contextWindow") || (overlay.fieldSet == nil && overlay.ContextWindow > 0) {
 		result.ContextWindow = overlay.ContextWindow
 	}
-	if overlay.MaxTokens > 0 {
+	if configFieldWasSet(overlay.fieldSet, "maxTokens") || (overlay.fieldSet == nil && overlay.MaxTokens > 0) {
 		result.MaxTokens = overlay.MaxTokens
 	}
-	result.Reasoning = overlay.Reasoning
-	if len(overlay.Input) > 0 {
+	if configFieldWasSet(overlay.fieldSet, "reasoning") || (overlay.fieldSet == nil && overlay.Reasoning) {
+		result.Reasoning = overlay.Reasoning
+	}
+	if configFieldWasSet(overlay.fieldSet, "input") || (overlay.fieldSet == nil && len(overlay.Input) > 0) {
 		result.Input = CloneStringSlice(overlay.Input)
 	}
-	if overlay.Temperature != nil {
+	if configFieldWasSet(overlay.fieldSet, "temperature") || (overlay.fieldSet == nil && overlay.Temperature != nil) {
 		result.Temperature = CloneFloat64Ptr(overlay.Temperature)
 	}
-	if overlay.TopP != nil {
+	if configFieldWasSet(overlay.fieldSet, "top_p") || (overlay.fieldSet == nil && overlay.TopP != nil) {
 		result.TopP = CloneFloat64Ptr(overlay.TopP)
 	}
-	if overlay.Cost != nil {
-		c := *overlay.Cost
-		result.Cost = &c
+	if configFieldWasSet(overlay.fieldSet, "cost") || (overlay.fieldSet == nil && overlay.Cost != nil) {
+		if overlay.Cost == nil {
+			result.Cost = nil
+		} else {
+			c := *overlay.Cost
+			result.Cost = &c
+		}
 	}
-	if overlay.Compat != nil {
+	if configFieldWasSet(overlay.fieldSet, "compat") || (overlay.fieldSet == nil && overlay.Compat != nil) {
 		result.Compat = cloneModelCompat(overlay.Compat)
 	}
 	return result

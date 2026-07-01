@@ -41,10 +41,45 @@ MainMenu → ExistingProvider/CustomID → APIKey → BaseURL → Models → Adv
 
 ## 2. 设计方案
 
+### 2.0 配置优先级（启动读取 vs /auth 写回）
+
+启动时读取配置遵循“用户配置覆盖默认配置，项目配置覆盖全局配置”：
+
+```
+DefaultSettings / 内置默认配置
+  ↓ 被全局用户配置覆盖
+Global settings.json
+  ↓ 被项目用户配置覆盖
+Project .vibe/settings.json
+  ↓ 少数字段再被环境变量覆盖
+Runtime Settings
+```
+
+即：
+
+```
+default < global user config < project user config < env overrides
+```
+
+`/auth` 和 `/settings` 的写回策略与启动读取分开处理：
+
+```
+Runtime Settings（仅用于初始化 UI 和验证）
+  ↓ 用户编辑
+Global settings.json（只写全局 sparse 配置）
+  ↓ 当前会话热切换
+Runtime Settings（内存中同步 patch）
+```
+
+约束：
+- `/auth` / `/settings` 只直接修改全局配置，不直接写 `.vibe/settings.json`。
+- 如果项目 `.vibe/settings.json` 中存在同名 provider/model，下一次启动时仍会按读取优先级覆盖全局配置。
+- 保存全局配置时使用 sparse 写法，只写用户显式配置，不展开内置默认配置。
+
 ### 2.1 配置层级（正确的递进关系）
 
 ```
-Settings (global)
+Settings
 ├── defaultProvider / defaultModel / defaultMode / defaultThinkingLevel
 ├── providers
 │   └── <providerId> (ProviderConfig)     ← Provider 层 (11 个字段全覆盖)
@@ -69,7 +104,7 @@ Settings (global)
 当用户选择已有厂商或输入 custom provider ID 时，按以下优先级构建初始状态：
 
 ```
-优先级 1 (最高): settings.json 中用户已有的运行时配置
+优先级 1 (最高): Runtime Settings 中用户已有配置（已按 global < project 合并）
 优先级 2        : config/defaultProviderConfigs 中的内置厂商默认
 优先级 3 (最低): 通用保守默认值
 ```
@@ -80,7 +115,7 @@ func resolveProviderDefaults(providerID string, existing *config.ProviderConfig)
     // 1. 以 defaultProviderConfigs[providerID] 为基础（如果是已知厂商）
     base := config.DefaultProviderConfig(providerID)  // 从 settings.go 导出
     
-    // 2. 如果用户在 settings.json 已有配置，覆盖上去
+    // 2. 如果 Runtime Settings 中已有用户配置，覆盖上去
     if existing != nil {
         base = mergeProviderConfig(base, existing)
     }
@@ -122,7 +157,7 @@ func DefaultProviderConfig(providerID string) *ProviderConfig { ... }
 func DefaultModelConfig(providerID, modelID string) *ModelConfig { ... }
 
 // ResolveProviderConfig returns the effective config for a provider,
-// merging runtime settings.json over built-in defaults.
+// merging runtime user settings over built-in defaults.
 func ResolveProviderConfig(providerID string, runtime *Settings) *ProviderConfig { ... }
 ```
 
@@ -978,17 +1013,21 @@ func (a *App) buildAuthSettingsFrom(base *config.Settings) (*config.Settings, st
 
 ### 9.2 /settings 保存（复用）
 
-1. `LoadGlobalSettingsSparse()` → 加载
-2. 编辑 → 字段级修改（map 引用直接改）
-3. `providerfactory.Create()` → 验证
-4. `SaveGlobalSettings()` → 写入
-5. 热切换 runtime provider/model
+1. 读取当前 Runtime Settings → 初始化 UI（该 runtime 已经按 `default < global < project < env` 合并）
+2. `LoadGlobalSettingsSparse()` → 加载全局 sparse settings，作为写回基底
+3. 编辑结果 patch 到全局 sparse settings
+4. 将同一编辑结果 patch 到当前 Runtime Settings → `providerfactory.Create()` 验证
+5. `SaveGlobalSettings()` → 只写全局 `settings.json`
+6. 热切换当前会话的 runtime provider/model
+
+注意：`/settings` 不直接写项目 `.vibe/settings.json`。如果项目级配置中存在同名 provider/model，下一次启动仍会由项目级配置覆盖全局配置。
 
 ### 9.3 默认透传到 UI 的初始化
 
 ```go
 func (a *App) initAuthForProvider(providerID string) {
-    // 合并三层：默认 → 运行时已有 → 通用保底
+    // 初始化 UI 的优先级：通用保底 < 内置默认 < Runtime Settings 用户配置
+    // Runtime Settings 已经按 default < global < project < env 构建完成。
     resolved := config.ResolveProviderConfig(providerID, a.settings)
     
     a.auth.ProviderID = providerID
@@ -1100,7 +1139,8 @@ func (a *App) initAuthForProvider(providerID string) {
 | 风险 | 处理 |
 |------|------|
 | auth_dialog.go 已 1200+ 行 | 拆 5 个文件，单文件 < 500 行 |
-| 内置默认透传导致用户配置"意外覆盖" | 三层合并：已有配置优先级 > 内置默认；仅对**未配置字段**透传 |
+| 内置默认透传导致用户配置"意外覆盖" | UI 初始化合并：Runtime 用户配置 > 内置默认 > 通用保底；仅对**未配置字段**透传 |
+| `/auth` 写全局但项目配置覆盖全局 | 明确提示：启动读取优先级为 `default < global < project < env`，`/auth`/`/settings` 只直接写 global |
 | Custom provider 误匹配同名内置默认 | Custom 模式不查 defaultProviderConfigs，一律通用模板 |
 | Review JSON 过大（全字段含 cost/compat） | 默认折叠 cost/compat，仅展示字段计数；▶ 按键展开 |
 | compat 14 字段认知负担高 | Compatibility 组默认折叠，标注"none active"即正确；高级用户再展开 |
@@ -1125,7 +1165,8 @@ func (a *App) initAuthForProvider(providerID string) {
 - Display Name 可自定义，默认 = model ID
 - Headers 支持增删改（key-value 对）
 - CacheControl 三态切换（auto/on/off）
-- Save 使用 sparse global settings，不覆盖项目级和环境变量
+- 启动读取优先级明确为 `default < global user config < project user config < env overrides`
+- `/auth` / `/settings` 保存使用 sparse global settings，只直接写全局配置，不直接写项目级配置和环境变量
 - token 在 Review 中脱敏展示
 - 热切换成功后下一条消息使用新 provider/model
 - 旧 settings.json 完全兼容（新字段缺失不崩溃）
@@ -1144,7 +1185,7 @@ func (a *App) initAuthForProvider(providerID string) {
 | `DefaultProviderConfig(id)` | ✅ | `config/settings.go:1116` |
 | `DefaultModelConfig(providerID, modelID)` | ✅ | `config/settings.go:1126` |
 | `ResolveProviderConfig(id, runtime)` | ✅ | `config/settings.go:1142` |
-| `mergeProviderConfig` 三层合并 | ✅ | 内嵌于 `ResolveProviderConfig` |
+| `mergeProviderConfig` 初始化合并 | ✅ | Runtime 用户配置 > 内置默认 > 通用保底 |
 | `/settings` 命令入口 | ✅ | `commands.go` + `command_suggest.go` |
 
 ### Phase 2：结构化编辑状态层 ✅ 已完成
@@ -1156,9 +1197,9 @@ func (a *App) initAuthForProvider(providerID string) {
 | `compatEditState` struct | ✅ | `auth_state.go:36` — 含 14 子字段 |
 | `responsesEditState` struct | ✅ | `auth_state.go:28` — 含 4 子字段 |
 | `authDialogState` 结构化字段 | ✅ | `auth_dialog.go:53` — Provider/Models/ModelOrder |
-| `initAuthForProvider()` | ✅ | `auth_settings.go:32` — 三层合并透传 |
+| `initAuthForProvider()` | ✅ | `auth_settings.go:32` — 按 Runtime 用户配置 > 内置默认 > 通用保底初始化 |
 | `initAuthForCustom()` | ✅ | `auth_settings.go:52` — 通用模板 |
-| `initModelFromDefault()` | ✅ | `auth_settings.go:63` — 内置匹配+runtime+通用三层回退 |
+| `initModelFromDefault()` | ✅ | `auth_settings.go:63` — 应按 Runtime 用户配置 > 内置默认 > 通用保底回退 |
 | `providerEditStateFrom()` | ✅ | `auth_state.go:82` |
 | `modelEditStateFromMC()` | ✅ | `auth_state.go:142` |
 | `toConfig()` write-back | ✅ | `auth_state.go:177/202/226` — provider/responses/compat/model |
@@ -1250,4 +1291,3 @@ func (a *App) initAuthForProvider(providerID string) {
 | Provider Group List 的 Done 行为 | 方案未明确 Done 退出到哪里 | 实现为直接 `saveAuthProvider()` 保存并退出 /auth | **符合预期** — 用户要求的快速退出 |
 | Provider 子表单的 Done 行为 | 方案设计返回 Group List | 实现为 `popAuthView()` 返回上一级 | **符合预期** |
 | Model Group List 的 Done 行为 | 方案设计 Done → Default → Review | 实现为 `popAuthView()` 返回 Model List | **轻微偏差** — 不强制走 Default/Review 流程 |
-

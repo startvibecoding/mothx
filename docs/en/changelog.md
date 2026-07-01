@@ -26,6 +26,11 @@
 
 ### ✨ Features
 
+- **TUI Session Picker and Lazy Session Creation**
+  - `/sessions` now opens an interactive picker with Up/Down navigation, Enter-to-switch, `n` for a new session, and `d` for delete. Existing `/sessions ls`, `/sessions set <id>`, `/sessions clear`, and `/sessions del <id>` commands remain available.
+  - TUI startup no longer creates an empty session immediately. A new session is initialized only when the first user message is sent, while `--continue`, `--resume`, `--session`, and `/sessions set` still bind to existing sessions.
+  - Continuing or switching sessions in the TUI now prints the loaded session history into normal terminal scrollback, matching the startup history display behavior.
+
 - **Inline `<think>` Reasoning for OpenAI-Compatible Models**
   - Added a `parseReasoningInContent` model compat flag for OpenAI-compatible providers. When enabled, reasoning emitted inline in the content stream and wrapped in `<think>...</think>` tags is extracted and surfaced as thinking deltas instead of regular text.
   - The streaming parser correctly handles tags split across multiple SSE chunks and treats dangling partial tags as literal text at stream end.

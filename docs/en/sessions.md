@@ -92,6 +92,21 @@ vibecoding --resume ~/.vibecoding/sessions/--encoded-working-directory--/2026062
 sess, err := session.OpenByPathOrID(cwd, sessionDir, "abcd1234")
 ```
 
+### TUI Session Picker
+
+In interactive TUI mode, starting without `--continue`, `--resume`, or `--session` does not create an empty session immediately. The session is created when the first user message is sent.
+
+Use `/sessions` to open the interactive session picker. It supports Up/Down navigation, Enter to switch, `n` to start fresh, `d` to delete the selected session, and Esc to close. Text commands are still available:
+
+```bash
+/sessions ls
+/sessions set abcd1234
+/sessions clear
+/sessions del abcd1234
+```
+
+When an existing session is continued, resumed, or selected, its history is printed into the normal terminal scrollback.
+
 ### Add Message
 
 ```go
@@ -137,11 +152,11 @@ Configure compaction in settings:
 
 ### Regular Cleanup
 
-Prefer the built-in `/sessions delete <id>` command when deleting individual sessions, because it removes both the handle file and SQLite records:
+Prefer the built-in `/sessions del <id>` command when deleting individual sessions, because it removes both the handle file and SQLite records:
 
 ```bash
-/sessions list
-/sessions delete abcd1234
+/sessions ls
+/sessions del abcd1234
 ```
 
 If you do manual cleanup, remove only dated per-session handle files under encoded working-directory subdirectories. Do not delete the root `sessions.db` unless you intend to remove all persisted session data.

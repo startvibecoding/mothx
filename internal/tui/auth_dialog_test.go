@@ -1,10 +1,14 @@
 package tui
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
 )
 
 func TestAuthBuildSettingsPreservesExistingModelConfig(t *testing.T) {
@@ -534,6 +538,197 @@ func TestInitModelFromDefaultFallsBackToGeneric(t *testing.T) {
 	}
 	if me.MaxTokens != 8192 {
 		t.Fatalf("MaxTokens = %d, want 8192", me.MaxTokens)
+	}
+}
+
+func TestInitModelFromDefaultRuntimeOverridesBuiltin(t *testing.T) {
+	s := &config.Settings{}
+	data := []byte(`{
+		"providers": {
+			"deepseek-openai": {
+				"api": "openai-chat",
+				"baseUrl": "https://api.deepseek.com",
+				"models": [{
+					"id": "deepseek-v4-flash",
+					"name": "Runtime Flash",
+					"contextWindow": 42,
+					"maxTokens": 24,
+					"reasoning": false,
+					"input": ["text"]
+				}]
+			}
+		}
+	}`)
+	if err := json.Unmarshal(data, s); err != nil {
+		t.Fatalf("unmarshal settings: %v", err)
+	}
+	a := &App{settings: s}
+	a.auth = authDialogState{ProviderID: "deepseek-openai"}
+
+	me := a.initModelFromDefault("deepseek-v4-flash")
+	if me.Name != "Runtime Flash" || me.ContextWindow != 42 || me.MaxTokens != 24 || me.Reasoning {
+		t.Fatalf("runtime model override not used: %#v", me)
+	}
+}
+
+func TestSelectAPIChoicePreservesCustomBaseURL(t *testing.T) {
+	a := &App{}
+	a.auth = authDialogState{
+		View:  authViewAPIChoice,
+		Stack: []authView{authViewProviderGroupList},
+		Provider: providerEditState{
+			API:     "openai-chat",
+			BaseURL: "https://api.deepseek.com",
+		},
+	}
+
+	a.selectAPIChoice("openai-responses")
+	if a.auth.Provider.API != "openai-responses" {
+		t.Fatalf("API = %q", a.auth.Provider.API)
+	}
+	if a.auth.Provider.BaseURL != "https://api.deepseek.com" {
+		t.Fatalf("BaseURL was overwritten: %q", a.auth.Provider.BaseURL)
+	}
+}
+
+func TestSelectAPIChoiceUpdatesEmptyOrOldDefaultBaseURL(t *testing.T) {
+	a := &App{}
+	a.auth = authDialogState{
+		View:  authViewAPIChoice,
+		Stack: []authView{authViewProviderGroupList},
+		Provider: providerEditState{
+			API:     "openai-chat",
+			BaseURL: "https://api.openai.com/v1",
+		},
+	}
+
+	a.selectAPIChoice("anthropic-messages")
+	if a.auth.Provider.BaseURL != "https://api.anthropic.com" {
+		t.Fatalf("BaseURL = %q, want anthropic default", a.auth.Provider.BaseURL)
+	}
+}
+
+func TestSaveAuthProviderReloadsEffectiveProjectOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Setenv("VIBECODING_DIR", filepath.Join(tmpDir, "config"))
+
+	if err := os.MkdirAll(".vibe", 0700); err != nil {
+		t.Fatalf("mkdir .vibe: %v", err)
+	}
+	projectSettings := []byte(`{
+		"providers": {
+			"projected": {
+				"api": "openai-chat",
+				"baseUrl": "https://project.test/v1",
+				"models": [{"id": "m1", "name": "Project Model", "contextWindow": 222, "maxTokens": 111}]
+			}
+		}
+	}`)
+	if err := os.WriteFile(config.ProjectSettingsPath(), projectSettings, 0600); err != nil {
+		t.Fatalf("write project settings: %v", err)
+	}
+	settings, err := config.LoadSettings()
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	a := &App{settings: settings}
+	a.auth = authDialogState{
+		Open:       true,
+		ProviderID: "projected",
+		SetDefault: true,
+		Provider: providerEditState{
+			API:     "openai-chat",
+			BaseURL: "https://global.test/v1",
+		},
+		Models: map[string]*modelEditState{
+			"m1": {ID: "m1", Name: "Global Model", ContextWindow: 999, MaxTokens: 888, Input: []string{"text"}},
+		},
+		ModelOrder: []string{"m1"},
+	}
+
+	a.saveAuthProvider()
+	if a.auth.Error != "" {
+		t.Fatalf("save error: %s", a.auth.Error)
+	}
+	pc := a.settings.GetProviderConfig("projected")
+	if pc == nil {
+		t.Fatal("missing provider after reload")
+	}
+	if pc.BaseURL != "https://project.test/v1" {
+		t.Fatalf("effective BaseURL = %q, want project override", pc.BaseURL)
+	}
+	globalSparse, err := config.LoadGlobalSettingsSparse()
+	if err != nil {
+		t.Fatalf("load global sparse: %v", err)
+	}
+	if got := globalSparse.GetProviderConfig("projected").BaseURL; got != "https://global.test/v1" {
+		t.Fatalf("global BaseURL = %q, want saved global value", got)
+	}
+}
+
+func TestAddModelIDAllowsSlashModelIDs(t *testing.T) {
+	a := &App{settings: config.DefaultSettings()}
+	a.auth = authDialogState{
+		Open:       true,
+		View:       authViewAddModelID,
+		ProviderID: "openrouter",
+		Models:     map[string]*modelEditState{},
+	}
+	a.authInput = editor.New(80).SetValue("anthropic/claude-sonnet-4.6")
+
+	a.submitAuthInput()
+	if a.auth.Error != "" {
+		t.Fatalf("unexpected error: %s", a.auth.Error)
+	}
+	if a.auth.CurrentModelID != "anthropic/claude-sonnet-4.6" {
+		t.Fatalf("CurrentModelID = %q", a.auth.CurrentModelID)
+	}
+	if a.auth.View != authViewAddModelName {
+		t.Fatalf("View = %v, want authViewAddModelName", a.auth.View)
+	}
+}
+
+func TestAddModelIDRejectsDuplicate(t *testing.T) {
+	a := &App{settings: config.DefaultSettings()}
+	a.auth = authDialogState{
+		Open:       true,
+		View:       authViewAddModelID,
+		ProviderID: "deepseek-openai",
+		Models: map[string]*modelEditState{
+			"deepseek-v4-flash": {ID: "deepseek-v4-flash"},
+		},
+	}
+	a.authInput = editor.New(80).SetValue("deepseek-v4-flash")
+
+	a.submitAuthInput()
+	if a.auth.Error != "Model ID already exists." {
+		t.Fatalf("Error = %q", a.auth.Error)
+	}
+}
+
+func TestModelGroupDoneReturnsToPreviousView(t *testing.T) {
+	a := &App{settings: config.DefaultSettings()}
+	a.auth = authDialogState{
+		Open:           true,
+		View:           authViewModelGroupList,
+		Stack:          []authView{authViewSettingsDetail},
+		CurrentModelID: "m1",
+		Models:         map[string]*modelEditState{"m1": {ID: "m1", Name: "M1", Input: []string{"text"}}},
+		ModelOrder:     []string{"m1"},
+	}
+	a.auth.Cursor = len(a.authModelGroupOptions()) - 1
+
+	a.selectAuthOption()
+	if a.auth.View != authViewSettingsDetail {
+		t.Fatalf("View = %v, want authViewSettingsDetail", a.auth.View)
 	}
 }
 

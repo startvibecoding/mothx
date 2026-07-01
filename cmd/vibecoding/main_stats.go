@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
+	"strings"
+	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -15,9 +19,12 @@ func newStatsCommand() *cobra.Command {
 	flags := &statsFlags{}
 	cmd := &cobra.Command{
 		Use:   "stats",
-		Short: "Start the stats dashboard web server",
-		Long:  "Start a web server that displays usage statistics (tokens, requests, cost) with charts.",
+		Short: "Show usage statistics",
+		Long:  "Show usage statistics (tokens and requests) in a web dashboard or directly in the CLI.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if flags.cli {
+				return runStatsCLI(cmd.OutOrStdout(), flags)
+			}
 			return runStatsServer(flags)
 		},
 	}
@@ -28,14 +35,55 @@ func newStatsCommand() *cobra.Command {
 type statsFlags struct {
 	addr   string
 	dbPath string
+	cli    bool
 }
 
 func registerStatsFlags(fs *pflag.FlagSet, flags *statsFlags) {
 	fs.StringVar(&flags.addr, "addr", "127.0.0.1:7878", "Listen address for the stats web server")
 	fs.StringVar(&flags.dbPath, "db", "", "Path to sessions.db (default: <config-dir>/sessions/sessions.db)")
+	fs.BoolVar(&flags.cli, "cli", false, "Print stats in the terminal instead of starting the web server")
 }
 
 func runStatsServer(flags *statsFlags) error {
+	db, err := openStatsDB(flags)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	server := stats.NewServer(db, flags.addr)
+	return server.Start()
+}
+
+func runStatsCLI(w io.Writer, flags *statsFlags) error {
+	db, err := openStatsDB(flags)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	query := stats.Query{}
+	summary, err := db.Summary(query)
+	if err != nil {
+		return fmt.Errorf("query summary: %w", err)
+	}
+	byProvider, err := db.ByProvider(query)
+	if err != nil {
+		return fmt.Errorf("query providers: %w", err)
+	}
+	byModel, err := db.ByModel(query)
+	if err != nil {
+		return fmt.Errorf("query models: %w", err)
+	}
+	recent, err := db.Recent(1, 10)
+	if err != nil {
+		return fmt.Errorf("query recent requests: %w", err)
+	}
+
+	return printStatsCLI(w, summary, byProvider, byModel, recent)
+}
+
+func openStatsDB(flags *statsFlags) (*stats.DB, error) {
 	dbPath := flags.dbPath
 	if dbPath == "" {
 		dbPath = filepath.Join(platform.SessionDir(), "sessions.db")
@@ -43,10 +91,103 @@ func runStatsServer(flags *statsFlags) error {
 
 	db, err := stats.Open(dbPath)
 	if err != nil {
-		return fmt.Errorf("open stats database: %w", err)
+		return nil, fmt.Errorf("open stats database: %w", err)
 	}
-	defer db.Close()
+	return db, nil
+}
 
-	server := stats.NewServer(db, flags.addr)
-	return server.Start()
+func printStatsCLI(w io.Writer, summary *stats.Summary, byProvider, byModel []stats.Aggregate, recent *stats.RecentPage) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "VibeCoding Stats")
+	fmt.Fprintln(tw)
+	fmt.Fprintf(tw, "Requests:\t%s\n", formatStatsInt(summary.TotalRequests))
+	fmt.Fprintf(tw, "Input tokens:\t%s\n", formatStatsInt(summary.InputTokens))
+	fmt.Fprintf(tw, "Output tokens:\t%s\n", formatStatsInt(summary.OutputTokens))
+	fmt.Fprintf(tw, "Total tokens:\t%s\n", formatStatsInt(summary.TotalTokens))
+
+	printStatsAggregates(tw, "By Provider", "Provider", byProvider, 5, func(a stats.Aggregate) string {
+		if a.Protocol == "" {
+			return a.Vendor
+		}
+		return fmt.Sprintf("%s (%s)", a.Vendor, a.Protocol)
+	})
+	printStatsAggregates(tw, "By Model", "Model", byModel, 5, func(a stats.Aggregate) string {
+		if a.Model != "" {
+			return a.Model
+		}
+		return a.Label
+	})
+	printStatsRecent(tw, recent)
+	return tw.Flush()
+}
+
+func printStatsAggregates(w io.Writer, title, labelHeader string, rows []stats.Aggregate, limit int, labelFn func(stats.Aggregate) string) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, title)
+	if len(rows) == 0 {
+		fmt.Fprintln(w, "  No data")
+		return
+	}
+	fmt.Fprintf(w, "%s\tRequests\tInput\tOutput\tTotal\n", labelHeader)
+	for i, row := range rows {
+		if i >= limit {
+			break
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			emptyDash(labelFn(row)),
+			formatStatsInt(row.Requests),
+			formatStatsInt(row.InputTokens),
+			formatStatsInt(row.OutputTokens),
+			formatStatsInt(row.TotalTokens),
+		)
+	}
+}
+
+func printStatsRecent(w io.Writer, recent *stats.RecentPage) {
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Recent Requests")
+	if recent == nil || len(recent.Items) == 0 {
+		fmt.Fprintln(w, "  No data")
+		return
+	}
+	fmt.Fprintln(w, "Time\tProvider\tProtocol\tModel\tInput\tOutput\tDuration")
+	for _, item := range recent.Items {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			formatStatsTime(item.Timestamp),
+			emptyDash(item.Vendor),
+			emptyDash(item.Protocol),
+			emptyDash(item.Model),
+			formatStatsInt(item.InputTokens),
+			formatStatsInt(item.OutputTokens),
+			formatStatsDuration(item.DurationMs),
+		)
+	}
+}
+
+func formatStatsInt(n int) string {
+	return fmt.Sprintf("%d", n)
+}
+
+func formatStatsTime(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.Local().Format("2006-01-02 15:04:05")
+}
+
+func formatStatsDuration(ms int) string {
+	if ms <= 0 {
+		return "-"
+	}
+	if ms < 1000 {
+		return fmt.Sprintf("%dms", ms)
+	}
+	return fmt.Sprintf("%.1fs", float64(ms)/1000)
+}
+
+func emptyDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "-"
+	}
+	return s
 }

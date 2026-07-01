@@ -120,6 +120,107 @@ func TestGetModelConfig(t *testing.T) {
 	}
 }
 
+func TestResolveConfigJSONExplicitZeroValuesOverrideDefaults(t *testing.T) {
+	var runtime Settings
+	data := []byte(`{
+		"providers": {
+			"longcat": {
+				"vendor": "",
+				"baseUrl": "",
+				"headers": {},
+				"models": [
+					{
+						"id": "LongCat-2.0",
+						"reasoning": false,
+						"input": [],
+						"cost": null
+					}
+				]
+			}
+		}
+	}`)
+	if err := json.Unmarshal(data, &runtime); err != nil {
+		t.Fatalf("unmarshal runtime: %v", err)
+	}
+
+	pc := ResolveProviderConfig("longcat", &runtime)
+	if pc.Vendor != "" {
+		t.Fatalf("Vendor = %q, want explicit empty override", pc.Vendor)
+	}
+	if pc.BaseURL != "" {
+		t.Fatalf("BaseURL = %q, want explicit empty override", pc.BaseURL)
+	}
+	if pc.Headers == nil || len(pc.Headers) != 0 {
+		t.Fatalf("Headers = %#v, want explicit empty map", pc.Headers)
+	}
+	if len(pc.Models) != 1 {
+		t.Fatalf("Models = %d, want explicit one-model override", len(pc.Models))
+	}
+
+	mc := ResolveModelConfig("longcat", "LongCat-2.0", &runtime)
+	if mc == nil {
+		t.Fatal("expected model config")
+	}
+	if mc.Reasoning {
+		t.Fatal("Reasoning = true, want explicit false override")
+	}
+	if mc.Input == nil || len(mc.Input) != 0 {
+		t.Fatalf("Input = %#v, want explicit empty slice", mc.Input)
+	}
+	if mc.Cost != nil {
+		t.Fatalf("Cost = %#v, want explicit null override", mc.Cost)
+	}
+	if mc.ContextWindow == 0 {
+		t.Fatal("ContextWindow lost builtin default")
+	}
+}
+
+func TestResolveProviderConfigPreservesFieldPresenceAcrossGlobalAndProject(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	configDir := filepath.Join(tmpDir, "config")
+	t.Setenv("VIBECODING_DIR", configDir)
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("mkdir config: %v", err)
+	}
+	if err := os.WriteFile(GlobalSettingsPath(), []byte(`{
+		"providers": {
+			"longcat": {"apiKey": "global-key"}
+		}
+	}`), 0600); err != nil {
+		t.Fatalf("write global settings: %v", err)
+	}
+	if err := os.MkdirAll(".vibe", 0700); err != nil {
+		t.Fatalf("mkdir .vibe: %v", err)
+	}
+	if err := os.WriteFile(ProjectSettingsPath(), []byte(`{
+		"providers": {
+			"longcat": {"baseUrl": "https://project.longcat.test"}
+		}
+	}`), 0600); err != nil {
+		t.Fatalf("write project settings: %v", err)
+	}
+
+	s, err := LoadSettings()
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	pc := ResolveProviderConfig("longcat", s)
+	if pc.APIKey != "global-key" {
+		t.Fatalf("APIKey = %q, want global-key", pc.APIKey)
+	}
+	if pc.BaseURL != "https://project.longcat.test" {
+		t.Fatalf("BaseURL = %q, want project override", pc.BaseURL)
+	}
+}
+
 func TestConfigDir(t *testing.T) {
 	// Test with env var
 	os.Setenv("VIBECODING_DIR", "/tmp/test-vibecoding")

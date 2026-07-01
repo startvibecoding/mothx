@@ -143,6 +143,27 @@ vibecoding hermes [command]
 
 详见 [Hermes 模式](hermes.md) 文档。
 
+### `stats` - 用量统计
+
+启动用量统计仪表盘，或直接在终端打印 token 和请求统计。
+
+```
+vibecoding stats [flags]
+```
+
+| 标志 | 简写 | 默认值 | 描述 |
+|------|------|--------|------|
+| `--addr` | - | `127.0.0.1:7878` | Web 仪表盘监听地址 |
+| `--db` | - | 默认 sessions 数据库 | `sessions.db` 路径 |
+| `--cli` | - | false | 在终端打印统计信息，而不是启动 Web 服务器 |
+
+示例：
+```bash
+vibecoding stats
+vibecoding stats --cli
+vibecoding stats --cli --db ~/.vibecoding/sessions/sessions.db
+```
+
 ### `doctor` - 环境诊断
 
 诊断你的 VibeCoding 环境：系统信息、配置文件、Provider、模型、沙箱、MCP 等。
@@ -344,6 +365,8 @@ vibecoding -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-1200
 vibecoding --session ./20260625-120000_abcd1234.db
 ```
 
+在 TUI 中，如果没有传入 `--continue`、`--resume` 或 `--session`，启动时不会立即创建空 session；第一条用户消息发送时才会创建。继续、恢复或选择已有 session 时，会话历史会展示在正常终端 scrollback 中。
+
 ### 沙箱
 
 ```bash
@@ -403,12 +426,14 @@ vibecoding acp --sandbox --mode agent
 
 | 命令 | 描述 |
 |------|------|
-| `/sessions` | 列出当前项目的会话 |
-| `/sessions ls` | 列出所有项目的会话 |
+| `/sessions` | 打开交互式会话选择框 |
+| `/sessions ls` | 列出当前项目的会话 |
 | `/sessions set <id>` | 通过 ID 前缀切换到指定会话 |
-| `/sessions clear` | 创建新的空白会话 |
+| `/sessions clear` | 开始新的空白会话；实际 session 会在下一条消息发送时创建 |
 | `/sessions del <id>` | 通过 ID 前缀删除会话 |
 | `/clear` | 清空对话 |
+
+`/sessions` 选择框支持方向键上下选择、回车切换、`n` 开始新会话、`d` 删除选中会话、Esc 关闭。
 
 ### 技能
 

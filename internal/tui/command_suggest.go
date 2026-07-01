@@ -39,7 +39,7 @@ func commandSuggestionItems() []suggest.Item {
 
 func (a *App) updateCommandSuggestions() {
 	value := a.input.Value()
-	if a.auth.Open || a.defaultModelDialog.Open || a.toolModalOpen || a.waitingForApproval || a.waitingForQuestion || !strings.HasPrefix(value, "/") || strings.ContainsAny(value, " \t\n") {
+	if a.auth.Open || a.defaultModelDialog.Open || a.modelDialog.Open || a.sessionsDialog.Open || a.toolModalOpen || a.waitingForApproval || a.waitingForQuestion || !strings.HasPrefix(value, "/") || strings.ContainsAny(value, " \t\n") {
 		a.suggest = a.suggest.Update("")
 		return
 	}

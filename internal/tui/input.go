@@ -14,6 +14,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/agent"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/vibecoding/internal/session"
 )
 
 func (a *App) addMessage(msg string) {
@@ -312,6 +313,10 @@ func (a *App) processInput(input string) tea.Cmd {
 		return a.handleCommand(input)
 	}
 
+	if err := a.ensureSession(); err != nil {
+		a.addCommandError(fmt.Sprintf("Error creating session: %v", err))
+		return nil
+	}
 	a.ensureAgent()
 
 	a.registerManagedAgent()
@@ -333,6 +338,10 @@ func (a *App) submitAgentPrompt(prompt string) tea.Cmd {
 		a.addCommandError("Cannot run while context compaction is running.")
 		return nil
 	}
+	if err := a.ensureSession(); err != nil {
+		a.addCommandError(fmt.Sprintf("Error creating session: %v", err))
+		return nil
+	}
 	a.ensureAgent()
 	a.registerManagedAgent()
 	ctx := context.Background()
@@ -343,6 +352,34 @@ func (a *App) submitAgentPrompt(prompt string) tea.Cmd {
 			compacting: false,
 		}
 	}
+}
+
+func (a *App) ensureSession() error {
+	a.sessionMu.Lock()
+	defer a.sessionMu.Unlock()
+	if a.session != nil && a.session.GetHeader() != nil {
+		return nil
+	}
+	cwd := a.currentCwd()
+	if a.session != nil {
+		if err := a.session.Init(); err != nil {
+			return err
+		}
+		if a.session.GetHeader() != nil && a.session.GetHeader().Cwd != "" {
+			a.cwd = a.session.GetHeader().Cwd
+		}
+		return nil
+	}
+	sessionDir := a.getSessionDir()
+	sess := session.New(cwd, sessionDir)
+	if err := sess.Init(); err != nil {
+		return err
+	}
+	if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
+		a.cwd = sess.GetHeader().Cwd
+	}
+	a.session = sess
+	return nil
 }
 
 // ensureAgent lazily constructs the main agent and loads session history.
