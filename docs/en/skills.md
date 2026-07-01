@@ -329,3 +329,22 @@ func TestFunction(t *testing.T) {
 
 - [Configuration](configuration.md) - Skills directory configuration
 - [Architecture](architecture.md) - Skills system architecture
+- [Workflow Mode](workflow.md) - Elisp DSL workflow orchestration
+
+## Built-in Skills
+
+### workflow-elisp Skill
+
+When you enable `--workflows` mode, VibeCoding automatically creates a `.skills/workflow-elisp/` directory under your project root with complete syntax rules, pattern skeletons, and best practices. The skill includes 8 reference files:
+
+- Core rules (loaded by default)
+- Research and Investigation patterns
+- Serial and Parallel Composition
+- Decision Routing
+- Bounded While Loops
+- Horizontal Multi-Agent Collaboration
+- Master-Slave Small Teams
+- Evaluator-Optimizer Review Passes
+- Governance and Human Checkpoints
+
+See the [Workflow Mode](workflow.md) documentation for details.

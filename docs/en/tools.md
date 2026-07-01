@@ -36,7 +36,7 @@ When `sandbox.enabled` is `true` in `settings.json`, VibeCoding isolates command
 | [`jobs`](#jobs---background-job-management) | Execution | List or check status of background jobs | Read-only access allowed | All modes |
 | [`kill`](#kill---stop-background-job) | Execution | Stop a running background job | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
 | [`plan`](#plan---task-planning) | Session | Update a visible progress/task plan | Read-only access allowed | All modes |
-| [`question`](#question---user-clarification) | Session | Prompt user for multiple-choice input | Plan mode only | TUI Only |
+| [`question`](#question---user-clarification) | Session | Prompt user for multiple-choice input | Plan & Agent mode | TUI & ACP |
 | [`memory`](#memory---persistent-memory) | Workflow | Read/write to persistent `memory.md` | Session-scoped read/write | Hermes Mode |
 | [`cron`](#cron---scheduled-background-tasks) | Workflow | Schedule background tasks via sub-agents | Session-scoped scheduling | Hermes & Multi-Agent |
 | [`subagent_spawn`](#subagent_---delegated-work) | Multi-Agent | Spawn isolated sub-agents | Sub-agent scoped limits | Multi-Agent Mode |
@@ -149,7 +149,7 @@ Executes a command using the shell (e.g., `/bin/bash` on Linux/macOS, BusyBox on
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `command` | string | ✓ | - | Shell command string to execute. |
-| `timeout` | integer | - | 120 | Maximum execution time in seconds (max 600). |
+| `timeout` | integer | - | 45 | Maximum execution time in seconds (max 600). Use `async=true` for long-running processes; `timeout=0` means no tool-level deadline. |
 | `async` | boolean | - | false | If `true` (or if command ends with `&`), the process starts in the background and returns a `jobId` immediately. |
 
 #### Example Payload (Synchronous):
@@ -315,7 +315,7 @@ Renders a multi-step checklist panel in the TUI and persists the current plan st
 
 ### question - User Clarification
 
-In `plan` mode inside the TUI, the assistant can halt execution and ask the user a multiple-choice question to clarify requirements. The interactive TUI lets the user navigate options and select the correct path.
+The assistant can halt execution and ask the user a multiple-choice question to clarify requirements. Available in `plan` and `agent` modes inside the TUI and ACP sessions. The interactive TUI lets the user navigate options and select the correct path.
 
 #### Parameters:
 

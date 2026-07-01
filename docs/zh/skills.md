@@ -309,3 +309,22 @@ func TestFunction(t *testing.T) {
 
 - [配置详解](configuration.md) - 技能目录配置
 - [系统架构](architecture.md) - 技能系统架构
+- [工作流模式](workflow.md) - Elisp DSL 工作流编排
+
+## 内置技能
+
+### workflow-elisp 技能
+
+当启用 `--workflows` 模式时，VibeCoding 会自动在项目目录下创建 `.skills/workflow-elisp/` 技能目录，包含完整的语法规则、模式骨架和最佳实践。该技能包含 8 个参考文件：
+
+- 核心规则（默认加载）
+- 研究与调查模式
+- 串行与并行组合
+- 决策路由
+- 有界 while 循环
+- 水平多 Agent 协作
+- 主从式小团队
+- 评审-优化审查
+- 治理与人工检查点
+
+详见 [工作流模式](workflow.md) 文档。

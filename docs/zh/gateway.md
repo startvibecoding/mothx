@@ -229,10 +229,21 @@ vibecoding --init-gateway --force  # 强制覆盖
 
 每个请求可通过 `x_session_id` 关联 session。Session 维护独立的 agent 状态、消息历史和工具。
 
-- 无 `x_session_id` → 每请求新建 session（无状态）
+- 无 `x_session_id` → 按工作目录复用默认 session（有状态，按 `workDir` 隔离）
 - 有 `x_session_id` → 多轮对话（有状态）
 - Session 超过 `idleTimeoutSeconds` 自动过期
 - 同一 session 内的请求串行处理
+- 并发 session 创建已序列化，防止重复
+
+### 多工作区隔离
+
+当 `x_session_id` 为空时，网关按工作目录复用默认 session。多个工作区客户端不再共享 fallback session 历史 — 每个 `workDir` 拥有独立的默认 session。
+
+### 斜杠命令：/sessions
+
+- `/sessions` — 列出活跃 session
+- `/sessions del <id>` — 删除 session（支持前缀匹配，防止删除活跃 session）
+- `/clear` — 清空 session 上下文（保留 session 卡槽）
 
 ## 认证
 

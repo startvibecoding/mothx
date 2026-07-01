@@ -39,18 +39,20 @@
 | 特性 | 对你意味着什么 |
 |------|---------------|
 | **⚙️ 工作流模式** | 动态 Elisp 工作流，支持阶段划分、并行执行、多 Worker 协调 — 自动化复杂开发流水线 |
-| **🤖 多提供商** | DeepSeek、OpenAI、Anthropic、火山引擎/豆包和 20+ 厂商适配器 — 一键切换模型 |
+| **🤖 多提供商** | DeepSeek、OpenAI、Anthropic、火山引擎/豆包、LongCat 和 25+ 厂商适配器 — 一键切换模型 |
 | **⚡ 极速响应** | SSE 流式传输、实时 token 送达、缓存命中优化 |
 | **🧠 思考模式** | 复杂问题的扩展推理（DeepSeek、o1、Claude） |
 | **🛡️ 沙箱隔离** | bwrap 进程级隔离 — 安全文件操作、网络控制、审批门控 |
 | **📝 会话管理** | 持久化 SQLite 历史，支持分支、压缩和树形结构 |
 | **🧩 技能系统** | 可复用的提示片段，用于项目约定 — 团队共享 |
+| **📊 统计面板** | 使用统计图表、按厂商/模型分类统计、CLI 模式 |
+| **🔄 工作流** | Elisp DSL 实现多阶段、并行、多 Agent 编排 |
 | **💻 IDE 集成** | ACP 协议支持 VS Code、Zed、JetBrains — 原生编辑器集成 |
-| **🌐 网关模式** | OpenAI 兼容 HTTP API — 把 VibeCoding 当后端服务用 |
-| **📱 消息平台** | 微信、飞书、WebSocket — 部署为聊天机器人 |
+| **🌐 网关模式** | OpenAI 兼容 HTTP API，支持多工作区会话隔离 |
+| **📱 消息平台** | 微信、飞书、WebSocket，支持远程 TUI 客户端 |
 | **🤝 多 Agent** | `--multi-agent` 异步子 Agent、`--delegate` 阻塞式委托，以及 A2A Master 模式 |
-| **🎨 丰富 TUI** | Markdown 渲染、语法高亮、思考显示、工具弹窗 |
-| **🔒 安全可控** | bashBlacklist 优先于白名单、YOLO 模式安全保护、`--print` 快速失败 |
+| **🎨 丰富 TUI** | Markdown 渲染、语法高亮、思考显示、工具弹窗、多行输入 |
+| **🔒 安全可控** | 项目级 bash 自动审批规则、bashBlacklist 优先于白名单、交互式审批对话框 |
 
 ---
 
@@ -144,6 +146,7 @@ vibecoding/
 - [工具系统](tools.md) — 内置工具指南
 - [技能系统](skills.md) — 可复用提示片段
 - [在线 Skill 市场](skillhub.md) — SkillHub / ClawHub 集成
+- [工作流模式](workflow.md) — Elisp DSL 多 Agent 编排
 
 ### 🔒 安全
 - [安全与沙箱](security.md) — 沙箱模式、权限、审批
@@ -200,17 +203,20 @@ vibecoding hermes   # 部署为微信/飞书机器人
 
 | 工具 | 描述 |
 |------|------|
-| `read` | 读取文件内容 |
-| `write` | 创建/覆盖文件 |
-| `edit` | 精确文本替换 |
-| `bash` | 执行 Shell 命令 |
-| `grep` | 搜索文件内容（基于 ripgrep） |
-| `find` | 按模式查找文件（基于 fd） |
+| `read` | 读取文件内容（支持图片） |
+| `write` | 创建/覆盖文件（原子操作） |
+| `edit` | 精确多处文本替换 |
+| `bash` | 执行 Shell 命令（同步/异步，默认 45 秒超时） |
+| `grep` | 搜索文件内容（纯 Go ripgrep） |
+| `find` | 按模式查找文件（纯 Go fd） |
 | `ls` | 列出目录内容 |
 | `plan` | 发布任务计划 |
+| `question` | 向用户提问（多选） |
 | `jobs` | 管理后台任务 |
 | `kill` | 停止后台任务 |
 | `skill_ref` | 加载技能引用 |
+| `delegate_subagent` | 阻塞式单子 Agent 委托 |
+| `workflow_run` | 运行 Elisp 工作流编排 |
 
 ---
 

@@ -229,10 +229,21 @@ Controls how tool execution appears in the response content.
 
 Each request can be associated with a session via `x_session_id`. Sessions maintain independent agent state, message history, and tools.
 
-- No `x_session_id` → new session per request (stateless)
+- No `x_session_id` → default session per work directory (stateful, isolated by `workDir`)
 - With `x_session_id` → multi-turn conversation (stateful)
 - Sessions auto-expire after `idleTimeoutSeconds`
 - Requests within the same session are serialized
+- Concurrent session creation is serialized to prevent duplicates
+
+### Multi-Workspace Isolation
+
+When `x_session_id` is empty, the gateway reuses a default session per working directory. Multiple workspace clients no longer share fallback session history — each `workDir` gets its own isolated default session.
+
+### Slash Command: /sessions
+
+- `/sessions` — List active sessions
+- `/sessions del <id>` — Delete a session (supports prefix matching, prevents deleting active session)
+- `/clear` — Clear session context (preserves session slot)
 
 ## Authentication
 

@@ -495,6 +495,79 @@ router.RegisterGlobal(agent.RouterEventHandlerFunc(func(e agent.Event) error {
 5. **及时清理** — 始终对已完成的 Agent 调用 `subagent_destroy` 释放资源。
 6. **避免过度委派** — 小型、顺序或高度有状态的工作直接在主 Agent 中完成更好。
 
+---
+
+## 外部工具（嵌入式使用）
+
+将 VibeCoding 嵌入到自己的应用中时，可以将宿主应用提供的能力暴露给 Agent，与内置编码工具并存（或完全替代）。
+
+### ExternalTool 接口
+
+```go
+// ExternalTool 由嵌入方实现，用于暴露自定义工具。
+type ExternalTool interface {
+    Name() string
+    Description() string
+    Parameters() json.RawMessage
+    Execute(ctx context.Context, params map[string]any) (*ExternalToolResult, error)
+}
+```
+
+### ExternalToolResult
+
+```go
+type ExternalToolResult struct {
+    Text     string          // 纯文本结果
+    Error    string          // 错误消息（如有）
+    Contents []ContentBlock  // 可选的富内容块
+}
+```
+
+### 注册外部工具
+
+```go
+import (
+    "github.com/startvibecoding/vibecoding/agent"
+    _ "github.com/startvibecoding/vibecoding/bootstrap" // 嵌入时必须
+)
+
+a, err := agent.NewBuilder().
+    WithProvider(myProvider).
+    WithModel("my-model").
+    WithExternalTools(myDatabaseTool, myAPITool).  // 注册自定义工具
+    Build()
+```
+
+也可以禁用所有内置工具，仅使用宿主提供的工具：
+
+```go
+a, err := agent.NewBuilder().
+    WithProvider(myProvider).
+    WithModel("my-model").
+    WithoutBuiltinTools().           // 禁用 read, write, bash 等
+    WithExternalTools(myCustomTool). // 仅自定义工具
+    Build()
+```
+
+### 系统提示词贡献
+
+可选地实现 `ExternalToolPromptInfo` 来贡献系统提示词信息：
+
+```go
+type ExternalToolPromptInfo interface {
+    PromptSnippet() string     // 关于工具的简短上下文
+    PromptGuidelines() string  // LLM 使用指南
+}
+```
+
+### Bootstrap 包
+
+外部模块必须空白导入 `bootstrap` 包一次，以注册内部 builder 和 provider 解析 hook（因为 internal 包无法被直接导入）：
+
+```go
+import _ "github.com/startvibecoding/vibecoding/bootstrap"
+```
+
 ### 审批转发
 
 子 Agent 中需要审批的工具调用（例如 agent 模式下的 `bash`）会被转发到父 Agent 的事件通道。父 TUI 或审批处理器会看到携带子 Agent `AgentID` 的 `EventToolApprovalRequest` 事件，用户可以在单一界面上审批/拒绝所有 Agent 的工具调用。

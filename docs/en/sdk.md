@@ -495,6 +495,79 @@ router.RegisterGlobal(agent.RouterEventHandlerFunc(func(e agent.Event) error {
 5. **Clean up** — Always `subagent_destroy` finished agents to release resources.
 6. **Avoid over-delegation** — Small, sequential, or highly stateful work is better done inline.
 
+---
+
+## External Tools (Embedding)
+
+When embedding VibeCoding in your own application, you can expose host-provided capabilities to the agent alongside (or instead of) the built-in coding tools.
+
+### ExternalTool Interface
+
+```go
+// ExternalTool is implemented by embedding applications to expose custom tools.
+type ExternalTool interface {
+    Name() string
+    Description() string
+    Parameters() json.RawMessage
+    Execute(ctx context.Context, params map[string]any) (*ExternalToolResult, error)
+}
+```
+
+### ExternalToolResult
+
+```go
+type ExternalToolResult struct {
+    Text     string          // Plain text result
+    Error    string          // Error message (if any)
+    Contents []ContentBlock  // Optional rich content blocks
+}
+```
+
+### Registering External Tools
+
+```go
+import (
+    "github.com/startvibecoding/vibecoding/agent"
+    _ "github.com/startvibecoding/vibecoding/bootstrap" // required for embedding
+)
+
+a, err := agent.NewBuilder().
+    WithProvider(myProvider).
+    WithModel("my-model").
+    WithExternalTools(myDatabaseTool, myAPITool).  // Register custom tools
+    Build()
+```
+
+You can also disable all built-in tools and use only host-provided tools:
+
+```go
+a, err := agent.NewBuilder().
+    WithProvider(myProvider).
+    WithModel("my-model").
+    WithoutBuiltinTools().           // Disable read, write, bash, etc.
+    WithExternalTools(myCustomTool). // Only custom tools
+    Build()
+```
+
+### System Prompt Contributions
+
+Optionally implement `ExternalToolPromptInfo` to contribute system-prompt hints:
+
+```go
+type ExternalToolPromptInfo interface {
+    PromptSnippet() string     // Short context about the tool
+    PromptGuidelines() string  // Usage guidelines for the LLM
+}
+```
+
+### Bootstrap Package
+
+External modules must blank-import the `bootstrap` package once to register the internal builder and provider resolution hooks (since internal packages cannot be imported directly):
+
+```go
+import _ "github.com/startvibecoding/vibecoding/bootstrap"
+```
+
 ### Approval Forwarding
 
 Sub-agent tool calls that require approval (e.g., `bash` in agent mode) are forwarded to the parent agent's event channel. The parent TUI or approval handler sees `EventToolApprovalRequest` events with the sub-agent's `AgentID`, allowing the user to approve/deny tool calls across all agents from a single interface.

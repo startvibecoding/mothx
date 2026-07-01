@@ -51,35 +51,60 @@ go test -run TestReadTool ./internal/tools/
 
 ```
 vibecoding/
-├── cmd/vibecoding/          # CLI 入口点
-│   └── main.go
+├── agent/                     # 公共 Agent/Provider 接口和 Builder
+├── bootstrap/                 # 嵌入式使用的 bootstrap 包
+├── cmd/vibecoding/            # CLI 入口点
+│   ├── main.go                # 主程序
+│   └── main_doctor.go         # `doctor` 子命令
 ├── internal/
-│   ├── agent/               # 核心 Agent 循环
-│   │   ├── agent.go         # Agent 主逻辑
-│   │   ├── events.go        # 事件类型定义
-│   │   ├── provider.go      # Provider 适配器
-│   │   └── system_prompt.go # 系统提示词生成
-│   ├── config/              # 配置管理
-│   ├── contextfiles/        # 上下文文件加载
-│   ├── provider/            # LLM Provider 抽象
-│   │   ├── provider.go      # Provider 接口
-│   │   ├── anthropic/       # Anthropic 实现
-│   │   └── openai/          # OpenAI 实现
-│   ├── sandbox/             # 沙箱实现
-│   ├── session/             # 会话管理
-│   ├── skills/              # 技能系统
-│   ├── tools/               # 工具实现
-│   │   ├── tool.go          # 工具接口和注册
-│   │   ├── bash.go          # Bash 命令
-│   │   ├── read.go          # 文件读取
-│   │   ├── write.go         # 文件写入
-│   │   ├── edit.go          # 文件编辑
-│   │   ├── grep.go          # 内容搜索
-│   │   ├── find.go          # 文件查找
-│   │   └── ls.go            # 目录列表
-│   ├── tui/                 # 终端 UI
-│   └── util/                # 工具函数
-└── pkg/sdk/                 # 公共 SDK (未来)
+│   ├── a2a/                   # A2A 协议服务器和 Master 模式
+│   ├── acp/                   # ACP / MCP 集成
+│   ├── agent/                 # 核心 Agent 循环
+│   │   ├── agent.go           # Agent 主逻辑
+│   │   ├── factory.go         # AgentFactory
+│   │   ├── manager.go         # AgentManager
+│   │   ├── router.go          # EventRouter
+│   │   ├── subagent.go        # subagent_* 工具
+│   │   ├── events.go          # 事件类型定义
+│   │   ├── provider.go        # Provider 适配器
+│   │   └── system_prompt.go   # 系统提示词生成
+│   ├── config/                # 配置管理
+│   ├── context/               # 上下文管理和 token 估算
+│   ├── contextfiles/          # 上下文文件加载
+│   ├── cron/                  # 定时任务存储和调度器
+│   ├── gateway/               # OpenAI 兼容 HTTP 网关
+│   ├── hermes/                # 消息平台网关（微信/飞书/WebSocket）
+│   ├── mcp/                   # MCP 服务器集成
+│   ├── memory/                # 持久化记忆 (memory.md)
+│   ├── messaging/             # 消息平台抽象
+│   ├── platform/              # 跨平台兼容性
+│   ├── provider/              # LLM Provider 抽象
+│   │   ├── anthropic/         # Anthropic Messages API
+│   │   ├── google/            # Google Gemini/Vertex API
+│   │   ├── openai/            # OpenAI Chat Completions API
+│   │   ├── factory/           # 共享 provider/model 构建
+│   │   └── vendor*.go         # 厂商适配器注册表
+│   ├── sandbox/               # 沙箱抽象 (bwrap, none)
+│   ├── session/               # 会话管理 (SQLite)
+│   ├── skills/                # 技能系统
+│   ├── stats/                 # 用量统计 Web 面板
+│   ├── systeminit/            # AGENTS.md 生成
+│   ├── tools/                 # 工具实现
+│   │   ├── bash.go            # Bash 命令执行
+│   │   ├── read.go            # 文件读取
+│   │   ├── write.go           # 文件写入
+│   │   ├── edit.go            # 文件编辑
+│   │   ├── grep.go            # 内容搜索（纯 Go ripgrep）
+│   │   ├── find.go            # 文件查找（纯 Go fd）
+│   │   ├── ls.go              # 目录列表
+│   │   ├── plan.go            # 任务计划
+│   │   ├── question.go        # 用户问题澄清
+│   │   ├── skill_ref.go       # 技能引用加载
+│   │   └── a2a_dispatch.go    # A2A 远程 Agent 分发
+│   ├── tui/                   # 终端 UI (BubbleTea)
+│   └── workflow/              # 工作流运行时 (Elisp DSL)
+├── example/                   # SDK 示例
+└── pkg/sdk/                   # 公共 SDK 接口
 ```
 
 ## 核心接口

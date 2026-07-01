@@ -51,35 +51,60 @@ go test -run TestReadTool ./internal/tools/
 
 ```
 vibecoding/
-├── cmd/vibecoding/          # CLI entry point
-│   └── main.go
+├── agent/                     # Public Agent/Provider interfaces and Builder
+├── bootstrap/                 # Bootstrap package for embedding
+├── cmd/vibecoding/            # CLI entry point
+│   ├── main.go                # Main program
+│   └── main_doctor.go         # `doctor` subcommand
 ├── internal/
-│   ├── agent/               # Core Agent loop
-│   │   ├── agent.go         # Agent main logic
-│   │   ├── events.go        # Event type definitions
-│   │   ├── provider.go      # Provider adapter
-│   │   └── system_prompt.go # System prompt generation
-│   ├── config/              # Configuration management
-│   ├── contextfiles/        # Context file loading
-│   ├── provider/            # LLM Provider abstraction
-│   │   ├── provider.go      # Provider interface
-│   │   ├── anthropic/       # Anthropic implementation
-│   │   └── openai/          # OpenAI implementation
-│   ├── sandbox/             # Sandbox implementation
-│   ├── session/             # Session management
-│   ├── skills/              # Skills system
-│   ├── tools/               # Tool implementations
-│   │   ├── tool.go          # Tool interface and registration
-│   │   ├── bash.go          # Bash command
-│   │   ├── read.go          # File reading
-│   │   ├── write.go         # File writing
-│   │   ├── edit.go          # File editing
-│   │   ├── grep.go          # Content search
-│   │   ├── find.go          # File finding
-│   │   └── ls.go            # Directory listing
-│   ├── tui/                 # Terminal UI
-│   └── util/                # Utility functions
-└── pkg/sdk/                 # Public SDK (future)
+│   ├── a2a/                   # A2A protocol server and master mode
+│   ├── acp/                   # ACP / MCP integration
+│   ├── agent/                 # Core Agent loop
+│   │   ├── agent.go           # Agent main logic
+│   │   ├── factory.go         # AgentFactory
+│   │   ├── manager.go         # AgentManager
+│   │   ├── router.go          # EventRouter
+│   │   ├── subagent.go        # subagent_* tools
+│   │   ├── events.go          # Event type definitions
+│   │   ├── provider.go        # Provider adapter
+│   │   └── system_prompt.go   # System prompt generation
+│   ├── config/                # Configuration management
+│   ├── context/               # Context management and token estimation
+│   ├── contextfiles/          # Context file loading
+│   ├── cron/                  # Scheduled task store and scheduler
+│   ├── gateway/               # OpenAI-compatible HTTP gateway
+│   ├── hermes/                # Messaging gateway (WeChat/Feishu/WebSocket)
+│   ├── mcp/                   # MCP server integration
+│   ├── memory/                # Persistent memory (memory.md)
+│   ├── messaging/             # Messaging platform abstraction
+│   ├── platform/              # Cross-platform compatibility
+│   ├── provider/              # LLM Provider abstraction
+│   │   ├── anthropic/         # Anthropic Messages API
+│   │   ├── google/            # Google Gemini/Vertex API
+│   │   ├── openai/            # OpenAI Chat Completions API
+│   │   ├── factory/           # Shared provider/model construction
+│   │   └── vendor*.go         # Vendor adapter registry
+│   ├── sandbox/               # Sandbox abstraction (bwrap, none)
+│   ├── session/               # Session management (SQLite)
+│   ├── skills/                # Skills system
+│   ├── stats/                 # Usage stats web dashboard
+│   ├── systeminit/            # AGENTS.md generation
+│   ├── tools/                 # Tool implementations
+│   │   ├── bash.go            # Bash command execution
+│   │   ├── read.go            # File reading
+│   │   ├── write.go           # File writing
+│   │   ├── edit.go            # File editing
+│   │   ├── grep.go            # Content search (pure-Go ripgrep)
+│   │   ├── find.go            # File finding (pure-Go fd)
+│   │   ├── ls.go              # Directory listing
+│   │   ├── plan.go            # Task planning
+│   │   ├── question.go        # User clarification
+│   │   ├── skill_ref.go       # Skill reference loading
+│   │   └── a2a_dispatch.go    # A2A remote agent dispatch
+│   ├── tui/                   # Terminal UI (BubbleTea)
+│   └── workflow/              # Workflow runtime (Elisp DSL)
+├── example/                   # SDK examples
+└── pkg/sdk/                   # Public SDK interface
 ```
 
 ## Core Interfaces

@@ -13,7 +13,8 @@
 | **DeepSeek** (default) | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
 | **OpenAI** | GPT-4o, o1, etc. | OpenAI Chat |
 | **Anthropic** | Claude Sonnet, Opus, etc. | Anthropic Messages |
-| **Vendor Adapters** | Google Gemini, Google Vertex, Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock, and more | OpenAI Chat or Anthropic Messages |
+| **LongCat** | LongCat-2.0 (1M context, 128K output) | OpenAI Chat / Anthropic Messages |
+| **Vendor Adapters** | Google Gemini, Google Vertex, Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock, Z.AI, and more | OpenAI Chat or Anthropic Messages |
 | **Custom** | Any compatible model | Generic OpenAI Chat or Anthropic Messages fallback |
 
 ### Quick Switch
@@ -31,9 +32,9 @@ vibecoding --provider anthropic --model claude-3-5-sonnet-20241022
 
 ### Vendor Adapters
 
-VibeCoding supports 20+ vendor adapters, including:
+VibeCoding supports 25+ vendor adapters, including:
 
-- **China**: Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee
+- **China**: Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, Z.AI, LongCat
 - **International**: Google Gemini, Google Vertex, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock
 
 No additional configuration needed — just set the API key and start using.
@@ -131,6 +132,8 @@ sudo pacman -S bubblewrap
 
 VibeCoding uses SQLite-backed storage for persistent session history. Features include:
 
+- **Interactive picker**: `/sessions` opens a dialog with Up/Down navigation, Enter to switch, `n` for new, `d` for delete
+- **Lazy creation**: TUI startup defers session creation until the first user message
 - **Branching**: Create new branches from any node
 - **Compaction**: Automatically compact old sessions to save space
 - **Tree structure**: Visualize session trees
@@ -146,6 +149,24 @@ vibecoding --resume <session-id>
 
 # Use specific session handle file
 vibecoding --session <session-file.db>
+```
+
+### TUI Session Picker
+
+In the TUI, use `/sessions` to open the interactive session picker:
+
+- **Up/Down**: Navigate sessions
+- **Enter**: Switch to selected session
+- **n**: Start a new session
+- **d**: Delete selected session
+- **Esc**: Close picker
+
+Text commands are also available:
+```bash
+/sessions ls        # List sessions
+/sessions set <id>  # Switch to session
+/sessions clear     # Start fresh
+/sessions del <id>  # Delete session
 ```
 
 ### Session Storage Location
@@ -197,6 +218,48 @@ VibeCoding is compatible with SkillHub / ClawHub, supporting:
 - **Skill installation**: One-click install online skills
 - **Cron infrastructure**: Scheduled skill execution
 - **Community sharing**: Share your skills
+
+---
+
+## 📊 Stats Dashboard
+
+### Usage Statistics
+
+VibeCoding includes a built-in stats dashboard for tracking token usage, requests, and costs.
+
+```bash
+# Start web dashboard (default 127.0.0.1:7878)
+vibecoding stats
+
+# Print stats in terminal
+vibecoding stats --cli
+
+# Use alternate database
+vibecoding stats --db ~/.vibecoding/sessions/sessions.db
+```
+
+### Features
+
+- **Pure HTML/CSS/JS**: No external dependencies, charts drawn on `<canvas>`
+- **Overall summary**: Requests, tokens, cost, duration
+- **Time-series charts**: Visualize usage over time
+- **Per-provider/model breakdowns**: See which providers and models you use most
+- **Protocol + Vendor split**: Separate vendor (company) from protocol (API format)
+- **Filtering**: By time range (today/week/month/all), vendor, and protocol
+- **Recent requests table**: Paginated list of recent API calls
+
+### CLI Mode
+
+```bash
+# Print stats directly in terminal
+vibecoding stats --cli
+```
+
+Shows:
+- Total tokens, requests, cost, duration
+- Per-provider breakdown
+- Per-model breakdown
+- 10 most recent requests
 
 ---
 
@@ -352,18 +415,26 @@ See the [Workflow Mode](workflow.md) documentation for full syntax and best prac
 - **Markdown rendering**: Real-time Markdown content rendering
 - **Syntax highlighting**: Code block syntax highlighting
 - **Thinking display**: Show AI's thinking process
-- **Tool modals**: View tool execution details
-- **Status bar**: Show cache hit rate, token statistics, etc.
+- **Tool modals**: View tool execution details (Ctrl+O)
+- **Compact mode**: Toggle compact tool display (Ctrl+G)
+- **Multiline input**: Alt+Enter/Ctrl+J for newlines, Up/Down for history at boundaries
+- **Status bar**: Show cache hit rate, token statistics, context usage, elapsed time
+- **Sticky todo list**: Active plan steps remain visible while streaming
+- **Native scrollback**: Completed transcript blocks print to terminal scrollback
 
 ### Keyboard Shortcuts
 
 | Shortcut | Function |
 |----------|----------|
-| `Ctrl+O` | Open tool details |
-| `Ctrl+G` | Toggle compact display |
-| `Ctrl+T` | Toggle thinking display |
-| `Tab` | Switch mode |
-| `Esc` | Abort current operation |
+| `Enter` | Submit prompt |
+| `Alt+Enter` / `Ctrl+J` | Insert newline |
+| `Tab` | Cycle mode (plan → agent → yolo) |
+| `Esc` | Abort current operation, approval, or question |
+| `Ctrl+O` | Open/close tool details modal |
+| `Ctrl+G` | Toggle compact tool display |
+| `Up` / `Down` | Move in input; browse history at boundaries; scroll tool modal |
+| `PgUp` / `PgDn` | Page through tool modal |
+| `Home` / `End` | Start/end of input line; top/bottom of tool modal |
 
 ### Slash Commands
 
@@ -391,11 +462,36 @@ See the [Workflow Mode](workflow.md) documentation for full syntax and best prac
 }
 ```
 
+### Project-Level Bash Auto-Approval
+
+`allow.json` supports project-level bash auto-approval rules:
+
+```json
+{
+  "bashCommands": ["make test"],
+  "bashPrefixes": ["go test ", "go build "]
+}
+```
+
+- `bashCommands`: Exact command match
+- `bashPrefixes`: Prefix match (trailing spaces are significant)
+- Settings-level `bashBlacklist` takes precedence over project allow rules
+
+### Interactive Approval Dialog
+
+When approval is required, the TUI shows a dialog with:
+
+- **Approve Once**: Run this time only
+- **Deny**: Reject the command
+- **Always Allow Exact Command**: Persist to `.vibe/allow.json`
+- **Always Allow Command Prefix**: Persist prefix to `.vibe/allow.json`
+
 ### Security Features
 
 - **bashBlacklist priority**: Blacklisted commands are always blocked
 - **YOLO mode safety**: Even in YOLO mode, blacklist still applies
 - **`--print` fast fail**: Exits immediately when approval is needed
+- **Project allow rules**: Per-project bash auto-approval via `.vibe/allow.json`
 
 ---
 

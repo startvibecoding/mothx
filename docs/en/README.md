@@ -37,18 +37,20 @@ Welcome to the VibeCoding Documentation Center!
 
 | Feature | What It Means for You |
 |---------|----------------------|
-| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, and 20+ vendor adapters — switch models instantly |
+| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, LongCat, and 25+ vendor adapters — switch models instantly |
 | **⚡ Lightning Fast** | SSE streaming, real-time token delivery, cache hit optimization |
 | **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude) |
 | **🛡️ Sandboxed** | bwrap process isolation — safe file ops, network control, approval gates |
-| **📝 Sessions** | Persistent SQLite-backed history with branching, compaction, and tree structure |
+| **📝 Sessions** | Persistent SQLite-backed history with interactive picker, branching, compaction, and tree structure |
 | **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
+| **📊 Stats Dashboard** | Usage statistics with charts, per-provider/model breakdowns, and CLI mode |
+| **🔄 Workflows** | Elisp DSL for multi-phase, parallel, multi-agent orchestration |
 | **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
-| **🌐 Gateway** | OpenAI-compatible HTTP API — use VibeCoding as a backend service |
-| **📱 Messaging** | WeChat, Feishu, WebSocket — deploy as a chatbot |
+| **🌐 Gateway** | OpenAI-compatible HTTP API with multi-workspace session isolation |
+| **📱 Messaging** | WeChat, Feishu, WebSocket with remote TUI client |
 | **🤝 Multi-Agent** | Async sub-agents with `--multi-agent`, blocking delegation with `--delegate`, and A2A master mode |
-| **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals |
-| **🔒 Security** | bashBlacklist > whitelist, YOLO mode safety, `--print` fails fast |
+| **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals, multiline input |
+| **🔒 Security** | Project-level bash auto-approval rules, bashBlacklist > whitelist, interactive approval dialog |
 
 ---
 
@@ -74,6 +76,7 @@ Welcome to the VibeCoding Documentation Center!
 - [Skills System](skills.md) — Reusable prompt snippets
 - [Online Skill Marketplace](skillhub.md) — SkillHub / ClawHub integration
 - [Session Management](sessions.md) — Session storage and management
+- [Workflow Mode](workflow.md) — Elisp DSL for multi-agent orchestration
 - [SDK Integration](sdk.md) — Embed VibeCoding agent in your Go applications
 
 ### 🔒 Security
@@ -166,6 +169,25 @@ vibecoding gateway  # Start OpenAI-compatible HTTP server
 ```bash
 vibecoding hermes   # Deploy as WeChat/Feishu bot
 ```
+
+## 🛠️ Built-in Tools
+
+| Tool | Description |
+|------|-------------|
+| `read` | Read file content (supports images) |
+| `write` | Create/overwrite files (atomic) |
+| `edit` | Precise multi-replacement text edits |
+| `bash` | Execute shell commands (sync/async, default 45s timeout) |
+| `grep` | Search file content (pure-Go ripgrep) |
+| `find` | Find files by pattern (pure-Go fd) |
+| `ls` | List directory contents |
+| `plan` | Publish task plans with steps |
+| `question` | Ask user multiple-choice questions |
+| `jobs` | Manage background jobs |
+| `kill` | Stop background jobs |
+| `skill_ref` | Load skill reference files |
+| `delegate_subagent` | Blocking single sub-agent delegation |
+| `workflow_run` | Run Elisp workflow orchestration |
 
 ## Getting Help
 
