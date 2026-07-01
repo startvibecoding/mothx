@@ -1,7 +1,6 @@
 // Package update provides non-blocking version update detection based on the
-// npm registry. It never blocks the user: the foreground only reads a local
-// cache, while network checks run in the background and refresh that cache for
-// the next run.
+// npm registry. It never blocks the user: network checks run in the background
+// and failures only affect the update notification.
 package update
 
 import (
@@ -40,8 +39,7 @@ func registryURL() string {
 
 // cacheEntry is the on-disk cache for update checks.
 type cacheEntry struct {
-	LatestVersion string    `json:"latest_version"`
-	CheckedAt     time.Time `json:"checked_at"`
+	CheckedAt time.Time `json:"checked_at"`
 }
 
 func cachePath() string {
@@ -68,29 +66,19 @@ func writeCache(c cacheEntry) {
 	_ = os.WriteFile(cachePath(), data, 0o644)
 }
 
-// CachedNotice returns a reminder string if the cached latest version is newer
-// than current, otherwise an empty string. It performs no network I/O.
-func CachedNotice(current string) string {
-	if !isCheckable(current) || checksDisabled() {
-		return ""
-	}
-	c := readCache()
-	if c.LatestVersion == "" {
-		return ""
-	}
-	if compareVersions(c.LatestVersion, current) <= 0 {
-		return ""
-	}
+// Notice returns the update reminder text for current and latest.
+func Notice(current, latest string) string {
 	return fmt.Sprintf(
 		"✨ Update available: %s → %s\n   Run: npm install -g %s@latest",
-		normalize(current), normalize(c.LatestVersion), PackageName,
+		normalize(current), normalize(latest), PackageName,
 	)
 }
 
 // CheckInBackground refreshes the cache in a background goroutine if it is
-// stale. It returns immediately and never blocks the caller. Disable with the
-// VIBECODING_NO_UPDATE_CHECK environment variable.
-func CheckInBackground(current string) {
+// stale. It returns immediately and never blocks the caller. When the fetched
+// npm latest version is newer than current, notify is called from the background
+// goroutine. Disable with the VIBECODING_NO_UPDATE_CHECK environment variable.
+func CheckInBackground(current string, notify func(string)) {
 	if !isCheckable(current) || checksDisabled() {
 		return
 	}
@@ -98,19 +86,21 @@ func CheckInBackground(current string) {
 	if !c.CheckedAt.IsZero() && time.Since(c.CheckedAt) < checkInterval {
 		return
 	}
-	go func() {
-		refreshCache()
-	}()
+	go refreshCache(current, notify)
 }
 
-func refreshCache() {
-	c := readCache()
+func refreshCache(current string, notify func(string)) {
 	latest, err := fetchLatestVersion(context.Background())
+	writeCache(cacheEntry{CheckedAt: now()})
 	if err != nil {
-		writeCache(cacheEntry{LatestVersion: c.LatestVersion, CheckedAt: now()})
 		return
 	}
-	writeCache(cacheEntry{LatestVersion: latest, CheckedAt: now()})
+	if compareVersions(latest, current) <= 0 {
+		return
+	}
+	if notify != nil {
+		notify(Notice(current, latest))
+	}
 }
 
 // fetchLatest queries the npm registry for the latest published version.

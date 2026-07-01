@@ -383,9 +383,9 @@ func run(args []string, opts runOptions) error {
 	defer runtime.cleanup()
 
 	if opts.print {
-		if notice := updateNotice(settings, version); notice != "" {
+		startUpdateCheck(settings, func(notice string) {
 			fmt.Fprintln(os.Stderr, notice)
-		}
+		})
 		return runPrint(args, p, model, selection.mode, provider.ThinkingLevel(selection.thinkingLevel), settings, registry, sessionSetup.manager, extraContext, opts.multiAgent, opts.delegate, opts.workflows, runtime.agentManager)
 	}
 
@@ -426,10 +426,6 @@ func initRunEnvironment(opts runOptions) {
 }
 
 func applyRuntimeSettings(settings *config.Settings, opts runOptions) {
-	// Kick off a non-blocking update check (refreshes local cache for next run).
-	if settings.IsUpdateCheckEnabled() {
-		update.CheckInBackground(version)
-	}
 	if opts.webSearch {
 		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
@@ -801,6 +797,7 @@ func runInteractive(cfg runInteractiveConfig) error {
 	app.SetBrowserEnabled(cfg.opts.browser, cfg.opts.browser)
 	p2 := tea.NewProgram(app, teaProgramOptions()...)
 	app.SetProgram(p2)
+	startUpdateCheck(cfg.settings, app.ShowUpdateNotice)
 	if _, err := p2.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
 	}
@@ -820,9 +817,6 @@ func buildInitialMessage(cfg runInteractiveConfig) string {
 	}
 	if cfg.settingsMeta.CreatedGlobalConfig && !settingsHasResolvedDefaultToken(cfg.settings) {
 		parts = append(parts, fmt.Sprintf("Created default config: %s\nNo provider token configured yet. Run /auth to add a provider token and model.", cfg.settingsMeta.GlobalSettingsPath))
-	}
-	if notice := updateNotice(cfg.settings, version); notice != "" {
-		parts = append(parts, notice)
 	}
 	return strings.Join(parts, "\n")
 }
@@ -874,11 +868,11 @@ func filterReloadArgs(args []string) []string {
 	return out
 }
 
-func updateNotice(settings *config.Settings, version string) string {
+func startUpdateCheck(settings *config.Settings, notify func(string)) {
 	if !settings.IsUpdateCheckEnabled() {
-		return ""
+		return
 	}
-	return update.CachedNotice(version)
+	update.CheckInBackground(version, notify)
 }
 
 // a2aDispatcherAdapter adapts a2a.A2AManager to tools.A2ADispatcher.

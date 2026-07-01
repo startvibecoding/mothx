@@ -50,13 +50,22 @@ func TestNormalize(t *testing.T) {
 	}
 }
 
-func TestCachedNoticeRespectsDisableFlag(t *testing.T) {
+func TestCheckInBackgroundRespectsDisableFlag(t *testing.T) {
 	t.Setenv("VIBECODING_DIR", t.TempDir())
 	t.Setenv("VIBECODING_NO_UPDATE_CHECK", "1")
 
-	writeCache(cacheEntry{LatestVersion: "v1.2.4", CheckedAt: time.Now()})
-	if got := CachedNotice("v1.2.3"); got != "" {
-		t.Fatalf("CachedNotice with disable flag = %q, want empty", got)
+	oldFetch := fetchLatestVersion
+	defer func() { fetchLatestVersion = oldFetch }()
+
+	called := false
+	fetchLatestVersion = func(context.Context) (string, error) {
+		called = true
+		return "v1.2.4", nil
+	}
+
+	CheckInBackground("v1.2.3", nil)
+	if called {
+		t.Fatal("expected disabled check not to fetch")
 	}
 }
 
@@ -77,7 +86,7 @@ func TestCheckInBackgroundRecordsFailureCooldown(t *testing.T) {
 		return "", errors.New("boom")
 	}
 
-	refreshCache()
+	refreshCache("v1.2.3", nil)
 
 	c := readCache()
 	if c.CheckedAt.IsZero() {
@@ -88,12 +97,52 @@ func TestCheckInBackgroundRecordsFailureCooldown(t *testing.T) {
 	}
 }
 
-func TestCachedNoticeUsesSemverComparison(t *testing.T) {
+func TestRefreshCacheNotifiesForNewerSemver(t *testing.T) {
 	t.Setenv("VIBECODING_DIR", t.TempDir())
 	t.Setenv("VIBECODING_NO_UPDATE_CHECK", "")
 
-	writeCache(cacheEntry{LatestVersion: "v1.10.0", CheckedAt: time.Now()})
-	if got := CachedNotice("v1.2.3"); got == "" {
-		t.Fatal("expected semver comparison to detect newer version")
+	oldFetch := fetchLatestVersion
+	oldNow := now
+	defer func() {
+		fetchLatestVersion = oldFetch
+		now = oldNow
+	}()
+
+	nowValue := time.Unix(2000, 0)
+	now = func() time.Time { return nowValue }
+	fetchLatestVersion = func(context.Context) (string, error) {
+		return "v1.10.0", nil
+	}
+
+	var notice string
+	refreshCache("v1.2.3", func(msg string) {
+		notice = msg
+	})
+	if notice == "" {
+		t.Fatal("expected semver comparison to notify for newer version")
+	}
+	c := readCache()
+	if !c.CheckedAt.Equal(nowValue) {
+		t.Fatalf("CheckedAt = %v, want %v", c.CheckedAt, nowValue)
+	}
+}
+
+func TestRefreshCacheSkipsNotifyForCurrentOrOlderVersion(t *testing.T) {
+	t.Setenv("VIBECODING_DIR", t.TempDir())
+	t.Setenv("VIBECODING_NO_UPDATE_CHECK", "")
+
+	oldFetch := fetchLatestVersion
+	defer func() { fetchLatestVersion = oldFetch }()
+
+	fetchLatestVersion = func(context.Context) (string, error) {
+		return "v1.2.3", nil
+	}
+
+	called := false
+	refreshCache("v1.2.3", func(string) {
+		called = true
+	})
+	if called {
+		t.Fatal("did not expect notification for current version")
 	}
 }

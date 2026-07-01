@@ -13,6 +13,15 @@ type agentDoneMsg struct {
 	err        error
 	stopReason string
 }
+type updateNoticeMsg string
+
+// ShowUpdateNotice displays an update notification from a background check.
+func (a *App) ShowUpdateNotice(notice string) {
+	if notice == "" || a.program == nil {
+		return
+	}
+	a.program.Send(updateNoticeMsg(notice))
+}
 
 func (a *App) listenAgentEvents() tea.Cmd {
 	eventCh := a.eventCh

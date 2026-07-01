@@ -553,7 +553,7 @@ vibecoding doctor
 
 ### Update Notifications
 
-VibeCoding checks for newer releases via npm registry and shows a non-blocking reminder at startup when an update is available. Checks run in the background (at most once per 24h) and never block the foreground.
+VibeCoding checks for newer releases via npm registry and shows a non-blocking reminder when an update is available. Checks run in the background, keep only a local 24h cooldown timestamp, and never block the foreground.
 
 Disable via `settings.json` with `"updateCheck": false`, or via `VIBECODING_NO_UPDATE_CHECK=1`.
 

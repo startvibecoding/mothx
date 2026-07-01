@@ -552,7 +552,7 @@ vibecoding doctor
 
 ### 版本更新通知
 
-VibeCoding 会通过 npm registry 检测是否有新版本，并在启动时给出非阻塞的更新提醒。检测在后台进行（最多每 24 小时一次），前台不会阻塞。
+VibeCoding 会通过 npm registry 检测是否有新版本，并在有可用更新时给出非阻塞提醒。检测在后台进行，只在本地保存 24 小时冷却时间戳，前台不会阻塞。
 
 可通过 `settings.json` 中设置 `"updateCheck": false` 关闭，或通过 `VIBECODING_NO_UPDATE_CHECK=1` 关闭。
 

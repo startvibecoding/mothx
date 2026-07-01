@@ -672,6 +672,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.updateViewportContent()
 		return a, nil
 
+	case updateNoticeMsg:
+		a.addCommandStatus(string(msg))
+		a.updateViewportContent()
+		return a, nil
+
 	case statusLineRenderedMsg:
 		return a, a.handleStatusLineRendered(msg)
 
