@@ -3,7 +3,11 @@ package main
 import (
 	"fmt"
 	"io"
+	"net"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -33,15 +37,17 @@ func newStatsCommand() *cobra.Command {
 }
 
 type statsFlags struct {
-	addr   string
-	dbPath string
-	cli    bool
+	addr          string
+	dbPath        string
+	cli           bool
+	noBrowserOpen bool
 }
 
 func registerStatsFlags(fs *pflag.FlagSet, flags *statsFlags) {
 	fs.StringVar(&flags.addr, "addr", "127.0.0.1:7878", "Listen address for the stats web server")
 	fs.StringVar(&flags.dbPath, "db", "", "Path to sessions.db (default: <config-dir>/sessions/sessions.db)")
 	fs.BoolVar(&flags.cli, "cli", false, "Print stats in the terminal instead of starting the web server")
+	fs.BoolVar(&flags.noBrowserOpen, "no-browser-open", false, "Do not open the stats dashboard in the default browser")
 }
 
 func runStatsServer(flags *statsFlags) error {
@@ -52,7 +58,41 @@ func runStatsServer(flags *statsFlags) error {
 	defer db.Close()
 
 	server := stats.NewServer(db, flags.addr)
-	return server.Start()
+	listener, err := net.Listen("tcp", flags.addr)
+	if err != nil {
+		return fmt.Errorf("listen stats server: %w", err)
+	}
+	url := "http://" + listener.Addr().String()
+	if !flags.noBrowserOpen {
+		if err := openURLInDefaultBrowser(url); err != nil {
+			fmt.Fprintf(os.Stderr, "stats dashboard: could not open browser: %v\n", err)
+			fmt.Fprintf(os.Stderr, "stats dashboard: open %s manually\n", url)
+		}
+	}
+	return server.Serve(listener)
+}
+
+func openURLInDefaultBrowser(url string) error {
+	var candidates [][]string
+	switch runtime.GOOS {
+	case "darwin":
+		candidates = [][]string{{"open", url}}
+	case "windows":
+		candidates = [][]string{{"rundll32", "url.dll,FileProtocolHandler", url}}
+	default:
+		candidates = [][]string{{"xdg-open", url}, {"gio", "open", url}, {"sensible-browser", url}}
+	}
+	for _, candidate := range candidates {
+		if _, err := exec.LookPath(candidate[0]); err != nil {
+			continue
+		}
+		cmd := exec.Command(candidate[0], candidate[1:]...)
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("no browser opener found")
 }
 
 func runStatsCLI(w io.Writer, flags *statsFlags) error {

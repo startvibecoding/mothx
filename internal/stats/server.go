@@ -1,8 +1,11 @@
 package stats
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -10,9 +13,10 @@ import (
 
 // Server is the HTTP server for the stats dashboard.
 type Server struct {
-	db     *DB
-	addr   string
-	mux    *http.ServeMux
+	db         *DB
+	addr       string
+	mux        *http.ServeMux
+	httpServer *http.Server
 }
 
 // NewServer creates a new stats server.
@@ -23,13 +27,36 @@ func NewServer(db *DB, addr string) *Server {
 		mux:  http.NewServeMux(),
 	}
 	s.routes()
+	s.httpServer = &http.Server{
+		Addr:    addr,
+		Handler: s.mux,
+	}
 	return s
 }
 
 // Start starts the HTTP server.
 func (s *Server) Start() error {
 	log.Printf("[stats] dashboard listening on http://%s", s.addr)
-	return http.ListenAndServe(s.addr, s.mux)
+	err := s.httpServer.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+// Serve starts the HTTP server on an existing listener.
+func (s *Server) Serve(l net.Listener) error {
+	log.Printf("[stats] dashboard listening on http://%s", l.Addr().String())
+	err := s.httpServer.Serve(l)
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+// Shutdown gracefully stops the HTTP server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *Server) routes() {
@@ -154,5 +181,3 @@ func writeJSONError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusPartialContent)
 	json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 }
-
-

@@ -24,6 +24,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/mcps", Value: "/mcps", Description: "List MCP servers"},
 		{Label: "/delegate", Value: "/delegate ", Description: "Toggle delegation mode"},
 		{Label: "/browser", Value: "/browser ", Description: "Toggle browser automation tool"},
+		{Label: "/stats", Value: "/stats ", Description: "Open usage stats dashboard or TUI summary"},
 		{Label: "/statusline", Value: "/statusline ", Description: "Inspect or toggle the TUI status line"},
 		{Label: "/alloweditpath", Value: "/alloweditpath ", Description: "Manage auto-edit path whitelist (glob)"},
 		{Label: "/allowautoedit", Value: "/allowautoedit ", Description: "Toggle full auto-edit in agent mode"},
@@ -41,7 +42,7 @@ func commandSuggestionItems() []suggest.Item {
 func (a *App) updateCommandSuggestions() {
 	value := a.input.Value()
 	items, query, ok := commandSuggestionItemsForInput(value)
-	if a.auth.Open || a.defaultModelDialog.Open || a.modelDialog.Open || a.sessionsDialog.Open || a.toolModalOpen || a.waitingForApproval || a.waitingForQuestion || !ok {
+	if a.auth.Open || a.defaultModelDialog.Open || a.modelDialog.Open || a.sessionsDialog.Open || a.toolModalOpen || a.statsOverlayOpen || a.waitingForApproval || a.waitingForQuestion || !ok {
 		a.suggest = a.suggest.SetItems(commandSuggestionItems())
 		a.suggest = a.suggest.Update("")
 		return
@@ -144,6 +145,10 @@ func commandArgumentSuggestionItems(value string) []suggest.Item {
 	case "/browser":
 		if argIndex == 1 {
 			return commandArgumentItems(cmd, []string{"on", "off", "status"})
+		}
+	case "/stats":
+		if argIndex == 1 {
+			return commandArgumentItems(cmd, []string{"server", "stop-server", "tui"})
 		}
 	case "/alloweditpath":
 		if argIndex == 1 {

@@ -22,6 +22,7 @@ import (
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/session"
 	"github.com/startvibecoding/vibecoding/internal/skills"
+	"github.com/startvibecoding/vibecoding/internal/stats"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
 	"github.com/startvibecoding/vibecoding/internal/tui/components/suggest"
@@ -197,6 +198,14 @@ type App struct {
 	btwRendered      string // cached rendered+wrapped answer body
 	btwRenderWidth   int    // width the cache was built for
 	btwAnswerDirty   bool   // answer changed since last render
+
+	// /stats server and overlay state.
+	statsServer        *stats.Server
+	statsServerDB      *stats.DB
+	statsServerURL     string
+	statsOverlayOpen   bool
+	statsOverlayLines  []string
+	statsOverlayScroll int
 
 	// Compact tool display mode
 	compactMode bool
@@ -715,6 +724,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		}
+		if a.statsOverlayOpen {
+			switch {
+			case msg.Type == tea.KeyEsc || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
+				a.closeStatsOverlay()
+				a.scheduleRender()
+				return a, nil
+			case msg.Type == tea.KeyUp:
+				a.scrollStatsOverlay(-1)
+				return a, nil
+			case msg.Type == tea.KeyDown:
+				a.scrollStatsOverlay(1)
+				return a, nil
+			case msg.Type == tea.KeyPgUp:
+				a.scrollStatsOverlay(-10)
+				return a, nil
+			case msg.Type == tea.KeyPgDown:
+				a.scrollStatsOverlay(10)
+				return a, nil
+			}
+			return a, nil
+		}
 		if a.toolModalOpen {
 			switch {
 			case msg.Type == tea.KeyEsc || msg.Type == tea.KeyCtrlO || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
@@ -932,6 +962,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.scheduleRender()
 		return a, nil
 
+	case statsServerStartedMsg:
+		return a, a.handleStatsServerStarted(msg)
+
+	case statsServerStartFailedMsg:
+		a.addCommandError(fmt.Sprintf("Failed to start stats server: %v", msg.err))
+		return a, nil
+
+	case statsServerStoppedMsg:
+		a.handleStatsServerStopped(msg)
+		return a, nil
+
+	case statsOverlayLoadedMsg:
+		a.handleStatsOverlayLoaded(msg)
+		a.scheduleRender()
+		return a, nil
+
 	case agentDoneMsg:
 		a.isThinking = false
 		a.manualCompactionActive = false
@@ -1053,6 +1099,9 @@ func (a *App) View() string {
 	if !a.waitingForApproval && a.btwOpen {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderBtwOverlay(), footer))
 	}
+	if !a.waitingForApproval && a.statsOverlayOpen {
+		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderStatsOverlay(), footer))
+	}
 
 	var parts []string
 
@@ -1133,6 +1182,15 @@ func (a *App) abortPendingRequest(reason string) tea.Cmd {
 
 // handlePaste handles large pastes by creating markers
 func (a *App) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	if a.statsOverlayOpen {
+		switch {
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp:
+			a.scrollStatsOverlay(-mouseWheelScrollLines)
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown:
+			a.scrollStatsOverlay(mouseWheelScrollLines)
+		}
+		return nil
+	}
 	if a.toolModalOpen {
 		switch {
 		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp:

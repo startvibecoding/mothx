@@ -54,6 +54,7 @@ func commandHelpText() string {
 		"  /mcps                   - List MCP servers (global/project mcp.json)",
 		"  /delegate [on|off|status] - Toggle delegation mode",
 		"  /browser [on|off|status] - Toggle browser automation tool",
+		"  /stats server|stop-server|tui - Start/stop stats server or show stats in TUI",
 		"  /statusline [status|on|off] [project|global] - Inspect or toggle TUI status line",
 		"  /statusline command <cmd> [project|global]   - Set the status line command",
 		"  /statusline refresh <0-60> [project|global] - Set periodic refresh seconds",

@@ -761,6 +761,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		a.handleWorkflowsCommand(parts)
 	case "/statusline":
 		a.handleStatusLineCommand(parts)
+	case "/stats":
+		return a.handleStatsCommand(parts)
 	case "/help":
 		a.addCommandStatus(commandHelpText())
 	default:

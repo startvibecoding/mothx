@@ -64,6 +64,21 @@ func TestCommandArgumentSuggestionForMode(t *testing.T) {
 	}
 }
 
+func TestCommandArgumentSuggestionForStats(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/stats s")
+	a.updateCommandSuggestions()
+	if !a.commandSuggestionsVisible() {
+		t.Fatal("expected stats argument suggestions to be visible")
+	}
+	if !a.applySelectedCommandSuggestion() {
+		t.Fatal("expected selected stats argument suggestion to apply")
+	}
+	if got := a.input.Value(); got != "/stats server" {
+		t.Fatalf("input = %q, want /stats server", got)
+	}
+}
+
 func TestTabCompletesCommandArgumentInsteadOfCyclingMode(t *testing.T) {
 	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mode ")
