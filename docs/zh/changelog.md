@@ -1,27 +1,6 @@
 # 更新日志
 
 
-## v1.1.57
-
-### 🔧 改进
-
-- **统计面板：协议与厂商分离**
-  - 统计面板中的「Provider」列已按语义拆分为**厂商**（公司名称）和**协议**（API 协议类型，如 `openai-chat`、`anthropic-messages`、`google-gemini`）。
-  - 新增 `Provider.API()` 接口方法，在 `request_stats` 中同时记录协议类型与厂商名称。
-  - 新增厂商与协议筛选下拉框；饼图与表格现在同时展示两个维度。
-  - 数据库迁移 006 为 `request_stats` 表添加 `protocol` 列（已有数据回填为空字符串）。
-
-## v1.1.56
-
-### ✨ 新功能
-
-- **LongCat 厂商支持**
-  - 新增 `longcat` 厂商适配器，支持 OpenAI 兼容协议（`https://api.longcat.chat/openai`）与 Anthropic 兼容协议（`https://api.longcat.chat/anthropic`）两种接入方式。
-  - 默认设置中注册了两个内置 provider：`longcat`（OpenAI 协议，`LONGCAT_API_KEY`）与 `longcat-anthropic`（Anthropic 协议，`LONGCAT_ANTHROPIC_API_KEY`）。
-  - 默认模型 `LongCat-2.0`：上下文长度 1M，最大输出长度 128K Tokens。
-  - TUI 授权对话框中，在 `longcat` 厂商下提供 OpenAI / Anthropic 两种 BaseURL 的选择。
-
-
 ## v1.1.55
 
 ### ✨ 新功能
@@ -49,6 +28,18 @@
 - **会话设置改进**
   - TUI 启动时不再在非打印模式下自动创建空会话；新会话延迟至用户第一条消息时才初始化。
   - `--continue` 现在在打印模式下也能正常工作。
+
+- **LongCat 厂商支持**
+  - 新增 `longcat` 厂商适配器，支持 OpenAI 兼容协议（`https://api.longcat.chat/openai`）与 Anthropic 兼容协议（`https://api.longcat.chat/anthropic`）两种接入方式。
+  - 默认设置中注册了两个内置 provider：`longcat`（OpenAI 协议，`LONGCAT_API_KEY`）与 `longcat-anthropic`（Anthropic 协议，`LONGCAT_ANTHROPIC_API_KEY`）。
+  - 默认模型 `LongCat-2.0`：上下文长度 1M，最大输出长度 128K Tokens。
+  - TUI 授权对话框中，在 `longcat` 厂商下提供 OpenAI / Anthropic 两种 BaseURL 的选择。
+
+- **统计面板：协议与厂商分离**
+  - 统计面板中的「Provider」列已按语义拆分为**厂商**（公司名称）和**协议**（API 协议类型，如 `openai-chat`、`anthropic-messages`、`google-gemini`）。
+  - 新增 `Provider.API()` 接口方法，在 `request_stats` 中同时记录协议类型与厂商名称。
+  - 新增厂商与协议筛选下拉框；饼图与表格现在同时展示两个维度。
+  - 数据库迁移 006 为 `request_stats` 表添加 `protocol` 列（已有数据回填为空字符串）。
 
 ### 🔧 改进
 

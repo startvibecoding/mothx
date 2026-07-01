@@ -1,27 +1,6 @@
 # Changelog
 
 
-## v1.1.57
-
-### 🔧 Improvements
-
-- **Stats Dashboard: Protocol + Vendor Split**
-  - The "Provider" column in the stats dashboard has been semantically split into **Vendor** (the company/provider name) and **Protocol** (the API protocol, e.g. `openai-chat`, `anthropic-messages`, `google-gemini`).
-  - Added `Provider.API()` to the provider interface so the protocol type is recorded alongside the vendor name in `request_stats`.
-  - New filter dropdowns for Vendor and Protocol; pie chart and table now show both dimensions.
-  - Schema migration 006 adds the `protocol` column to `request_stats` (backfilled with empty string for existing rows).
-
-## v1.1.56
-
-### ✨ Features
-
-- **LongCat Provider Support**
-  - Added the `longcat` vendor adapter, supporting both OpenAI-compatible (`https://api.longcat.chat/openai`) and Anthropic-compatible (`https://api.longcat.chat/anthropic`) endpoints.
-  - Registered two default providers in settings: `longcat` (OpenAI format, `LONGCAT_API_KEY`) and `longcat-anthropic` (Anthropic format, `LONGCAT_ANTHROPIC_API_KEY`).
-  - Default model `LongCat-2.0`: 1M context window, 128K max output tokens.
-  - TUI auth dialog offers selectable base URLs for OpenAI vs Anthropic format under the `longcat` provider.
-
-
 ## v1.1.55
 
 ### ✨ Features
@@ -49,6 +28,18 @@
 - **Session Setup Improvements**
   - TUI startup no longer auto-creates sessions in non-print mode; a new session is deferred until the first user message.
   - `--continue` now works in print mode as well.
+
+- **LongCat Provider Support**
+  - Added the `longcat` vendor adapter, supporting both OpenAI-compatible (`https://api.longcat.chat/openai`) and Anthropic-compatible (`https://api.longcat.chat/anthropic`) endpoints.
+  - Registered two default providers in settings: `longcat` (OpenAI format, `LONGCAT_API_KEY`) and `longcat-anthropic` (Anthropic format, `LONGCAT_ANTHROPIC_API_KEY`).
+  - Default model `LongCat-2.0`: 1M context window, 128K max output tokens.
+  - TUI auth dialog offers selectable base URLs for OpenAI vs Anthropic format under the `longcat` provider.
+
+- **Stats Dashboard: Protocol + Vendor Split**
+  - The "Provider" column in the stats dashboard has been semantically split into **Vendor** (the company/provider name) and **Protocol** (the API protocol, e.g. `openai-chat`, `anthropic-messages`, `google-gemini`).
+  - Added `Provider.API()` to the provider interface so the protocol type is recorded alongside the vendor name in `request_stats`.
+  - New filter dropdowns for Vendor and Protocol; pie chart and table now show both dimensions.
+  - Schema migration 006 adds the `protocol` column to `request_stats` (backfilled with empty string for existing rows).
 
 ### 🔧 Improvements
 
