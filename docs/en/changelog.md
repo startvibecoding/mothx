@@ -35,6 +35,29 @@
   - Added a `parseReasoningInContent` model compat flag for OpenAI-compatible providers. When enabled, reasoning emitted inline in the content stream and wrapped in `<think>...</think>` tags is extracted and surfaced as thinking deltas instead of regular text.
   - The streaming parser correctly handles tags split across multiple SSE chunks and treats dangling partial tags as literal text at stream end.
 
+- **Stats CLI Mode**
+  - Added `vibecoding stats --cli` flag to print usage statistics directly in the terminal instead of starting the web dashboard.
+  - Prints summary (total tokens, requests, cost, duration), per-provider breakdown, per-model breakdown, and 10 most recent requests.
+
+- **Dashboard HTML Extraction**
+  - Extracted ~1000 lines of embedded dashboard HTML from `internal/stats/dashboard.go` into a separate `internal/stats/dashboard.html` file, loaded at startup via `http.FS`.
+
+- **Auth V2 Settings Tracking**
+  - Added `fieldSet` tracking to `ProviderConfig` and `ModelConfig` via custom `UnmarshalJSON` implementations, enabling detection of explicitly set JSON fields for auth V2 merge behavior.
+  - Custom `Settings.UnmarshalJSON` handles the map-style `providers` key without requiring struct field changes.
+
+- **Session Setup Improvements**
+  - TUI startup no longer auto-creates sessions in non-print mode; a new session is deferred until the first user message.
+  - `--continue` now works in print mode as well.
+
+### 🔧 Improvements
+
+- Fixed indentation in default provider config model slices.
+- Added tests for auth dialog and config field tracking.
+
+### 📝 Docs
+
+- Updated CLI reference and sessions docs (en/zh).
 
 ## v1.1.54
 

@@ -35,6 +35,29 @@
   - 为 OpenAI 兼容供应商新增 `parseReasoningInContent` 模型兼容标志。启用后，正文流中以 `<think>...</think>` 包裹的推理内容会被提取并作为思考增量输出，而不再作为普通文本。
   - 流式解析器能正确处理跨多个 SSE 分块的标签，并在流结束时将残留的不完整标签按字面文本处理。
 
+- **统计面板 CLI 模式**
+  - 新增 `vibecoding stats --cli` 参数，可直接在终端中打印使用统计，无需启动 Web 面板。
+  - 显示总览（token、请求数、费用、时长）、按厂商分类统计、按模型分类统计及最近 10 条请求。
+
+- **仪表板 HTML 文件分离**
+  - 将约 1000 行内嵌仪表板 HTML 从 `internal/stats/dashboard.go` 提取至独立的 `internal/stats/dashboard.html` 文件，启动时通过 `http.FS` 加载。
+
+- **Auth V2 设置追踪**
+  - 为 `ProviderConfig` 和 `ModelConfig` 新增 `fieldSet` 字段追踪，通过自定义 `UnmarshalJSON` 实现对 JSON 显式设置字段的检测，支持 auth V2 合并逻辑。
+  - 自定义 `Settings.UnmarshalJSON` 处理映射风格的 `providers` 键，无需修改结构体字段。
+
+- **会话设置改进**
+  - TUI 启动时不再在非打印模式下自动创建空会话；新会话延迟至用户第一条消息时才初始化。
+  - `--continue` 现在在打印模式下也能正常工作。
+
+### 🔧 改进
+
+- 修复默认 provider 配置中模型切片的缩进问题。
+- 新增 auth 对话框和配置字段追踪的测试。
+
+### 📝 文档
+
+- 更新 CLI 参考和会话文档（中/英文）。
 
 ## v1.1.54
 
