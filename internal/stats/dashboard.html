@@ -22,6 +22,147 @@
 	--shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
+.share-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 40px;
+	padding: 9px 14px;
+	background: #111827;
+	color: white;
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	border-radius: 8px;
+	font-size: 13px;
+	font-weight: 700;
+	cursor: pointer;
+	box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+	transition: all 0.2s;
+}
+
+.share-btn:hover {
+	background: #0f172a;
+	transform: translateY(-1px);
+	box-shadow: 0 16px 34px rgba(15, 23, 42, 0.24);
+}
+
+.share-btn:focus {
+	outline: 2px solid rgba(37, 99, 235, 0.22);
+	outline-offset: 2px;
+}
+
+.share-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 1000;
+	background: rgba(17, 24, 39, 0.68);
+	display: none;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	backdrop-filter: blur(6px);
+}
+
+.share-modal.active {
+	display: flex;
+}
+
+.share-modal-content {
+	background: white;
+	border-radius: 12px;
+	padding: 24px;
+	max-width: 560px;
+	width: 100%;
+	max-height: 90vh;
+	overflow-y: auto;
+	border: 1px solid rgba(229, 231, 235, 0.9);
+	box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26);
+}
+
+.share-modal-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.share-modal-title {
+	font-size: 18px;
+	font-weight: 700;
+	margin: 0;
+	letter-spacing: 0;
+}
+
+.share-modal-close {
+	background: var(--surface-muted);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	font-size: 20px;
+	cursor: pointer;
+	color: var(--muted);
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.share-modal-close:hover {
+	background: #f3f4f6;
+	color: var(--text);
+}
+
+.share-canvas-wrapper {
+	width: 100%;
+	margin-bottom: 16px;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: 10px;
+	background: var(--surface-muted);
+}
+
+.share-canvas-wrapper canvas {
+	width: 100%;
+	height: auto;
+	border-radius: 8px;
+	box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+}
+
+.share-actions {
+	display: flex;
+	gap: 12px;
+}
+
+.share-actions button {
+	flex: 1;
+	min-height: 42px;
+	padding: 10px 12px;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-save {
+	background: #111827;
+	color: white;
+}
+
+.btn-save:hover {
+	background: #0f172a;
+}
+
+.btn-copy {
+	background: var(--surface-muted);
+	color: var(--text);
+	border: 1px solid var(--line);
+}
+
+.btn-copy:hover {
+	background: var(--line);
+}
+
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 body {
@@ -51,6 +192,14 @@ button { color: inherit; }
 	justify-content: space-between;
 	gap: 24px;
 	margin-bottom: 24px;
+}
+
+.topbar-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 12px;
+	min-width: min(650px, 100%);
 }
 
 .title-block h1 {
@@ -95,7 +244,7 @@ button { color: inherit; }
 	display: grid;
 	grid-template-columns: repeat(4, minmax(132px, 1fr));
 	gap: 10px;
-	min-width: min(650px, 100%);
+	width: 100%;
 }
 
 .field {
@@ -238,7 +387,10 @@ canvas { display: block; width: 100%; height: 100%; }
 }
 
 .heatmap-header {
-	position: relative;
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	background: var(--surface);
 	height: 18px;
 	margin-bottom: 5px;
 }
@@ -263,16 +415,16 @@ canvas { display: block; width: 100%; height: 100%; }
 .hm-cell {
 	width: 12px;
 	height: 12px;
-	border: 1px solid #e3e8ef;
+	border: 1px solid #dbeafe;
 	border-radius: 3px;
-	background: #edf2f7;
+	background: #eff6ff;
 	cursor: default;
 }
 
-.hm-cell[data-level="1"] { background: #c7e9d4; border-color: #b7dfc6; }
-.hm-cell[data-level="2"] { background: #7fcf9b; border-color: #72be8e; }
-.hm-cell[data-level="3"] { background: #34a853; border-color: #2f984b; }
-.hm-cell[data-level="4"] { background: #176b35; border-color: #155f30; }
+.hm-cell[data-level="1"] { background: #bfdbfe; border-color: #93c5fd; }
+.hm-cell[data-level="2"] { background: #60a5fa; border-color: #3b82f6; }
+.hm-cell[data-level="3"] { background: #2563eb; border-color: #1d4ed8; }
+.hm-cell[data-level="4"] { background: #1e40af; border-color: #1e3a8a; }
 .hm-cell:hover { outline: 2px solid rgba(37, 99, 235, 0.28); outline-offset: 1px; }
 
 .hm-scale {
@@ -404,12 +556,31 @@ td.model-cell {
 
 @media (max-width: 980px) {
 	.topbar { flex-direction: column; }
+	.topbar-actions {
+		width: 100%;
+		min-width: 0;
+	}
 	.filters { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.content-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
+	.share-btn {
+		min-height: 38px;
+		padding: 8px 12px;
+	}
+	.share-modal {
+		padding: 10px;
+		align-items: flex-end;
+	}
+	.share-modal-content {
+		max-height: calc(100vh - 20px);
+		padding: 16px;
+	}
+	.share-actions {
+		flex-direction: column;
+	}
 	.shell {
 		width: min(100% - 20px, 1240px);
 		padding-top: 18px;
@@ -431,6 +602,13 @@ td.model-cell {
 		margin-top: 0;
 	}
 	.filter-toggle { display: inline-flex; }
+	.topbar-actions {
+		align-items: stretch;
+		gap: 10px;
+	}
+	.topbar-actions .share-btn {
+		align-self: flex-end;
+	}
 	.filters {
 		grid-template-columns: 1fr;
 		padding: 12px;
@@ -450,6 +628,22 @@ td.model-cell {
 </style>
 </head>
 <body>
+<div class="share-modal" id="shareModal">
+	<div class="share-modal-content">
+		<div class="share-modal-header">
+			<h3 class="share-modal-title">Share Your Stats</h3>
+			<button class="share-modal-close" id="shareModalClose" type="button" aria-label="Close">×</button>
+		</div>
+		<div class="share-canvas-wrapper" id="shareCanvasWrapper">
+			<canvas id="shareCanvas"></canvas>
+		</div>
+		<div class="share-actions">
+			<button class="btn-save" id="btnSaveImage" type="button">Save Image</button>
+			<button class="btn-copy" id="btnCopyImage" type="button">Copy Image</button>
+		</div>
+	</div>
+</div>
+
 <main class="shell">
 	<header class="topbar">
 		<div class="title-block">
@@ -457,27 +651,30 @@ td.model-cell {
 			<button class="filter-toggle" id="filterToggle" type="button" aria-controls="filters" aria-expanded="false">Filters</button>
 			<div class="subtitle">Usage, token volume, and recent model requests.</div>
 		</div>
-		<div class="filters" id="filters" aria-label="Dashboard filters">
-			<div class="field">
-				<label for="range">Range</label>
-				<select id="range">
-					<option value="today">Today</option>
-					<option value="week">This Week</option>
-					<option value="month" selected>This Month</option>
-					<option value="all">All Time</option>
-				</select>
-			</div>
-			<div class="field">
-				<label for="vendor">Provider</label>
-				<select id="vendor"><option value="">All</option></select>
-			</div>
-			<div class="field">
-				<label for="protocol">Protocol</label>
-				<select id="protocol"><option value="">All</option></select>
-			</div>
-			<div class="field">
-				<label for="model">Model</label>
-				<select id="model"><option value="">All</option></select>
+		<div class="topbar-actions">
+			<button class="share-btn" id="shareBtn" type="button" aria-haspopup="dialog">Share</button>
+			<div class="filters" id="filters" aria-label="Dashboard filters">
+				<div class="field">
+					<label for="range">Range</label>
+					<select id="range">
+						<option value="today" selected>Today</option>
+						<option value="week">This Week</option>
+						<option value="month">This Month</option>
+						<option value="all">All Time</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="vendor">Provider</label>
+					<select id="vendor"><option value="">All</option></select>
+				</div>
+				<div class="field">
+					<label for="protocol">Protocol</label>
+					<select id="protocol"><option value="">All</option></select>
+				</div>
+				<div class="field">
+					<label for="model">Model</label>
+					<select id="model"><option value="">All</option></select>
+				</div>
 			</div>
 		</div>
 	</header>
@@ -508,7 +705,6 @@ td.model-cell {
 	<section class="panel">
 		<div class="panel-header">
 			<h2 class="panel-title">Daily Token Heatmap</h2>
-			<div class="panel-meta">Last 365 days</div>
 		</div>
 		<div class="panel-body">
 			<div class="heatmap-scroll" id="heatmapScroll">
@@ -518,6 +714,16 @@ td.model-cell {
 				</div>
 			</div>
 			<div class="hm-scale">Less <div class="hm-cell"></div><div class="hm-cell" data-level="1"></div><div class="hm-cell" data-level="2"></div><div class="hm-cell" data-level="3"></div><div class="hm-cell" data-level="4"></div> More</div>
+		</div>
+	</section>
+
+	<section class="panel" id="trendPanel">
+		<div class="panel-header">
+			<h2 class="panel-title">Total Tokens Trend</h2>
+			<div class="panel-meta">Daily tokens</div>
+		</div>
+		<div class="panel-body">
+			<div class="chart-container"><canvas id="chartTrend"></canvas></div>
 		</div>
 	</section>
 
@@ -570,12 +776,12 @@ td.model-cell {
 
 <script>
 const $ = id => document.getElementById(id);
-const chartColors = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#4b5563', '#0f766e'];
+const chartColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#84cc16'];
 
 function fmt(n) {
 	const value = Number(n || 0);
 	if (value >= 1e9) return (value / 1e9).toFixed(1) + 'B';
-	if (value >= 1e6) return (value / 1e6).toFixed(1) + 'M';
+	if (value >= 1e7) return (value / 1e6).toFixed(1) + 'M';
 	if (value >= 1e3) return (value / 1e3).toFixed(1) + 'K';
 	return String(value);
 }
@@ -685,7 +891,9 @@ function drawHeatmap(days, maxTokens) {
 		weeks.push(currentWeek);
 	}
 
-	const cellStep = 15;
+	const cellSize = 12;
+	const cellGap = 3;
+	const cellStep = cellSize + cellGap;
 	let lastMonth = -1;
 	for (let w = 0; w < weeks.length; w++) {
 		for (let d = 0; d < weeks[w].length; d++) {
@@ -777,7 +985,7 @@ function drawPieChart(canvas, labels, values, colors) {
 	ctx.fillText('tokens', cx, cy + 16);
 
 	const legendX = Math.min(width * 0.58, cx + radius + 34);
-	const maxRows = Math.min(labels.length, Math.floor((height - 24) / 24));
+	const maxRows = Math.min(labels.length, Math.floor((height - 18 - 24) / 24));
 	ctx.textAlign = 'left';
 	ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 	for (let i = 0; i < maxRows; i++) {
@@ -796,6 +1004,97 @@ function drawPieChart(canvas, labels, values, colors) {
 		ctx.fillStyle = '#6b7280';
 		ctx.fillText('+' + (labels.length - maxRows) + ' more', legendX, 18 + maxRows * 24);
 	}
+}
+
+function drawBarChart(canvas, labels, values) {
+	const ctx = canvas.getContext('2d');
+	const dpr = window.devicePixelRatio || 1;
+	const rect = canvas.parentElement.getBoundingClientRect();
+	const width = Math.max(1, rect.width);
+	const height = Math.max(1, rect.height);
+	canvas.width = Math.floor(width * dpr);
+	canvas.height = Math.floor(height * dpr);
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	ctx.clearRect(0, 0, width, height);
+
+	if (!values.length || !values.some(v => v > 0)) {
+		ctx.fillStyle = '#6b7280';
+		ctx.textAlign = 'center';
+		ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+		ctx.fillText('No data', width / 2, height / 2);
+		return;
+	}
+
+	const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+	const chartWidth = width - padding.left - padding.right;
+	const chartHeight = height - padding.top - padding.bottom;
+	const maxValue = Math.max(...values);
+
+	// Draw grid lines
+	ctx.strokeStyle = '#e5e7eb';
+	ctx.lineWidth = 1;
+	const gridLines = 5;
+	for (let i = 0; i <= gridLines; i++) {
+		const y = padding.top + (chartHeight / gridLines) * i;
+		ctx.beginPath();
+		ctx.moveTo(padding.left, y);
+		ctx.lineTo(width - padding.right, y);
+		ctx.stroke();
+
+		const value = maxValue - (maxValue / gridLines) * i;
+		ctx.fillStyle = '#6b7280';
+		ctx.textAlign = 'right';
+		ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+		ctx.fillText(fmt(value), padding.left - 8, y + 4);
+	}
+
+	// Draw bars
+	const gap = 1;
+	const barWidth = Math.max(6, (chartWidth - gap * (values.length - 1)) / values.length);
+	for (let i = 0; i < values.length; i++) {
+		const barHeight = values[i] > 0 ? (values[i] / maxValue) * chartHeight : 0;
+		const x = padding.left + i * (barWidth + gap);
+		const y = padding.top + chartHeight - barHeight;
+
+		const gradient = ctx.createLinearGradient(x, y, x, padding.top + chartHeight);
+		gradient.addColorStop(0, '#3b82f6');
+		gradient.addColorStop(1, '#60a5fa');
+		ctx.fillStyle = gradient;
+
+		ctx.beginPath();
+		const radius = Math.min(3, barWidth / 3);
+		if (barHeight > radius * 2) {
+			ctx.moveTo(x + radius, y);
+			ctx.lineTo(x + barWidth - radius, y);
+			ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
+			ctx.lineTo(x + barWidth, padding.top + chartHeight);
+			ctx.lineTo(x, padding.top + chartHeight);
+			ctx.lineTo(x, y + radius);
+			ctx.quadraticCurveTo(x, y, x + radius, y);
+		} else {
+			ctx.rect(x, y, barWidth, barHeight);
+		}
+		ctx.fill();
+	}
+
+	// X-axis labels
+	ctx.fillStyle = '#6b7280';
+	ctx.textAlign = 'center';
+	ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+	const labelCount = Math.min(6, labels.length);
+	const labelStep = Math.max(1, Math.floor(labels.length / labelCount));
+	for (let i = 0; i < labels.length; i += labelStep) {
+		const x = padding.left + i * (barWidth + gap) + barWidth / 2;
+		const label = labels[i].length > 10 ? labels[i].slice(5) : labels[i];
+		ctx.fillText(label, x, height - padding.bottom + 20);
+	}
+}
+
+async function loadTokensTrend() {
+	const data = await fetchAPI('/api/timeseries', { groupBy: 'day' });
+	const labels = data.map(d => d.label);
+	const values = data.map(d => d.totalTokens);
+	drawBarChart($('chartTrend'), labels, values);
 }
 
 async function loadSummary() {
@@ -830,16 +1129,20 @@ async function loadHeatmap() {
 
 async function loadByProvider() {
 	const data = await fetchAPI('/api/by-provider');
-	const labels = data.map(d => d.protocol ? d.vendor + ' (' + d.protocol + ')' : d.vendor);
-	const values = data.map(d => d.totalTokens);
-	drawPieChart($('chartProvider'), labels, values, chartColors);
+	const items = data.map(d => ({
+		label: d.protocol ? d.vendor + ' (' + d.protocol + ')' : d.vendor,
+		value: d.totalTokens
+	})).sort((a, b) => b.value - a.value);
+	drawPieChart($('chartProvider'), items.map(i => i.label), items.map(i => i.value), chartColors);
 }
 
 async function loadByModel() {
 	const data = await fetchAPI('/api/by-model');
-	const labels = data.map(d => d.label || d.model || '-');
-	const values = data.map(d => d.totalTokens);
-	drawPieChart($('chartModel'), labels, values, chartColors);
+	const items = data.map(d => ({
+		label: d.label || d.model || '-',
+		value: d.totalTokens
+	})).sort((a, b) => b.value - a.value);
+	drawPieChart($('chartModel'), items.map(i => i.label), items.map(i => i.value), chartColors);
 }
 
 let recentPage = 1;
@@ -904,7 +1207,10 @@ async function loadRecent() {
 }
 
 async function loadFilters() {
-	const provData = await fetchAPI('/api/by-provider');
+	const [provData, modelData] = await Promise.all([
+		fetchAPI('/api/by-provider'),
+		fetchAPI('/api/by-model')
+	]);
 	const vendorSel = $('vendor');
 	const protocolSel = $('protocol');
 	const seenVendors = new Set();
@@ -925,7 +1231,6 @@ async function loadFilters() {
 			protocolSel.appendChild(opt);
 		}
 	});
-	const modelData = await fetchAPI('/api/by-model');
 	const modelSel = $('model');
 	const seenModels = new Set();
 	modelData.forEach(d => {
@@ -937,12 +1242,42 @@ async function loadFilters() {
 		opt.textContent = model;
 		modelSel.appendChild(opt);
 	});
+	return { provData, modelData };
 }
 
-async function refresh() {
+async function refresh(prefetched) {
 	recentPage = 1;
+	
+	// Hide trend panel for "today" (only 1 day of data looks bad)
+	const isToday = $('range').value === 'today';
+	$('trendPanel').style.display = isToday ? 'none' : 'block';
+	
 	try {
-		await Promise.all([loadSummary(), loadHeatmap(), loadByProvider(), loadByModel()]);
+		const tasks = [loadSummary(), loadHeatmap()];
+		if (!isToday) {
+			tasks.push(loadTokensTrend());
+		}
+		if (prefetched) {
+			const provItems = prefetched.provData.map(d => ({
+				label: d.protocol ? d.vendor + ' (' + d.protocol + ')' : d.vendor,
+				value: d.totalTokens
+			})).sort((a, b) => b.value - a.value);
+			drawPieChart($('chartProvider'), 
+				provItems.map(i => i.label),
+				provItems.map(i => i.value), 
+				chartColors);
+			const modelItems = prefetched.modelData.map(d => ({
+				label: d.label || d.model || '-',
+				value: d.totalTokens
+			})).sort((a, b) => b.value - a.value);
+			drawPieChart($('chartModel'),
+				modelItems.map(i => i.label),
+				modelItems.map(i => i.value),
+				chartColors);
+		} else {
+			tasks.push(loadByProvider(), loadByModel());
+		}
+		await Promise.all(tasks);
 		await loadRecent();
 	} catch (err) {
 		console.error(err);
@@ -955,6 +1290,7 @@ function redrawChartsSoon() {
 	resizeTimer = setTimeout(() => {
 		loadByProvider();
 		loadByModel();
+		loadTokensTrend();
 	}, 120);
 }
 
@@ -989,7 +1325,324 @@ window.addEventListener('resize', () => {
 });
 
 syncFilterCollapse();
-loadFilters().then(refresh);
+loadFilters().then(data => refresh(data));
+
+// Share functionality
+async function generateShareImage() {
+	const canvas = $('shareCanvas');
+	const ctx = canvas.getContext('2d');
+
+	const W = 1080;
+	const H = 1440;
+	canvas.width = W;
+	canvas.height = H;
+
+	const padding = 60;
+	const contentW = W - padding * 2;
+	const font = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+	function roundRect(x, y, w, h, r) {
+		ctx.beginPath();
+		ctx.moveTo(x + r, y);
+		ctx.lineTo(x + w - r, y);
+		ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+		ctx.lineTo(x + w, y + h - r);
+		ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+		ctx.lineTo(x + r, y + h);
+		ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+		ctx.lineTo(x, y + r);
+		ctx.quadraticCurveTo(x, y, x + r, y);
+		ctx.closePath();
+	}
+
+	function drawCard(x, y, w, h, r = 22) {
+		ctx.fillStyle = 'rgba(15, 23, 42, 0.06)';
+		roundRect(x, y + 8, w, h, r);
+		ctx.fill();
+		ctx.fillStyle = '#ffffff';
+		roundRect(x, y, w, h, r);
+		ctx.fill();
+		ctx.strokeStyle = '#e5e7eb';
+		ctx.lineWidth = 1;
+		ctx.stroke();
+	}
+
+	function pill(x, y, text) {
+		const displayText = truncate(text, 58);
+		ctx.font = '600 22px ' + font;
+		const w = ctx.measureText(displayText).width + 34;
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+		roundRect(x, y, w, 42, 21);
+		ctx.fill();
+		ctx.fillStyle = '#dbeafe';
+		ctx.fillText(displayText, x + 17, y + 28);
+		return w;
+	}
+
+	function statCard(x, y, w, h, label, value, note, color) {
+		const compact = h < 160;
+		drawCard(x, y, w, h);
+		ctx.fillStyle = color;
+		roundRect(x + 24, y + 22, 46, 6, 3);
+		ctx.fill();
+		ctx.fillStyle = '#6b7280';
+		ctx.font = '700 19px ' + font;
+		ctx.fillText(label, x + 24, y + (compact ? 54 : 64));
+		ctx.fillStyle = '#111827';
+		ctx.font = '750 ' + (compact ? 40 : 46) + 'px ' + font;
+		ctx.fillText(value, x + 24, y + (compact ? 100 : 122));
+		ctx.fillStyle = '#6b7280';
+		ctx.font = '20px ' + font;
+		ctx.fillText(note, x + 24, y + (compact ? 126 : 152));
+	}
+
+	function truncate(text, maxChars) {
+		const s = String(text || '-');
+		return s.length > maxChars ? s.slice(0, maxChars - 1) + '…' : s;
+	}
+
+	function filterLabel() {
+		const rangeText = $('range').selectedOptions[0] ? $('range').selectedOptions[0].textContent : 'Current range';
+		const bits = [rangeText];
+		if ($('vendor').value) bits.push($('vendor').value);
+		if ($('protocol').value) bits.push($('protocol').value);
+		if ($('model').value) bits.push($('model').value);
+		return bits.join(' / ');
+	}
+
+	const [summary, timeseries, byModel] = await Promise.all([
+		fetchAPI('/api/summary'),
+		fetchAPI('/api/timeseries', { groupBy: 'day' }),
+		fetchAPI('/api/by-model')
+	]);
+
+	const gradient = ctx.createLinearGradient(0, 0, W, H);
+	gradient.addColorStop(0, '#f8fafc');
+	gradient.addColorStop(0.55, '#eef6ff');
+	gradient.addColorStop(1, '#f7f8fb');
+	ctx.fillStyle = gradient;
+	ctx.fillRect(0, 0, W, H);
+
+	ctx.fillStyle = '#0f172a';
+	roundRect(padding, padding, contentW, 230, 30);
+	ctx.fill();
+	const headerGlow = ctx.createRadialGradient(W - 180, 70, 20, W - 180, 70, 420);
+	headerGlow.addColorStop(0, 'rgba(37, 99, 235, 0.34)');
+	headerGlow.addColorStop(1, 'rgba(37, 99, 235, 0)');
+	ctx.fillStyle = headerGlow;
+	roundRect(padding, padding, contentW, 230, 30);
+	ctx.fill();
+
+	pill(padding + 34, padding + 32, filterLabel());
+	ctx.fillStyle = '#ffffff';
+	ctx.font = '800 58px ' + font;
+	ctx.fillText('VibeCoding Stats', padding + 34, padding + 120);
+	ctx.fillStyle = '#cbd5e1';
+	ctx.font = '24px ' + font;
+	ctx.fillText('Usage, tokens, and model activity snapshot', padding + 36, padding + 162);
+	ctx.fillStyle = '#94a3b8';
+	ctx.font = '19px ' + font;
+	ctx.fillText(new Date().toLocaleString(), padding + 36, padding + 204);
+
+	let y = 320;
+	const cardGap = 20;
+	const cardW = (contentW - cardGap) / 2;
+	statCard(padding, y, cardW, 160, 'REQUESTS', fmt(summary.totalRequests), 'Completed LLM calls', '#2563eb');
+	statCard(padding + cardW + cardGap, y, cardW, 160, 'TOTAL TOKENS', fmt(summary.totalTokens), 'Input plus output tokens', '#7c3aed');
+	y += 184;
+
+	const splitW = (contentW - cardGap) / 2;
+	statCard(padding, y, splitW, 140, 'INPUT', fmt(summary.inputTokens), 'Prompt tokens', '#059669');
+	statCard(padding + splitW + cardGap, y, splitW, 140, 'OUTPUT', fmt(summary.outputTokens), 'Generated tokens', '#d97706');
+	y += 164;
+
+	const trendH = 238;
+	drawCard(padding, y, contentW, trendH);
+	ctx.fillStyle = '#111827';
+	ctx.font = '750 28px ' + font;
+	ctx.fillText('Daily Activity', padding + 30, y + 48);
+	ctx.fillStyle = '#6b7280';
+	ctx.font = '20px ' + font;
+	ctx.fillText('Last 30 days by token volume', padding + 30, y + 82);
+
+	const now = new Date();
+	const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+	const dayMap = {};
+	timeseries.forEach(d => { dayMap[d.label] = d; });
+
+	const days = [];
+	let maxTokens = 0;
+	for (let i = 0; i < 30; i++) {
+		const dt = new Date(from.getTime() + i * 86400000);
+		const key = localDate(dt);
+		const entry = dayMap[key] || { totalTokens: 0 };
+		days.push({ date: key, totalTokens: entry.totalTokens });
+		if (entry.totalTokens > maxTokens) maxTokens = entry.totalTokens;
+	}
+
+	const chartX = padding + 30;
+	const chartY = y + 106;
+	const chartW = contentW - 60;
+	const chartH = 88;
+	ctx.strokeStyle = '#eef2f7';
+	ctx.lineWidth = 2;
+	for (let i = 0; i < 4; i++) {
+		const gy = chartY + i * (chartH / 3);
+		ctx.beginPath();
+		ctx.moveTo(chartX, gy);
+		ctx.lineTo(chartX + chartW, gy);
+		ctx.stroke();
+	}
+
+	const barGap = 8;
+	const barW = (chartW - barGap * 29) / 30;
+	const barColors = ['#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#2563eb'];
+	for (let i = 0; i < days.length; i++) {
+		const pct = maxTokens ? days[i].totalTokens / maxTokens : 0;
+		const h = Math.max(10, pct * chartH);
+		const x = chartX + i * (barW + barGap);
+		const barY = chartY + chartH - h;
+		const colorIndex = Math.min(4, Math.floor(pct * 5));
+		ctx.fillStyle = barColors[colorIndex];
+		roundRect(x, barY, barW, h, 7);
+		ctx.fill();
+	}
+
+	ctx.fillStyle = '#6b7280';
+	ctx.font = '18px ' + font;
+	ctx.fillText(days[0] ? days[0].date.slice(5) : '', chartX, y + trendH - 24);
+	ctx.textAlign = 'right';
+	ctx.fillText(days[29] ? days[29].date.slice(5) : '', chartX + chartW, y + trendH - 24);
+	ctx.textAlign = 'left';
+	y += trendH + 28;
+
+	const modelH = H - y - padding - 60;
+	drawCard(padding, y, contentW, modelH);
+	ctx.fillStyle = '#111827';
+	ctx.font = '750 28px ' + font;
+	ctx.fillText('Top Models', padding + 30, y + 48);
+
+	const pieItems = byModel.map(d => ({
+		label: d.label || d.model || '-',
+		value: d.totalTokens
+	})).sort((a, b) => b.value - a.value);
+	const total = pieItems.reduce((a, b) => a + b.value, 0);
+
+	const pieCx = padding + 180;
+	const pieCy = y + 196;
+	const pieRadius = 104;
+	const pieInnerRadius = pieRadius * 0.55;
+	const pieColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#84cc16'];
+
+	if (total > 0) {
+		let startAngle = -Math.PI / 2;
+		for (let i = 0; i < pieItems.length && i < 8; i++) {
+			const slice = pieItems[i].value / total * Math.PI * 2;
+			ctx.beginPath();
+			ctx.arc(pieCx, pieCy, pieRadius, startAngle, startAngle + slice);
+			ctx.arc(pieCx, pieCy, pieInnerRadius, startAngle + slice, startAngle, true);
+			ctx.closePath();
+			ctx.fillStyle = pieColors[i % pieColors.length];
+			ctx.fill();
+			startAngle += slice;
+		}
+	} else {
+		ctx.fillStyle = '#e5e7eb';
+		ctx.beginPath();
+		ctx.arc(pieCx, pieCy, pieRadius, 0, Math.PI * 2);
+		ctx.arc(pieCx, pieCy, pieInnerRadius, 0, Math.PI * 2, true);
+		ctx.fill();
+	}
+
+	ctx.textAlign = 'center';
+	ctx.fillStyle = '#111827';
+	ctx.font = '750 30px ' + font;
+	ctx.fillText(fmt(total), pieCx, pieCy - 4);
+	ctx.fillStyle = '#6b7280';
+	ctx.font = '18px ' + font;
+	ctx.fillText('tokens', pieCx, pieCy + 24);
+	ctx.textAlign = 'left';
+
+	const listX = padding + 344;
+	const listY = y + 88;
+	const maxRows = Math.min(pieItems.length, 6);
+	if (maxRows === 0) {
+		ctx.fillStyle = '#6b7280';
+		ctx.font = '22px ' + font;
+		ctx.fillText('No model data in this range', listX, listY + 80);
+	}
+	for (let i = 0; i < maxRows; i++) {
+		const item = pieItems[i];
+		const rowY = listY + i * 44;
+		const pct = total ? item.value / total : 0;
+		ctx.fillStyle = pieColors[i % pieColors.length];
+		roundRect(listX, rowY + 6, 14, 14, 4);
+		ctx.fill();
+
+		ctx.fillStyle = '#374151';
+		ctx.font = '20px ' + font;
+		ctx.fillText(truncate(item.label, 25), listX + 26, rowY + 21);
+		ctx.fillStyle = '#6b7280';
+		ctx.font = '17px ' + font;
+		ctx.fillText(fmt(item.value) + ' tokens', listX + 26, rowY + 42);
+
+		ctx.fillStyle = '#e5e7eb';
+		roundRect(listX + 322, rowY + 15, 170, 10, 5);
+		ctx.fill();
+		ctx.fillStyle = pieColors[i % pieColors.length];
+		roundRect(listX + 322, rowY + 15, 170 * pct, 10, 5);
+		ctx.fill();
+	}
+
+	ctx.fillStyle = '#6b7280';
+	ctx.font = '18px ' + font;
+	ctx.textAlign = 'center';
+	ctx.fillText('Generated by VibeCoding Stats', W / 2, H - 40);
+	ctx.textAlign = 'left';
+}
+
+// Share button click
+$('shareBtn').addEventListener('click', async () => {
+	$('shareModal').classList.add('active');
+	await generateShareImage();
+});
+
+// Close modal
+$('shareModalClose').addEventListener('click', () => {
+	$('shareModal').classList.remove('active');
+});
+
+$('shareModal').addEventListener('click', (e) => {
+	if (e.target === $('shareModal')) {
+		$('shareModal').classList.remove('active');
+	}
+});
+
+// Save image
+$('btnSaveImage').addEventListener('click', () => {
+	const canvas = $('shareCanvas');
+	const link = document.createElement('a');
+	link.download = 'vibecoding-stats.png';
+	link.href = canvas.toDataURL('image/png');
+	link.click();
+});
+
+// Copy to clipboard
+$('btnCopyImage').addEventListener('click', async () => {
+	const canvas = $('shareCanvas');
+	try {
+		const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+		await navigator.clipboard.write([
+			new ClipboardItem({ 'image/png': blob })
+		]);
+		$('btnCopyImage').textContent = '✓ Copied!';
+		setTimeout(() => {
+			$('btnCopyImage').textContent = 'Copy Image';
+		}, 2000);
+	} catch (err) {
+		alert('Copy failed. Please use Save Image instead.');
+	}
+});
 </script>
 </body>
 </html>
