@@ -22,7 +22,7 @@ func TestIsRetryable_NetworkErrors(t *testing.T) {
 		{"502", nil, http.StatusBadGateway, true},
 		{"503", nil, http.StatusServiceUnavailable, true},
 		{"504", nil, http.StatusGatewayTimeout, true},
-		{"500 not retryable", nil, http.StatusInternalServerError, false},
+		{"500", nil, http.StatusInternalServerError, true},
 		{"400 not retryable", nil, http.StatusBadRequest, false},
 		{"401 not retryable", nil, http.StatusUnauthorized, false},
 		{"ECONNRESET", syscall.ECONNRESET, 0, true},

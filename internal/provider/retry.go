@@ -24,6 +24,7 @@ type RetryConfig struct {
 func IsRetryable(err error, statusCode int) bool {
 	// Check HTTP status codes
 	if statusCode == http.StatusTooManyRequests || // 429
+		statusCode == http.StatusInternalServerError || // 500
 		statusCode == http.StatusBadGateway || // 502
 		statusCode == http.StatusServiceUnavailable || // 503
 		statusCode == http.StatusGatewayTimeout { // 504
@@ -109,6 +110,8 @@ func FormatRetryMessage(attempt, maxRetries int, delay time.Duration, err error)
 		reason = "connection reset"
 	case strings.Contains(errStr, "429"):
 		reason = "rate limited (HTTP 429)"
+	case strings.Contains(errStr, "500"):
+		reason = "internal server error (HTTP 500)"
 	case strings.Contains(errStr, "502"):
 		reason = "bad gateway (HTTP 502)"
 	case strings.Contains(errStr, "503"):
