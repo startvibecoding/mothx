@@ -12,7 +12,7 @@ func commandSuggestionItems() []suggest.Item {
 	return []suggest.Item{
 		{Label: "/auth", Value: "/auth", Description: "Configure provider token, base URL, proxy and models"},
 		{Label: "/settings", Value: "/settings", Description: "Configure settings.json groups, including providers"},
-		{Label: "/mode", Value: "/mode ", Description: "Switch or show mode"},
+		{Label: "/mode", Value: "/mode ", Description: "Switch or show execution mode (plan/agent/yolo)"},
 		{Label: "/model", Value: "/model ", Description: "Switch or show model"},
 		{Label: "/defaultModel", Value: "/defaultModel ", Description: "Set default provider/model; defaults to global settings"},
 		{Label: "/skills", Value: "/skills", Description: "List available skills"},
@@ -32,7 +32,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/systeminit", Value: "/systeminit ", Description: "Generate/refresh AGENTS.md; optional guidance (e.g. ask me in Chinese)"},
 		{Label: "/reload", Value: "/reload", Description: "Restart as a fresh process with a new session"},
 		{Label: "/workflows", Value: "/workflows ", Description: "Workflow run commands"},
-		{Label: "/agent", Value: "/agent ", Description: "Multi-agent commands"},
+		{Label: "/agent", Value: "/agent ", Description: "Multi-agent commands (not execution mode)"},
 		{Label: "/cron", Value: "/cron ", Description: "Scheduled task commands"},
 		{Label: "/help", Value: "/help", Description: "Show help"},
 		{Label: "/quit", Value: "/quit", Description: "Exit"},

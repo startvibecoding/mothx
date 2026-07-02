@@ -21,6 +21,22 @@ func TestCommandSuggestionsForSlash(t *testing.T) {
 	}
 }
 
+func TestCommandSuggestionsForBareSlash(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/")
+	a.updateCommandSuggestions()
+	if !a.commandSuggestionsVisible() {
+		t.Fatal("expected command suggestions to be visible for bare slash")
+	}
+	item, ok := a.suggest.Selected()
+	if !ok {
+		t.Fatal("expected selected command suggestion")
+	}
+	if item.Label == "" || item.Label[0] != '/' {
+		t.Fatalf("selected item = %#v, want slash command", item)
+	}
+}
+
 func TestCommandSuggestionsHiddenAfterSpace(t *testing.T) {
 	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mode ")
@@ -107,4 +123,26 @@ func TestTabInSlashCommandWithoutArgumentSuggestionDoesNotCycleMode(t *testing.T
 	if got := a.input.Value(); got != "/skill " {
 		t.Fatalf("input = %q, want /skill ", got)
 	}
+}
+
+func TestAgentCommandSuggestionIsMultiAgentNotModeShortcut(t *testing.T) {
+	items, query, ok := commandSuggestionItemsForInput("/agent")
+	if !ok {
+		t.Fatal("expected command suggestions for /agent")
+	}
+	if query != "/agent" {
+		t.Fatalf("query = %q, want /agent", query)
+	}
+	for _, item := range items {
+		if item.Label == "/agent" {
+			if item.Value != "/agent " {
+				t.Fatalf("/agent suggestion value = %q, want /agent ", item.Value)
+			}
+			if item.Description == "" || item.Description == "Switch or show execution mode (plan/agent/yolo)" {
+				t.Fatalf("/agent description = %q, want multi-agent description", item.Description)
+			}
+			return
+		}
+	}
+	t.Fatal("missing /agent suggestion")
 }
