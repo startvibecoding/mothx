@@ -66,3 +66,51 @@ func TestSaveGlobalSettingsPatchPreservesSparseFile(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadSettingsWithMetaCreatesSparseDefaultFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("VIBECODING_DIR", tmpDir)
+
+	s, meta, err := LoadSettingsWithMeta()
+	if err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+	if !meta.CreatedGlobalConfig {
+		t.Fatal("expected global config to be created")
+	}
+	if s.Providers["deepseek-openai"] == nil {
+		t.Fatal("runtime defaults should still include built-in providers")
+	}
+
+	data, err := os.ReadFile(filepath.Join(tmpDir, "settings.json"))
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	text := string(data)
+	for _, unexpected := range []string{`"providers"`, `"anthropic"`, `"google-gemini"`, `"xiaomi"`} {
+		if strings.Contains(text, unexpected) {
+			t.Fatalf("created settings expanded defaults with %s:\n%s", unexpected, text)
+		}
+	}
+	for _, want := range []string{
+		`"defaultProvider": "deepseek-openai"`,
+		`"defaultModel": "deepseek-v4-flash"`,
+		`"defaultMode": "agent"`,
+		`"statusLine"`,
+		`"webSearch"`,
+		`"contextFiles"`,
+		`"compaction"`,
+		`"sandbox"`,
+		`"sessionDir"`,
+		`"theme": "dark"`,
+		`"retry"`,
+		`"maxRetries": 5`,
+		`"baseDelayMs": 3000`,
+		`"approval"`,
+		`"confirmBeforeWrite": true`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("created settings missing %s:\n%s", want, text)
+		}
+	}
+}

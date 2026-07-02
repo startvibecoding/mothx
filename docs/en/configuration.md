@@ -118,8 +118,8 @@ Project-level configuration overrides global configuration. When both exist, sca
   "theme": "dark",
   "retry": {
     "enabled": true,
-    "maxRetries": 3,
-    "baseDelayMs": 2000
+    "maxRetries": 5,
+    "baseDelayMs": 3000
   },
   "approval": {
     "bashWhitelist": ["go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "],
@@ -779,15 +779,15 @@ API call retry configuration with exponential backoff. Retries apply to transien
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | bool | `true` | Enable automatic retries on transient API errors |
-| `maxRetries` | int | `3` | Maximum number of retry attempts |
-| `baseDelayMs` | int | `2000` | Base delay in milliseconds (doubles on each retry) |
+| `maxRetries` | int | `5` | Maximum number of retry attempts |
+| `baseDelayMs` | int | `3000` | Base delay in milliseconds (doubles on each retry) |
 
 ```json
 {
   "retry": {
     "enabled": true,
-    "maxRetries": 3,
-    "baseDelayMs": 2000
+    "maxRetries": 5,
+    "baseDelayMs": 3000
   }
 }
 ```

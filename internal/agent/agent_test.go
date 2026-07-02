@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,6 +34,10 @@ type compactionReplayProvider struct {
 	calls  []provider.ChatParams
 }
 
+type canceledCompactionProvider struct {
+	models []*provider.Model
+}
+
 type workflowRunToolProvider struct {
 	models []*provider.Model
 	calls  []provider.ChatParams
@@ -53,6 +58,36 @@ func newCompactionReplayProvider() *compactionReplayProvider {
 			MaxTokens:     1024,
 		}},
 	}
+}
+
+func (p *canceledCompactionProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	ch := make(chan provider.StreamEvent, 1)
+	go func() {
+		defer close(ch)
+		ch <- provider.StreamEvent{Type: provider.StreamError, Error: context.Canceled}
+	}()
+	return ch
+}
+
+func (p *canceledCompactionProvider) Name() string {
+	return "canceled-compaction"
+}
+
+func (p *canceledCompactionProvider) API() string {
+	return "openai-chat"
+}
+
+func (p *canceledCompactionProvider) Models() []*provider.Model {
+	return p.models
+}
+
+func (p *canceledCompactionProvider) GetModel(id string) *provider.Model {
+	for _, model := range p.models {
+		if model.ID == id {
+			return model
+		}
+	}
+	return nil
 }
 
 func (p *recordingToolProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
@@ -1836,6 +1871,52 @@ func TestCompactClearsKeptMessageUsage(t *testing.T) {
 	}
 	if usage.Tokens >= 1050 {
 		t.Fatalf("context usage tokens = %d, still using stale assistant usage", usage.Tokens)
+	}
+}
+
+func TestCompactCanceledEmitsCanceledEndEvent(t *testing.T) {
+	p := &canceledCompactionProvider{
+		models: []*provider.Model{{ID: "model1", Name: "Model 1", ContextWindow: 4096, MaxTokens: 1024}},
+	}
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+	a := New(Config{
+		Provider: p,
+		Model:    p.models[0],
+		Mode:     "agent",
+		CompactionSettings: ctxpkg.CompactionSettings{
+			Enabled:          true,
+			ReserveTokens:    256,
+			KeepRecentTokens: 1,
+		},
+	}, registry)
+	a.LoadHistoryMessages([]provider.Message{
+		provider.NewUserMessage("old user context"),
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant context"}}),
+		provider.NewUserMessage("recent user context"),
+	})
+
+	eventCh := make(chan Event, 8)
+	err := a.Compact(context.Background(), eventCh)
+	if err == nil {
+		t.Fatal("Compact() error = nil, want context.Canceled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Compact() error = %v, want context.Canceled", err)
+	}
+
+	var end Event
+	for i := 0; i < 2; i++ {
+		end = <-eventCh
+	}
+	if end.Type != EventCompactionEnd {
+		t.Fatalf("second event type = %v, want EventCompactionEnd", end.Type)
+	}
+	if end.Error != nil {
+		t.Fatalf("compaction end error = %v, want nil for canceled", end.Error)
+	}
+	if end.StopReason != "canceled" {
+		t.Fatalf("compaction end stop reason = %q, want canceled", end.StopReason)
 	}
 }
 

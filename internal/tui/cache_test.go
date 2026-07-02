@@ -2170,6 +2170,17 @@ func TestInitWithProgramDoesNotBlock(t *testing.T) {
 	}
 }
 
+func TestInitAutoOpenAuthDialog(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.SetAutoOpenAuthDialog(true)
+
+	_ = a.Init()
+
+	if !a.auth.Open {
+		t.Fatal("auth dialog should open on init")
+	}
+}
+
 func TestPrintMessageOnceQueuesMoreThanInitialBuffer(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)

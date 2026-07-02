@@ -794,6 +794,9 @@ func runInteractive(cfg runInteractiveConfig) error {
 	if initialMsg := buildInitialMessage(cfg); initialMsg != "" {
 		app.SetInitialMessage(initialMsg)
 	}
+	if cfg.settingsMeta.CreatedGlobalConfig {
+		app.SetAutoOpenAuthDialog(true)
+	}
 	app.SetBrowserEnabled(cfg.opts.browser, cfg.opts.browser)
 	p2 := tea.NewProgram(app, teaProgramOptions()...)
 	app.SetProgram(p2)
@@ -815,8 +818,8 @@ func buildInitialMessage(cfg runInteractiveConfig) string {
 	if cfg.sessionInfo != "" {
 		parts = append(parts, cfg.sessionInfo)
 	}
-	if cfg.settingsMeta.CreatedGlobalConfig && !settingsHasResolvedDefaultToken(cfg.settings) {
-		parts = append(parts, fmt.Sprintf("Created default config: %s\nNo provider token configured yet. Run /auth to add a provider token and model.", cfg.settingsMeta.GlobalSettingsPath))
+	if cfg.settingsMeta.CreatedGlobalConfig {
+		parts = append(parts, fmt.Sprintf("Created default config: %s\nOpening /auth to configure or confirm your provider token and model.", cfg.settingsMeta.GlobalSettingsPath))
 	}
 	return strings.Join(parts, "\n")
 }

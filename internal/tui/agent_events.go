@@ -229,6 +229,8 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		}
 		if event.Error != nil {
 			a.addMessage(errorStyle.Render("Compaction failed: ") + event.Error.Error())
+		} else if event.StopReason == "canceled" {
+			a.addMessage(statusStyle.Render(event.StatusMessage))
 		} else if event.StatusMessage != "" {
 			a.addMessage(statusStyle.Render("✅ " + event.StatusMessage))
 		} else {

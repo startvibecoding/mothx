@@ -351,6 +351,34 @@ func TestCompactUsesConfiguredTemplate(t *testing.T) {
 	}
 }
 
+func TestCompactCapsSummaryMaxTokens(t *testing.T) {
+	p := &compactRecordingProvider{
+		models: []*provider.Model{{ID: "m", Name: "m", MaxTokens: 16000}},
+	}
+	messages := []provider.Message{
+		{Role: "user", Content: strings.Repeat("old ", 80)},
+		{Role: "assistant", Content: strings.Repeat("old response ", 80)},
+		{Role: "user", Content: "recent"},
+	}
+
+	_, err := Compact(
+		context.Background(),
+		messages,
+		p,
+		p.models[0],
+		"system",
+		nil,
+		CompactionSettings{ReserveTokens: 16384, KeepRecentTokens: 1},
+		"",
+	)
+	if err != nil {
+		t.Fatalf("Compact() error = %v", err)
+	}
+	if p.lastChat.MaxTokens != defaultMaxCompactionSummaryTokens {
+		t.Fatalf("summary MaxTokens = %d, want %d", p.lastChat.MaxTokens, defaultMaxCompactionSummaryTokens)
+	}
+}
+
 func TestGenerateSummaryUsesConfiguredUpdateTemplate(t *testing.T) {
 	p := &compactRecordingProvider{
 		models: []*provider.Model{{ID: "m", Name: "m", MaxTokens: 1024}},

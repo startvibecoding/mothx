@@ -115,8 +115,8 @@ nslookup api.deepseek.com
 {
   "retry": {
     "enabled": true,
-    "maxRetries": 3,
-    "baseDelayMs": 2000
+    "maxRetries": 5,
+    "baseDelayMs": 3000
   }
 }
 

@@ -655,12 +655,18 @@ func DefaultSettings() *Settings {
 		},
 		SessionDir: platform.SessionDir(),
 		Theme:      "dark",
-		Retry:      RetrySettings{Enabled: true, MaxRetries: 3, BaseDelayMs: 2000},
+		Retry:      RetrySettings{Enabled: true, MaxRetries: 5, BaseDelayMs: 3000},
 		Approval: ApprovalSettings{
 			BashWhitelist:      []string{"go ", "make ", "git ", "npm ", "yarn ", "node ", "python ", "pip "},
 			ConfirmBeforeWrite: boolPtr(true),
 		},
 	}
+}
+
+func defaultSettingsFile() *Settings {
+	s := DefaultSettings()
+	s.Providers = nil
+	return s
 }
 
 func cloneProviderConfigs(src map[string]*ProviderConfig) map[string]*ProviderConfig {
@@ -814,7 +820,7 @@ func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
 	s := DefaultSettings()
 	meta := LoadMeta{GlobalSettingsPath: GlobalSettingsPath()}
 
-	created, err := ensureConfigExists(s)
+	created, err := ensureConfigExists()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not create config: %v\n", err)
 	} else {
@@ -875,7 +881,7 @@ func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
 	return s, meta, nil
 }
 
-func ensureConfigExists(defaults *Settings) (bool, error) {
+func ensureConfigExists() (bool, error) {
 	configDir := ConfigDir()
 	settingsPath := GlobalSettingsPath()
 
@@ -887,7 +893,7 @@ func ensureConfigExists(defaults *Settings) (bool, error) {
 		return false, fmt.Errorf("create config directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(defaults, "", "  ")
+	data, err := json.MarshalIndent(defaultSettingsFile(), "", "  ")
 	if err != nil {
 		return false, fmt.Errorf("marshal default settings: %w", err)
 	}

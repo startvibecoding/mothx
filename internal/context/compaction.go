@@ -2,12 +2,15 @@ package context
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/util"
 )
+
+const defaultMaxCompactionSummaryTokens = 4096
 
 func abs(x int) int {
 	if x < 0 {
@@ -60,6 +63,17 @@ func NormalizeCompactionSettings(settings CompactionSettings) CompactionSettings
 		settings.IdleMinTokensForCompress = defaults.IdleMinTokensForCompress
 	}
 	return settings
+}
+
+func compactionSummaryMaxTokens(settings CompactionSettings, model *provider.Model) int {
+	maxTokens := int(float64(settings.ReserveTokens) * 0.8)
+	if maxTokens <= 0 || maxTokens > defaultMaxCompactionSummaryTokens {
+		maxTokens = defaultMaxCompactionSummaryTokens
+	}
+	if model != nil && model.MaxTokens > 0 && maxTokens > model.MaxTokens {
+		maxTokens = model.MaxTokens
+	}
+	return maxTokens
 }
 
 // CompactionResult holds the result of a compaction operation.
@@ -513,6 +527,9 @@ func GenerateSummaryInsertThenCompressWithTemplate(
 			summary.WriteString(event.TextDelta)
 		case provider.StreamError:
 			if event.Error != nil {
+				if errors.Is(event.Error, context.Canceled) || errors.Is(event.Error, context.DeadlineExceeded) {
+					return "", event.Error
+				}
 				return "", fmt.Errorf("summarization failed: %w", event.Error)
 			}
 		}
@@ -537,10 +554,7 @@ func GenerateSummary(
 	reserveTokens int,
 	previousSummary string,
 ) (string, error) {
-	maxTokens := int(float64(reserveTokens) * 0.8)
-	if model.MaxTokens > 0 && maxTokens > model.MaxTokens {
-		maxTokens = model.MaxTokens
-	}
+	maxTokens := compactionSummaryMaxTokens(CompactionSettings{ReserveTokens: reserveTokens}, model)
 
 	// Use empty system prompt and tools - this is the legacy path
 	// The caller should migrate to GenerateSummaryInsertThenCompress
@@ -574,10 +588,7 @@ func Compact(
 	}
 
 	// Calculate max tokens for summary
-	maxTokens := int(float64(settings.ReserveTokens) * 0.8)
-	if model != nil && model.MaxTokens > 0 && maxTokens > model.MaxTokens {
-		maxTokens = model.MaxTokens
-	}
+	maxTokens := compactionSummaryMaxTokens(settings, model)
 
 	// Generate summary using Insert-then-Compress (R4.1-R4.2)
 	summary, err := GenerateSummaryInsertThenCompressWithTemplate(

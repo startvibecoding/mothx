@@ -913,10 +913,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		// Check if compaction should trigger
 		if a.ShouldCompact() {
-			if err := a.Compact(ctx, ch); err != nil {
-				// Log error but continue
-				ch <- Event{Type: EventStatus, StatusMessage: fmt.Sprintf("Compaction failed: %v", err)}
-			}
+			_ = a.Compact(ctx, ch)
 		}
 
 		// Check if we should stop after this turn

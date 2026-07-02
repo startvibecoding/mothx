@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -11,6 +12,8 @@ import (
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 )
+
+const defaultCompactionTimeout = 5 * time.Minute
 
 // supportsImages checks if the model supports image input.
 func (a *Agent) supportsImages() bool {
@@ -444,7 +447,7 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 		return fmt.Errorf("no model set for compaction")
 	}
 
-	compactCtx, cancel := context.WithCancel(ctx)
+	compactCtx, cancel := context.WithTimeout(ctx, defaultCompactionTimeout)
 	defer cancel()
 	go func() {
 		select {
@@ -470,6 +473,13 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 		a.frozenSystemPrompt, a.frozenToolDefs,
 		a.config.CompactionSettings, previousSummary)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			ch <- Event{Type: EventCompactionEnd, StatusMessage: "Context compaction canceled", StopReason: "canceled"}
+			return err
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("compaction timed out after %s: %w", defaultCompactionTimeout, context.DeadlineExceeded)
+		}
 		ch <- Event{Type: EventCompactionEnd, Error: err}
 		return fmt.Errorf("compaction failed: %w", err)
 	}

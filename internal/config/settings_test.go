@@ -69,6 +69,9 @@ func TestDefaultSettings(t *testing.T) {
 	if s.WebSearch.Provider != "openai" || s.WebSearch.ProviderType != "responses" {
 		t.Fatalf("unexpected web search defaults: %#v", s.WebSearch)
 	}
+	if !s.Retry.Enabled || s.Retry.MaxRetries != 5 || s.Retry.BaseDelayMs != 3000 {
+		t.Fatalf("unexpected retry defaults: %#v", s.Retry)
+	}
 	if s.WebSearch.Model != "" {
 		t.Fatalf("expected empty web search model by default, got %q", s.WebSearch.Model)
 	}

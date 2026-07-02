@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/startvibecoding/vibecoding/internal/acp"
+	"github.com/startvibecoding/vibecoding/internal/config"
 )
 
 func TestRootPrintAcceptsMessageArgument(t *testing.T) {
@@ -34,6 +35,23 @@ func TestRootPrintAcceptsMessageArgument(t *testing.T) {
 	}
 	if want := []string{"review"}; !reflect.DeepEqual(gotArgs, want) {
 		t.Fatalf("args = %#v, want %#v", gotArgs, want)
+	}
+}
+
+func TestBuildInitialMessageForCreatedGlobalConfig(t *testing.T) {
+	msg := buildInitialMessage(runInteractiveConfig{
+		settings: config.DefaultSettings(),
+		settingsMeta: config.LoadMeta{
+			CreatedGlobalConfig: true,
+			GlobalSettingsPath:  "/tmp/vibecoding/settings.json",
+		},
+	})
+
+	if !strings.Contains(msg, "Created default config: /tmp/vibecoding/settings.json") {
+		t.Fatalf("initial message = %q, want created config path", msg)
+	}
+	if !strings.Contains(msg, "Opening /auth") {
+		t.Fatalf("initial message = %q, want /auth prompt", msg)
 	}
 }
 

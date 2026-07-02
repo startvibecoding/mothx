@@ -167,6 +167,9 @@ type App struct {
 	// Initial message to display
 	initialMessage string
 
+	// Auto-open auth dialog on startup (e.g. when settings.json was just created)
+	autoOpenAuthDialog bool
+
 	// Tool output modal
 	toolModalOpen         bool
 	toolModalOffset       int
@@ -428,6 +431,12 @@ func (a *App) SetInitialMessage(msg string) {
 	a.initialMessage = msg
 }
 
+// SetAutoOpenAuthDialog tells the TUI to open the /auth dialog automatically
+// on startup. This is used when settings.json was just created.
+func (a *App) SetAutoOpenAuthDialog(v bool) {
+	a.autoOpenAuthDialog = v
+}
+
 // SetProgram stores the Bubble Tea program used for deferred UI updates.
 func (a *App) SetProgram(p *tea.Program) {
 	a.program = p
@@ -563,6 +572,11 @@ func (a *App) Init() tea.Cmd {
 		cmds = append(cmds, inputCmd)
 	}
 	cmds = append(cmds, a.processInputQueue())
+
+	if a.autoOpenAuthDialog {
+		a.openAuthDialog()
+	}
+
 	return tea.Batch(cmds...)
 }
 
