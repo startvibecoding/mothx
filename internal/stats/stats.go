@@ -53,7 +53,7 @@ type Query struct {
 	Vendor   string
 	Protocol string
 	Model    string
-	GroupBy  string // "day", "week", "month", "provider", "model"
+	GroupBy  string // "day", "2.5h", "week", "month", "provider", "model"
 }
 
 // DB wraps a SQLite connection for stats queries.
@@ -112,6 +112,8 @@ func (s *DB) TimeSeries(q Query) ([]Aggregate, error) {
 	where, args := buildWhereClause(q)
 	var bucketSQL string
 	switch q.GroupBy {
+	case "2.5h":
+		bucketSQL = twoAndHalfHourBucketSQL()
 	case "week":
 		bucketSQL = "substr(timestamp, 1, 4) || '-W' || substr(timestamp, 6, 2) || '-' || substr(timestamp, 9, 2)"
 	case "month":
@@ -139,6 +141,16 @@ func (s *DB) TimeSeries(q Query) ([]Aggregate, error) {
 		results = append(results, a)
 	}
 	return results, rows.Err()
+}
+
+func twoAndHalfHourBucketSQL() string {
+	secondsSQL := "(CAST(substr(timestamp, 12, 2) AS INTEGER) * 3600 + CAST(substr(timestamp, 15, 2) AS INTEGER) * 60 + CAST(substr(timestamp, 18, 2) AS INTEGER))"
+	bucketSecondsSQL := fmt.Sprintf("((%s / 9000) * 9000)", secondsSQL)
+	return fmt.Sprintf(
+		"substr(timestamp, 1, 10) || ' ' || printf('%%02d:%%02d', (%s / 3600), ((%s %% 3600) / 60))",
+		bucketSecondsSQL,
+		bucketSecondsSQL,
+	)
 }
 
 // ByProvider returns stats grouped by vendor and protocol.
@@ -201,6 +213,12 @@ type RecentPage struct {
 
 // Recent returns a paginated list of stats entries, ordered by most recent first.
 func (s *DB) Recent(page, pageSize int) (*RecentPage, error) {
+	return s.RecentFiltered(Query{}, page, pageSize)
+}
+
+// RecentFiltered returns a paginated list of stats entries matching the query,
+// ordered by most recent first.
+func (s *DB) RecentFiltered(q Query, page, pageSize int) (*RecentPage, error) {
 	if pageSize <= 0 {
 		pageSize = 20
 	}
@@ -208,16 +226,19 @@ func (s *DB) Recent(page, pageSize int) (*RecentPage, error) {
 		page = 1
 	}
 
+	where, args := buildWhereClause(q)
+
 	// Get total count
 	var total int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM request_stats").Scan(&total); err != nil {
+	if err := s.db.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM request_stats%s", where), args...).Scan(&total); err != nil {
 		return nil, err
 	}
 
 	offset := (page - 1) * pageSize
+	queryArgs := append(append([]interface{}{}, args...), pageSize, offset)
 	rows, err := s.db.Query(
-		"SELECT id, timestamp, session_id, provider, protocol, model, input_tokens, output_tokens, total_tokens, duration_ms FROM request_stats ORDER BY id DESC LIMIT ? OFFSET ?",
-		pageSize, offset,
+		fmt.Sprintf("SELECT id, timestamp, session_id, provider, protocol, model, input_tokens, output_tokens, total_tokens, duration_ms FROM request_stats%s ORDER BY id DESC LIMIT ? OFFSET ?", where),
+		queryArgs...,
 	)
 	if err != nil {
 		return nil, err

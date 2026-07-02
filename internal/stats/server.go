@@ -151,6 +151,7 @@ func (s *Server) handleByModel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRecent(w http.ResponseWriter, r *http.Request) {
+	q := s.parseQuery(r)
 	page := 1
 	pageSize := 20
 	if p := r.URL.Query().Get("page"); p != "" {
@@ -163,7 +164,7 @@ func (s *Server) handleRecent(w http.ResponseWriter, r *http.Request) {
 			pageSize = n
 		}
 	}
-	data, err := s.db.Recent(page, pageSize)
+	data, err := s.db.RecentFiltered(q, page, pageSize)
 	if err != nil {
 		writeJSONError(w, err)
 		return

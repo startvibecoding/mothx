@@ -82,6 +82,43 @@ func TestTimeSeries(t *testing.T) {
 	}
 }
 
+func TestTimeSeriesTwoPointFiveHours(t *testing.T) {
+	db := createTestDB(t)
+	defer db.Close()
+
+	rows := []struct {
+		ts          time.Time
+		totalTokens int
+	}{
+		{time.Date(2026, 6, 28, 12, 40, 0, 0, time.UTC), 100},
+		{time.Date(2026, 6, 28, 14, 59, 59, 0, time.UTC), 200},
+		{time.Date(2026, 6, 28, 15, 0, 0, 0, time.UTC), 300},
+	}
+	for _, row := range rows {
+		_, err := db.db.Exec(
+			"INSERT INTO request_stats (timestamp, session_id, provider, protocol, model, input_tokens, output_tokens, total_tokens, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			row.ts.Format(time.RFC3339Nano), "sess1", "openai", "openai-chat", "gpt-4", row.totalTokens, 0, row.totalTokens, 1000,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	data, err := db.TimeSeries(Query{GroupBy: "2.5h"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) != 2 {
+		t.Fatalf("expected 2 data points, got %d", len(data))
+	}
+	if data[0].Label != "2026-06-28 12:30" || data[0].TotalTokens != 300 {
+		t.Errorf("expected first bucket 2026-06-28 12:30 with 300 tokens, got %s with %d", data[0].Label, data[0].TotalTokens)
+	}
+	if data[1].Label != "2026-06-28 15:00" || data[1].TotalTokens != 300 {
+		t.Errorf("expected second bucket 2026-06-28 15:00 with 300 tokens, got %s with %d", data[1].Label, data[1].TotalTokens)
+	}
+}
+
 func TestByProvider(t *testing.T) {
 	db := createTestDB(t)
 	defer db.Close()
@@ -155,6 +192,34 @@ func TestRecent(t *testing.T) {
 	}
 	if page.PageSize != 3 {
 		t.Errorf("expected pageSize 3, got %d", page.PageSize)
+	}
+}
+
+func TestRecentFiltered(t *testing.T) {
+	db := createTestDB(t)
+	defer db.Close()
+
+	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"2026-07-02T10:00:00Z", "openai", "openai-chat", "gpt-4", 100, 50, 150)
+	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"2026-07-03T10:00:00Z", "moark", "openai-chat", "qwen3.6-plus", 200, 100, 300)
+
+	page, err := db.RecentFiltered(Query{
+		From:  time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC),
+		To:    time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC),
+		Vendor: "moark",
+	}, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 {
+		t.Fatalf("expected total 1, got %d", page.Total)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(page.Items))
+	}
+	if page.Items[0].Vendor != "moark" || page.Items[0].Model != "qwen3.6-plus" {
+		t.Errorf("unexpected item: %+v", page.Items[0])
 	}
 }
 

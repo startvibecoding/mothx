@@ -657,10 +657,10 @@ td.model-cell {
 				<div class="field">
 					<label for="range">Range</label>
 					<select id="range">
-						<option value="today" selected>Today</option>
+						<option value="today">Today</option>
 						<option value="week">This Week</option>
 						<option value="month">This Month</option>
-						<option value="all">All Time</option>
+						<option value="all" selected>All Time</option>
 					</select>
 				</div>
 				<div class="field">
@@ -720,7 +720,7 @@ td.model-cell {
 	<section class="panel" id="trendPanel">
 		<div class="panel-header">
 			<h2 class="panel-title">Total Tokens Trend</h2>
-			<div class="panel-meta">Daily tokens</div>
+			<div class="panel-meta">2.5-hour tokens</div>
 		</div>
 		<div class="panel-body">
 			<div class="chart-container"><canvas id="chartTrend"></canvas></div>
@@ -1091,7 +1091,7 @@ function drawBarChart(canvas, labels, values) {
 }
 
 async function loadTokensTrend() {
-	const data = await fetchAPI('/api/timeseries', { groupBy: 'day' });
+	const data = await fetchAPI('/api/timeseries', { groupBy: '2.5h' });
 	const labels = data.map(d => d.label);
 	const values = data.map(d => d.totalTokens);
 	drawBarChart($('chartTrend'), labels, values);
@@ -1183,7 +1183,8 @@ function goRecentPage(p) {
 }
 
 async function loadRecent() {
-	const r = await fetch('/api/recent?page=' + recentPage + '&pageSize=' + recentPageSize);
+	const qs = buildQS({ page: recentPage, pageSize: recentPageSize });
+	const r = await fetch('/api/recent' + (qs ? '?' + qs : ''));
 	const data = await r.json();
 	recentTotal = data.total || 0;
 	recentPage = data.page || 1;
@@ -1433,7 +1434,7 @@ async function generateShareImage() {
 	roundRect(padding, padding, contentW, 230, 30);
 	ctx.fill();
 
-	pill(padding + 34, padding + 32, filterLabel());
+	pill(padding + 34, padding + 12, filterLabel());
 	ctx.fillStyle = '#ffffff';
 	ctx.font = '800 58px ' + font;
 	ctx.fillText('VibeCoding Stats', padding + 34, padding + 120);
