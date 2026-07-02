@@ -13,7 +13,7 @@ require (
 	github.com/startvibecoding/GoStreamingMarkdown v0.0.4
 	github.com/startvibecoding/go-fd v0.0.7
 	github.com/startvibecoding/go-ripgrep v0.0.5
-	github.com/startvibecoding/vibe-browser v0.0.0
+	github.com/startvibecoding/vibe-browser v0.1.3
 	github.com/startvibecoding/vibeEmacsLispVm v0.0.2
 	golang.org/x/mod v0.36.0
 	golang.org/x/net v0.38.0
@@ -21,8 +21,6 @@ require (
 	golang.org/x/term v0.36.0
 	modernc.org/sqlite v1.53.0
 )
-
-replace github.com/startvibecoding/vibe-browser => /home/free/src/vibe-browser
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
