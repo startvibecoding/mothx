@@ -24,8 +24,16 @@ type ContentBlock struct {
 
 // ImageContent represents an image in a message.
 type ImageContent struct {
-	Data     string `json:"data"`     // base64 encoded
-	MimeType string `json:"mimeType"` // e.g. "image/png"
+	Data           string  `json:"data"`     // base64 encoded
+	MimeType       string  `json:"mimeType"` // e.g. "image/png"
+	Width          int     `json:"width,omitempty"`
+	Height         int     `json:"height,omitempty"`
+	Bytes          int     `json:"bytes,omitempty"`
+	OriginalWidth  int     `json:"originalWidth,omitempty"`
+	OriginalHeight int     `json:"originalHeight,omitempty"`
+	OriginalBytes  int     `json:"originalBytes,omitempty"`
+	Detail         string  `json:"detail,omitempty"` // "auto", "fast", "detail", "raw"
+	Scale          float64 `json:"scale,omitempty"`
 }
 
 // ToolCallBlock represents a tool call in an assistant message.

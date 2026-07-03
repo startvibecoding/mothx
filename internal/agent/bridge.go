@@ -74,8 +74,16 @@ func ContentBlockToPublic(cb provider.ContentBlock) agentpkg.ContentBlock {
 	}
 	if cb.Image != nil {
 		pub.Image = &agentpkg.ImageContent{
-			MimeType: cb.Image.MimeType,
-			Data:     cb.Image.Data,
+			MimeType:       cb.Image.MimeType,
+			Data:           cb.Image.Data,
+			Width:          cb.Image.Width,
+			Height:         cb.Image.Height,
+			Bytes:          cb.Image.Bytes,
+			OriginalWidth:  cb.Image.OriginalWidth,
+			OriginalHeight: cb.Image.OriginalHeight,
+			OriginalBytes:  cb.Image.OriginalBytes,
+			Detail:         cb.Image.Detail,
+			Scale:          cb.Image.Scale,
 		}
 	}
 	if cb.CacheControl != nil {
@@ -103,8 +111,16 @@ func ContentBlockFromPublic(cb agentpkg.ContentBlock) provider.ContentBlock {
 	}
 	if cb.Image != nil {
 		internal.Image = &provider.ImageContent{
-			MimeType: cb.Image.MimeType,
-			Data:     cb.Image.Data,
+			MimeType:       cb.Image.MimeType,
+			Data:           cb.Image.Data,
+			Width:          cb.Image.Width,
+			Height:         cb.Image.Height,
+			Bytes:          cb.Image.Bytes,
+			OriginalWidth:  cb.Image.OriginalWidth,
+			OriginalHeight: cb.Image.OriginalHeight,
+			OriginalBytes:  cb.Image.OriginalBytes,
+			Detail:         cb.Image.Detail,
+			Scale:          cb.Image.Scale,
 		}
 	}
 	if cb.CacheControl != nil {

@@ -3,6 +3,9 @@ package tools
 import (
 	"context"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/imageproc"
 	"github.com/startvibecoding/vibecoding/internal/platform"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 )
@@ -203,21 +207,8 @@ func TestReadToolExecute(t *testing.T) {
 func TestReadToolImage(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create a minimal valid PNG (1x1 pixel, red)
-	pngData := []byte{
-		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // PNG signature
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
-		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
-		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, // 8-bit RGB
-		0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, // IDAT chunk
-		0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
-		0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc,
-		0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, // IEND chunk
-		0x44, 0xae, 0x42, 0x60, 0x82,
-	}
-
 	tmpFile := filepath.Join(tmpDir, "test.png")
-	os.WriteFile(tmpFile, pngData, 0644)
+	writeTestPNG(t, tmpFile, 1, 1)
 
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry(tmpDir, sb)
@@ -258,12 +249,65 @@ func TestReadToolImage(t *testing.T) {
 	if result.Contents[1].Image.Data == "" {
 		t.Error("expected non-empty base64 data")
 	}
+	if result.Contents[1].Image.Width != 1 || result.Contents[1].Image.Height != 1 {
+		t.Fatalf("image size = %dx%d, want 1x1", result.Contents[1].Image.Width, result.Contents[1].Image.Height)
+	}
+	if result.Contents[1].Image.OriginalWidth != 1 || result.Contents[1].Image.OriginalHeight != 1 {
+		t.Fatalf("original size = %dx%d, want 1x1", result.Contents[1].Image.OriginalWidth, result.Contents[1].Image.OriginalHeight)
+	}
+	if result.Contents[1].Image.Detail != "auto" {
+		t.Fatalf("detail = %q, want auto", result.Contents[1].Image.Detail)
+	}
+}
+
+func TestReadToolImageResize(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "large.png")
+	writeTestPNG(t, tmpFile, 200, 100)
+
+	r := NewRegistry(tmpDir, sandbox.NewNoneSandbox())
+	tool := NewReadTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":        "large.png",
+		"maxLongEdge": float64(50),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	image := result.Contents[1].Image
+	if image.Width != 50 || image.Height != 25 {
+		t.Fatalf("image size = %dx%d, want 50x25", image.Width, image.Height)
+	}
+	if image.OriginalWidth != 200 || image.OriginalHeight != 100 {
+		t.Fatalf("original size = %dx%d, want 200x100", image.OriginalWidth, image.OriginalHeight)
+	}
+	if !strings.Contains(result.Text, "original: 200x100") || !strings.Contains(result.Text, "sent: 50x25") {
+		t.Fatalf("description missing resize details: %s", result.Text)
+	}
+}
+
+func TestReadToolImagePolicyUsesRegistryHint(t *testing.T) {
+	r := NewRegistry(t.TempDir(), sandbox.NewNoneSandbox())
+	r.SetImageHint(imageproc.Hint{
+		ProviderID: "amazon-bedrock",
+		ModelID:    "anthropic.claude-sonnet-4-5-20250929-v1:0",
+	})
+	tool := NewReadTool(r)
+
+	policy := tool.imageReadPolicy(map[string]any{"imageMode": "detail"})
+	if policy.MaxFileBytes != 4<<20 {
+		t.Fatalf("MaxFileBytes = %d, want %d", policy.MaxFileBytes, 4<<20)
+	}
+	if policy.MaxOutputBytes != 3<<20 {
+		t.Fatalf("MaxOutputBytes = %d, want %d", policy.MaxOutputBytes, 3<<20)
+	}
 }
 
 func TestReadToolImageTooLarge(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "large.png")
-	if err := os.WriteFile(tmpFile, make([]byte, maxImageFileBytes+1), 0644); err != nil {
+	if err := os.WriteFile(tmpFile, make([]byte, imageproc.DefaultMaxFileBytes+1), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -273,6 +317,24 @@ func TestReadToolImageTooLarge(t *testing.T) {
 	_, err := tool.Execute(context.Background(), map[string]any{"path": "large.png"})
 	if err == nil || !strings.Contains(err.Error(), "image file too large") {
 		t.Fatalf("err = %v, want image file too large", err)
+	}
+}
+
+func writeTestPNG(t *testing.T, path string, width, height int) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x % 255), G: uint8(y % 255), B: 128, A: 255})
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
 	}
 }
 

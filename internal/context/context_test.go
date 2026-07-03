@@ -433,6 +433,68 @@ func TestEstimateTokensLargeImageUsesPayloadSize(t *testing.T) {
 	}
 }
 
+func TestEstimateTokensImageUsesDimensions(t *testing.T) {
+	msg := provider.Message{
+		Role: "user",
+		Contents: []provider.ContentBlock{
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1024, Height: 513}},
+		},
+	}
+	result := EstimateTokens(msg)
+	if result != 3200 {
+		t.Errorf("EstimateTokens(sized image) = %d, want 3200", result)
+	}
+}
+
+func TestResolveTokenEstimatorUsesModelAwareImageRules(t *testing.T) {
+	tests := []struct {
+		name  string
+		model *provider.Model
+		image *provider.ImageContent
+		want  int
+	}{
+		{
+			name:  "claude patch estimate",
+			model: &provider.Model{ID: "claude-sonnet-4-5", Provider: "anthropic"},
+			image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1568, Height: 1019},
+			want:  2072,
+		},
+		{
+			name:  "gemini small tile estimate",
+			model: &provider.Model{ID: "gemini-2.5-pro", Provider: "google-gemini"},
+			image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 384, Height: 300},
+			want:  258,
+		},
+		{
+			name:  "openai low detail estimate",
+			model: &provider.Model{ID: "gpt-4o", Provider: "openai"},
+			image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1024, Height: 1024, Detail: "fast"},
+			want:  85,
+		},
+		{
+			name:  "openai high detail estimate",
+			model: &provider.Model{ID: "gpt-4o", Provider: "openai"},
+			image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1024, Height: 513, Detail: "detail"},
+			want:  765,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			estimator := ResolveTokenEstimator(CompactionSettings{Tokenizer: "auto"}, tt.model)
+			msg := provider.Message{
+				Role: "user",
+				Contents: []provider.ContentBlock{
+					{Type: "image", Image: tt.image},
+				},
+			}
+			if got := estimator.EstimateTokens(msg); got != tt.want {
+				t.Fatalf("EstimateTokens() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEstimateTokensThinking(t *testing.T) {
 	msg := provider.Message{
 		Role: "assistant",

@@ -122,8 +122,16 @@ type ToolCallBlock struct {
 
 // ImageContent represents an image in a content block.
 type ImageContent struct {
-	MimeType string
-	Data     string // base64-encoded
+	MimeType       string
+	Data           string // base64-encoded
+	Width          int
+	Height         int
+	Bytes          int
+	OriginalWidth  int
+	OriginalHeight int
+	OriginalBytes  int
+	Detail         string
+	Scale          float64
 }
 
 // CacheControl represents cache control metadata on a content block.

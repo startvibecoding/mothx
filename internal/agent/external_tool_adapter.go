@@ -81,8 +81,16 @@ func contentBlocksToProvider(blocks []agentpkg.ContentBlock) []provider.ContentB
 		}
 		if b.Image != nil {
 			pb.Image = &provider.ImageContent{
-				MimeType: b.Image.MimeType,
-				Data:     b.Image.Data,
+				MimeType:       b.Image.MimeType,
+				Data:           b.Image.Data,
+				Width:          b.Image.Width,
+				Height:         b.Image.Height,
+				Bytes:          b.Image.Bytes,
+				OriginalWidth:  b.Image.OriginalWidth,
+				OriginalHeight: b.Image.OriginalHeight,
+				OriginalBytes:  b.Image.OriginalBytes,
+				Detail:         b.Image.Detail,
+				Scale:          b.Image.Scale,
 			}
 		}
 		out = append(out, pb)

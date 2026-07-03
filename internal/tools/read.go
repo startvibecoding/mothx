@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/startvibecoding/vibecoding/internal/imageproc"
+	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/util"
 )
 
@@ -25,7 +27,7 @@ func NewReadTool(r *Registry) *ReadTool {
 func (t *ReadTool) Name() string { return "read" }
 
 func (t *ReadTool) Description() string {
-	return "Read the contents of a file. Supports text files and images (jpg, png, gif, webp). For text files, output is truncated at 2000 lines or 50KB. Use offset/limit for large files."
+	return "Read the contents of a file. Supports text files and images (jpg, png, gif, webp). For text files, output is truncated at 2000 lines or 50KB. Use offset/limit for large files. For images, use imageMode=detail when OCR, screenshots, diagrams, or small text require more visual detail."
 }
 
 func (t *ReadTool) PromptSnippet() string {
@@ -33,7 +35,10 @@ func (t *ReadTool) PromptSnippet() string {
 }
 
 func (t *ReadTool) PromptGuidelines() []string {
-	return []string{"Use read to examine files instead of cat or sed."}
+	return []string{
+		"Use read to examine files instead of cat or sed.",
+		"For image OCR, screenshots, diagrams, or small UI text, use read with imageMode=\"detail\".",
+	}
 }
 
 func (t *ReadTool) Parameters() json.RawMessage {
@@ -51,6 +56,15 @@ func (t *ReadTool) Parameters() json.RawMessage {
 			"limit": {
 				"type": "integer",
 				"description": "Maximum number of lines to read"
+			},
+			"imageMode": {
+				"type": "string",
+				"enum": ["auto", "fast", "detail", "raw"],
+				"description": "Image processing mode for image files. auto balances quality and request size; fast uses lower resolution; detail preserves more detail; raw sends the original file after safety checks."
+			},
+			"maxLongEdge": {
+				"type": "integer",
+				"description": "Optional maximum long edge in pixels for image resizing"
 			}
 		},
 		"required": ["path"]
@@ -66,8 +80,6 @@ var imageMimeType = map[string]string{
 	".webp": "image/webp",
 }
 
-const maxImageFileBytes = 10 << 20
-
 func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
 	path, _ := params["path"].(string)
 	if path == "" {
@@ -82,20 +94,32 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// Check for image files
 	ext := strings.ToLower(filepath.Ext(path))
 	if mimeType, ok := imageMimeType[ext]; ok {
+		policy := t.imageReadPolicy(params)
 		info, err := os.Stat(path)
 		if err != nil {
 			return ToolResult{}, fmt.Errorf("cannot stat image file: %w", err)
 		}
-		if info.Size() > maxImageFileBytes {
-			return ToolResult{}, fmt.Errorf("image file too large: %d bytes (max %d)", info.Size(), maxImageFileBytes)
+		if policy.MaxFileBytes > 0 && info.Size() > policy.MaxFileBytes {
+			return ToolResult{}, fmt.Errorf("image file too large: %d bytes (max %d)", info.Size(), policy.MaxFileBytes)
 		}
-		data, err := os.ReadFile(path)
+		result, err := imageproc.PrepareFile(path, policy)
 		if err != nil {
 			return ToolResult{}, fmt.Errorf("cannot read image file: %w", err)
 		}
-		b64 := base64.StdEncoding.EncodeToString(data)
-		desc := fmt.Sprintf("[Image file: %s, size: %d bytes, type: %s]", path, len(data), mimeType)
-		return NewImageToolResult(desc, mimeType, b64), nil
+		image := provider.ImageContent{
+			Data:           base64.StdEncoding.EncodeToString(result.Data),
+			MimeType:       result.MimeType,
+			Width:          result.Meta.Width,
+			Height:         result.Meta.Height,
+			Bytes:          result.Meta.Bytes,
+			OriginalWidth:  result.Meta.OriginalWidth,
+			OriginalHeight: result.Meta.OriginalHeight,
+			OriginalBytes:  result.Meta.OriginalBytes,
+			Detail:         result.Meta.Detail,
+			Scale:          result.Meta.Scale,
+		}
+		desc := imageDescription(path, mimeType, result)
+		return NewImageToolResultWithContent(desc, image), nil
 	}
 
 	// Read text file
@@ -144,4 +168,39 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	}
 
 	return NewTextToolResult(result), nil
+}
+
+func (t *ReadTool) imageReadPolicy(params map[string]any) imageproc.Policy {
+	mode := imageproc.NormalizeMode("")
+	if v, ok := params["imageMode"].(string); ok {
+		mode = imageproc.NormalizeMode(v)
+	}
+	policy := t.registry.ImagePolicy(mode)
+	if v, ok := params["maxLongEdge"].(float64); ok && v > 0 {
+		policy.MaxLongEdge = int(v)
+	} else if v, ok := params["maxLongEdge"].(int); ok && v > 0 {
+		policy.MaxLongEdge = v
+	}
+	return policy
+}
+
+func imageDescription(path, sourceMime string, result imageproc.Result) string {
+	original := fmt.Sprintf("%dx%d %s %s", result.Meta.OriginalWidth, result.Meta.OriginalHeight, formatBytes(result.Meta.OriginalBytes), sourceMime)
+	sent := fmt.Sprintf("%dx%d %s %s", result.Meta.Width, result.Meta.Height, formatBytes(result.Meta.Bytes), result.MimeType)
+	if result.Meta.Resized || result.Meta.Transcoded || result.Meta.OriginalBytes != result.Meta.Bytes || sourceMime != result.MimeType {
+		return fmt.Sprintf("[Image file: %s, original: %s, sent: %s, mode: %s]", path, original, sent, result.Meta.Detail)
+	}
+	return fmt.Sprintf("[Image file: %s, %s, mode: %s]", path, sent, result.Meta.Detail)
+}
+
+func formatBytes(n int) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%dB", n)
+	}
+	kb := float64(n) / unit
+	if kb < unit {
+		return fmt.Sprintf("%.1fKB", kb)
+	}
+	return fmt.Sprintf("%.1fMB", kb/unit)
 }

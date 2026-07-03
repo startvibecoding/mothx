@@ -43,8 +43,16 @@ func (a *providerAdapter) Chat(ctx context.Context, params ChatParams) <-chan St
 			}
 			if cb.Image != nil {
 				internalParams.Messages[i].Contents[j].Image = &internalprovider.ImageContent{
-					MimeType: cb.Image.MimeType,
-					Data:     cb.Image.Data,
+					MimeType:       cb.Image.MimeType,
+					Data:           cb.Image.Data,
+					Width:          cb.Image.Width,
+					Height:         cb.Image.Height,
+					Bytes:          cb.Image.Bytes,
+					OriginalWidth:  cb.Image.OriginalWidth,
+					OriginalHeight: cb.Image.OriginalHeight,
+					OriginalBytes:  cb.Image.OriginalBytes,
+					Detail:         cb.Image.Detail,
+					Scale:          cb.Image.Scale,
 				}
 			}
 			if cb.ToolCall != nil {

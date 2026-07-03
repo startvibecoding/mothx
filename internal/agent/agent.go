@@ -11,6 +11,7 @@ import (
 	agentpkg "github.com/startvibecoding/vibecoding/agent"
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	"github.com/startvibecoding/vibecoding/internal/imageproc"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -398,6 +399,7 @@ func webSearchToolDefinition(settings *config.Settings) (provider.ToolDefinition
 // New creates a new agent.
 func New(cfg Config, registry *tools.Registry) *Agent {
 	cfg.CompactionSettings = ctxpkg.NormalizeCompactionSettings(cfg.CompactionSettings)
+	configureRegistryImageHint(cfg, registry)
 	loopConfig := AgentLoopConfig{
 		Config:            cfg,
 		ToolExecutionMode: "parallel",
@@ -431,6 +433,7 @@ func New(cfg Config, registry *tools.Registry) *Agent {
 // NewWithLoopConfig creates a new agent with custom loop configuration.
 func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 	cfg.CompactionSettings = ctxpkg.NormalizeCompactionSettings(cfg.CompactionSettings)
+	configureRegistryImageHint(cfg.Config, registry)
 	if cfg.MaxIterations == 0 {
 		cfg.MaxIterations = 200
 	}
@@ -460,6 +463,42 @@ func NewWithLoopConfig(cfg AgentLoopConfig, registry *tools.Registry) *Agent {
 	agent.context.SystemPrompt = agent.frozenSystemPrompt
 	agent.context.Tools = agent.frozenToolDefs
 	return agent
+}
+
+func configureRegistryImageHint(cfg Config, registry *tools.Registry) {
+	if registry == nil {
+		return
+	}
+	hint := imageproc.Hint{
+		ProviderID: cfg.Vendor,
+	}
+	if cfg.Provider != nil {
+		hint.ProviderName = cfg.Provider.Name()
+		hint.API = cfg.Provider.API()
+		if hint.ProviderID == "" {
+			hint.ProviderID = cfg.Provider.Name()
+		}
+	}
+	if cfg.Model != nil {
+		hint.ModelID = cfg.Model.ID
+		if hint.ProviderID == "" {
+			hint.ProviderID = cfg.Model.Provider
+		}
+	}
+	if cfg.Settings != nil {
+		providerKey := hint.ProviderID
+		if providerKey == "" {
+			providerKey = cfg.Settings.DefaultProvider
+		}
+		if pc := cfg.Settings.GetProviderConfig(providerKey); pc != nil {
+			hint.Vendor = pc.Vendor
+			hint.BaseURL = pc.BaseURL
+			if hint.API == "" {
+				hint.API = pc.API
+			}
+		}
+	}
+	registry.SetImageHint(hint)
 }
 
 // LoadHistoryMessages loads historical messages from session into agent context.

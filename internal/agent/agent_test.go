@@ -13,6 +13,7 @@ import (
 
 	"github.com/startvibecoding/vibecoding/internal/config"
 	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
+	"github.com/startvibecoding/vibecoding/internal/imageproc"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/session"
@@ -378,6 +379,30 @@ func TestNewAgent(t *testing.T) {
 
 	if a == nil {
 		t.Fatal("expected non-nil agent")
+	}
+}
+
+func TestNewAgentConfiguresRegistryImageHint(t *testing.T) {
+	mockProvider := provider.NewMockProvider("openai", []*provider.Model{
+		{ID: "MiniMax-M3", Name: "MiniMax M3"},
+	}, nil)
+	mockProvider.SetAPI("anthropic-messages")
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry("/tmp", sb)
+	registry.RegisterDefaults()
+
+	cfg := Config{
+		Provider: mockProvider,
+		Vendor:   "minimax-anthropic",
+		Model:    mockProvider.Models()[0],
+		Mode:     "agent",
+	}
+	New(cfg, registry)
+
+	policy := registry.ImagePolicy(imageproc.ModeDetail)
+	if policy.MaxOutputBytes != 5<<20 {
+		t.Fatalf("MaxOutputBytes = %d, want %d", policy.MaxOutputBytes, 5<<20)
 	}
 }
 

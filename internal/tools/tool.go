@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/startvibecoding/vibecoding/internal/imageproc"
 	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/sandbox"
 	"github.com/startvibecoding/vibecoding/internal/skills"
@@ -103,11 +104,16 @@ func NewPlanToolResult(text string, plan *TaskPlan) ToolResult {
 // NewImageToolResult creates a tool result that includes an image.
 // text is the human-readable description, mimeType and base64Data are the image payload.
 func NewImageToolResult(text, mimeType, base64Data string) ToolResult {
+	return NewImageToolResultWithContent(text, provider.ImageContent{MimeType: mimeType, Data: base64Data})
+}
+
+// NewImageToolResultWithContent creates a tool result with a fully populated image payload.
+func NewImageToolResultWithContent(text string, image provider.ImageContent) ToolResult {
 	return ToolResult{
 		Text: text,
 		Contents: []provider.ContentBlock{
 			{Type: "text", Text: text},
-			{Type: "image", Image: &provider.ImageContent{MimeType: mimeType, Data: base64Data}},
+			{Type: "image", Image: &image},
 		},
 	}
 }
@@ -160,6 +166,7 @@ type Registry struct {
 	jobManager *JobManager
 	skillsMgr  *skills.Manager
 	fileLocks  *FileLockManager
+	imageHint  imageproc.Hint
 }
 
 // NewRegistry creates a new tool registry.
@@ -181,6 +188,7 @@ type RegistryConfig struct {
 	SkillsMgr      *skills.Manager  // optional: skills manager for skill_ref tool
 	EnablePlanTool *bool            // optional: defaults to true when nil
 	FileLocks      *FileLockManager // optional: defaults to process-wide manager
+	ImageHint      imageproc.Hint   // optional: provider/model hint for image preprocessing
 }
 
 // NewRegistryWithConfig creates a Registry with the given config.
@@ -196,6 +204,7 @@ func NewRegistryWithConfig(cfg RegistryConfig) *Registry {
 		jobManager: NewJobManager(),
 		skillsMgr:  cfg.SkillsMgr,
 		fileLocks:  fileLocks,
+		imageHint:  cfg.ImageHint,
 	}
 	enablePlanTool := true
 	if cfg.EnablePlanTool != nil {
@@ -207,6 +216,21 @@ func NewRegistryWithConfig(cfg RegistryConfig) *Registry {
 		r.RegisterFiltered(cfg.ToolFilter)
 	}
 	return r
+}
+
+// SetImageHint updates provider/model context used by image-capable tools.
+func (r *Registry) SetImageHint(h imageproc.Hint) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.imageHint = h
+}
+
+// ImagePolicy returns the image preprocessing policy for the current registry context.
+func (r *Registry) ImagePolicy(mode imageproc.Mode) imageproc.Policy {
+	r.mu.RLock()
+	hint := r.imageHint
+	r.mu.RUnlock()
+	return imageproc.PolicyForHint(hint, mode)
 }
 
 // JobManager returns the registry's per-instance job manager.
