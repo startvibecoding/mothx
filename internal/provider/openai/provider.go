@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -776,8 +777,12 @@ func (p *Provider) supportsImageDetail() bool {
 	if p == nil {
 		return false
 	}
-	lower := strings.ToLower(p.baseURL)
-	return strings.Contains(lower, "api.openai.com") || strings.Contains(lower, "api.x.ai")
+	u, err := url.Parse(p.baseURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	return host == "api.openai.com" || host == "api.x.ai"
 }
 
 func normalizeImageDetail(detail string) string {

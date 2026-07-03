@@ -189,9 +189,17 @@ func PrepareBytes(data []byte, policy Policy) (Result, error) {
 		meta.Scale = scale
 	}
 
-	out, mimeType, err := encodeForPolicy(img, sourceMime, policy)
+	out, mimeType, finalW, finalH, capResized, err := encodeForPolicy(img, sourceMime, policy)
 	if err != nil {
 		return Result{}, err
+	}
+	if capResized {
+		meta.Width = finalW
+		meta.Height = finalH
+		meta.Resized = true
+		if sourceW > 0 {
+			meta.Scale = float64(finalW) / float64(sourceW)
+		}
 	}
 	meta.Bytes = len(out)
 	meta.Transcoded = mimeType != sourceMime || format != formatFromMime(mimeType)
@@ -276,7 +284,58 @@ func normalizedCrop(crop *Crop, width, height int) (image.Rectangle, bool, error
 	return rect, true, nil
 }
 
-func encodeForPolicy(img image.Image, sourceMime string, policy Policy) ([]byte, string, error) {
+func encodeForPolicy(img image.Image, sourceMime string, policy Policy) ([]byte, string, int, int, bool, error) {
+	out, mimeType, err := encodeForPolicyOnce(img, sourceMime, policy)
+	if err != nil {
+		return nil, "", 0, 0, false, err
+	}
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	if policy.MaxOutputBytes <= 0 || len(out) <= policy.MaxOutputBytes {
+		return out, mimeType, width, height, false, nil
+	}
+
+	working := img
+	resized := false
+	for attempts := 0; attempts < 12 && width > 1 && height > 1; attempts++ {
+		ratio := math.Sqrt(float64(policy.MaxOutputBytes)/float64(len(out))) * 0.9
+		if ratio <= 0 || ratio >= 0.95 || math.IsNaN(ratio) || math.IsInf(ratio, 0) {
+			ratio = 0.9
+		}
+		nextW := int(math.Floor(float64(width) * ratio))
+		nextH := int(math.Floor(float64(height) * ratio))
+		if nextW < 1 {
+			nextW = 1
+		}
+		if nextH < 1 {
+			nextH = 1
+		}
+		if nextW == width && width > 1 {
+			nextW--
+		}
+		if nextH == height && height > 1 {
+			nextH--
+		}
+		if nextW == width && nextH == height {
+			break
+		}
+
+		working = resizeImage(working, nextW, nextH)
+		width, height = nextW, nextH
+		resized = true
+		out, mimeType, err = encodeForPolicyOnce(working, sourceMime, policy)
+		if err != nil {
+			return nil, "", 0, 0, false, err
+		}
+		if len(out) <= policy.MaxOutputBytes {
+			return out, mimeType, width, height, resized, nil
+		}
+	}
+
+	return nil, "", 0, 0, false, fmt.Errorf("encoded image too large: %d bytes (max %d)", len(out), policy.MaxOutputBytes)
+}
+
+func encodeForPolicyOnce(img image.Image, sourceMime string, policy Policy) ([]byte, string, error) {
 	if hasTransparency(img) {
 		data, err := encodePNG(img)
 		if err != nil {

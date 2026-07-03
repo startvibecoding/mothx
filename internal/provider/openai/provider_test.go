@@ -225,6 +225,7 @@ func TestConvertMessagesImageDetailForOfficialProviders(t *testing.T) {
 	}{
 		{name: "openai detail", baseURL: "https://api.openai.com/v1", detail: "detail", want: "high"},
 		{name: "xai fast", baseURL: "https://api.x.ai/v1", detail: "fast", want: "low"},
+		{name: "spoofed openai domain omitted", baseURL: "https://api.openai.com.example/v1", detail: "detail", want: ""},
 		{name: "compatible gateway omitted", baseURL: "https://openrouter.ai/api/v1", detail: "detail", want: ""},
 	}
 
@@ -256,7 +257,7 @@ func TestConvertMessagesImageDetailForOfficialProviders(t *testing.T) {
 	}
 }
 
-func TestResponsesMessageContentImageDetailForOfficialOpenAI(t *testing.T) {
+func TestResponsesMessageContentImageDetailForOfficialProviders(t *testing.T) {
 	msg := provider.Message{
 		Role: "user",
 		Contents: []provider.ContentBlock{
@@ -264,17 +265,19 @@ func TestResponsesMessageContentImageDetailForOfficialOpenAI(t *testing.T) {
 		},
 	}
 
-	p := &Provider{baseURL: "https://api.openai.com/v1"}
-	content, ok := p.responsesMessageContent(msg, "input_text").([]responsesContentBlock)
-	if !ok || len(content) != 1 {
-		t.Fatalf("content = %#v, want one responses content block", content)
-	}
-	if content[0].Detail != "high" {
-		t.Fatalf("openai detail = %q, want high", content[0].Detail)
+	for _, baseURL := range []string{"https://api.openai.com/v1", "https://api.x.ai/v1"} {
+		p := &Provider{baseURL: baseURL}
+		content, ok := p.responsesMessageContent(msg, "input_text").([]responsesContentBlock)
+		if !ok || len(content) != 1 {
+			t.Fatalf("%s content = %#v, want one responses content block", baseURL, content)
+		}
+		if content[0].Detail != "high" {
+			t.Fatalf("%s detail = %q, want high", baseURL, content[0].Detail)
+		}
 	}
 
-	p = &Provider{baseURL: "https://openrouter.ai/api/v1"}
-	content, ok = p.responsesMessageContent(msg, "input_text").([]responsesContentBlock)
+	p := &Provider{baseURL: "https://openrouter.ai/api/v1"}
+	content, ok := p.responsesMessageContent(msg, "input_text").([]responsesContentBlock)
 	if !ok || len(content) != 1 {
 		t.Fatalf("content = %#v, want one responses content block", content)
 	}

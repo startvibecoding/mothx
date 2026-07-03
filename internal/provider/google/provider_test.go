@@ -337,6 +337,60 @@ func TestGoogleGeminiRequest(t *testing.T) {
 	}
 }
 
+func TestGoogleImageMediaResolution(t *testing.T) {
+	tests := []struct {
+		name   string
+		detail string
+		want   string
+	}{
+		{name: "detail maps high", detail: "detail", want: "MEDIA_RESOLUTION_HIGH"},
+		{name: "raw maps high", detail: "raw", want: "MEDIA_RESOLUTION_HIGH"},
+		{name: "fast maps low", detail: "fast", want: "MEDIA_RESOLUTION_LOW"},
+		{name: "auto omitted", detail: "auto", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bodyCh := make(chan string, 1)
+			p := newMockGoogleProvider(t,
+				NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}}),
+				"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}]}\n",
+				bodyCh,
+				nil)
+
+			for range p.Chat(context.Background(), provider.ChatParams{
+				ModelID: "gemini-test",
+				Messages: []provider.Message{
+					{
+						Role: "user",
+						Contents: []provider.ContentBlock{
+							{Type: "image", Image: &provider.ImageContent{Data: "aW1hZ2U=", MimeType: "image/png", Detail: tt.detail}},
+						},
+					},
+				},
+				Abort: make(chan struct{}),
+			}) {
+			}
+
+			var req googleRequest
+			select {
+			case body := <-bodyCh:
+				if err := json.Unmarshal([]byte(body), &req); err != nil {
+					t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+				}
+			default:
+				t.Fatal("no request body captured")
+			}
+			if req.GenerationConfig == nil {
+				t.Fatal("generationConfig = nil, want config")
+			}
+			if req.GenerationConfig.MediaResolution != tt.want {
+				t.Fatalf("mediaResolution = %q, want %q", req.GenerationConfig.MediaResolution, tt.want)
+			}
+		})
+	}
+}
+
 func TestGoogleRequestCachedContent(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	p := NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test"}})

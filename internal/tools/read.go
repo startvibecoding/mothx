@@ -38,6 +38,7 @@ func (t *ReadTool) PromptGuidelines() []string {
 	return []string{
 		"Use read to examine files instead of cat or sed.",
 		"For image OCR, screenshots, diagrams, or small UI text, use read with imageMode=\"detail\".",
+		"For localized image questions, use the crop parameter in source image pixels before reading the full image at high detail.",
 	}
 }
 

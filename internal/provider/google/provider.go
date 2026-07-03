@@ -157,6 +157,7 @@ type googleGenerationConf struct {
 	MaxOutputTokens int                   `json:"maxOutputTokens,omitempty"`
 	Temperature     *float64              `json:"temperature,omitempty"`
 	TopP            *float64              `json:"topP,omitempty"`
+	MediaResolution string                `json:"mediaResolution,omitempty"`
 	ThinkingConfig  *googleThinkingConfig `json:"thinkingConfig,omitempty"`
 }
 
@@ -418,11 +419,33 @@ func (p *Provider) generationConfig(params provider.ChatParams, model *provider.
 		MaxOutputTokens: maxTokens,
 		Temperature:     params.Temperature,
 		TopP:            params.TopP,
+		MediaResolution: googleMediaResolution(params.Messages),
 	}
 	if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 		cfg.ThinkingConfig = &googleThinkingConfig{ThinkingBudget: googleThinkingBudget(params.ThinkingLevel), IncludeThoughts: true}
 	}
 	return cfg
+}
+
+func googleMediaResolution(messages []provider.Message) string {
+	hasLow := false
+	for _, msg := range messages {
+		for _, block := range msg.Contents {
+			if block.Type != "image" || block.Image == nil {
+				continue
+			}
+			switch strings.ToLower(strings.TrimSpace(block.Image.Detail)) {
+			case "detail", "high", "raw", "original":
+				return "MEDIA_RESOLUTION_HIGH"
+			case "fast", "low":
+				hasLow = true
+			}
+		}
+	}
+	if hasLow {
+		return "MEDIA_RESOLUTION_LOW"
+	}
+	return ""
 }
 
 func googleThinkingBudget(level provider.ThinkingLevel) int {

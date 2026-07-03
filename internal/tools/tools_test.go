@@ -339,6 +339,61 @@ func TestReadToolImageCrop(t *testing.T) {
 	}
 }
 
+func TestReadToolImageModes(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "modes.png")
+	writeTestPNG(t, tmpFile, 2400, 1200)
+
+	r := NewRegistry(tmpDir, sandbox.NewNoneSandbox())
+	tool := NewReadTool(r)
+
+	tests := []struct {
+		mode     string
+		wantW    int
+		wantH    int
+		wantMode string
+	}{
+		{mode: "fast", wantW: 1024, wantH: 512, wantMode: "fast"},
+		{mode: "detail", wantW: 2048, wantH: 1024, wantMode: "detail"},
+		{mode: "raw", wantW: 2400, wantH: 1200, wantMode: "raw"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			result, err := tool.Execute(context.Background(), map[string]any{
+				"path":      "modes.png",
+				"imageMode": tt.mode,
+			})
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			image := result.Contents[1].Image
+			if image.Width != tt.wantW || image.Height != tt.wantH {
+				t.Fatalf("image size = %dx%d, want %dx%d", image.Width, image.Height, tt.wantW, tt.wantH)
+			}
+			if image.Detail != tt.wantMode {
+				t.Fatalf("detail = %q, want %q", image.Detail, tt.wantMode)
+			}
+		})
+	}
+}
+
+func TestReadToolBadImage(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "bad.png")
+	if err := os.WriteFile(tmpFile, []byte("not an image"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := NewRegistry(tmpDir, sandbox.NewNoneSandbox())
+	tool := NewReadTool(r)
+
+	_, err := tool.Execute(context.Background(), map[string]any{"path": "bad.png"})
+	if err == nil || !strings.Contains(err.Error(), "cannot read image file") {
+		t.Fatalf("err = %v, want cannot read image file", err)
+	}
+}
+
 func TestReadToolImageTooLarge(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "large.png")

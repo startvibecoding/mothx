@@ -141,6 +141,15 @@ func PolicyForHint(h Hint, mode Mode) Policy {
 	case FamilyMiMo, FamilyLlamaVision, FamilyGemmaVision:
 		capOutputLimit(&policy, 4<<20)
 	}
+	providerText := strings.Join([]string{
+		normalizeFamilyKey(h.ProviderID),
+		normalizeFamilyKey(h.ProviderName),
+		normalizeFamilyKey(h.Vendor),
+		normalizeFamilyKey(h.BaseURL),
+	}, " ")
+	if isGroqProvider(providerText) {
+		capOutputLimit(&policy, 3<<20)
+	}
 	return policy
 }
 
@@ -170,6 +179,10 @@ func isGatewayProvider(s string) bool {
 		}
 	}
 	return false
+}
+
+func isGroqProvider(s string) bool {
+	return strings.Contains(s, "groq") || strings.Contains(s, "api.groq.com")
 }
 
 func capFileLimit(policy *Policy, max int64) {

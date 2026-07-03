@@ -100,4 +100,13 @@ func TestPolicyForHintAppliesProviderLimits(t *testing.T) {
 	if qwen.MaxLongEdge != 2560 {
 		t.Fatalf("qwen detail MaxLongEdge = %d, want %d", qwen.MaxLongEdge, 2560)
 	}
+
+	groq := PolicyForHint(Hint{
+		ProviderID: "groq",
+		BaseURL:    "https://api.groq.com/openai/v1",
+		ModelID:    "meta-llama/llama-4-scout-17b-16e-instruct",
+	}, ModeDetail)
+	if groq.MaxOutputBytes != 3<<20 {
+		t.Fatalf("groq MaxOutputBytes = %d, want %d", groq.MaxOutputBytes, 3<<20)
+	}
 }
