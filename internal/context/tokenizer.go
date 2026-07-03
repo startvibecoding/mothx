@@ -135,14 +135,20 @@ func estimateImageTokensForModel(image *provider.ImageContent, model *provider.M
 	})
 	switch family {
 	case imageproc.FamilyAnthropic, imageproc.FamilyAnthropicBedrock:
-		return ceilDiv(image.Width, 28) * ceilDiv(image.Height, 28)
+		return estimatePatchImageTokens(image.Width, image.Height, 28)
 	case imageproc.FamilyGemini:
 		return estimateGeminiImageTokens(image.Width, image.Height)
+	case imageproc.FamilyQwen:
+		return estimatePatchImageTokens(image.Width, image.Height, 28)
 	case imageproc.FamilyOpenAI, imageproc.FamilyGrok:
 		return estimateOpenAIImageTokens(image)
 	default:
 		return 0
 	}
+}
+
+func estimatePatchImageTokens(width, height, patch int) int {
+	return ceilDiv(width, patch) * ceilDiv(height, patch)
 }
 
 func estimateGeminiImageTokens(width, height int) int {

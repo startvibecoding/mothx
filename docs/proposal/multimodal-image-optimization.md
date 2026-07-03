@@ -10,7 +10,7 @@
 
 - 已完成：新增统一图片处理基础、`read` 图片自动预处理、WebP decode/inspect 依赖、`ImageContent` 元数据、通用尺寸优先 token 估算、provider/model family policy hint、输出体积硬约束、相关测试。
 - 已完成的 family 映射：OpenAI、Anthropic、Anthropic-on-Bedrock、Gemini、Mistral/Pixtral/Devstral、Doubao Seed、Qwen、Kimi、MiniMax、GLM、Grok/xAI、Llama Vision、Gemma Vision、MiMo、Amazon Nova、DeepSeek-on-gateway。
-- 已完成的估算改进：agent compaction 路径通过 `ResolveTokenEstimator(settings, model)` 使用模型感知图片估算；Claude/Bedrock Claude 使用 28px patch，Gemini 使用 384/768 tile，OpenAI/Grok 使用 low/high tile 近似；旧 `EstimateTokens()` 仍保持通用估算。
+- 已完成的估算改进：agent compaction 路径通过 `ResolveTokenEstimator(settings, model)` 使用模型感知图片估算；Claude/Bedrock Claude 和 Qwen-like family 使用 28px patch，Gemini 使用 384/768 tile，OpenAI/Grok 使用 low/high tile 近似；同一消息多图会累加估算；旧 `EstimateTokens()` 仍保持通用估算。
 - 已完成的 provider 参数透传：官方 OpenAI (`api.openai.com`) 和 xAI (`api.x.ai`) 图片请求会从内部 `Detail` 映射到 `low/auto/high`；官方域名按 URL hostname 精确判断；Google Gemini/Vertex 会从内部 `Detail` 映射到全局 `generationConfig.mediaResolution`；OpenAI-compatible 聚合层默认不发送额外 `detail` 字段。
 - 已完成的截图接入：browser `screenshot` 直接返回图片时默认用 `detail` 策略进入统一 `imageproc` 流程，并携带发送/原始尺寸元数据；指定 `outputPath` 时仍保存原始截图文件。
 - 已完成的裁剪能力：`read` 支持 `crop` 源图像素矩形，`ImageContent` 保留 crop 元数据，输出描述显示裁剪区域。
@@ -78,7 +78,7 @@ provider 适配层当前行为：
 上下文估算当前行为：
 
 - `EstimateTokens()` 仍保持通用兼容逻辑：有宽高时使用 generic 512 tile 估算；无宽高时保留旧 fallback。
-- agent compaction 路径通过 `ResolveTokenEstimator(settings, model)` 使用模型感知估算：Claude/Bedrock Claude 28px patch，Gemini 384/768 tile，OpenAI/Grok low/high tile 近似。
+- agent compaction 路径通过 `ResolveTokenEstimator(settings, model)` 使用模型感知估算：Claude/Bedrock Claude 和 Qwen-like family 28px patch，Gemini 384/768 tile，OpenAI/Grok low/high tile 近似。
 
 browser 截图当前行为：
 
@@ -107,7 +107,7 @@ browser 截图当前行为：
 
 #### 2.4.2 部分模型族成本和上下文估算仍不够精确
 
-图片成本通常由视觉 token、patch 或 tile 决定，而不是 base64 字符数。当前已对 Claude/Bedrock Claude、Gemini、OpenAI/Grok 接入模型感知估算，但 Qwen/Doubao/Kimi/MiniMax/GLM/MiMo/Nova/Llama/Gemma 等模型族仍缺少稳定公开公式或模型目录约束。
+图片成本通常由视觉 token、patch 或 tile 决定，而不是 base64 字符数。当前已对 Claude/Bedrock Claude、Qwen-like、Gemini、OpenAI/Grok 接入模型感知估算，但 Doubao/Kimi/MiniMax/GLM/MiMo/Nova/Llama/Gemma 等模型族仍缺少稳定公开公式或模型目录约束。
 
 剩余风险：
 
@@ -523,7 +523,7 @@ Gemini inline data 没有 OpenAI 风格的 per-image `detail` 字段。当前实
 | `anthropic-bedrock` | `amazon-bedrock` 中 Claude | 单图 base64 5MB，输出体积更保守。 |
 | `gemini` | `google-gemini` / `google-vertex` | 按 384/768 tile 估算；Google API 请求会按图片 detail 映射全局 `mediaResolution`。 |
 | `doubao-seed` | `doubao-seed-2-0-code`、`doubao-seed-2-0-pro`、`doubao-seed-evolving`、`doubao-seed-2-1-pro-*` | OpenAI-compatible 发送格式；无公开稳定图片 token 公式时用 generic，`detail` 保留更高长边。 |
-| `qwen-plus` | `qwen3.6-plus`、`qwen3.7-plus`、`qwen3.6-flash/max` 等默认视觉 Qwen | OpenAI-compatible 发送格式；策略上保留 Qwen-like `maxPixels`/patch 估算扩展点。 |
+| `qwen-plus` | `qwen3.6-plus`、`qwen3.7-plus`、`qwen3.6-flash/max` 等默认视觉 Qwen | OpenAI-compatible 发送格式；当前使用 Qwen-like 28px patch 近似估算，并保留 `maxPixels`/模型目录 override 扩展点。 |
 | `kimi` | `kimi-k2.5`、`kimi-k2.6`、`kimi-k2.7-code`、`k2p7`、`kimi-for-coding`、Fireworks Kimi routers | 不按 Claude/OpenAI token 规则硬套；根据接入 API 发送，估算先 generic。 |
 | `minimax` | MiniMax M3 across MiniMax/Gitee/Moark/Together/Volcengine/OpenRouter/Vercel | 原生多模态，缺少稳定公开 token 公式时按 generic 控制体积。 |
 | `glm` | `glm-5.2`、`glm-5v-turbo`、GLM via Z.AI/Cloudflare/Gitee/Moark/Volcengine/OpenRouter/Vercel | GUI/文档/grounding 优先保留 detail；坐标映射元数据必须保留。 |
@@ -610,13 +610,14 @@ func estimateGenericImageTokens(w, h int) int {
 已完成：
 
 1. `ResolveTokenEstimator()` 在有 model 上下文时返回模型感知估算器。
-2. Claude/Bedrock Claude 图片按 `ceil(width/28) * ceil(height/28)` 估算。
+2. Claude/Bedrock Claude、Qwen-like family 图片按 `ceil(width/28) * ceil(height/28)` 估算。
 3. Gemini 图片按小图 258 tokens、大图 768 tile * 258 tokens 估算。
 4. OpenAI/Grok 图片按 `fast/low=85 tokens`、其他模式 `85 + 170 * 512-tile` 近似估算。
+5. 同一消息内多张图片会逐张累加估算。
 
 仍未完成：
 
-1. Qwen/Doubao/Kimi/MiniMax/GLM/MiMo/Nova/Llama/Gemma 的更精确官方公式或模型目录约束。
+1. Doubao/Kimi/MiniMax/GLM/MiMo/Nova/Llama/Gemma 的更精确官方公式或模型目录约束；Qwen 当前只有 28px patch 近似。
 2. 从供应商模型目录/API 动态发现图片限制。
 3. Gemini per-part `resolution` 等实验 API 能力。
 
@@ -693,7 +694,7 @@ func estimateGenericImageTokens(w, h int) int {
 改动：
 
 1. 已完成：图片 token 估算优先使用宽高。
-2. 已完成：OpenAI/Grok tile 近似、Claude 28px patch、Gemini 768 tile 接入估算。
+2. 已完成：OpenAI/Grok tile 近似、Claude/Qwen 28px patch、Gemini 768 tile 接入估算。
 3. 已完成：provider/model-aware 估算规则接入 `ResolveTokenEstimator()`。
 4. 已完成：OpenAI/xAI 支持 `detail`，仅在官方 baseURL 确认兼容时发送；Gemini 支持全局 `mediaResolution`。
 5. 已完成：browser screenshot 接入统一预处理。
@@ -823,8 +824,9 @@ OpenAI-compatible 供应商不一定接受 `detail` 字段。
 
 - 已覆盖：无宽高旧图片 fallback 到兼容逻辑。
 - 已覆盖：有宽高图片按 generic 规则估算。
-- 已覆盖：Claude/Bedrock Claude、Gemini、OpenAI low/high 的模型感知图片估算。
-- 待补充：多图估算累加和 provider family 更多分支。
+- 已覆盖：Claude/Bedrock Claude、Qwen、Gemini、OpenAI low/high 的模型感知图片估算。
+- 已覆盖：同一消息内多图估算累加。
+- 待补充：更多 provider family 的精确公式或模型目录约束。
 
 ### 12.5 coordinate helper 测试
 

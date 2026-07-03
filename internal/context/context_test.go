@@ -466,6 +466,12 @@ func TestResolveTokenEstimatorUsesModelAwareImageRules(t *testing.T) {
 			want:  258,
 		},
 		{
+			name:  "qwen patch estimate",
+			model: &provider.Model{ID: "qwen3.7-plus", Provider: "alibaba-coding-plan"},
+			image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1024, Height: 768},
+			want:  1036,
+		},
+		{
 			name:  "openai low detail estimate",
 			model: &provider.Model{ID: "gpt-4o", Provider: "openai"},
 			image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1024, Height: 1024, Detail: "fast"},
@@ -492,6 +498,22 @@ func TestResolveTokenEstimatorUsesModelAwareImageRules(t *testing.T) {
 				t.Fatalf("EstimateTokens() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestModelAwareTokenEstimatorSumsMultipleImages(t *testing.T) {
+	estimator := ResolveTokenEstimator(CompactionSettings{Tokenizer: "auto"}, &provider.Model{ID: "gemini-2.5-pro", Provider: "google-gemini"})
+	msg := provider.Message{
+		Role: "user",
+		Contents: []provider.ContentBlock{
+			{Type: "text", Text: "compare"},
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 384, Height: 300}},
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc", Width: 1024, Height: 768}},
+		},
+	}
+
+	if got, want := estimator.EstimateTokens(msg), 776; got != want {
+		t.Fatalf("EstimateTokens() = %d, want %d", got, want)
 	}
 }
 
