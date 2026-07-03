@@ -64,15 +64,15 @@ Delegate Mode 新增一个单独工具：
 ### 5.1 启动时开启
 
 ```bash
-vibecoding --delegate
-vibecoding --delegate "分析这个 bug 并修复"
-vibecoding --print --delegate "检查当前项目测试失败原因"
+mothx --delegate
+mothx --delegate "分析这个 bug 并修复"
+mothx --print --delegate "检查当前项目测试失败原因"
 ```
 
 Gateway 可选支持：
 
 ```bash
-vibecoding gateway --delegate
+mothx gateway --delegate
 ```
 
 ### 5.2 会话内切换
@@ -344,7 +344,7 @@ if opts.ParentID != "" {
 
 ## 10. CLI / TUI 集成
 
-### 10.1 `cmd/vibecoding/main.go`
+### 10.1 `cmd/mothx/main.go`
 
 新增 flag：
 
@@ -378,7 +378,7 @@ if opts.delegate {
 
 Cron 仍只在 `opts.multiAgent` 时启用。
 
-### 10.2 `cmd/vibecoding/main_util.go`
+### 10.2 `cmd/mothx/main_util.go`
 
 `runPrint(...)` 增加 `delegate bool` 参数。
 
@@ -459,7 +459,7 @@ Cannot change delegation mode while the agent is running.
 Delegate bool
 ```
 
-### 11.2 `cmd/vibecoding/main.go`
+### 11.2 `cmd/mothx/main.go`
 
 Gateway flags 增加：
 
@@ -672,7 +672,7 @@ defer busy.Store(false)
 
 ## 20. 验收标准
 
-- `vibecoding --delegate` 启动后，主 Agent system prompt 包含委派指南。
+- `mothx --delegate` 启动后，主 Agent system prompt 包含委派指南。
 - `/delegate on|off|status` 可在 TUI 中正常工作。
 - 开启后 registry 包含 `delegate_subagent`，关闭后移除。
 - 主 Agent 能调用 `delegate_subagent`，并阻塞等待 sub-agent 完成。

@@ -7,7 +7,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 NPM_DIR="$PROJECT_ROOT/npm"
-PACKAGE_JSON="$NPM_DIR/package.json"
+PACKAGE_JSONS=("$NPM_DIR/package.json" "$NPM_DIR/mothx/package.json")
 
 # Get version from argument or git
 if [ -n "$1" ]; then
@@ -25,20 +25,24 @@ VERSION="${VERSION%%-[0-9]*-g[0-9a-f]*}"
 
 echo "Syncing npm version to: $VERSION"
 
-# Update main package.json version + optionalDependencies
-node -e "
-const fs = require('fs');
-const pkgPath = '$PACKAGE_JSON';
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-pkg.version = '$VERSION';
-if (pkg.optionalDependencies) {
-  for (const key of Object.keys(pkg.optionalDependencies)) {
-    pkg.optionalDependencies[key] = '$VERSION';
-  }
-}
-fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-console.log('Updated: $PACKAGE_JSON');
-"
+# Update main package.json files version + optionalDependencies
+for PACKAGE_JSON in "${PACKAGE_JSONS[@]}"; do
+  if [ -f "$PACKAGE_JSON" ]; then
+    node -e "
+    const fs = require('fs');
+    const pkgPath = '$PACKAGE_JSON';
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    pkg.version = '$VERSION';
+    if (pkg.optionalDependencies) {
+      for (const key of Object.keys(pkg.optionalDependencies)) {
+        pkg.optionalDependencies[key] = '$VERSION';
+      }
+    }
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+    console.log('Updated: $PACKAGE_JSON');
+    "
+  fi
+done
 
 # Update all platform package.json files
 PACKAGES_DIR="$NPM_DIR/packages"

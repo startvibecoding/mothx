@@ -3,15 +3,15 @@ package agent
 import (
 	"os"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/platform"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/session"
-	"github.com/startvibecoding/vibecoding/internal/skills"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/skills"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // AgentFactory creates Agent instances with consistent configuration.

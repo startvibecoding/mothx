@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
 )
 
 // renderAgentTabBar renders a horizontal tab bar showing all active agents.

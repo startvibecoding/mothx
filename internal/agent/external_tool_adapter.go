@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // externalToolAdapter adapts a public agent.ExternalTool to the internal

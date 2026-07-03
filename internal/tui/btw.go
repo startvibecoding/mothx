@@ -9,11 +9,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/tools"
-	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tui/renderutil"
 )
 
 // btwReadOnlyTools is the tool set granted to a /btw side-question sub-agent.

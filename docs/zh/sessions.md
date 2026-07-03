@@ -1,12 +1,12 @@
 # 会话管理
 
-VibeCoding 使用 SQLite 存储会话数据，支持树状结构、分支、压缩、标签和快速会话查找。
+MothX 使用 SQLite 存储会话数据，支持树状结构、分支、压缩、标签和快速会话查找。
 
 ## 会话存储
 
 ### 存储架构
 
-VibeCoding 的会话设计在不同运行模式下有所区别：
+MothX 的会话设计在不同运行模式下有所区别：
 
 1. **CLI / TUI / Gateway 模式（单一数据库 + 虚拟句柄）**
    所有会话元数据（如会话列表、会话ID、CWD、时间戳）和所有历史消息/条目均统一保存在单个 SQLite 数据库文件 `sessions.db` 中。
@@ -70,8 +70,8 @@ if err := sess.Init(); err != nil {
 ### 继续最近会话
 
 ```bash
-vibecoding --continue
-vibecoding -c
+mothx --continue
+mothx -c
 ```
 
 ```go
@@ -82,10 +82,10 @@ sess, err := session.ContinueRecent(cwd, sessionDir)
 
 ```bash
 # 通过 session ID 或唯一前缀
-vibecoding --resume abcd1234
+mothx --resume abcd1234
 
 # 通过会话句柄路径
-vibecoding --resume ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+mothx --resume ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 ```
 
 ```go
@@ -130,7 +130,7 @@ session-abcd1234
 
 ## 会话压缩
 
-VibeCoding 会把压缩检查点记录到 SQLite。压缩后，重放状态会保留每条消息的 Entry ID 和压缩边界（`firstKeptEntryID`）。当会话被重新加载时：
+MothX 会把压缩检查点记录到 SQLite。压缩后，重放状态会保留每条消息的 Entry ID 和压缩边界（`firstKeptEntryID`）。当会话被重新加载时：
 
 - 消息会被裁剪到正确的压缩边界
 - 摘要消息会自动前置

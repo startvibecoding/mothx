@@ -3,7 +3,7 @@
 ## 概述
 
 ```
-vibecoding [flags] [message...]
+mothx [flags] [message...]
 ```
 
 ## 命令行参数
@@ -58,10 +58,10 @@ vibecoding [flags] [message...]
 
 ### `acp` - Agent Client Protocol 服务器
 
-以 ACP 兼容的 stdio 代理模式运行 VibeCoding，用于 IDE 集成。
+以 ACP 兼容的 stdio 代理模式运行 MothX，用于 IDE 集成。
 
 ```
-vibecoding acp [flags]
+mothx acp [flags]
 ```
 
 支持 VS Code、JetBrains IDE 以及任何 ACP 兼容的编辑器。
@@ -86,7 +86,7 @@ vibecoding acp [flags]
 运行 A2A (Agent-to-Agent) 协议服务器，支持独立模式和集成模式。
 
 ```
-vibecoding a2a [command]
+mothx a2a [command]
 ```
 
 | 子命令 | 描述 |
@@ -104,10 +104,10 @@ vibecoding a2a [command]
 
 ### `gateway` - OpenAI 兼容 HTTP 网关
 
-以 HTTP 服务器模式运行 VibeCoding，暴露标准 OpenAI Chat Completions API。
+以 HTTP 服务器模式运行 MothX，暴露标准 OpenAI Chat Completions API。
 
 ```
-vibecoding gateway [flags]
+mothx gateway [flags]
 ```
 
 | 标志 | 简写 | 默认值 | 描述 |
@@ -131,7 +131,7 @@ vibecoding gateway [flags]
 运行 Hermes 消息平台网关，支持微信/飞书/WebSocket，提供持久化 Agent 会话。
 
 ```
-vibecoding hermes [command]
+mothx hermes [command]
 ```
 
 | 子命令 | 描述 |
@@ -148,7 +148,7 @@ vibecoding hermes [command]
 启动用量统计仪表盘，或直接在终端打印 token 和请求统计。
 
 ```
-vibecoding stats [flags]
+mothx stats [flags]
 ```
 
 | 标志 | 简写 | 默认值 | 描述 |
@@ -159,17 +159,17 @@ vibecoding stats [flags]
 
 示例：
 ```bash
-vibecoding stats
-vibecoding stats --cli
-vibecoding stats --cli --db ~/.vibecoding/sessions/sessions.db
+mothx stats
+mothx stats --cli
+mothx stats --cli --db ~/.vibecoding/sessions/sessions.db
 ```
 
 ### `doctor` - 环境诊断
 
-诊断你的 VibeCoding 环境：系统信息、配置文件、Provider、模型、沙箱、MCP 等。
+诊断你的 MothX 环境：系统信息、配置文件、Provider、模型、沙箱、MCP 等。
 
 ```
-vibecoding doctor
+mothx doctor
 ```
 
 检查项目：
@@ -183,12 +183,12 @@ vibecoding doctor
 - **上下文文件**: 发现 AGENTS.md、CLAUDE.md、CURSOR.md、.cursorrules、CONVENTIONS.md
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 示例输出：
 ```
-  VibeCoding Doctor
+  MothX Doctor
   ─────────────────
 
   Environment
@@ -218,7 +218,7 @@ vibecoding doctor
 生成或刷新项目 `AGENTS.md` 文件，记录项目规范供 AI Agent 使用。
 
 ```
-vibecoding systeminit [guidance...]
+mothx systeminit [guidance...]
 ```
 
 此 CLI 子命令以非交互方式运行。在 TUI 和 ACP 中，`/systeminit` 以交互方式运行，会先使用 `question` 工具提问几个澄清问题，再生成文件。
@@ -230,10 +230,10 @@ vibecoding systeminit [guidance...]
 示例：
 ```bash
 # 以默认行为生成 AGENTS.md
-vibecoding systeminit
+mothx systeminit
 
 # 自定义指导生成
-vibecoding systeminit 用中文提问我，用英文写
+mothx systeminit 用中文提问我，用英文写
 ```
 
 ## 使用示例
@@ -242,64 +242,64 @@ vibecoding systeminit 用中文提问我，用英文写
 
 ```bash
 # 交互模式
-vibecoding
+mothx
 
 # 带初始提示
-vibecoding -P "解释这个代码库"
+mothx -P "解释这个代码库"
 
 # 非交互模式
-vibecoding -p "写一个 Hello World"
+mothx -p "写一个 Hello World"
 ```
 
 ### 指定提供商和模型
 
 ```bash
 # 使用 DeepSeek (OpenAI API)
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # 使用 DeepSeek (Anthropic API)
-vibecoding -p deepseek-anthropic -m deepseek-v4-flash
+mothx -p deepseek-anthropic -m deepseek-v4-flash
 
 # 使用自定义提供商
-vibecoding --provider my-custom-provider
+mothx --provider my-custom-provider
 ```
 
 ### 选择模式
 
 ```bash
 # Plan 模式 - 只读分析
-vibecoding --mode plan
+mothx --mode plan
 
 # Agent 模式 - 标准读写 (默认)
-vibecoding -M agent
+mothx -M agent
 
 # YOLO 模式 - 完全访问
-vibecoding -M yolo
+mothx -M yolo
 ```
 
 ### 多 Agent 模式
 
 ```bash
 # 启用子 Agent 工具和多 Agent 命令
-vibecoding --multi-agent
+mothx --multi-agent
 
 # ACP 会话也可以启用
-vibecoding acp --multi-agent
+mothx acp --multi-agent
 ```
 
-启用后，VibeCoding 会注册 `subagent_*` 工具，并支持后台委托调查等多 Agent 工作流。Cron 命令入口也依赖多 Agent 模式。
+启用后，MothX 会注册 `subagent_*` 工具，并支持后台委托调查等多 Agent 工作流。Cron 命令入口也依赖多 Agent 模式。
 
 ### Delegate 模式
 
 ```bash
 # 启用阻塞式单子 Agent 委托
-vibecoding --delegate
+mothx --delegate
 
 # ACP 会话也可以启用
-vibecoding acp --delegate
+mothx acp --delegate
 
 # Gateway 也可以启用
-vibecoding gateway --delegate
+mothx gateway --delegate
 ```
 
 Delegate 模式会注册 `delegate_subagent` 工具，用于同步阻塞式子 Agent 委托。与可并行异步运行子 Agent 的多 Agent 模式不同，Delegate 模式同一时间只运行一个子 Agent，并等待其完成。适合父 Agent 只需要摘要结果的边界清晰调查任务。
@@ -310,59 +310,59 @@ Delegate 模式会注册 `delegate_subagent` 工具，用于同步阻塞式子 A
 
 ```bash
 # 生成示例配置
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # 启用 master 模式
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 
 # 启用 master 模式 + 详细日志
-vibecoding --enable-a2a-master --verbose
+mothx --enable-a2a-master --verbose
 ```
 
-启用后，VibeCoding 会加载 `a2a-list.json` 中的远程 agent 列表，注册 `a2a_dispatch` tool，LLM 可自动向远程 agent 分发任务。
+启用后，MothX 会加载 `a2a-list.json` 中的远程 agent 列表，注册 `a2a_dispatch` tool，LLM 可自动向远程 agent 分发任务。
 
 ### 初始化配置
 
 ```bash
 # 生成 gateway.json 模板
-vibecoding --init-gateway
+mothx --init-gateway
 
 # 生成 a2a.json 模板
-vibecoding a2a --init-a2a-config
+mothx a2a --init-a2a-config
 
 # 生成 a2a-list.json 模板
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # 强制覆盖已存在的文件
-vibecoding --init-gateway --force
+mothx --init-gateway --force
 ```
 
 ### 思考级别
 
 ```bash
 # 关闭思考
-vibecoding --thinking off
+mothx --thinking off
 
 # 中等级别
-vibecoding -t medium
+mothx -t medium
 
 # 最高级别
-vibecoding --thinking xhigh
+mothx --thinking xhigh
 ```
 
 ### 会话管理
 
 ```bash
 # 继续最近的会话
-vibecoding --continue
-vibecoding -c
+mothx --continue
+mothx -c
 
 # 恢复特定会话
-vibecoding --resume session-abc123
-vibecoding -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+mothx --resume session-abc123
+mothx -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 
 # 使用特定会话句柄文件
-vibecoding --session ./20260625-120000_abcd1234.db
+mothx --session ./20260625-120000_abcd1234.db
 ```
 
 在 TUI 中，如果没有传入 `--continue`、`--resume` 或 `--session`，启动时不会立即创建空 session；第一条用户消息发送时才会创建。继续、恢复或选择已有 session 时，会话历史会展示在正常终端 scrollback 中。
@@ -371,33 +371,33 @@ vibecoding --session ./20260625-120000_abcd1234.db
 
 ```bash
 # 启用沙箱
-vibecoding --sandbox
+mothx --sandbox
 
 # 禁用沙箱 (默认)
-vibecoding
+mothx
 ```
 
 ### 管道输入
 
 ```bash
 # 从 stdin 读取
-echo "解释这段代码" | vibecoding -P
+echo "解释这段代码" | mothx -P
 
 # 直接读取文件内容
-vibecoding -p "解释这个文件: main.go"
+mothx -p "解释这个文件: main.go"
 ```
 
 ### ACP 服务器
 
 ```bash
 # 启动 ACP 服务器（用于 IDE 集成）
-vibecoding acp
+mothx acp
 
 # 使用特定模型
-vibecoding acp --provider deepseek-openai --model deepseek-v4-flash
+mothx acp --provider deepseek-openai --model deepseek-v4-flash
 
 # 启用沙箱
-vibecoding acp --sandbox --mode agent
+mothx acp --sandbox --mode agent
 ```
 
 ## 交互式命令

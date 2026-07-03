@@ -8,9 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/tools"
-	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tui/renderutil"
 )
 
 type approvalAction int

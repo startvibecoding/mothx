@@ -1,15 +1,15 @@
 #!/bin/bash
 set -e
 
-# VibeCoding Debian Package Builder
+# MothX Debian Package Builder
 # Usage: ./scripts/build-deb.sh <arch> [version]
 # Example: ./scripts/build-deb.sh amd64 v0.0.2
 
-BINARY_NAME="vibecoding"
-PACKAGE_NAME="vibecoding"
-MAINTAINER="VibeCoding Team <admin@pkold.com>"
+BINARY_NAME="mothx"
+PACKAGE_NAME="mothx"
+MAINTAINER="MothX Team <admin@pkold.com>"
 DESCRIPTION="AI-powered terminal coding assistant"
-HOMEPAGE="https://github.com/startvibecoding/vibecoding"
+HOMEPAGE="https://github.com/startvibecoding/mothx"
 
 # Parse arguments
 ARCH="${1:-amd64}"
@@ -68,7 +68,7 @@ Architecture: ${DEB_ARCH}
 Maintainer: ${MAINTAINER}
 Homepage: ${HOMEPAGE}
 Description: ${DESCRIPTION} (musl static build)
- VibeCoding is a terminal-based AI coding assistant that supports
+ MothX is a terminal-based AI coding assistant that supports
  multiple LLM providers, sandboxed execution, and a rich TUI.
  This is a statically linked musl build for musl-based distributions
  (e.g., Alpine Linux, Void Linux musl).
@@ -84,7 +84,7 @@ Depends: libc6
 Maintainer: ${MAINTAINER}
 Homepage: ${HOMEPAGE}
 Description: ${DESCRIPTION}
- VibeCoding is a terminal-based AI coding assistant that supports
+ MothX is a terminal-based AI coding assistant that supports
  multiple LLM providers, sandboxed execution, and a rich TUI.
  It helps developers write, edit, and understand code using AI.
 EOF
@@ -98,7 +98,7 @@ Upstream-Contact: ${MAINTAINER}
 Source: ${HOMEPAGE}
 
 Files: *
-Copyright: 2024 VibeCoding Team
+Copyright: 2024 MothX Team
 License: MIT
  Permission is hereby granted, free of charge, to any person obtaining a
  copy of this software and associated documentation files (the "Software"),
@@ -136,8 +136,8 @@ cat > "${PACKAGE_DIR}/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
 
-echo "VibeCoding installed successfully!"
-echo "Run 'vibecoding' to get started."
+echo "MothX installed successfully!"
+echo "Run 'mothx' to get started."
 EOF
 chmod 755 "${PACKAGE_DIR}/DEBIAN/postinst"
 

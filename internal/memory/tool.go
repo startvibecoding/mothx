@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // MemoryTool provides persistent memory read/write via memory.md.

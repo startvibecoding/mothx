@@ -14,7 +14,7 @@ Workflow mode lets you orchestrate multiple worker agents using an Elisp DSL, au
 Use `--workflows` flag in CLI:
 
 ```bash
-vibecoding --workflows
+mothx --workflows
 ```
 
 Gateway and ACP also support workflow mode — enable it in their respective configurations.

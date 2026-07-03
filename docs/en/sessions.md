@@ -1,12 +1,12 @@
 # Session Management
 
-VibeCoding stores sessions in SQLite, supporting tree structure, branching, compaction, labels, and fast session lookup.
+MothX stores sessions in SQLite, supporting tree structure, branching, compaction, labels, and fast session lookup.
 
 ## Session Storage
 
 ### Storage Architecture
 
-VibeCoding's session architecture differs based on the execution mode:
+MothX's session architecture differs based on the execution mode:
 
 1. **CLI / TUI / Gateway Mode (Single Database + Virtual Handles)**
    All session metadata (session list, session IDs, CWD, timestamps) and all history messages/entries are stored entirely inside a single, unified SQLite database file `sessions.db` under `sessionDir`.
@@ -70,8 +70,8 @@ if err := sess.Init(); err != nil {
 ### Continue Recent Session
 
 ```bash
-vibecoding --continue
-vibecoding -c
+mothx --continue
+mothx -c
 ```
 
 ```go
@@ -82,10 +82,10 @@ sess, err := session.ContinueRecent(cwd, sessionDir)
 
 ```bash
 # By session ID or unique prefix
-vibecoding --resume abcd1234
+mothx --resume abcd1234
 
 # By session handle path
-vibecoding --resume ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+mothx --resume ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 ```
 
 ```go
@@ -130,7 +130,7 @@ This supports exploring different directions, returning to previous points, and 
 
 ## Session Compression
 
-VibeCoding records compaction checkpoints in SQLite. After compaction, replay state preserves per-message entry IDs and the compaction boundary (`firstKeptEntryID`). When a session is reloaded:
+MothX records compaction checkpoints in SQLite. After compaction, replay state preserves per-message entry IDs and the compaction boundary (`firstKeptEntryID`). When a session is reloaded:
 
 - Messages are trimmed to the correct compaction boundary
 - The summary message is prepended automatically

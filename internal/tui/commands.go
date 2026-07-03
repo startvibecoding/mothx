@@ -8,15 +8,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/agent"
-	browserfeature "github.com/startvibecoding/vibecoding/internal/browser"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/cron"
-	"github.com/startvibecoding/vibecoding/internal/skills"
-	"github.com/startvibecoding/vibecoding/internal/systeminit"
-	"github.com/startvibecoding/vibecoding/internal/tools"
-	"github.com/startvibecoding/vibecoding/internal/workflow"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
+	browserfeature "github.com/startvibecoding/mothx/internal/browser"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/cron"
+	"github.com/startvibecoding/mothx/internal/skills"
+	"github.com/startvibecoding/mothx/internal/systeminit"
+	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/workflow"
 )
 
 // handleAgentCommand handles /agent subcommands (multi-agent mode).

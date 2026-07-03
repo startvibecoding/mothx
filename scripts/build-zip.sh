@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# VibeCoding Windows Zip Builder
+# MothX Windows Zip Builder
 # Usage: ./scripts/build-zip.sh <arch> [version]
 # Example: ./scripts/build-zip.sh amd64 v0.0.2
 
-BINARY_NAME="vibecoding"
-PACKAGE_NAME="vibecoding"
+BINARY_NAME="mothx"
+PACKAGE_NAME="mothx"
 
 # Parse arguments
 ARCH="${1:-amd64}"
@@ -62,8 +62,8 @@ cat > "${BUILD_DIR}/${ZIP_NAME}/install.bat" << 'EOF'
 @echo off
 setlocal
 
-set BINARY_NAME=vibecoding.exe
-set INSTALL_DIR=%LOCALAPPDATA%\vibecoding
+set BINARY_NAME=mothx.exe
+set INSTALL_DIR=%LOCALAPPDATA%\mothx
 
 echo Installing %BINARY_NAME% to %INSTALL_DIR%...
 
@@ -81,9 +81,9 @@ echo.
 echo ==========================================
 echo Installation complete!
 echo.
-echo Please restart your terminal to use vibecoding.
+echo Please restart your terminal to use mothx.
 echo.
-echo Run 'vibecoding --help' to get started.
+echo Run 'mothx --help' to get started.
 echo ==========================================
 pause
 EOF
@@ -93,8 +93,8 @@ cat > "${BUILD_DIR}/${ZIP_NAME}/uninstall.bat" << 'EOF'
 @echo off
 setlocal
 
-set BINARY_NAME=vibecoding.exe
-set INSTALL_DIR=%LOCALAPPDATA%\vibecoding
+set BINARY_NAME=mothx.exe
+set INSTALL_DIR=%LOCALAPPDATA%\mothx
 
 if exist "%INSTALL_DIR%\%BINARY_NAME%" (
     echo Removing %INSTALL_DIR%\%BINARY_NAME%...

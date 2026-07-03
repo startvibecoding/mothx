@@ -1,12 +1,12 @@
 # Tool System Reference Guide
 
-VibeCoding provides a powerful and extensible set of built-in tools for file operations, codebase exploration, shell execution, multi-agent coordination, and workspace interaction.
+MothX provides a powerful and extensible set of built-in tools for file operations, codebase exploration, shell execution, multi-agent coordination, and workspace interaction.
 
 ---
 
 ## 1. Tool Execution Safety and Sandboxing
 
-Before exploring individual tools, it is crucial to understand the three safety levels under which VibeCoding can execute tools:
+Before exploring individual tools, it is crucial to understand the three safety levels under which MothX can execute tools:
 
 | Safety Level | Tool Modification Privileges | Network Access | Sandbox Implementation |
 |--------------|------------------------------|----------------|------------------------|
@@ -15,7 +15,7 @@ Before exploring individual tools, it is crucial to understand the three safety 
 | **strict** | Read-only in project and system directories. No writes/edits allowed. | Fully disabled. | Restricts host access via `bwrap` (Bubblewrap) if available. |
 
 ### Sandbox Mechanics (`bwrap`)
-When `sandbox.enabled` is `true` in `settings.json`, VibeCoding isolates commands run via `bash` (or any external process):
+When `sandbox.enabled` is `true` in `settings.json`, MothX isolates commands run via `bash` (or any external process):
 * **Allowed Paths**: The sandbox mounts system folders (`/usr`, `/lib`, `/bin`, etc.) as read-only, and mounts the active workspace directory as read-write (`standard`) or read-only (`strict`).
 * **Denied Paths**: Sensitive directories (like `~/.ssh`, `/etc/shadow`, etc.) are completely hidden or blocked.
 * **Network Isolation**: Direct networking is blocked by creating a separate network namespace (`--unshare-net`).
@@ -106,9 +106,9 @@ Create a new file or completely overwrite an existing file. This operation is at
 The `edit` tool performs highly precise, **atomic multi-replacement operations** on a single file. Understanding how this tool operates under the hood is critical:
 
 #### Edit Lifecycle & Safety Rules:
-1. **Pre-Flight Validation**: Before any modification is made, VibeCoding reads the file and searches for each `oldText` block in `edits[]`.
+1. **Pre-Flight Validation**: Before any modification is made, MothX reads the file and searches for each `oldText` block in `edits[]`.
 2. **Uniqueness Check**: Every `oldText` pattern **must match exactly once** in the target file. If a pattern matches 0 times or matches multiple times, the **entire** batch of edits fails immediately with an error, and the file is untouched.
-3. **Overlap Resolution**: VibeCoding sorts the matches by their start index and checks if any edit overlaps with another. If an overlap is detected, the operation aborts to prevent corrupt edits.
+3. **Overlap Resolution**: MothX sorts the matches by their start index and checks if any edit overlaps with another. If an overlap is detected, the operation aborts to prevent corrupt edits.
 4. **Atomic Application**: Edits are applied in sorted order based on their indices in the original file. No partial edits are written. The file is modified atomically via a temporary file write.
 
 #### Parameters:
@@ -394,7 +394,7 @@ Enables creating and managing cron-like scheduled tasks that execute in the back
 
 ### subagent_* - Delegated Work
 
-When VibeCoding is launched in multi-agent mode (`--multi-agent`), the main agent can spin up completely separate sub-agents to parallelize work. Sub-agents run in their own session contexts, have separate memories, separate temporary files, and isolated logs.
+When MothX is launched in multi-agent mode (`--multi-agent`), the main agent can spin up completely separate sub-agents to parallelize work. Sub-agents run in their own session contexts, have separate memories, separate temporary files, and isolated logs.
 
 #### `subagent_spawn`
 Launches a sub-agent to handle a focused prompt task asynchronously.
@@ -429,7 +429,7 @@ Cleans up logs and releases the sub-agent container/process context.
 
 ### delegate_subagent - Blocking Single Sub-Agent Delegation
 
-When VibeCoding is launched with delegate mode (`--delegate`) or enabled at runtime with `/delegate on`, the main agent gets a single blocking `delegate_subagent` tool. It is useful when a bounded subtask requires several exploration steps, but the parent only needs the final summarized result.
+When MothX is launched with delegate mode (`--delegate`) or enabled at runtime with `/delegate on`, the main agent gets a single blocking `delegate_subagent` tool. It is useful when a bounded subtask requires several exploration steps, but the parent only needs the final summarized result.
 
 Unlike `subagent_*` multi-agent tools, `delegate_subagent` runs synchronously: the parent waits until the child agent completes, then receives a JSON result. Only one delegated sub-agent can run at a time.
 
@@ -469,7 +469,7 @@ Use delegate mode for broad searches, multi-step investigations, focused impleme
 
 ### workflow_run - Dynamic Elisp Workflows
 
-When VibeCoding is launched with workflow mode (`--workflows`), the main agent can run a plain Elisp workflow script that coordinates multiple worker agents across phases. Workflow mode is independent from `--multi-agent`: enabling workflows exposes `workflow_*` tools, not `subagent_*` tools.
+When MothX is launched with workflow mode (`--workflows`), the main agent can run a plain Elisp workflow script that coordinates multiple worker agents across phases. Workflow mode is independent from `--multi-agent`: enabling workflows exposes `workflow_*` tools, not `subagent_*` tools.
 
 Workflow scripts must use the supported Elisp subset. Do not describe workflow structure with a JSON DSL.
 
@@ -502,7 +502,7 @@ Lists recent workflow runs, or returns the full persisted state for one run.
 
 ### workflow_cancel - Workflow Cancellation
 
-Cancels an active workflow run in the current VibeCoding process. Completed runs, runs from another process, and runs from before a restart are not active and cannot be canceled by ID.
+Cancels an active workflow run in the current MothX process. Completed runs, runs from another process, and runs from before a restart are not active and cannot be canceled by ID.
 
 ---
 
@@ -550,8 +550,8 @@ Load reference context from a localized skill. This keeps large reference schema
 
 ## 4. Best Practices for Developers & Users
 
-To get the absolute best out of VibeCoding's tool loop, keep the following principles in mind:
+To get the absolute best out of MothX's tool loop, keep the following principles in mind:
 
 1. **The Read-Before-Modify Standard**: Always ensure you (or the model) call `read` on files before attempting to modify them with `edit`. Having the exact, complete block in context ensures the `oldText` parameter matches perfectly and prevents atomic editing failures.
-2. **Minimize `bash` usage for exploration**: Avoid running shell commands like `grep`, `find`, or `cat` inside a bash tool. VibeCoding's dedicated `grep`, `find`, and `read` tools are heavily optimized, parsed directly into structured data, and do not suffer from sub-shell spawn latencies or sandbox restrictions.
+2. **Minimize `bash` usage for exploration**: Avoid running shell commands like `grep`, `find`, or `cat` inside a bash tool. MothX's dedicated `grep`, `find`, and `read` tools are heavily optimized, parsed directly into structured data, and do not suffer from sub-shell spawn latencies or sandbox restrictions.
 3. **Handle Long-Running Jobs with Care**: When spinning up servers or continuous builders using `bash` in async mode (`async=true`), regularly call `jobs` to clean up exited jobs (`cleanup=true`) to keep the system overhead down, and use `kill` to shut down background servers once they are no longer required.

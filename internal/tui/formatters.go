@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 func planStatusMarker(status string) string {

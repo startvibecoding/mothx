@@ -1,4 +1,4 @@
-# 🚀 VibeCoding 5-Minute Quick Start
+# 🚀 MothX 5-Minute Quick Start
 
 > Skip the long docs — let's get you coding!
 
@@ -6,29 +6,29 @@
 
 ```bash
 # Option 1: npm (recommended, auto-downloads correct binary)
-npm install -g vibecoding-installer
+npm install -g mothx
 
 # Option 2: PyPI
 pipx install vibecoding-installer
 
 # Option 3: One-line install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 
 # Option 4: Go install
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 **Uninstall:**
 
 ```bash
 # npm
-npm uninstall -g vibecoding-installer
+npm uninstall -g mothx
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall
 ```
 
 ## Step 2: Configure API Key (30 seconds)
@@ -48,10 +48,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ```bash
 # Start interactive session
-vibecoding
+mothx
 
 # Or ask directly
-vibecoding -P "Hello, VibeCoding!"
+mothx -P "Hello, MothX!"
 ```
 
 That's it — you're coding with AI!
@@ -62,9 +62,9 @@ That's it — you're coding with AI!
 
 | Mode | Command | Use Case |
 |------|---------|----------|
-| 🗒️ **Plan** | `vibecoding --mode plan` | Read-only analysis, safe exploration |
-| 🔧 **Agent** | `vibecoding --mode agent` | Standard development (default) |
-| 🚀 **YOLO** | `vibecoding --mode yolo` | Full freedom, no restrictions |
+| 🗒️ **Plan** | `mothx --mode plan` | Read-only analysis, safe exploration |
+| 🔧 **Agent** | `mothx --mode agent` | Standard development (default) |
+| 🚀 **YOLO** | `mothx --mode yolo` | Full freedom, no restrictions |
 
 In interactive mode, press `Tab` or type `/mode plan|agent|yolo` to switch.
 
@@ -74,37 +74,37 @@ In interactive mode, press `Tab` or type `/mode plan|agent|yolo` to switch.
 
 ### 📝 Code Generation
 ```bash
-vibecoding -P "Write a Go HTTP server with RESTful API"
-vibecoding -P "Create a Python scraper for news headlines"
-vibecoding -P "Generate a React component with search box and list"
+mothx -P "Write a Go HTTP server with RESTful API"
+mothx -P "Create a Python scraper for news headlines"
+mothx -P "Generate a React component with search box and list"
 ```
 
 ### 🔍 Code Understanding
 ```bash
-vibecoding -P "Explain what main.go does"
-vibecoding -P "What does this regex mean?"
-vibecoding -P "Analyze the architecture of this project"
+mothx -P "Explain what main.go does"
+mothx -P "What does this regex mean?"
+mothx -P "Analyze the architecture of this project"
 ```
 
 ### 🛠️ Code Refactoring
 ```bash
-vibecoding -P "Refactor this function to use generics"
-vibecoding -P "Optimize this code for performance"
-vibecoding -P "Split this class into smaller modules"
+mothx -P "Refactor this function to use generics"
+mothx -P "Optimize this code for performance"
+mothx -P "Split this class into smaller modules"
 ```
 
 ### 🧪 Test Generation
 ```bash
-vibecoding -P "Write unit tests for UserService"
-vibecoding -P "Generate integration test cases"
-vibecoding -P "Write an end-to-end test"
+mothx -P "Write unit tests for UserService"
+mothx -P "Generate integration test cases"
+mothx -P "Write an end-to-end test"
 ```
 
 ### 📚 Documentation
 ```bash
-vibecoding -P "Generate JSDoc comments for this function"
-vibecoding -P "Write a README.md"
-vibecoding -P "Generate API documentation"
+mothx -P "Generate JSDoc comments for this function"
+mothx -P "Write a README.md"
+mothx -P "Generate API documentation"
 ```
 
 ---
@@ -143,27 +143,27 @@ vibecoding -P "Generate API documentation"
 
 ### Example 1: Create a New Project
 ```bash
-vibecoding -P "Create an Express.js project with user auth and database connection"
+mothx -P "Create an Express.js project with user auth and database connection"
 ```
 
 ### Example 2: Debug Code
 ```bash
-vibecoding -P "This code throws TypeError: Cannot read property 'map' of undefined, help me fix it"
+mothx -P "This code throws TypeError: Cannot read property 'map' of undefined, help me fix it"
 ```
 
 ### Example 3: Code Review
 ```bash
-vibecoding --mode plan "Review the code in current directory, find potential issues"
+mothx --mode plan "Review the code in current directory, find potential issues"
 ```
 
 ### Example 4: Generate Config Files
 ```bash
-vibecoding -P "Generate a Docker Compose file with Node.js, PostgreSQL, and Redis"
+mothx -P "Generate a Docker Compose file with Node.js, PostgreSQL, and Redis"
 ```
 
 ### Example 5: Write Regex
 ```bash
-vibecoding -P "Write a regex to match Chinese phone numbers"
+mothx -P "Write a regex to match Chinese phone numbers"
 ```
 
 ---
@@ -185,8 +185,8 @@ By default, dangerous commands (like `rm -rf`, `sudo`) are blocked by the blackl
 # VS Code: Add to settings.json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent"]
     }
   }
@@ -196,13 +196,13 @@ By default, dangerous commands (like `rm -rf`, `sudo`) are blocked by the blackl
 ### API Server
 ```bash
 # Start OpenAI-compatible HTTP server
-vibecoding gateway
+mothx gateway
 ```
 
 ### Chatbot
 ```bash
 # Deploy as WeChat/Feishu bot
-vibecoding hermes
+mothx hermes
 ```
 
 ---
@@ -211,13 +211,13 @@ vibecoding hermes
 
 ```bash
 # Run diagnostics
-vibecoding doctor
+mothx doctor
 
 # Show help
-vibecoding --help
+mothx --help
 
 # Enable debug mode
-vibecoding --debug
+mothx --debug
 ```
 
 ---
@@ -233,6 +233,6 @@ vibecoding --debug
 ---
 
 <p align="center">
-  <strong>🎉 Congratulations! You've mastered the basics of VibeCoding.</strong><br>
+  <strong>🎉 Congratulations! You've mastered the basics of MothX.</strong><br>
   <strong>Now, start your AI coding journey!</strong>
 </p>

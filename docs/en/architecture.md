@@ -3,9 +3,9 @@
 ## Project Structure
 
 ```
-vibecoding/
+mothx/
 ├── agent/                       # Public Agent/Provider interfaces and Builder
-├── cmd/vibecoding/              # CLI entry point
+├── cmd/mothx/              # CLI entry point
 │   ├── main.go                  # Main program
 │   └── main_doctor.go           # `doctor` subcommand (env diagnostics)
 ├── internal/
@@ -66,23 +66,23 @@ vibecoding/
 
 ## Running Modes
 
-VibeCoding supports 7 running modes, all sharing the same Agent, Provider, Tools,
+MothX supports 7 running modes, all sharing the same Agent, Provider, Tools,
 and Session infrastructure:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        VibeCoding Running Modes                         │
+│                        MothX Running Modes                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
 │  │  TUI (default)│  │  Print Mode   │  │  ACP stdio   │                  │
-│  │  vibecoding   │  │  vibecoding   │  │  vibecoding   │                  │
+│  │  mothx   │  │  mothx   │  │  mothx   │                  │
 │  │              │  │  -p "..."     │  │  acp          │                  │
 │  └──────────────┘  └──────────────┘  └──────────────┘                  │
 │                                                                         │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────────┐ │
 │  │ Gateway Mode  │  │  Hermes Mode  │  │ A2A Standalone│  │ A2A Master │ │
-│  │  vibecoding   │  │  vibecoding   │  │ vibecoding    │  │ --enable-  │ │
+│  │  mothx   │  │  mothx   │  │ mothx    │  │ --enable-  │ │
 │  │  gateway      │  │  hermes       │  │ a2a start     │  │ a2a-master │ │
 │  └──────────────┘  └──────────────┘  └──────────────┘  └────────────┘ │
 │                                                                         │
@@ -217,7 +217,7 @@ communicate, and collaborate with each other.
 │                                                                   │
 │  ┌──────────────────┐          ┌──────────────────┐              │
 │  │   A2A Server     │          │   A2A Client     │              │
-│  │  (vibecoding)    │ ◄──────► │  (any agent)     │              │
+│  │  (mothx)    │ ◄──────► │  (any agent)     │              │
 │  │                  │  JSON-RPC │                  │              │
 │  │  /a2a            │  2.0     │  SendMessage()   │              │
 │  │  /a2a/send       │  + SSE   │  GetTask()       │              │
@@ -228,7 +228,7 @@ communicate, and collaborate with each other.
 │  Task lifecycle: submitted → working → completed/failed/canceled   │
 │                                                                   │
 │  Two running modes:                                               │
-│  • Standalone: vibecoding a2a start (port 8093)                   │
+│  • Standalone: mothx a2a start (port 8093)                   │
 │  • Integrated: hermes.json a2a.enabled: true (shared port 8090)   │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘

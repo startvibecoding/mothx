@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // previewExpansion tracks which sections of the Review JSON are expanded.

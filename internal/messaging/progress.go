@@ -19,10 +19,10 @@ import (
 type ProgressBuffer struct {
 	mu       sync.Mutex
 	lines    []string
-	maxLines int         // max lines before auto-flush
-	reserve  int         // lines reserved for final summary (not counted in maxLines)
+	maxLines int          // max lines before auto-flush
+	reserve  int          // lines reserved for final summary (not counted in maxLines)
 	sendFunc func(string) // combined send function
-	total    int         // total lines added (for logging)
+	total    int          // total lines added (for logging)
 }
 
 // NewProgressBuffer creates a progress buffer.

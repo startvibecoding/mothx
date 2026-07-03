@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // Config holds A2A server configuration.

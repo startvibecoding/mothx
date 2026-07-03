@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/messaging"
+	"github.com/startvibecoding/mothx/internal/messaging"
 )
 
 // Bot implements messaging.Platform for WeChat via the iLink protocol.

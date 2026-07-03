@@ -3,7 +3,7 @@
 ## Overview
 
 ```
-vibecoding [flags] [message...]
+mothx [flags] [message...]
 ```
 
 ## Command Line Arguments
@@ -58,10 +58,10 @@ vibecoding [flags] [message...]
 
 ### `acp` - Agent Client Protocol Server
 
-Run VibeCoding as an ACP-compliant stdio agent for IDE integration.
+Run MothX as an ACP-compliant stdio agent for IDE integration.
 
 ```
-vibecoding acp [flags]
+mothx acp [flags]
 ```
 
 Supports VS Code, JetBrains IDEs, and any ACP-compatible editor.
@@ -86,7 +86,7 @@ See the [ACP Protocol](acp.md) documentation for IDE integration details.
 Run the A2A (Agent-to-Agent) protocol server, supporting standalone and integrated modes.
 
 ```
-vibecoding a2a [command]
+mothx a2a [command]
 ```
 
 | Subcommand | Description |
@@ -104,10 +104,10 @@ See [A2A Protocol](a2a.md) documentation for details.
 
 ### `gateway` - OpenAI-Compatible HTTP Gateway
 
-Start VibeCoding as an HTTP server exposing a standard OpenAI Chat Completions API.
+Start MothX as an HTTP server exposing a standard OpenAI Chat Completions API.
 
 ```
-vibecoding gateway [flags]
+mothx gateway [flags]
 ```
 
 | Flag | Short | Default | Description |
@@ -131,7 +131,7 @@ See [Gateway Mode](gateway.md) documentation for details.
 Run the Hermes messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
 
 ```
-vibecoding hermes [command]
+mothx hermes [command]
 ```
 
 | Subcommand | Description |
@@ -148,7 +148,7 @@ See [Hermes Mode](hermes.md) documentation for details.
 Start the usage dashboard, or print token and request statistics directly in the terminal.
 
 ```
-vibecoding stats [flags]
+mothx stats [flags]
 ```
 
 | Flag | Short | Default | Description |
@@ -159,17 +159,17 @@ vibecoding stats [flags]
 
 Examples:
 ```bash
-vibecoding stats
-vibecoding stats --cli
-vibecoding stats --cli --db ~/.vibecoding/sessions/sessions.db
+mothx stats
+mothx stats --cli
+mothx stats --cli --db ~/.vibecoding/sessions/sessions.db
 ```
 
 ### `doctor` - Environment Diagnostics
 
-Diagnose your VibeCoding environment: OS info, config files, providers, models, sandbox, MCP, and more.
+Diagnose your MothX environment: OS info, config files, providers, models, sandbox, MCP, and more.
 
 ```
-vibecoding doctor
+mothx doctor
 ```
 
 See the `doctor` section above for details.
@@ -179,7 +179,7 @@ See the `doctor` section above for details.
 Generate or refresh a project `AGENTS.md` file that documents project conventions for AI agents.
 
 ```
-vibecoding systeminit [guidance...]
+mothx systeminit [guidance...]
 ```
 
 This CLI subcommand runs non-interactively. In TUI and ACP, `/systeminit` runs interactively and uses the `question` tool to ask clarifying questions before generating the file.
@@ -191,10 +191,10 @@ This CLI subcommand runs non-interactively. In TUI and ACP, `/systeminit` runs i
 Examples:
 ```bash
 # Generate AGENTS.md with default behavior
-vibecoding systeminit
+mothx systeminit
 
 # Generate with custom guidance
-vibecoding systeminit ask me in Chinese, write in English
+mothx systeminit ask me in Chinese, write in English
 ```
 
 Checks performed:
@@ -208,12 +208,12 @@ Checks performed:
 - **Context Files**: Discovers AGENTS.md, CLAUDE.md, CURSOR.md, .cursorrules, CONVENTIONS.md
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 Sample output:
 ```
-  VibeCoding Doctor
+  MothX Doctor
   ─────────────────
 
   Environment
@@ -244,64 +244,64 @@ Sample output:
 
 ```bash
 # Interactive mode
-vibecoding
+mothx
 
 # With initial prompt
-vibecoding -P "Explain this codebase"
+mothx -P "Explain this codebase"
 
 # Non-interactive mode
-vibecoding -p "Write a Hello World"
+mothx -p "Write a Hello World"
 ```
 
 ### Specify Provider and Model
 
 ```bash
 # Use DeepSeek (OpenAI API)
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # Use DeepSeek (Anthropic API)
-vibecoding -p deepseek-anthropic -m deepseek-v4-flash
+mothx -p deepseek-anthropic -m deepseek-v4-flash
 
 # Use custom provider
-vibecoding --provider my-custom-provider
+mothx --provider my-custom-provider
 ```
 
 ### Choose Mode
 
 ```bash
 # Plan mode - read-only analysis
-vibecoding --mode plan
+mothx --mode plan
 
 # Agent mode - standard read/write (default)
-vibecoding -M agent
+mothx -M agent
 
 # YOLO mode - full access
-vibecoding -M yolo
+mothx -M yolo
 ```
 
 ### Multi-Agent Mode
 
 ```bash
 # Enable sub-agent tools and multi-agent commands
-vibecoding --multi-agent
+mothx --multi-agent
 
 # ACP sessions can also opt in
-vibecoding acp --multi-agent
+mothx acp --multi-agent
 ```
 
-When enabled, VibeCoding registers the `subagent_*` tools and exposes multi-agent workflows such as delegated background investigation. Cron command entry points also depend on multi-agent mode.
+When enabled, MothX registers the `subagent_*` tools and exposes multi-agent workflows such as delegated background investigation. Cron command entry points also depend on multi-agent mode.
 
 ### Delegate Mode
 
 ```bash
 # Enable blocking single sub-agent delegation
-vibecoding --delegate
+mothx --delegate
 
 # ACP sessions can also opt in
-vibecoding acp --delegate
+mothx acp --delegate
 
 # Gateway can opt in
-vibecoding gateway --delegate
+mothx gateway --delegate
 ```
 
 Delegate mode registers the `delegate_subagent` tool for synchronous, blocking sub-agent delegation. Unlike multi-agent (which runs async sub-agents in parallel), delegate mode runs one sub-agent at a time and waits for completion. Use it for bounded investigation tasks where the parent only needs a summarized result.
@@ -312,28 +312,28 @@ You can toggle delegation at runtime via `/delegate [on|off|status]` in TUI or g
 
 ```bash
 # Disable thinking
-vibecoding --thinking off
+mothx --thinking off
 
 # Medium level
-vibecoding -t medium
+mothx -t medium
 
 # Highest level
-vibecoding --thinking xhigh
+mothx --thinking xhigh
 ```
 
 ### Session Management
 
 ```bash
 # Continue most recent session
-vibecoding --continue
-vibecoding -c
+mothx --continue
+mothx -c
 
 # Resume specific session
-vibecoding --resume session-abc123
-vibecoding -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+mothx --resume session-abc123
+mothx -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 
 # Use specific session handle file
-vibecoding --session ./20260625-120000_abcd1234.db
+mothx --session ./20260625-120000_abcd1234.db
 ```
 
 In the TUI, startup without `--continue`, `--resume`, or `--session` does not create an empty session immediately. A new session is created when the first user message is sent. When an existing session is continued, resumed, or selected, its history is shown in the normal terminal scrollback.
@@ -342,33 +342,33 @@ In the TUI, startup without `--continue`, `--resume`, or `--session` does not cr
 
 ```bash
 # Enable sandbox
-vibecoding --sandbox
+mothx --sandbox
 
 # Disable sandbox (default)
-vibecoding
+mothx
 ```
 
 ### Pipe Input
 
 ```bash
 # Read from stdin
-echo "Explain this code" | vibecoding -P
+echo "Explain this code" | mothx -P
 
 # Read from file contents directly
-vibecoding -p "Explain this file: main.go"
+mothx -p "Explain this file: main.go"
 ```
 
 ### ACP Server
 
 ```bash
 # Start ACP server (for IDE integration)
-vibecoding acp
+mothx acp
 
 # ACP with specific model
-vibecoding acp --provider deepseek-openai --model deepseek-v4-flash
+mothx acp --provider deepseek-openai --model deepseek-v4-flash
 
 # ACP with sandbox
-vibecoding acp --sandbox --mode agent
+mothx acp --sandbox --mode agent
 ```
 
 ## Interactive Commands

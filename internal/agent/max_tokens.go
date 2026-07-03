@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // ResolveMaxTokens returns the explicit global override when set; otherwise it

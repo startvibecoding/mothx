@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
 )
 
 func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {

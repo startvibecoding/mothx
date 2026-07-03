@@ -1,4 +1,4 @@
-module github.com/startvibecoding/vibecoding
+module github.com/startvibecoding/mothx
 
 go 1.26.1
 

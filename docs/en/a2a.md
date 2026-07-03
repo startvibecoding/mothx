@@ -2,28 +2,28 @@
 
 ## Overview
 
-The A2A (Agent-to-Agent) protocol enables different AI agents to discover, communicate, and collaborate with each other. VibeCoding implements the A2A protocol as both a **standalone server** and an **integrated mode** within Hermes.
+The A2A (Agent-to-Agent) protocol enables different AI agents to discover, communicate, and collaborate with each other. MothX implements the A2A protocol as both a **standalone server** and an **integrated mode** within Hermes.
 
 ## Quick Start
 
 ```bash
 # Standalone mode
-vibecoding a2a start
+mothx a2a start
 
 # Check status
-vibecoding a2a status
+mothx a2a status
 
 # View Agent Card
-vibecoding a2a card
+mothx a2a card
 
 # Send task to another A2A server
-vibecoding a2a send "list all Go files" --target http://remote:8093
+mothx a2a send "list all Go files" --target http://remote:8093
 
 # Discover remote Agent Card
-vibecoding a2a discover http://remote:8093
+mothx a2a discover http://remote:8093
 
 # Stop
-vibecoding a2a stop
+mothx a2a stop
 ```
 
 ## Running Modes
@@ -33,7 +33,7 @@ vibecoding a2a stop
 Runs a dedicated A2A HTTP server on a separate port (default: `127.0.0.1:8093`).
 
 ```bash
-vibecoding a2a start --port 8093 --work-dir /path/to/project
+mothx a2a start --port 8093 --work-dir /path/to/project
 ```
 
 Use `--host 0.0.0.0` only when you intentionally want to expose the A2A server beyond loopback, and configure an auth token for exposed deployments.
@@ -68,7 +68,7 @@ The Agent Card describes the agent's capabilities and is served at `/.well-known
 
 ```json
 {
-  "name": "VibeCoding",
+  "name": "MothX",
   "description": "AI coding assistant with file editing, terminal, and search capabilities",
   "url": "http://localhost:8093/a2a",
   "version": "0.1.31",
@@ -272,13 +272,13 @@ Send tasks to other A2A servers.
 
 ```bash
 # Send a task
-vibecoding a2a send "explain the project structure" --target http://remote:8093
+mothx a2a send "explain the project structure" --target http://remote:8093
 
 # Send with auth token
-vibecoding a2a send "run tests" --target http://remote:8093 --auth-token xxx
+mothx a2a send "run tests" --target http://remote:8093 --auth-token xxx
 
 # Discover what a server can do
-vibecoding a2a discover http://remote:8093
+mothx a2a discover http://remote:8093
 ```
 
 ## A2A Scheduling
@@ -287,12 +287,12 @@ Cron jobs can send tasks to A2A servers instead of running local agents.
 
 ```bash
 # Schedule a daily task to a remote A2A server
-vibecoding hermes cron add "daily-review" "review recent changes" \
+mothx hermes cron add "daily-review" "review recent changes" \
   --schedule "@daily" \
   --a2a-target http://review-agent:8093
 
 # Schedule with auth
-vibecoding hermes cron add "ci-check" "run CI tests" \
+mothx hermes cron add "ci-check" "run CI tests" \
   --schedule "@every 1h" \
   --a2a-target http://ci-agent:8093 \
   --a2a-token ${CI_TOKEN}
@@ -302,19 +302,19 @@ The cron scheduler will send the prompt to the A2A server instead of spawning a 
 
 ## A2A Master Mode
 
-A2A Master mode lets you manage multiple remote A2A agents from a single VibeCoding instance and dispatch tasks to them via the `a2a_dispatch` tool.
+A2A Master mode lets you manage multiple remote A2A agents from a single MothX instance and dispatch tasks to them via the `a2a_dispatch` tool.
 
 ### Quick Start
 
 ```bash
 # 1. Generate sample config
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # 2. Edit a2a-list.json with your remote agent details
 #    Location: ~/.vibecoding/a2a-list.json or .vibe/a2a-list.json
 
 # 3. Enable master mode
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 ```
 
 ### Configuration

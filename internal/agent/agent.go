@@ -8,14 +8,14 @@ import (
 	"sync"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/session"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // contextKey is an unexported type for context keys defined in this package.

@@ -12,7 +12,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 
 ## Important Directories
 
-- `cmd/vibecoding/` — CLI entry
+- `cmd/mothx/` — CLI entry
 - `internal/agent/` — agent loop, events, system prompt
 - `internal/config/` — settings and defaults
 - `internal/context/` — context window and compaction

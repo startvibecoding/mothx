@@ -1,6 +1,6 @@
 # Skills System
 
-VibeCoding's Skills system allows you to create reusable prompt snippets called Skills.
+MothX's Skills system allows you to create reusable prompt snippets called Skills.
 
 ## Overview
 
@@ -323,7 +323,7 @@ func TestFunction(t *testing.T) {
 
 1. Confirm skill content format is correct
 2. Check if system prompt contains skill content
-3. Restart VibeCoding to reload
+3. Restart MothX to reload
 
 ## Related Documents
 
@@ -335,7 +335,7 @@ func TestFunction(t *testing.T) {
 
 ### workflow-elisp Skill
 
-When you enable `--workflows` mode, VibeCoding automatically creates a `.skills/workflow-elisp/` directory under your project root with complete syntax rules, pattern skeletons, and best practices. The skill includes 8 reference files:
+When you enable `--workflows` mode, MothX automatically creates a `.skills/workflow-elisp/` directory under your project root with complete syntax rules, pattern skeletons, and best practices. The skill includes 8 reference files:
 
 - Core rules (loaded by default)
 - Research and Investigation patterns

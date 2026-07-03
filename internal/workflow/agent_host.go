@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	internalagent "github.com/startvibecoding/mothx/internal/agent"
 )
 
 // AgentHost runs workflow tasks through the existing AgentManager.

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/util"
+	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 // limitedBuffer wraps bytes.Buffer with a max size limit.

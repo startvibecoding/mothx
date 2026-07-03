@@ -18,8 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 const mcpProtocolVersion = "2025-11-25"

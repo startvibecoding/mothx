@@ -1,6 +1,6 @@
 # 安全与沙箱
 
-VibeCoding 通过 bubblewrap (bwrap) 实现 Linux 进程级沙箱隔离，保护系统安全。
+MothX 通过 bubblewrap (bwrap) 实现 Linux 进程级沙箱隔离，保护系统安全。
 
 ## 沙箱概述
 
@@ -63,8 +63,8 @@ VibeCoding 通过 bubblewrap (bwrap) 实现 Linux 进程级沙箱隔离，保护
 **用途:** 只读分析和规划
 
 ```bash
-vibecoding --mode plan
-vibecoding -M plan
+mothx --mode plan
+mothx -M plan
 ```
 
 **特性:**
@@ -83,8 +83,8 @@ vibecoding -M plan
 **用途:** 标准开发任务
 
 ```bash
-vibecoding --mode agent --sandbox
-vibecoding -M agent --sandbox
+mothx --mode agent --sandbox
+mothx -M agent --sandbox
 ```
 
 **特性:**
@@ -103,8 +103,8 @@ vibecoding -M agent --sandbox
 **用途:** 完全访问
 
 ```bash
-vibecoding --mode yolo
-vibecoding -M yolo
+mothx --mode yolo
+mothx -M yolo
 ```
 
 **特性:**
@@ -148,13 +148,13 @@ export VIBECODING_ALLOW_SHELL_CONFIG=1
 
 ```bash
 # 启用沙箱
-vibecoding --sandbox
+mothx --sandbox
 
 # 禁用沙箱
-vibecoding --no-sandbox
+mothx --no-sandbox
 
 # 结合模式使用
-vibecoding --sandbox --mode plan
+mothx --sandbox --mode plan
 ```
 
 ### 配置文件方式
@@ -310,7 +310,7 @@ const (
 
 ```bash
 # 在 shell 配置中设置别名
-alias vibecoding='vibecoding --sandbox'
+alias mothx='mothx --sandbox'
 ```
 
 ### 2. 根据任务选择模式
@@ -348,7 +348,7 @@ git checkout -b feature/new-feature
 ```bash
 # 在项目根目录运行
 cd /home/user/project
-vibecoding --sandbox
+mothx --sandbox
 ```
 
 ## 沙箱限制
@@ -398,7 +398,7 @@ git commit -m "initial"
 cp -r project project.backup
 
 # 3. 限制资源
-timeout 300 vibecoding --sandbox
+timeout 300 mothx --sandbox
 
 # 4. 检查符号链接
 find . -type l -ls
@@ -406,7 +406,7 @@ find . -type l -ls
 
 ## 审批机制
 
-VibeCoding 使用多层审批系统保障 Agent 模式安全。
+MothX 使用多层审批系统保障 Agent 模式安全。
 
 ### 工作原理
 
@@ -510,7 +510,7 @@ VibeCoding 使用多层审批系统保障 Agent 模式安全。
 ### 启用调试日志
 
 ```bash
-vibecoding --debug
+mothx --debug
 ```
 
 ### 查看执行的命令
@@ -527,10 +527,10 @@ vibecoding --debug
 
 ```bash
 # 保存日志
-vibecoding --debug 2>vibecoding.log
+mothx --debug 2>mothx.log
 
 # 分析日志
-grep "Executing:" vibecoding.log
+grep "Executing:" mothx.log
 ```
 
 ## 故障排除
@@ -548,7 +548,7 @@ grep "Executing:" vibecoding.log
 sudo apt install bubblewrap
 
 # 或禁用沙箱
-vibecoding --no-sandbox
+mothx --no-sandbox
 ```
 
 ### 权限问题

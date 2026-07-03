@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

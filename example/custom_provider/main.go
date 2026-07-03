@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/startvibecoding/vibecoding/agent"
-	_ "github.com/startvibecoding/vibecoding/internal/agent" // Register internal agent builder
+	"github.com/startvibecoding/mothx/agent"
+	_ "github.com/startvibecoding/mothx/internal/agent" // Register internal agent builder
 )
 
 // CustomProvider implements the public agent.Provider interface.
@@ -72,7 +72,7 @@ func (cp *CustomProvider) Chat(ctx context.Context, params agent.ChatParams) <-c
 		if contains(lastMsg, "test tool") && !hasToolResultAfterUser {
 			// Simulate the LLM deciding to call a tool (e.g. "read" tool to read "example_file.txt")
 			fmt.Println("\n[Provider] Simulating LLM deciding to call 'read' tool...")
-			
+
 			// We construct a ToolCall request
 			ch <- agent.StreamEvent{
 				Type: agent.StreamToolCall,

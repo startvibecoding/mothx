@@ -13,13 +13,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/session"
-	"github.com/startvibecoding/vibecoding/internal/tools"
-	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
+	"github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 // ansiRe matches ANSI CSI escape sequences (colours, bold, etc.).

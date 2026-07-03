@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 func TestEnsureProjectSkillCreatesBrowserSkill(t *testing.T) {

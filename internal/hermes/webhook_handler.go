@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/hermes/webhook"
-	"github.com/startvibecoding/vibecoding/internal/messaging"
+	"github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/hermes/webhook"
+	"github.com/startvibecoding/mothx/internal/messaging"
 )
 
 // WebhookHandler implements webhook.Handler by spawning agent tasks.

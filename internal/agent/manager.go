@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
+	agentpkg "github.com/startvibecoding/mothx/agent"
 )
 
 // ManagedAgentStatus captures scheduling state for an agent managed by AgentManager.

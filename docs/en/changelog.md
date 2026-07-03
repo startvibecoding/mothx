@@ -1,6 +1,38 @@
 # Changelog
 
 
+## v1.1.57
+
+### ✨ Features
+
+- **Image Preprocessing & Multimodal Enhancements**
+  - Unified image preprocessing pipeline with metadata propagation across the tool chain.
+  - Added image crop support, browser screenshot preprocessing, and OpenAI `detail` parameter passthrough for `auto`/`low`/`high` quality control.
+  - Image output-size enforcement with provider-specific hints and coordinate mapping for bounding-box annotations.
+  - Added Qwen-specific 28px patch image token estimation and multi-image accumulation for accurate token accounting.
+  - Added `/paste-image` command with `Ctrl+R` preview support.
+
+- **Stats Dashboard Improvements**
+  - Added share button, token trend chart, and overall UI improvements.
+  - Added 2.5h time bucket grouping and filtering on the recent requests page.
+
+- **Auto-Open Auth Dialog on First Run**
+  - The auth dialog now opens automatically on first run when no provider is configured.
+
+- **MothX npm rename transition**
+  - Added the new `mothx` npm package as the forward-looking installer.
+  - Kept `vibecoding-installer` as a compatibility package for this release, with migration notices pointing users to `npm install -g mothx@latest`.
+  - Renamed npm platform binary packages from `vibecoding-installer-*` to `mothx-*`.
+
+### 🔧 Improvements
+
+- `MaxTokens` now resolves from model defaults and is clamped to the context window size.
+- Added compaction timeout and summary token cap settings.
+- Command suggestions and `/mode` / `/agent` descriptions clarified to avoid confusion.
+- Added HTTP 500 to retryable status codes for provider requests.
+- Updated `vibe-browser` to v0.1.3, removed local replace directive.
+- Default settings file is now written more sparsely, omitting unset fields.
+
 ## v1.1.56
 
 ### ✨ Features
@@ -11,12 +43,12 @@
   - Continuing or switching sessions in the TUI prints the loaded session history into normal terminal scrollback.
 
 - **Stats Web Dashboard**
-  - `vibecoding stats` starts a web dashboard on `127.0.0.1:7878` with charts and filtering.
+  - `mothx stats` starts a web dashboard on `127.0.0.1:7878` with charts and filtering.
   - Pure HTML/CSS/JS dashboard — no external dependencies. Charts drawn on `<canvas>`.
   - Displays overall summary (requests, tokens, cost, duration), time-series charts, per-provider/model breakdowns, and a paginated recent requests table.
   - Filters by time range (today/week/month/all), vendor, and protocol.
-  - `vibecoding stats --cli` prints the same statistics directly in the terminal.
-  - `vibecoding stats --db <path>` opens an alternate sessions.db.
+  - `mothx stats --cli` prints the same statistics directly in the terminal.
+  - `mothx stats --db <path>` opens an alternate sessions.db.
 
 - **Stats Dashboard: Protocol + Vendor Split**
   - The "Provider" column in the stats dashboard has been semantically split into **Vendor** (the company/provider name) and **Protocol** (the API protocol, e.g. `openai-chat`, `anthropic-messages`, `google-gemini`).
@@ -78,7 +110,7 @@
   - Preserved the gateway session slot on `/clear` while cleanly resetting all messages in the session manager.
 
 - **PyPI Installer Packaging**
-  - Added a PyPI package wrapper for `vibecoding-installer` that exposes the `vibecoding` console command and ships platform-specific wheels with embedded native binaries.
+  - Added a PyPI package wrapper for `vibecoding-installer` that exposes the legacy `vibecoding` console command and ships platform-specific wheels with embedded native binaries.
   - Added `make pypi-*` release targets plus version-sync and wheel-build scripts, mirroring the npm release workflow while using pip's native platform wheel selection.
   - Updated installation and release documentation with `pipx install vibecoding-installer`.
 
@@ -104,7 +136,7 @@
   - Added `ExternalToolResult` (text/error + optional rich `Contents` blocks) and the optional `ExternalToolPromptInfo` interface for contributing system-prompt hints (`PromptSnippet`, `PromptGuidelines`).
   - Added `Builder.WithExternalTools(...)` to register custom tools and `Builder.WithoutBuiltinTools()` to disable all built-in tools, enabling an agent that may only use host-provided tools.
   - External tools are wired through the internal factory via an `externalToolAdapter`, and the internal package now builds from public `Builder` config through `CreateFromPublicOptions`.
-  - Added a `bootstrap` package: external modules blank-import `github.com/startvibecoding/vibecoding/bootstrap` once to register the internal builder and provider resolution hooks (since internal packages cannot be imported directly).
+  - Added a `bootstrap` package: external modules blank-import `github.com/startvibecoding/mothx/bootstrap` once to register the internal builder and provider resolution hooks (since internal packages cannot be imported directly).
 
 ### 💅 Improvements
 
@@ -197,7 +229,7 @@
 ### ✨ Features
 
 - **`/systeminit` and `/reload` commands**
-  - Added `/systeminit` to generate or refresh a project `AGENTS.md` for AI agents. Available in the TUI, ACP, and as the `vibecoding systeminit` CLI subcommand. In the TUI and ACP the agent heuristically uses the `question` tool to ask a few clarifying questions first, then writes a higher-quality `AGENTS.md`; the CLI runs non-interactively. Optional trailing guidance is supported, e.g. `/systeminit ask me in Chinese, write AGENTS.md in English`.
+  - Added `/systeminit` to generate or refresh a project `AGENTS.md` for AI agents. Available in the TUI, ACP, and as the `mothx systeminit` CLI subcommand. In the TUI and ACP the agent heuristically uses the `question` tool to ask a few clarifying questions first, then writes a higher-quality `AGENTS.md`; the CLI runs non-interactively. Optional trailing guidance is supported, e.g. `/systeminit ask me in Chinese, write AGENTS.md in English`.
   - The `question` tool is now also available in `agent` mode (previously plan-only) and is registered for the ACP server, which surfaces questions via the `session/request_permission` channel.
   - Added `/reload` (TUI): restarts as a fresh process with a brand-new session, reloading config, context files, skills, and MCP — equivalent to relaunching the program.
 
@@ -209,7 +241,7 @@
   - These only relax the approval layer; sandbox / allowedWorkDirs boundaries and plan / yolo semantics are unchanged.
 
 - **Update notifications via npm registry**
-  - VibeCoding now checks the npm registry (`vibecoding-installer`) for newer releases and shows a non-blocking reminder at startup when an update is available.
+  - MothX now checks the npm registry (`vibecoding-installer`) for newer releases and shows a non-blocking reminder at startup when an update is available.
   - Network checks run in the background (at most once per 24h) and only refresh a local cache (`update-check.json`); the foreground never blocks on the network.
   - The reminder appears in the TUI initial message and on stderr in `--print` mode, suggesting `npm install -g vibecoding-installer@latest`.
   - Disable via config file with `"updateCheck": false` in `settings.json`, or with `VIBECODING_NO_UPDATE_CHECK=1`; override the registry with `VIBECODING_NPM_REGISTRY`.
@@ -425,7 +457,7 @@
   - Added `--workflows` mode for CLI, ACP, and Gateway, independent from `--multi-agent`.
   - Added Elisp workflow tools: `workflow_run`, `workflow_status`, and `workflow_cancel`.
   - Added workflow runtime support for phases, series/parallel execution, concurrency limits, worker-agent tasks, result fan-in, and run logs.
-  - Added persistent workflow run state under the VibeCoding workflow store and `/workflows` status commands in TUI and Gateway.
+  - Added persistent workflow run state under the MothX workflow store and `/workflows` status commands in TUI and Gateway.
   - Added in-process active-run cancellation so `workflow_cancel` and `/workflows cancel <id>` can interrupt running workflows.
 
 - **Z.AI Vendor Adapter**
@@ -450,7 +482,7 @@
 - **Version Strings**
   - Fixed `Makefile` to use `--abbrev=0` with `git describe` for clean tag versions without commit count/hash suffix.
   - Fixed `sync-npm-version.sh` to strip commit count and hash suffix from version strings.
-  - Updated `npm/bin/vibecoding` to use GitHub raw URL for install script fallback.
+  - Updated `npm/bin/mothx` to use GitHub raw URL for install script fallback.
 
 ### 🔧 Refactoring
 
@@ -706,7 +738,7 @@
 
 ### ✨ Features
 
-- **Doctor Subcommand** (`vibecoding doctor`)
+- **Doctor Subcommand** (`mothx doctor`)
   - New diagnostic command that checks environment, configuration, providers, sandbox, MCP servers, sessions, skills, and context files
   - Reports OS/arch, Go version, shell, home/working directory
   - Validates settings, gateway, and MCP config files with parse checks
@@ -984,7 +1016,7 @@
 ### 🐛 Bug Fixes
 
 - **NPM Package Wrapper**
-  - Fixed `npm/bin/vibecoding` entry script to ensure installer packages ship the correct executable wrapper
+  - Fixed `npm/bin/mothx` entry script to ensure installer packages ship the correct executable wrapper
   - Adjusted `build-npm.sh` and `build-npm-packages.sh` to include the wrapper consistently
 
 ## v0.1.28
@@ -1017,7 +1049,7 @@
 
 ### ✨ Features
 
-- **Hermes Mode** (`vibecoding hermes`)
+- **Hermes Mode** (`mothx hermes`)
   - New messaging gateway mode for WeChat, Feishu, and WebSocket
   - Persistent per-user sessions with auto-archiving on `/new`
   - Default `yolo` mode for unattended operation
@@ -1025,15 +1057,15 @@
   - User whitelist for platform access control
   - WebSocket streaming: real-time text_delta/think_delta/tool_call/tool_result/tool_diff/usage/done events
 
-- **A2A Protocol** (`vibecoding a2a`)
+- **A2A Protocol** (`mothx a2a`)
   - New Agent-to-Agent protocol server (JSON-RPC 2.0 over HTTP + SSE streaming)
-  - Standalone mode: `vibecoding a2a start` (port 8093)
+  - Standalone mode: `mothx a2a start` (port 8093)
   - Integration mode: `hermes.json` `a2a.enabled: true` shares hermes HTTP port
   - Agent Card at `/.well-known/agent.json`
   - Task lifecycle: submitted → working → completed/failed/canceled
   - REST endpoints: `/a2a/send`, `/a2a/task`, `/a2a/task/cancel`, `/a2a/events`
-  - **A2A Client**: `vibecoding a2a send <message>` to send tasks to other A2A servers
-  - **A2A Discovery**: `vibecoding a2a discover <url>` to fetch remote Agent Cards
+  - **A2A Client**: `mothx a2a send <message>` to send tasks to other A2A servers
+  - **A2A Discovery**: `mothx a2a discover <url>` to fetch remote Agent Cards
   - **A2A Scheduling**: Cron jobs support `--a2a-target` to schedule tasks to A2A servers
 
 - **A2A Master Mode** (`--enable-a2a-master`)
@@ -1044,9 +1076,9 @@
   - Disabled by default, requires explicit opt-in
 
 - **A2A Config Initialization**
-  - `vibecoding a2a --init-a2a-config` generates `a2a.json` config template
-  - `vibecoding --init-gateway` generates `gateway.json` config template (existing)
-  - `vibecoding --init-a2a-master-config` generates `a2a-list.json` config template
+  - `mothx a2a --init-a2a-config` generates `a2a.json` config template
+  - `mothx --init-gateway` generates `gateway.json` config template (existing)
+  - `mothx --init-a2a-master-config` generates `a2a-list.json` config template
   - All `--init-*` flags support `--force` to overwrite existing files
 
 - **Scenarios & Walkthroughs Documentation**
@@ -1129,7 +1161,7 @@
 ### 🐛 Bug Fixes
 
 - **NPM Installer Packaging**
-  - Fixed release packaging flow so `vibecoding-installer` always ships executable entry `bin/vibecoding`.
+  - Fixed release packaging flow so `vibecoding-installer` always ships executable entry `bin/mothx`.
   - Added `scripts/npm-installer-wrapper.js` as the single source of wrapper logic, reused by both
     `scripts/build-npm.sh` and `scripts/build-npm-packages.sh` to avoid drift.
   - Adjusted `npm/.npmignore` and `npm/bin` handling to avoid shipping accidental build artifacts and to keep
@@ -1153,11 +1185,11 @@
 
 ### ✨ Features
 
-- **Gateway Mode** (`vibecoding gateway`)
+- **Gateway Mode** (`mothx gateway`)
   - New HTTP server exposing a standard OpenAI Chat Completions API (`/v1/chat/completions`, `/v1/models`, `/health`)
   - Any OpenAI-compatible client (Cursor, Continue, Open WebUI, Python SDK, etc.) can connect directly
   - Streaming (SSE) and non-streaming responses fully supported
-  - Backend powered by VibeCoding agent loop with tool execution transparent to the caller
+  - Backend powered by MothX agent loop with tool execution transparent to the caller
 
 - **Multi-Session Support**
   - Built-in `SessionPool` for concurrent sessions, each with isolated agent, tools, and message history
@@ -1197,7 +1229,7 @@
 - **Gateway Configuration** (`gateway.json`)
   - Independent config file at `~/.vibecoding/gateway.json`
   - Covers: listen address, auth, mode, sandbox, workingDir, allowedWorkDirs, session management, CORS, tool visibility, system prompt mode, request timeout, concurrency limit, logging
-  - `vibecoding --init-gateway` to generate template; `--force` to overwrite
+  - `mothx --init-gateway` to generate template; `--force` to overwrite
 
 - **Request Timeout & Concurrency**
   - `requestTimeoutSeconds` (default 1800s); streaming keeps alive as long as data flows
@@ -1635,7 +1667,7 @@
 
 - **ACP Support Documentation**
   - Added ACP (Agent Client Protocol) support documentation to READMEs
-  - VibeCoding can run as an ACP stdio agent for editor integrations
+  - MothX can run as an ACP stdio agent for editor integrations
   - Compatible with VS Code, Zed, and JetBrains IDEs (IntelliJ IDEA/WebStorm) via ACP plugins
 
 ### 📖 Documentation
@@ -1937,7 +1969,7 @@
   - Platform-specific sandbox implementations selected automatically
 
 - **Repository Rename**
-  - Module path renamed to `github.com/startvibecoding/vibecoding`
+  - Module path renamed to `github.com/startvibecoding/mothx`
   - All imports, documentation, and scripts updated accordingly
 
 ### 🛠 Improvements
@@ -2085,7 +2117,7 @@
 
 - **Brand Assets**
   - Added `docs/assets/icon.svg` (512×512) for packaging
-  - Added `docs/assets/logo.svg` (128×128) for README and small displays
+  - Added `docs/assets/mothx.png` for README and small displays
   - Minimal, professional design with slate color palette
 
 - **Build System**
@@ -2103,4 +2135,4 @@
 
 ---
 
-**Full Changelog**: https://github.com/startvibecoding/vibecoding/compare/v0.1.26...v0.1.27
+**Full Changelog**: https://github.com/startvibecoding/mothx/compare/v0.1.26...v0.1.27

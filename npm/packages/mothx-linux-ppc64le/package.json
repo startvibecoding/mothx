@@ -1,0 +1,23 @@
+{
+  "name": "mothx-linux-ppc64le",
+  "version": "1.1.56",
+  "description": "MothX native binary for linux-ppc64",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "ppc64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "bin/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/startvibecoding/mothx.git",
+    "directory": "npm"
+  }
+}

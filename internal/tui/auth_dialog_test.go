@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 func TestAuthBuildSettingsPreservesExistingModelConfig(t *testing.T) {

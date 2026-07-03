@@ -1,4 +1,4 @@
-# ✨ VibeCoding Core Features Explained
+# ✨ MothX Core Features Explained
 
 > One tool to meet all your AI coding needs.
 
@@ -21,18 +21,18 @@
 
 ```bash
 # Use DeepSeek
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # Use OpenAI
-vibecoding --provider openai --model gpt-4o
+mothx --provider openai --model gpt-4o
 
 # Use Anthropic
-vibecoding --provider anthropic --model claude-3-5-sonnet-20241022
+mothx --provider anthropic --model claude-3-5-sonnet-20241022
 ```
 
 ### Vendor Adapters
 
-VibeCoding supports 25+ vendor adapters, including:
+MothX supports 25+ vendor adapters, including:
 
 - **China**: Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, Z.AI, LongCat
 - **International**: Google Gemini, Google Vertex, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock
@@ -45,7 +45,7 @@ No additional configuration needed — just set the API key and start using.
 
 ### SSE Streaming
 
-VibeCoding uses SSE (Server-Sent Events) streaming to return tokens in real-time, no need to wait for complete responses.
+MothX uses SSE (Server-Sent Events) streaming to return tokens in real-time, no need to wait for complete responses.
 
 ### Cache Hit Optimization
 
@@ -55,7 +55,7 @@ VibeCoding uses SSE (Server-Sent Events) streaming to return tokens in real-time
 
 ### Performance Comparison
 
-| Feature | VibeCoding | Other Tools |
+| Feature | MothX | Other Tools |
 |---------|-----------|-------------|
 | Streaming | ✅ SSE | Partial support |
 | Cache hit rate | ✅ Real-time display | ❌ Not displayed |
@@ -75,12 +75,12 @@ VibeCoding uses SSE (Server-Sent Events) streaming to return tokens in real-time
 
 ```bash
 # Set thinking level
-vibecoding --thinking off      # No thinking
-vibecoding --thinking minimal  # Minimal thinking
-vibecoding --thinking low      # Low thinking
-vibecoding --thinking medium   # Medium thinking
-vibecoding --thinking high     # High thinking
-vibecoding --thinking xhigh    # Ultra high thinking
+mothx --thinking off      # No thinking
+mothx --thinking minimal  # Minimal thinking
+mothx --thinking low      # Low thinking
+mothx --thinking medium   # Medium thinking
+mothx --thinking high     # High thinking
+mothx --thinking xhigh    # Ultra high thinking
 ```
 
 ### Use Cases
@@ -95,7 +95,7 @@ vibecoding --thinking xhigh    # Ultra high thinking
 
 ### bwrap Process Isolation
 
-VibeCoding uses [bubblewrap](https://github.com/containers/bubblewrap) for process-level isolation, ensuring secure execution.
+MothX uses [bubblewrap](https://github.com/containers/bubblewrap) for process-level isolation, ensuring secure execution.
 
 ### Three Modes
 
@@ -130,7 +130,7 @@ sudo pacman -S bubblewrap
 
 ### SQLite Persistence
 
-VibeCoding uses SQLite-backed storage for persistent session history. Features include:
+MothX uses SQLite-backed storage for persistent session history. Features include:
 
 - **Interactive picker**: `/sessions` opens a dialog with Up/Down navigation, Enter to switch, `n` for new, `d` for delete
 - **Lazy creation**: TUI startup defers session creation until the first user message
@@ -142,13 +142,13 @@ VibeCoding uses SQLite-backed storage for persistent session history. Features i
 
 ```bash
 # Continue most recent session
-vibecoding --continue
+mothx --continue
 
 # Resume specific session
-vibecoding --resume <session-id>
+mothx --resume <session-id>
 
 # Use specific session handle file
-vibecoding --session <session-file.db>
+mothx --session <session-file.db>
 ```
 
 ### TUI Session Picker
@@ -213,7 +213,7 @@ Skills are reusable prompt snippets for:
 
 ### Online Skill Marketplace
 
-VibeCoding is compatible with SkillHub / ClawHub, supporting:
+MothX is compatible with SkillHub / ClawHub, supporting:
 
 - **Skill installation**: One-click install online skills
 - **Cron infrastructure**: Scheduled skill execution
@@ -225,17 +225,17 @@ VibeCoding is compatible with SkillHub / ClawHub, supporting:
 
 ### Usage Statistics
 
-VibeCoding includes a built-in stats dashboard for tracking token usage, requests, and costs.
+MothX includes a built-in stats dashboard for tracking token usage, requests, and costs.
 
 ```bash
 # Start web dashboard (default 127.0.0.1:7878)
-vibecoding stats
+mothx stats
 
 # Print stats in terminal
-vibecoding stats --cli
+mothx stats --cli
 
 # Use alternate database
-vibecoding stats --db ~/.vibecoding/sessions/sessions.db
+mothx stats --db ~/.vibecoding/sessions/sessions.db
 ```
 
 ### Features
@@ -252,7 +252,7 @@ vibecoding stats --db ~/.vibecoding/sessions/sessions.db
 
 ```bash
 # Print stats directly in terminal
-vibecoding stats --cli
+mothx stats --cli
 ```
 
 Shows:
@@ -267,7 +267,7 @@ Shows:
 
 ### ACP Protocol
 
-VibeCoding supports Agent Client Protocol (ACP), integrating with:
+MothX supports Agent Client Protocol (ACP), integrating with:
 
 - **VS Code**
 - **Zed**
@@ -280,8 +280,8 @@ Add to `settings.json`:
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent", "--multi-agent"]
     }
   }
@@ -292,8 +292,8 @@ Add to `settings.json`:
 
 Navigate to `Settings → Tools → ACP Agents` and add:
 
-- **Name**: VibeCoding
-- **Command**: `vibecoding`
+- **Name**: MothX
+- **Command**: `mothx`
 - **Arguments**: `acp --mode agent`
 
 ---
@@ -302,11 +302,11 @@ Navigate to `Settings → Tools → ACP Agents` and add:
 
 ### OpenAI-Compatible HTTP API
 
-VibeCoding can be used as an OpenAI-compatible HTTP server:
+MothX can be used as an OpenAI-compatible HTTP server:
 
 ```bash
 # Start gateway
-vibecoding gateway
+mothx gateway
 
 # Configuration files
 ~/.vibecoding/gateway.json
@@ -325,11 +325,11 @@ vibecoding gateway
 
 ### WeChat/Feishu/WebSocket
 
-VibeCoding can be deployed as a chatbot:
+MothX can be deployed as a chatbot:
 
 ```bash
 # Start messaging gateway
-vibecoding hermes
+mothx hermes
 
 # Configuration files
 ~/.vibecoding/hermes.json
@@ -351,7 +351,7 @@ vibecoding hermes
 
 ```bash
 # Enable multi-agent mode
-vibecoding --multi-agent
+mothx --multi-agent
 
 # Sub-agent tools
 subagent_spawn    # Create sub-agent
@@ -364,7 +364,7 @@ subagent_destroy  # Destroy sub-agent
 
 ```bash
 # Enable one blocking delegated sub-agent
-vibecoding --delegate
+mothx --delegate
 
 # Toggle in TUI or Gateway sessions
 /delegate on
@@ -378,17 +378,17 @@ vibecoding --delegate
 
 ```bash
 # Enable A2A Master mode
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 
 # Generate sample config
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 ```
 
 ### Dynamic Workflows
 
 ```bash
 # Enable Workflow mode
-vibecoding --workflows
+mothx --workflows
 
 # Workflow tools
 workflow_run      # Run an Elisp workflow
@@ -516,7 +516,7 @@ When approval is required, the TUI shows a dialog with:
 
 ```bash
 # Enable debug mode
-vibecoding --debug
+mothx --debug
 
 # Debug output includes
 - Provider request/response
@@ -538,7 +538,7 @@ vibecoding --debug
 
 ```bash
 # Run environment diagnostics
-vibecoding doctor
+mothx doctor
 ```
 
 ### Check Items
@@ -553,7 +553,7 @@ vibecoding doctor
 
 ### Update Notifications
 
-VibeCoding checks for newer releases via npm registry and shows a non-blocking reminder when an update is available. Checks run in the background, keep only a local 24h cooldown timestamp, and never block the foreground.
+MothX checks for newer releases via npm registry and shows a non-blocking reminder when an update is available. Checks run in the background, keep only a local 24h cooldown timestamp, and never block the foreground.
 
 Disable via `settings.json` with `"updateCheck": false`, or via `VIBECODING_NO_UPDATE_CHECK=1`.
 
@@ -561,7 +561,7 @@ Disable via `settings.json` with `"updateCheck": false`, or via `VIBECODING_NO_U
 
 ## 🎯 Summary
 
-VibeCoding is an **all-in-one terminal AI coding assistant** with these core advantages:
+MothX is an **all-in-one terminal AI coding assistant** with these core advantages:
 
 1. **One binary does it all**: No need to install multiple tools
 2. **Multi-provider support**: 20+ vendor adapters, one-click switching

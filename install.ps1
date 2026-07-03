@@ -1,25 +1,25 @@
-# VibeCoding Installer for Windows
+# MothX Installer for Windows
 # Downloads and installs the latest release from GitHub
 #
-# Repository: https://github.com/startvibecoding/vibecoding
-# Gitee:      https://gitee.com/startvibecoding/vibecoding
+# Repository: https://github.com/startvibecoding/mothx
+# Gitee:      https://gitee.com/startvibecoding/mothx
 # Author:     zhenruyan
 # Blog:       https://pkold.com
 #
 # Usage:
 #   # Install (default)
-#   irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex
+#   irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
 #
 #   # Install to custom directory
-#   $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex
+#   $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
 #
 #   # Uninstall
-#   irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+#   irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
 
 $ErrorActionPreference = "Stop"
 
-$REPO = "startvibecoding/vibecoding"
-$BINARY_NAME = "vibecoding.exe"
+$REPO = "startvibecoding/mothx"
+$BINARY_NAME = "mothx.exe"
 $DEFAULT_INSTALL_DIR = "$env:LOCALAPPDATA\vibecoding"
 
 # Colors
@@ -32,8 +32,8 @@ function Write-Error-Custom { Write-Host "[ERROR] $args" -ForegroundColor Red; e
 function Show-Help {
     Write-Host ""
     Write-Host "╔═══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkCyan
-    Write-Host "║                   VibeCoding Installer                       ║" -ForegroundColor DarkCyan
-    Write-Host "║         https://github.com/startvibecoding/vibecoding        ║" -ForegroundColor DarkCyan
+    Write-Host "║                   MothX Installer                       ║" -ForegroundColor DarkCyan
+    Write-Host "║         https://github.com/startvibecoding/mothx        ║" -ForegroundColor DarkCyan
     Write-Host "║                Author: zhenruyan | pkold.com                 ║" -ForegroundColor DarkCyan
     Write-Host "╚═══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkCyan
     Write-Host ""
@@ -41,28 +41,28 @@ function Show-Help {
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Help           Show this help message"
-    Write-Host "  -Uninstall      Uninstall VibeCoding"
+    Write-Host "  -Uninstall      Uninstall MothX"
     Write-Host ""
     Write-Host "Environment variables:"
     Write-Host "  VIBECODING_INSTALL_DIR   Install directory (default: $env:LOCALAPPDATA\vibecoding)"
     Write-Host ""
     Write-Host "Examples:"
     Write-Host "  # Install"
-    Write-Host "  irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex"
+    Write-Host "  irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex"
     Write-Host ""
     Write-Host "  # Install to custom directory"
-    Write-Host "  `$env:VIBECODING_INSTALL_DIR=`"C:\Tools\vibecoding`"; irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex"
+    Write-Host "  `$env:VIBECODING_INSTALL_DIR=`"C:\Tools\vibecoding`"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex"
     Write-Host ""
     Write-Host "  # Uninstall"
-    Write-Host "  irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding"
+    Write-Host "  irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX"
     Write-Host ""
 }
 
-# Uninstall VibeCoding
-function Uninstall-VibeCoding {
+# Uninstall MothX
+function Uninstall-MothX {
     Write-Host ""
     Write-Host "╔═══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkCyan
-    Write-Host "║                 VibeCoding Uninstaller                       ║" -ForegroundColor DarkCyan
+    Write-Host "║                 MothX Uninstaller                       ║" -ForegroundColor DarkCyan
     Write-Host "╚═══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkCyan
     Write-Host ""
 
@@ -92,7 +92,7 @@ function Uninstall-VibeCoding {
     }
 
     if ($foundPaths.Count -eq 0) {
-        Write-Warn "VibeCoding not found in common locations"
+        Write-Warn "MothX not found in common locations"
         Write-Host ""
         Write-Host "Checked locations:"
         foreach ($dir in $checkDirs) {
@@ -105,7 +105,7 @@ function Uninstall-VibeCoding {
     }
 
     # Show found installations
-    Write-Info "Found VibeCoding installations:"
+    Write-Info "Found MothX installations:"
     Write-Host ""
     foreach ($p in $foundPaths) {
         Write-Host "  - $p"
@@ -153,28 +153,28 @@ function Uninstall-VibeCoding {
 
     # Clean PATH entries
     Write-Host ""
-    Write-Info "Checking PATH for VibeCoding entries..."
+    Write-Info "Checking PATH for MothX entries..."
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $pathEntries = if ($currentPath) { $currentPath -split ';' | Where-Object { $_ -ne '' } } else { @() }
     
     $vibecodingEntries = $pathEntries | Where-Object { $_ -like '*vibecoding*' }
     
     if ($vibecodingEntries.Count -gt 0) {
-        Write-Info "Found VibeCoding PATH entries:"
+        Write-Info "Found MothX PATH entries:"
         foreach ($entry in $vibecodingEntries) {
             Write-Host "  - $entry"
         }
         Write-Host ""
-        $answer = Read-Host "Remove VibeCoding from PATH? [y/N]"
+        $answer = Read-Host "Remove MothX from PATH? [y/N]"
         if ($answer -eq 'y' -or $answer -eq 'Y') {
             $newEntries = $pathEntries | Where-Object { $_ -notlike '*vibecoding*' }
             $newPath = $newEntries -join ';'
             [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
             $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + $newPath
-            Write-Success "Removed VibeCoding from PATH"
+            Write-Success "Removed MothX from PATH"
         }
     } else {
-        Write-Info "No VibeCoding PATH entries found"
+        Write-Info "No MothX PATH entries found"
     }
 
     # Uninstall npm package if installed via npm
@@ -200,13 +200,15 @@ function Uninstall-VibeCoding {
     Write-Host ""
     Write-Success "Uninstall complete!"
     Write-Host ""
-    Write-Host "  Thank you for using VibeCoding! 🙏" -ForegroundColor White
+    Write-Host "  Thank you for using MothX! 🙏" -ForegroundColor White
     Write-Host ""
     Write-Host "  If you have any feedback, please visit:" -ForegroundColor White
-    Write-Host "    - GitHub: https://github.com/startvibecoding/vibecoding" -ForegroundColor Cyan
-    Write-Host "    - Gitee:  https://gitee.com/startvibecoding/vibecoding" -ForegroundColor Cyan
+    Write-Host "    - GitHub: https://github.com/startvibecoding/mothx" -ForegroundColor Cyan
+    Write-Host "    - Gitee:  https://gitee.com/startvibecoding/mothx" -ForegroundColor Cyan
     Write-Host ""
 }
+
+Set-Alias -Name Uninstall-VibeCoding -Value Uninstall-MothX
 
 # Parse arguments
 param(
@@ -220,15 +222,15 @@ if ($Help) {
 }
 
 if ($Uninstall) {
-    Uninstall-VibeCoding
+    Uninstall-MothX
     exit 0
 }
 
 # Banner
 Write-Host ""
 Write-Host "╔═══════════════════════════════════════════════════════════════╗" -ForegroundColor DarkCyan
-Write-Host "║                   VibeCoding Installer                       ║" -ForegroundColor DarkCyan
-Write-Host "║         https://github.com/startvibecoding/vibecoding        ║" -ForegroundColor DarkCyan
+Write-Host "║                   MothX Installer                       ║" -ForegroundColor DarkCyan
+Write-Host "║         https://github.com/startvibecoding/mothx        ║" -ForegroundColor DarkCyan
 Write-Host "║                Author: zhenruyan | pkold.com                 ║" -ForegroundColor DarkCyan
 Write-Host "╚═══════════════════════════════════════════════════════════════╝" -ForegroundColor DarkCyan
 Write-Host ""
@@ -255,7 +257,7 @@ try {
 
 # Find download URL
 $versionNum = $release.tag_name -replace '^v', ''
-$archiveName = "vibecoding-${versionNum}-windows-$arch.zip"
+$archiveName = "mothx-${versionNum}-windows-$arch.zip"
 $asset = $release.assets | Where-Object { $_.name -eq $archiveName }
 
 if (-not $asset) {
@@ -336,17 +338,17 @@ try {
     Write-Host "  Version: $version" -ForegroundColor White
     Write-Host ""
 
-    # Check if vibecoding is available
-    $vibecodingPath = Get-Command vibecoding -ErrorAction SilentlyContinue
-    if ($vibecodingPath) {
+    # Check if mothx is available
+    $mothxPath = Get-Command mothx -ErrorAction SilentlyContinue
+    if ($mothxPath) {
         Write-Host "  Get started:" -ForegroundColor White
-        Write-Host "    vibecoding --help" -ForegroundColor Gray
+        Write-Host "    mothx --help" -ForegroundColor Gray
         Write-Host ""
         Write-Host "  Uninstall:" -ForegroundColor White
-        Write-Host "    irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding" -ForegroundColor Gray
+        Write-Host "    irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX" -ForegroundColor Gray
         Write-Host ""
     } else {
-        Write-Warn "'vibecoding' is not found in your current PATH."
+        Write-Warn "'mothx' is not found in your current PATH."
         Write-Host ""
         Write-Host "  To add it to your PATH manually:" -ForegroundColor White
         Write-Host ""

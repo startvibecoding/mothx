@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	internalagent "github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
 )
 
 func TestAgentHostUsesDSLNameForAgentID(t *testing.T) {

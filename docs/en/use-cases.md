@@ -1,6 +1,6 @@
-# 🎯 VibeCoding Use Cases & Real-World Examples
+# 🎯 MothX Use Cases & Real-World Examples
 
-> From daily development to enterprise deployment, VibeCoding meets all your needs.
+> From daily development to enterprise deployment, MothX meets all your needs.
 
 ---
 
@@ -10,65 +10,65 @@
 
 ```bash
 # Generate a Go HTTP server
-vibecoding -P "Write a Go HTTP server with RESTful API and user authentication"
+mothx -P "Write a Go HTTP server with RESTful API and user authentication"
 
 # Generate a React component
-vibecoding -P "Create a React search component with debounce and loading state"
+mothx -P "Create a React search component with debounce and loading state"
 
 # Generate a Python scraper
-vibecoding -P "Write a Python scraper to fetch Hacker News headlines"
+mothx -P "Write a Python scraper to fetch Hacker News headlines"
 ```
 
 ### Scenario 2: Code Understanding
 
 ```bash
 # Explain code
-vibecoding -P "Explain what main.go does"
+mothx -P "Explain what main.go does"
 
 # Explain regex
-vibecoding -P "What does this regex mean? ^(?:https?:\/\/)?(?:www\.)?([^\/]+)"
+mothx -P "What does this regex mean? ^(?:https?:\/\/)?(?:www\.)?([^\/]+)"
 
 # Analyze architecture
-vibecoding -P "Analyze this project's architecture and draw component relationships"
+mothx -P "Analyze this project's architecture and draw component relationships"
 ```
 
 ### Scenario 3: Code Refactoring
 
 ```bash
 # Refactor to generics
-vibecoding -P "Refactor this function to use generics"
+mothx -P "Refactor this function to use generics"
 
 # Optimize performance
-vibecoding -P "Optimize this code for performance, reduce memory allocations"
+mothx -P "Optimize this code for performance, reduce memory allocations"
 
 # Split modules
-vibecoding -P "Split this class into smaller modules, following single responsibility principle"
+mothx -P "Split this class into smaller modules, following single responsibility principle"
 ```
 
 ### Scenario 4: Test Generation
 
 ```bash
 # Unit tests
-vibecoding -P "Write unit tests for UserService, covering all edge cases"
+mothx -P "Write unit tests for UserService, covering all edge cases"
 
 # Integration tests
-vibecoding -P "Generate integration test cases for API endpoints"
+mothx -P "Generate integration test cases for API endpoints"
 
 # End-to-end tests
-vibecoding -P "Write an end-to-end test simulating user login flow"
+mothx -P "Write an end-to-end test simulating user login flow"
 ```
 
 ### Scenario 5: Documentation
 
 ```bash
 # Function comments
-vibecoding -P "Generate JSDoc comments for this function"
+mothx -P "Generate JSDoc comments for this function"
 
 # README
-vibecoding -P "Write a README.md for this project with installation and usage instructions"
+mothx -P "Write a README.md for this project with installation and usage instructions"
 
 # API documentation
-vibecoding -P "Generate API documentation with request/response examples"
+mothx -P "Generate API documentation with request/response examples"
 ```
 
 ---
@@ -79,26 +79,26 @@ vibecoding -P "Generate API documentation with request/response examples"
 
 ```bash
 # Review PR
-vibecoding --mode plan "Review this PR, find potential issues and suggestions"
+mothx --mode plan "Review this PR, find potential issues and suggestions"
 
 # Security review
-vibecoding --mode plan "Review this code for security vulnerabilities"
+mothx --mode plan "Review this code for security vulnerabilities"
 
 # Performance review
-vibecoding --mode plan "Review this code for performance bottlenecks"
+mothx --mode plan "Review this code for performance bottlenecks"
 ```
 
 ### Scenario 2: Code Quality
 
 ```bash
 # Code standards
-vibecoding --mode plan "Check if this code follows Go coding standards"
+mothx --mode plan "Check if this code follows Go coding standards"
 
 # Error handling
-vibecoding --mode plan "Check if this code has proper error handling"
+mothx --mode plan "Check if this code has proper error handling"
 
 # Concurrency safety
-vibecoding --mode plan "Check if this code is concurrency-safe"
+mothx --mode plan "Check if this code is concurrency-safe"
 ```
 
 ---
@@ -109,39 +109,39 @@ vibecoding --mode plan "Check if this code is concurrency-safe"
 
 ```bash
 # Generate changelog
-vibecoding -p "Generate changelog from git log, grouped by version" > CHANGELOG.md
+mothx -p "Generate changelog from git log, grouped by version" > CHANGELOG.md
 
 # Generate API docs
-vibecoding -p "Generate API documentation from code comments" > docs/api.md
+mothx -p "Generate API documentation from code comments" > docs/api.md
 
 # Generate migration guide
-vibecoding -p "Generate migration guide from v1 to v2" > docs/migration.md
+mothx -p "Generate migration guide from v1 to v2" > docs/migration.md
 ```
 
 ### Scenario 2: Code Analysis
 
 ```bash
 # Static analysis
-vibecoding -p "Analyze this code for potential issues" > analysis.txt
+mothx -p "Analyze this code for potential issues" > analysis.txt
 
 # Security scan
-vibecoding -p "Scan this code for security vulnerabilities" > security.txt
+mothx -p "Scan this code for security vulnerabilities" > security.txt
 
 # Performance analysis
-vibecoding -p "Analyze this code for performance bottlenecks" > performance.txt
+mothx -p "Analyze this code for performance bottlenecks" > performance.txt
 ```
 
 ### Scenario 3: Automated Testing
 
 ```bash
 # Generate test cases
-vibecoding -p "Generate test cases for this function" > tests/function_test.go
+mothx -p "Generate test cases for this function" > tests/function_test.go
 
 # Generate test data
-vibecoding -p "Generate test data with edge cases" > testdata.json
+mothx -p "Generate test data with edge cases" > testdata.json
 
 # Generate test report
-vibecoding -p "Generate test report from test results" > report.md
+mothx -p "Generate test report from test results" > report.md
 ```
 
 ---
@@ -152,7 +152,7 @@ vibecoding -p "Generate test report from test results" > report.md
 
 ```bash
 # Start gateway
-vibecoding gateway
+mothx gateway
 
 # Config file ~/.vibecoding/gateway.json
 {
@@ -170,13 +170,13 @@ vibecoding gateway
 ```python
 import requests
 
-# Call VibeCoding API
+# Call MothX API
 response = requests.post(
     "http://localhost:8080/v1/chat/completions",
     headers={"Authorization": "Bearer your-secret-token"},
     json={
         "model": "deepseek-v4-flash",
-        "messages": [{"role": "user", "content": "Hello, VibeCoding!"}]
+        "messages": [{"role": "user", "content": "Hello, MothX!"}]
     }
 )
 
@@ -190,13 +190,13 @@ print(response.json())
 version: '3'
 services:
   vibecoding-1:
-    image: vibecoding
+    image: mothx
     command: gateway
     ports:
       - "8081:8080"
   
   vibecoding-2:
-    image: vibecoding
+    image: mothx
     command: gateway
     ports:
       - "8082:8080"
@@ -217,7 +217,7 @@ services:
 
 ```bash
 # Start messaging gateway
-vibecoding hermes
+mothx hermes
 
 # Config file ~/.vibecoding/hermes.json
 {
@@ -262,7 +262,7 @@ vibecoding hermes
 
 ```text
 # Enable multi-agent mode
-vibecoding --multi-agent
+mothx --multi-agent
 
 # Main agent decomposes task
 > "Decompose this large task into 5 subtasks, assign each to a sub-agent"
@@ -285,7 +285,7 @@ Example tool-call payloads used by the agent:
 
 ```bash
 # Enable A2A Master mode
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 
 # Configure remote agents
 # a2a-list.json
@@ -312,7 +312,7 @@ Use Workflow mode for structured multi-phase, verified complex task orchestratio
 
 ```bash
 # Enable Workflow mode
-vibecoding --workflows
+mothx --workflows
 
 # Ask AI to run a security audit workflow
 > "Run a security audit on internal/gateway and internal/hermes, parallel scan then cross-verify"
@@ -333,39 +333,39 @@ Workflow mode is ideal for code audits, architecture research, multi-role review
 
 ```bash
 # Check server status
-vibecoding --mode yolo "Check server CPU, memory, and disk usage"
+mothx --mode yolo "Check server CPU, memory, and disk usage"
 
 # Clean logs
-vibecoding --mode yolo "Clean log files older than 30 days in /var/log"
+mothx --mode yolo "Clean log files older than 30 days in /var/log"
 
 # Backup data
-vibecoding --mode yolo "Backup database to /backup directory"
+mothx --mode yolo "Backup database to /backup directory"
 ```
 
 ### Scenario 2: Docker Management
 
 ```bash
 # Generate Dockerfile
-vibecoding -P "Generate a Dockerfile for this Node.js project"
+mothx -P "Generate a Dockerfile for this Node.js project"
 
 # Generate docker-compose.yml
-vibecoding -P "Generate docker-compose.yml with Node.js, PostgreSQL, and Redis"
+mothx -P "Generate docker-compose.yml with Node.js, PostgreSQL, and Redis"
 
 # Optimize image
-vibecoding -P "Optimize this Dockerfile to reduce image size"
+mothx -P "Optimize this Dockerfile to reduce image size"
 ```
 
 ### Scenario 3: Kubernetes Management
 
 ```bash
 # Generate Kubernetes config
-vibecoding -P "Generate Kubernetes Deployment and Service configuration"
+mothx -P "Generate Kubernetes Deployment and Service configuration"
 
 # Generate Helm Chart
-vibecoding -P "Generate a Helm Chart for this application"
+mothx -P "Generate a Helm Chart for this application"
 
 # Troubleshoot
-vibecoding --mode plan "Analyze this Kubernetes Pod logs, find crash reason"
+mothx --mode plan "Analyze this Kubernetes Pod logs, find crash reason"
 ```
 
 ---
@@ -376,26 +376,26 @@ vibecoding --mode plan "Analyze this Kubernetes Pod logs, find crash reason"
 
 ```bash
 # Data cleaning
-vibecoding -P "Clean this CSV file with Python, handle missing values and outliers"
+mothx -P "Clean this CSV file with Python, handle missing values and outliers"
 
 # Data transformation
-vibecoding -P "Convert JSON data to CSV format"
+mothx -P "Convert JSON data to CSV format"
 
 # Data aggregation
-vibecoding -P "Aggregate sales data by month, calculate total and average"
+mothx -P "Aggregate sales data by month, calculate total and average"
 ```
 
 ### Scenario 2: Data Visualization
 
 ```bash
 # Generate charts
-vibecoding -P "Generate a sales trend chart with Matplotlib"
+mothx -P "Generate a sales trend chart with Matplotlib"
 
 # Generate dashboard
-vibecoding -P "Generate an interactive dashboard with Plotly"
+mothx -P "Generate an interactive dashboard with Plotly"
 
 # Generate report
-vibecoding -P "Generate an analysis report from data with charts and conclusions"
+mothx -P "Generate an analysis report from data with charts and conclusions"
 ```
 
 ---
@@ -406,39 +406,39 @@ vibecoding -P "Generate an analysis report from data with charts and conclusions
 
 ```bash
 # Explain code
-vibecoding -P "Explain this code line by line"
+mothx -P "Explain this code line by line"
 
 # Explain algorithms
-vibecoding -P "Explain the quicksort algorithm principle and implementation"
+mothx -P "Explain the quicksort algorithm principle and implementation"
 
 # Explain design patterns
-vibecoding -P "Explain the singleton pattern use cases and implementation"
+mothx -P "Explain the singleton pattern use cases and implementation"
 ```
 
 ### Scenario 2: Programming Practice
 
 ```bash
 # Generate exercises
-vibecoding -P "Generate 10 Python programming exercises with increasing difficulty"
+mothx -P "Generate 10 Python programming exercises with increasing difficulty"
 
 # Check answers
-vibecoding -P "Check if this answer is correct"
+mothx -P "Check if this answer is correct"
 
 # Generate explanations
-vibecoding -P "Generate detailed explanations for this problem"
+mothx -P "Generate detailed explanations for this problem"
 ```
 
 ### Scenario 3: Project Guidance
 
 ```bash
 # Project planning
-vibecoding -P "Help me plan the architecture of a blog system"
+mothx -P "Help me plan the architecture of a blog system"
 
 # Tech stack selection
-vibecoding -P "Recommend a tech stack suitable for this project"
+mothx -P "Recommend a tech stack suitable for this project"
 
 # Code review
-vibecoding -P "Review my code and give improvement suggestions"
+mothx -P "Review my code and give improvement suggestions"
 ```
 
 ---
@@ -449,39 +449,39 @@ vibecoding -P "Review my code and give improvement suggestions"
 
 ```bash
 # Generate standards document
-vibecoding -P "Generate team coding standards document"
+mothx -P "Generate team coding standards document"
 
 # Check standards
-vibecoding --mode plan "Check if this code follows team standards"
+mothx --mode plan "Check if this code follows team standards"
 
 # Auto-fix
-vibecoding -P "Auto-fix code standards issues in this code"
+mothx -P "Auto-fix code standards issues in this code"
 ```
 
 ### Scenario 2: Knowledge Base
 
 ```bash
 # Generate knowledge base
-vibecoding -P "Generate knowledge base documentation from code comments"
+mothx -P "Generate knowledge base documentation from code comments"
 
 # Search knowledge base
-vibecoding -P "Search knowledge base for user authentication documentation"
+mothx -P "Search knowledge base for user authentication documentation"
 
 # Update knowledge base
-vibecoding -P "Update knowledge base with new API documentation"
+mothx -P "Update knowledge base with new API documentation"
 ```
 
 ### Scenario 3: Automation Workflows
 
 ```bash
 # Generate workflow
-vibecoding -P "Generate GitHub Actions workflow for automated testing and deployment"
+mothx -P "Generate GitHub Actions workflow for automated testing and deployment"
 
 # Generate scripts
-vibecoding -P "Generate automation script for daily database backup"
+mothx -P "Generate automation script for daily database backup"
 
 # Generate monitoring
-vibecoding -P "Generate monitoring script to detect server anomalies"
+mothx -P "Generate monitoring script to detect server anomalies"
 ```
 
 ---
@@ -536,13 +536,13 @@ vibecoding -P "Generate monitoring script to detect server anomalies"
 
 ```bash
 # Continue most recent session
-vibecoding --continue
+mothx --continue
 
 # Resume specific session
-vibecoding --resume <session-id>
+mothx --resume <session-id>
 
 # Use specific session handle file
-vibecoding --session <session-file.db>
+mothx --session <session-file.db>
 ```
 
 ### 5. Monitor Cache Hit Rate
@@ -564,6 +564,6 @@ vibecoding --session <session-file.db>
 ---
 
 <p align="center">
-  <strong>🎉 Now you've mastered all VibeCoding use cases.</strong><br>
+  <strong>🎉 Now you've mastered all MothX use cases.</strong><br>
   <strong>Start your AI coding journey!</strong>
 </p>

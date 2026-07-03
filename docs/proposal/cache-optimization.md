@@ -168,7 +168,7 @@ type Message struct {
 ### 优化前
 ```json
 {
-  "system": "You are VibeCoding... Working directory: /home/user... Current date: 2024-01-15...",
+  "system": "You are MothX... Working directory: /home/user... Current date: 2024-01-15...",
   "messages": [
     {"role": "user", "content": "Hello"},
     {"role": "assistant", "content": "Hi"}
@@ -182,7 +182,7 @@ type Message struct {
   "system": [
     {
       "type": "text",
-      "text": "You are VibeCoding...",  // 不含动态信息
+      "text": "You are MothX...",  // 不含动态信息
       "cache_control": {"type": "ephemeral"}
     }
   ],

@@ -1,13 +1,13 @@
 # Online Skill Marketplace Integration
 
-VibeCoding is compatible with existing skill marketplaces (SkillHub / ClawHub). Skill packages published on these platforms can be used directly in VibeCoding.
+MothX is compatible with existing skill marketplaces (SkillHub / ClawHub). Skill packages published on these platforms can be used directly in MothX.
 
 | Platform | URL | Region |
 |----------|-----|--------|
 | **SkillHub** | [https://skillhub.cn](https://skillhub.cn/) | China |
 | **ClawHub** | [https://clawhub.ai](https://clawhub.ai/) | International |
 
-> **Note:** VibeCoding does not have a built-in skill marketplace, but uses the standard
+> **Note:** MothX does not have a built-in skill marketplace, but uses the standard
 > skill directory format (`SKILL.md`) that is fully compatible with SkillHub / ClawHub
 > packages. Skills downloaded from these platforms work out of the box — just drop them
 > into your skills directory.
@@ -58,7 +58,7 @@ That's it. The skill is automatically loaded and injected into the system prompt
 
 ## Skill Format Compatibility
 
-VibeCoding's skill format is fully compatible with the SkillHub / ClawHub standard:
+MothX's skill format is fully compatible with the SkillHub / ClawHub standard:
 
 ```
 skill-name/
@@ -161,7 +161,7 @@ Project skills load automatically from `.skills/` without extra configuration.
 
 ## Cron Foundation
 
-VibeCoding has an internal cron infrastructure (`internal/cron` package) and TUI command entry points. The cron store persists jobs to `~/.vibecoding/cron.json` and the scheduler checks for due jobs on a 30-second interval.
+MothX has an internal cron infrastructure (`internal/cron` package) and TUI command entry points. The cron store persists jobs to `~/.vibecoding/cron.json` and the scheduler checks for due jobs on a 30-second interval.
 
 ### `/cron` TUI Commands
 

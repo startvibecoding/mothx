@@ -14,9 +14,9 @@ import (
 	vbclient "github.com/startvibecoding/vibe-browser/pkg/client"
 	vbprotocol "github.com/startvibecoding/vibe-browser/pkg/protocol"
 
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 const (

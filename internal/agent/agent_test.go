@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/session"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/config"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 type loopingToolProvider struct {

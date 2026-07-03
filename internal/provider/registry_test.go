@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 func TestProviderRegistryRegisterAndCreate(t *testing.T) {

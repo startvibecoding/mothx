@@ -3,11 +3,11 @@ package agent
 import (
 	"context"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	internalprovider "github.com/startvibecoding/vibecoding/internal/provider"
-	_ "github.com/startvibecoding/vibecoding/internal/provider/anthropic"
-	_ "github.com/startvibecoding/vibecoding/internal/provider/google"
-	_ "github.com/startvibecoding/vibecoding/internal/provider/openai"
+	"github.com/startvibecoding/mothx/internal/config"
+	internalprovider "github.com/startvibecoding/mothx/internal/provider"
+	_ "github.com/startvibecoding/mothx/internal/provider/anthropic"
+	_ "github.com/startvibecoding/mothx/internal/provider/google"
+	_ "github.com/startvibecoding/mothx/internal/provider/openai"
 )
 
 type providerAdapter struct {

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/agent"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
 )
 
 const maxActivityLines = 200

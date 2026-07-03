@@ -1,8 +1,8 @@
 package openai
 
 import (
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 func resolveOpenAIModels(cfg *config.ProviderConfig) []*provider.Model {

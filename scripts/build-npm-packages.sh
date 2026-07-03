@@ -2,22 +2,29 @@
 
 # Build platform-specific npm packages with optionalDependencies architecture.
 # Each platform gets its own package containing only its binary.
-# The main package (vibecoding-installer) declares all platforms as optionalDependencies.
+# Main packages (mothx and the transitional vibecoding-installer) declare all
+# platforms as optionalDependencies.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 NPM_DIR="$PROJECT_ROOT/npm"
+MOTHX_NPM_DIR="$NPM_DIR/mothx"
 BUILD_DIR="$PROJECT_ROOT/bin"
 PACKAGES_DIR="$NPM_DIR/packages"
 
 ensure_wrapper() {
   mkdir -p "$NPM_DIR/bin"
+  mkdir -p "$MOTHX_NPM_DIR/bin"
   if ! cmp -s "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"; then
     cp "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"
   fi
+  if ! cmp -s "$SCRIPT_DIR/npm-installer-wrapper.js" "$MOTHX_NPM_DIR/bin/mothx"; then
+    cp "$SCRIPT_DIR/npm-installer-wrapper.js" "$MOTHX_NPM_DIR/bin/mothx"
+  fi
   chmod +x "$NPM_DIR/bin/vibecoding"
+  chmod +x "$MOTHX_NPM_DIR/bin/mothx"
 }
 
 # Clean packages directory
@@ -34,25 +41,26 @@ fi
 # Read version from main package.json
 VERSION=$(node -e "console.log(require('$NPM_DIR/package.json').version)")
 
-# Platform definitions: npm-cpu -> binary suffix, npm-os -> binary prefix
+# Platform definitions. Values are current Go build artifact names; npm package
+# names are generated with the new mothx-* prefix below.
 declare -A PLATFORMS=(
-  ["linux-x64"]="vibecoding-linux-amd64"
-  ["linux-arm64"]="vibecoding-linux-arm64"
-  ["linux-loong64"]="vibecoding-linux-loong64"
-  ["linux-ppc64le"]="vibecoding-linux-ppc64le"
-  ["linux-s390x"]="vibecoding-linux-s390x"
-  ["linux-riscv64"]="vibecoding-linux-riscv64"
-  ["linux-musl-x64"]="vibecoding-linux-musl-amd64"
-  ["linux-musl-arm64"]="vibecoding-linux-musl-arm64"
-  ["darwin-x64"]="vibecoding-darwin-amd64"
-  ["darwin-arm64"]="vibecoding-darwin-arm64"
-  ["win32-x64"]="vibecoding-windows-amd64.exe"
-  ["win32-arm64"]="vibecoding-windows-arm64.exe"
-  ["freebsd-x64"]="vibecoding-freebsd-amd64"
-  ["freebsd-arm64"]="vibecoding-freebsd-arm64"
-  ["openbsd-x64"]="vibecoding-openbsd-amd64"
-  ["openbsd-arm64"]="vibecoding-openbsd-arm64"
-  ["netbsd-x64"]="vibecoding-netbsd-amd64"
+  ["linux-x64"]="mothx-linux-amd64"
+  ["linux-arm64"]="mothx-linux-arm64"
+  ["linux-loong64"]="mothx-linux-loong64"
+  ["linux-ppc64le"]="mothx-linux-ppc64le"
+  ["linux-s390x"]="mothx-linux-s390x"
+  ["linux-riscv64"]="mothx-linux-riscv64"
+  ["linux-musl-x64"]="mothx-linux-musl-amd64"
+  ["linux-musl-arm64"]="mothx-linux-musl-arm64"
+  ["darwin-x64"]="mothx-darwin-amd64"
+  ["darwin-arm64"]="mothx-darwin-arm64"
+  ["win32-x64"]="mothx-windows-amd64.exe"
+  ["win32-arm64"]="mothx-windows-arm64.exe"
+  ["freebsd-x64"]="mothx-freebsd-amd64"
+  ["freebsd-arm64"]="mothx-freebsd-arm64"
+  ["openbsd-x64"]="mothx-openbsd-amd64"
+  ["openbsd-arm64"]="mothx-openbsd-arm64"
+  ["netbsd-x64"]="mothx-netbsd-amd64"
 )
 
 declare -A OS_MAP=(
@@ -100,7 +108,7 @@ for PLATFORM_KEY in "${!PLATFORMS[@]}"; do
   BINARY_NAME="${PLATFORMS[$PLATFORM_KEY]}"
   OS="${OS_MAP[$PLATFORM_KEY]}"
   CPU="${CPU_MAP[$PLATFORM_KEY]}"
-  PKG_NAME="vibecoding-installer-${PLATFORM_KEY}"
+  PKG_NAME="mothx-${PLATFORM_KEY}"
   PKG_DIR="$PACKAGES_DIR/$PKG_NAME"
 
   # Check binary exists
@@ -114,9 +122,9 @@ for PLATFORM_KEY in "${!PLATFORMS[@]}"; do
 
   # Determine binary name inside package
   if [ "$OS" = "win32" ]; then
-    INNER_BINARY="vibecoding.exe"
+    INNER_BINARY="mothx.exe"
   else
-    INNER_BINARY="vibecoding"
+    INNER_BINARY="mothx"
   fi
 
   # Copy binary
@@ -131,7 +139,7 @@ for PLATFORM_KEY in "${!PLATFORMS[@]}"; do
 {
   "name": "$PKG_NAME",
   "version": "$VERSION",
-  "description": "VibeCoding native binary for ${OS}-${CPU} (musl static)",
+  "description": "MothX native binary for ${OS}-${CPU} (musl static)",
   "os": ["$OS"],
   "cpu": ["$CPU"],
   "libc": ["musl"],
@@ -139,7 +147,7 @@ for PLATFORM_KEY in "${!PLATFORMS[@]}"; do
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/startvibecoding/vibecoding.git",
+    "url": "https://github.com/startvibecoding/mothx.git",
     "directory": "npm"
   }
 }
@@ -149,7 +157,7 @@ EOF
 {
   "name": "$PKG_NAME",
   "version": "$VERSION",
-  "description": "VibeCoding native binary for ${OS}-${CPU}",
+  "description": "MothX native binary for ${OS}-${CPU}",
   "os": ["$OS"],
   "cpu": ["$CPU"],
   "libc": ["glibc"],
@@ -157,7 +165,7 @@ EOF
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/startvibecoding/vibecoding.git",
+    "url": "https://github.com/startvibecoding/mothx.git",
     "directory": "npm"
   }
 }
@@ -167,14 +175,14 @@ EOF
 {
   "name": "$PKG_NAME",
   "version": "$VERSION",
-  "description": "VibeCoding native binary for ${OS}-${CPU}",
+  "description": "MothX native binary for ${OS}-${CPU}",
   "os": ["$OS"],
   "cpu": ["$CPU"],
   "files": ["bin/"],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/startvibecoding/vibecoding.git",
+    "url": "https://github.com/startvibecoding/mothx.git",
     "directory": "npm"
   }
 }
@@ -187,20 +195,28 @@ EOF
   BUILT=$((BUILT + 1))
 done
 
-# Update optionalDependencies versions in main package.json
+# Update optionalDependencies versions in main package.json files
 echo ""
 echo "Updating optionalDependencies versions to $VERSION..."
 node -e "
 const fs = require('fs');
-const pkgPath = '$NPM_DIR/package.json';
-const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-if (pkg.optionalDependencies) {
-  for (const key of Object.keys(pkg.optionalDependencies)) {
-    pkg.optionalDependencies[key] = '$VERSION';
-  }
+const path = require('path');
+const packageRoot = '$PACKAGES_DIR';
+const optionalDependencies = {};
+for (const entry of fs.readdirSync(packageRoot)) {
+  const pkgPath = path.join(packageRoot, entry, 'package.json');
+  if (!fs.existsSync(pkgPath)) continue;
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  optionalDependencies[pkg.name] = '$VERSION';
 }
-fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-console.log('Updated main package.json optionalDependencies');
+for (const pkgPath of ['$NPM_DIR/package.json', '$MOTHX_NPM_DIR/package.json']) {
+  if (!fs.existsSync(pkgPath)) continue;
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  pkg.version = '$VERSION';
+  pkg.optionalDependencies = optionalDependencies;
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  console.log('Updated optionalDependencies: ' + pkgPath);
+}
 "
 
 echo ""

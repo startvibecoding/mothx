@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/util"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 // ReadTool reads file contents.

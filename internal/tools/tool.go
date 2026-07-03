@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/skills"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/skills"
 )
 
 // writeFileAtomic writes data to path atomically using a temporary file and rename.

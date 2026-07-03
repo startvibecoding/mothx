@@ -27,11 +27,11 @@ Claude Code 通过 `statusLine` 设置支持自定义底部状态行。它的核
 }
 ```
 
-本地 `/home/free/src/ccstatusline` 的实现对缺失字段比较宽容。因此 VibeCoding 可以直接输出 Claude 兼容 payload 的子集，以纯 `stdin snapshot` 模式驱动 `ccstatusline`，让依赖当前状态快照的 widgets 工作，而不实现 transcript 文件兼容层。
+本地 `/home/free/src/ccstatusline` 的实现对缺失字段比较宽容。因此 MothX 可以直接输出 Claude 兼容 payload 的子集，以纯 `stdin snapshot` 模式驱动 `ccstatusline`，让依赖当前状态快照的 widgets 工作，而不实现 transcript 文件兼容层。
 
 ## 目标
 
-- 允许用户把 `ccstatusline` 配置为 VibeCoding TUI footer/status line 渲染器，而不需要把 VibeCoding 包在 Claude Code 里运行。
+- 允许用户把 `ccstatusline` 配置为 MothX TUI footer/status line 渲染器，而不需要把 MothX 包在 Claude Code 里运行。
 - 未配置或未启用外部 status line command 时，输入框下方继续显示当前默认 footer，行为和视觉都保持不变。
 - 复用 Claude `statusLine` 对象形态，让现有 `ccstatusline` 命令、配置文件、文档和示例尽量少改或无需修改。
 - 保持现有 TUI 行为：transcript scrollback、输入框、approval、question prompt、tool modal、`/btw`、multi-agent tab bar、compact mode、context/cache 显示都不应被破坏。
@@ -99,7 +99,7 @@ Claude Code 通过 `statusLine` 设置支持自定义底部状态行。它的核
 - `/statusline off`：禁用外部 status line。
 - `/statusline ccstatusline`：向项目或全局 settings 写入 `command: "ccstatusline"`。
 
-该命令不应修改 `~/.claude/settings.json`。VibeCoding 应只管理自己的 `~/.vibecoding/settings.json` 和项目 `.vibe/settings.json`。
+该命令不应修改 `~/.claude/settings.json`。MothX 应只管理自己的 `~/.vibecoding/settings.json` 和项目 `.vibe/settings.json`。
 
 ## 运行时架构
 
@@ -156,7 +156,7 @@ TUI 集成方式：
 
 ## Payload 映射
 
-VibeCoding 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSchema` 是宽松解析，缺字段不会直接失败。
+MothX 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSchema` 是宽松解析，缺字段不会直接失败。
 
 示例 payload：
 
@@ -207,7 +207,7 @@ VibeCoding 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSche
 
 推荐字段映射：
 
-| Claude 字段 | VibeCoding 来源 |
+| Claude 字段 | MothX 来源 |
 | --- | --- |
 | `hook_event_name` | 固定 `"Status"` |
 | `session_id` | 优先 session header ID；否则从 `session.GetFile()` 派生短 ID |
@@ -216,7 +216,7 @@ VibeCoding 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSche
 | `model.display_name` | `App.model.Name` |
 | `workspace.current_dir` | 同 cwd |
 | `workspace.project_dir` | 首版同 session 初始 cwd；未来可映射第一个 workspace root |
-| `version` | VibeCoding 版本字符串 |
+| `version` | MothX 版本字符串 |
 | `output_style.name` | `"default"` 或当前 TUI theme 名称 |
 | `effort.level` | 当前 thinking level；App 未跟踪时省略 |
 | `cost.total_cost_usd` | TUI runner 累计 usage cost |
@@ -258,7 +258,7 @@ VibeCoding 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSche
 - Input/Output/Total Speed：不支持，因为需要 transcript 中的时间序列和 usage 行。
 - Session Clock 和 Block Timer：不支持 transcript 驱动计算。
 - Compaction Counter：不支持，因为需要 transcript 中的 compaction marker。
-- Skills：`ccstatusline` 读取以 `session_id` 为 key 的 hook 派生 metrics；VibeCoding 当前不会发这些 hooks。
+- Skills：`ccstatusline` 读取以 `session_id` 为 key 的 hook 派生 metrics；MothX 当前不会发这些 hooks。
 
 首阶段不支持：
 
@@ -271,7 +271,7 @@ VibeCoding 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSche
 
 本方案明确只支持 `stdin snapshot` 模式：
 
-- VibeCoding 每次刷新状态行时，把当前状态 JSON 写入 `ccstatusline` 的 stdin。
+- MothX 每次刷新状态行时，把当前状态 JSON 写入 `ccstatusline` 的 stdin。
 - 不输出 `transcript_path`。
 - 不生成或导出任何给 `ccstatusline` 消费的 JSONL transcript 文件。
 - 所有依赖 transcript 历史扫描的 `ccstatusline` widgets 都视为不支持或精度受限。
@@ -320,5 +320,5 @@ VibeCoding 输出 Claude 兼容 JSON 对象。`ccstatusline` 的 `StatusJSONSche
 - `statusLine` 配置同时支持全局 settings 和项目 `.vibe/settings.json` 覆盖，沿用现有 settings 优先级。
 - 不增加 `runInPlanMode` 开关。该功能已经严格限定为交互式 TUI，且默认关闭；用户显式启用后，在 TUI plan/agent/yolo 中都可运行。
 - 保持纯 `stdin snapshot` 模式，不输出 `transcript_path`，不生成 transcript JSONL。
-- 不暴露 VibeCoding 自己的 rate-limit/usage buckets 给 Claude usage API widgets；相关字段首阶段保持空值或 `null`。
-- 不推动 `ccstatusline` upstream 支持安装到 VibeCoding settings。两个项目保持独立；本项目目标只是原生支持 status line 协议，并让用户可以无痛复用 `ccstatusline` 的渲染能力。
+- 不暴露 MothX 自己的 rate-limit/usage buckets 给 Claude usage API widgets；相关字段首阶段保持空值或 `null`。
+- 不推动 `ccstatusline` upstream 支持安装到 MothX settings。两个项目保持独立；本项目目标只是原生支持 status line 协议，并让用户可以无痛复用 `ccstatusline` 的渲染能力。

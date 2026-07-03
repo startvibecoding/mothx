@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 func TestMCPServerSSECallFlow(t *testing.T) {

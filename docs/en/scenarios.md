@@ -1,6 +1,6 @@
 # Scenarios & Walkthroughs
 
-This document demonstrates VibeCoding's various usage modes through practical scenarios.
+This document demonstrates MothX's various usage modes through practical scenarios.
 
 ---
 
@@ -21,10 +21,10 @@ cd ~/projects/myapp
 ### A: Code Explanation
 
 ```bash
-$ vibecoding -P "explain the core logic of internal/agent/agent.go"
+$ mothx -P "explain the core logic of internal/agent/agent.go"
 ```
 
-VibeCoding will:
+MothX will:
 1. Load context files (`AGENTS.md`, `CLAUDE.md`)
 2. Read the file with `read`
 3. Explore related code with `ls`, `grep`
@@ -33,7 +33,7 @@ VibeCoding will:
 ### B: Bug Fix
 
 ```bash
-$ vibecoding
+$ mothx
 ```
 
 ```
@@ -84,35 +84,35 @@ $ vibecoding
 
 | Task | Recommended Mode | Command |
 |------|-----------------|---------|
-| Read code, learn project | `plan` | `vibecoding --mode plan` |
-| Write code, fix bugs | `agent` (default) | `vibecoding` |
-| Install deps, system ops | `yolo` | `vibecoding --mode yolo` |
+| Read code, learn project | `plan` | `mothx --mode plan` |
+| Write code, fix bugs | `agent` (default) | `mothx` |
+| Install deps, system ops | `yolo` | `mothx --mode yolo` |
 
 ---
 
 ## Scenario 2: Non-Interactive Mode (CI/Script Integration)
 
-Use VibeCoding in CI pipelines or scripts.
+Use MothX in CI pipelines or scripts.
 
 ### A: Code Review
 
 ```bash
 # Review PR in CI
-git diff main..feature | vibecoding -P "review this diff, point out potential issues"
+git diff main..feature | mothx -P "review this diff, point out potential issues"
 ```
 
 ### B: Automated Refactoring
 
 ```bash
 # Batch refactoring
-vibecoding -P "change all fmt.Errorf calls to use %w for error wrapping" --mode yolo
+mothx -P "change all fmt.Errorf calls to use %w for error wrapping" --mode yolo
 ```
 
 ### C: Generate Documentation
 
 ```bash
 # Generate README for a package
-vibecoding -P "generate README.md for internal/cache package with usage examples" --mode yolo
+mothx -P "generate README.md for internal/cache package with usage examples" --mode yolo
 ```
 
 ---
@@ -124,7 +124,7 @@ Enable sub-agent tools with `--multi-agent` to split and execute complex tasks i
 ### Launch
 
 ```bash
-$ vibecoding --multi-agent
+$ mothx --multi-agent
 ```
 
 ### Scenario: Parallel Refactoring and Testing
@@ -176,7 +176,7 @@ $ vibecoding --multi-agent
 
 ```bash
 # Daily code review
-vibecoding hermes cron add "daily-review" \
+mothx hermes cron add "daily-review" \
   "review the last 24 hours of git changes, output an issue report" \
   --schedule "@daily"
 ```
@@ -185,12 +185,12 @@ vibecoding hermes cron add "daily-review" \
 
 ## Scenario 4: VS Code ACP Integration
 
-Use VibeCoding directly in VS Code as an AI coding assistant.
+Use MothX directly in VS Code as an AI coding assistant.
 
 ### Step 1: Install
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 ### Step 2: Configure VS Code
@@ -200,10 +200,10 @@ Edit VS Code's `settings.json`:
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent", "--multi-agent"],
-      "description": "VibeCoding AI Assistant"
+      "description": "MothX AI Assistant"
     }
   }
 }
@@ -220,7 +220,7 @@ Edit VS Code's `settings.json`:
 ```
 You: change ParseConfig in utils.go to support YAML format
 
-VibeCoding:
+MothX:
   [tool_call: read utils.go]
   [tool_call: edit utils.go]
   [tool_call: bash "go test ./..."]
@@ -240,26 +240,26 @@ VibeCoding:
 
 ## Scenario 5: A2A Standalone Server Mode
 
-Run VibeCoding as an A2A server for other agents to call.
+Run MothX as an A2A server for other agents to call.
 
 ### A: Start Standalone A2A Server
 
 ```bash
 # Initialize config
-vibecoding a2a --init-a2a-config
+mothx a2a --init-a2a-config
 
 # Edit a2a.json (optional)
 vim ~/.vibecoding/a2a.json
 
 # Start server
-vibecoding a2a start --port 8093 --work-dir ~/projects/myapp
+mothx a2a start --port 8093 --work-dir ~/projects/myapp
 ```
 
 ### B: Other Agents Call It
 
 ```bash
-# Using vibecoding client
-vibecoding a2a send "list all Go files in the project" --target http://localhost:8093
+# Using mothx client
+mothx a2a send "list all Go files in the project" --target http://localhost:8093
 
 # Using curl
 curl -X POST http://localhost:8093/a2a \
@@ -277,17 +277,17 @@ curl -X POST http://localhost:8093/a2a \
   }'
 
 # Discover remote agent capabilities
-vibecoding a2a discover http://localhost:8093
+mothx a2a discover http://localhost:8093
 ```
 
 ### C: A2A Server with Authentication
 
 ```bash
 # Start with auth token
-vibecoding a2a start --auth-token "my-secret-token-xxx"
+mothx a2a start --auth-token "my-secret-token-xxx"
 
 # Client call with token
-vibecoding a2a send "review main.go" \
+mothx a2a send "review main.go" \
   --target http://remote-server:8093 \
   --auth-token "my-secret-token-xxx"
 ```
@@ -302,9 +302,9 @@ Manage multiple remote A2A agents, letting the LLM automatically dispatch tasks.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Local (VibeCoding + A2A Master)                         │
+│  Local (MothX + A2A Master)                         │
 │                                                         │
-│  vibecoding --enable-a2a-master                         │
+│  mothx --enable-a2a-master                         │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  LLM auto-decides → a2a_dispatch tool            │   │
 │  └─────────────────────────────────────────────────┘   │
@@ -323,20 +323,20 @@ Manage multiple remote A2A agents, letting the LLM automatically dispatch tasks.
 **Machine A (Code Review Agent):**
 ```bash
 # 192.168.1.10
-vibecoding a2a start --port 8093 --work-dir ~/projects/shared
+mothx a2a start --port 8093 --work-dir ~/projects/shared
 ```
 
 **Machine B (CI Agent):**
 ```bash
 # 192.168.1.20
-vibecoding a2a start --port 8093 --work-dir ~/ci-runner --auth-token "ci-secret"
+mothx a2a start --port 8093 --work-dir ~/ci-runner --auth-token "ci-secret"
 ```
 
 ### Step 2: Initialize Master Config Locally
 
 ```bash
 # Generate sample config
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # Edit a2a-list.json
 vim ~/.vibecoding/a2a-list.json
@@ -361,7 +361,7 @@ vim ~/.vibecoding/a2a-list.json
 ### Step 3: Enable Master Mode
 
 ```bash
-$ vibecoding --enable-a2a-master --verbose
+$ mothx --enable-a2a-master --verbose
 ```
 
 ```
@@ -393,19 +393,19 @@ A2A master mode enabled: 2 agents loaded from /home/user/.vibecoding/a2a-list.js
 
 ## Scenario 7: Gateway Mode (HTTP API)
 
-Run VibeCoding as an OpenAI-compatible HTTP service for other applications to call.
+Run MothX as an OpenAI-compatible HTTP service for other applications to call.
 
 ### Initialize and Start
 
 ```bash
 # Generate config template
-vibecoding --init-gateway
+mothx --init-gateway
 
 # Edit gateway.json (set token, port, etc.)
 vim ~/.vibecoding/gateway.json
 
 # Start gateway
-vibecoding gateway --port 8080 --work-dir ~/projects/myapp
+mothx gateway --port 8080 --work-dir ~/projects/myapp
 ```
 
 ### Call It
@@ -435,7 +435,7 @@ response = client.chat.completions.create(
 
 ## Scenario 8: Hermes Messaging Gateway
 
-Connect VibeCoding to WeChat/Feishu for unattended AI coding assistant.
+Connect MothX to WeChat/Feishu for unattended AI coding assistant.
 
 ### Start
 
@@ -444,7 +444,7 @@ Connect VibeCoding to WeChat/Feishu for unattended AI coding assistant.
 vim ~/.vibecoding/hermes.json
 
 # Start
-vibecoding hermes start
+mothx hermes start
 ```
 
 ### Typical Config
@@ -494,10 +494,10 @@ Combine multiple modes for a complete development workflow.
 ```bash
 # 1. Local development (TUI mode)
 cd ~/projects/myapp
-vibecoding --mode yolo
+mothx --mode yolo
 
 # 2. Pre-commit review (Plan mode)
-vibecoding --mode plan "review all changes in git diff"
+mothx --mode plan "review all changes in git diff"
 
 # 3. Post-push CI review (Gateway mode)
 # In CI script:
@@ -505,7 +505,7 @@ curl http://gateway:8080/v1/chat/completions \
   -d '{"messages": [{"role": "user", "content": "review PR #42"}]}'
 
 # 4. Scheduled security scan (Hermes + Cron)
-vibecoding hermes cron add "security-scan" \
+mothx hermes cron add "security-scan" \
   "scan for security vulnerabilities and sensitive data leaks" \
   --schedule "@weekly"
 ```
@@ -516,18 +516,18 @@ vibecoding hermes cron add "security-scan" \
 
 | Scenario | Command |
 |----------|---------|
-| Daily coding | `vibecoding` |
-| Read-only analysis | `vibecoding --mode plan` |
-| Full access | `vibecoding --mode yolo` |
-| Non-interactive | `vibecoding -P "..."` |
-| Multi-agent | `vibecoding --multi-agent` |
-| A2A server | `vibecoding a2a start` |
-| A2A master | `vibecoding --enable-a2a-master` |
-| HTTP gateway | `vibecoding gateway` |
-| Messaging gateway | `vibecoding hermes start` |
-| IDE integration | `vibecoding acp` |
-| Continue session | `vibecoding -c` |
-| Resume session | `vibecoding -r <id>` |
-| Init gateway config | `vibecoding --init-gateway` |
-| Init A2A config | `vibecoding a2a --init-a2a-config` |
-| Init master config | `vibecoding --init-a2a-master-config` |
+| Daily coding | `mothx` |
+| Read-only analysis | `mothx --mode plan` |
+| Full access | `mothx --mode yolo` |
+| Non-interactive | `mothx -P "..."` |
+| Multi-agent | `mothx --multi-agent` |
+| A2A server | `mothx a2a start` |
+| A2A master | `mothx --enable-a2a-master` |
+| HTTP gateway | `mothx gateway` |
+| Messaging gateway | `mothx hermes start` |
+| IDE integration | `mothx acp` |
+| Continue session | `mothx -c` |
+| Resume session | `mothx -r <id>` |
+| Init gateway config | `mothx --init-gateway` |
+| Init A2A config | `mothx a2a --init-a2a-config` |
+| Init master config | `mothx --init-a2a-master-config` |

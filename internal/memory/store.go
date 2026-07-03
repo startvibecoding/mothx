@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // Store manages reading and writing of memory.md files.

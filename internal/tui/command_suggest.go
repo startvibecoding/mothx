@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/startvibecoding/vibecoding/internal/tui/components/suggest"
+	"github.com/startvibecoding/mothx/internal/tui/components/suggest"
 )
 
 func commandSuggestionItems() []suggest.Item {

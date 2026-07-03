@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="VibeCoding" width="128" height="128">
+  <img src="docs/assets/mothx.png" alt="MothX" width="128" height="128">
 </p>
 
-<h1 align="center">VibeCoding</h1>
+<h1 align="center">MothX</h1>
 
 <p align="center">
   <strong>🚀 One Binary to Rule Them All — Your AI Coding Assistant in the Terminal</strong>
@@ -10,31 +10,33 @@
 
 <p align="center">
   Stop switching between Claude Code, Codex, Claw, and Hermes.<br>
-  VibeCoding packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
+  MothX packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
   <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
-  <a href="https://gitee.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
+  <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
+  <a href="https://gitee.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
-  <a href="https://pkg.go.dev/github.com/startvibecoding/vibecoding"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/vibecoding?status.svg" alt="GoDoc"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/vibecoding" alt="Dependencies"></a>
+  <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
+  <a href="https://pkg.go.dev/github.com/startvibecoding/mothx"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/mothx?status.svg" alt="GoDoc"></a>
+  <a href="https://github.com/startvibecoding/mothx/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/mothx" alt="Dependencies"></a>
 </p>
 
 <p align="center">
-  <strong>国内镜像: <a href="https://gitee.com/startvibecoding/vibecoding">Gitee</a></strong>
+  <strong>国内镜像: <a href="https://gitee.com/startvibecoding/mothx">Gitee</a></strong>
 </p>
+
+> **Rename notice:** MothX was formerly known as VibeCoding. During this transition release, legacy entry points such as the `vibecoding` command, the `vibecoding-installer` npm package, and the existing `.vibecoding` configuration directory are kept for compatibility. New installs and future updates should use `mothx`.
 
 ---
 
-## ✨ Why VibeCoding?
+## ✨ Why MothX?
 
 **The Problem:** You're juggling multiple AI coding tools — Claude Code for one thing, Codex for another, Claw for something else. Each has its own setup, its own quirks, its own dependencies.
 
-**The Solution:** VibeCoding is the **all-in-one terminal AI coding assistant** that does it all. One binary. One config. Zero hassle.
+**The Solution:** MothX is the **all-in-one terminal AI coding assistant** that does it all. One binary. One config. Zero hassle.
 
 ### 🎯 Key Highlights
 
@@ -48,7 +50,7 @@
 | **📝 Sessions** | Persistent SQLite-backed history with branching, compaction, and tree structure |
 | **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
 | **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
-| **🌐 Gateway** | OpenAI-compatible HTTP API — use VibeCoding as a backend service |
+| **🌐 Gateway** | OpenAI-compatible HTTP API — use MothX as a backend service |
 | **📱 Messaging** | WeChat, Feishu, WebSocket — deploy as a chatbot |
 | **🤝 Multi-Agent** | Async sub-agents with `--multi-agent`, blocking delegation with `--delegate`, and A2A master mode |
 | **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals |
@@ -60,16 +62,16 @@
 
 ```bash
 # Install (pick one)
-npm install -g vibecoding-installer          # npm (recommended)
+npm install -g mothx                         # npm (recommended)
 pipx install vibecoding-installer           # PyPI
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash  # Linux/macOS (GitHub)
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash  # Linux/macOS (Gitee 国内镜像)
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS (GitHub)
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS (Gitee 国内镜像)
 
 # Set your API key
 export DEEPSEEK_API_KEY=sk-...
 
 # Run
-vibecoding
+mothx
 ```
 
 That's it. You're coding with AI.
@@ -78,16 +80,19 @@ That's it. You're coding with AI.
 
 ```bash
 # npm
+npm uninstall -g mothx
+
+# Compatibility package, if installed before the rename
 npm uninstall -g vibecoding-installer
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
 
 # Windows (one-line install)
-irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
 ```
 
 ---
@@ -107,8 +112,8 @@ Switch modes anytime with `/mode plan|agent|yolo` or press `Tab`.
 ## 🏗️ Architecture at a Glance
 
 ```
-vibecoding/
-├── cmd/vibecoding/        # CLI entry point
+mothx/
+├── cmd/mothx/        # CLI entry point
 ├── internal/
 │   ├── agent/             # Core agent loop
 │   ├── provider/          # LLM provider abstraction (20+ vendors)
@@ -165,29 +170,29 @@ vibecoding/
 
 ### 💻 Daily Development
 ```bash
-vibecoding -P "Refactor this function to use generics"
-vibecoding -P "Write tests for the UserService struct"
-vibecoding -P "Explain what this regex does"
+mothx -P "Refactor this function to use generics"
+mothx -P "Write tests for the UserService struct"
+mothx -P "Explain what this regex does"
 ```
 
 ### 🔍 Code Review
 ```bash
-vibecoding --mode plan "Review this PR and suggest improvements"
+mothx --mode plan "Review this PR and suggest improvements"
 ```
 
 ### 🚀 CI/CD Integration
 ```bash
-vibecoding -p "Generate changelog from git log" > CHANGELOG.md
+mothx -p "Generate changelog from git log" > CHANGELOG.md
 ```
 
 ### 🌐 API Server
 ```bash
-vibecoding gateway  # Start OpenAI-compatible HTTP server
+mothx gateway  # Start OpenAI-compatible HTTP server
 ```
 
 ### 📱 Chatbot
 ```bash
-vibecoding hermes   # Deploy as WeChat/Feishu bot
+mothx hermes   # Deploy as WeChat/Feishu bot
 ```
 
 ---
@@ -220,6 +225,8 @@ vibecoding hermes   # Deploy as WeChat/Feishu bot
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global |
 | `.vibe/settings.json` | All | Project (overrides global) |
 
+The `.vibecoding` config directory and `VIBECODING_*` environment variables are retained as compatibility interfaces for this rename.
+
 ### Environment Variables
 
 | Variable | Description |
@@ -238,8 +245,8 @@ vibecoding hermes   # Deploy as WeChat/Feishu bot
 We welcome contributions! See [Development Guide](docs/en/development.md) for details.
 
 ```bash
-git clone https://github.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://github.com/startvibecoding/mothx.git
+cd mothx
 make build
 make test
 ```

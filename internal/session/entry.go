@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // EntryType identifies the type of a session entry.

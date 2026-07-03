@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/ua"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/ua"
 	"golang.org/x/mod/semver"
 )
 
 // PackageName is the npm package used for update detection.
-const PackageName = "vibecoding-installer"
+const PackageName = "mothx"
 
 // checkInterval is the minimum time between background network checks.
 const checkInterval = 24 * time.Hour

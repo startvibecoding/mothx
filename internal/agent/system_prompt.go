@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
+	"github.com/startvibecoding/mothx/internal/platform"
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.

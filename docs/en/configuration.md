@@ -2,7 +2,7 @@
 
 ## Configuration File Locations
 
-VibeCoding uses two configuration files:
+MothX uses two configuration files:
 
 | File | Platform | Scope | Priority |
 |------|----------|-------|----------|
@@ -163,7 +163,7 @@ Project-level configuration overrides global configuration. When both exist, sca
 
 ### statusLine
 
-TUI-only status line command configuration. When enabled, VibeCoding sends the current status JSON to an external command via stdin and replaces the built-in footer below the input box with that command's stdout.
+TUI-only status line command configuration. When enabled, MothX sends the current status JSON to an external command via stdin and replaces the built-in footer below the input box with that command's stdout.
 
 If it is disabled, not configured, still on its first run, times out, fails, or returns empty output, the TUI keeps the current built-in footer.
 
@@ -219,7 +219,7 @@ Multi-provider configuration. Each provider is an object keyed by a user-chosen 
 
 #### vendor field
 
-The `vendor` field selects a vendor adapter without changing the provider config schema. It is optional; when omitted, VibeCoding tries to detect the vendor from `baseUrl`, then falls back to the generic protocol provider selected by `api`.
+The `vendor` field selects a vendor adapter without changing the provider config schema. It is optional; when omitted, MothX tries to detect the vendor from `baseUrl`, then falls back to the generic protocol provider selected by `api`.
 
 Selection order:
 
@@ -238,7 +238,7 @@ Built-in vendor adapters include `openai`, `anthropic`, `claude`, `deepseek`, `g
       "apiKey": "${DEEPSEEK_API_KEY}",
       "api": "openai-chat",
       "headers": {
-        "X-Request-Source": "vibecoding",
+        "X-Request-Source": "mothx",
         "X-Gateway-Token": "${MY_GATEWAY_TOKEN}"
       },
       "models": [
@@ -293,7 +293,7 @@ Hosted web search settings. This is disabled by default.
 }
 ```
 
-When `provider` points to a configured provider name, VibeCoding resolves that provider's `baseUrl`, `api`, and vendor behavior before registering the hosted search tool.
+When `provider` points to a configured provider name, MothX resolves that provider's `baseUrl`, `api`, and vendor behavior before registering the hosted search tool.
 
 #### api field
 
@@ -371,7 +371,7 @@ When not set, automatically detects:
 
 #### cacheControl field
 
-Enable Anthropic-style prompt caching. When set to `true`, VibeCoding adds cache control headers to requests. **You should enable this when using Claude models through the Anthropic API** to reduce cost and latency.
+Enable Anthropic-style prompt caching. When set to `true`, MothX adds cache control headers to requests. **You should enable this when using Claude models through the Anthropic API** to reduce cost and latency.
 
 ```json
 {
@@ -557,7 +557,7 @@ Context file loading settings.
 
 #### Auto-loaded Context Files
 
-VibeCoding automatically searches for and loads the following files:
+MothX automatically searches for and loads the following files:
 
 1. **Global files** (in the global config directory):
    - `AGENTS.md`
@@ -592,7 +592,7 @@ Skills are loaded from:
 
 ### compaction
 
-Context compaction (compression) configuration for managing long conversations. When the context window fills up, VibeCoding can automatically summarize older messages to keep the conversation going.
+Context compaction (compression) configuration for managing long conversations. When the context window fills up, MothX can automatically summarize older messages to keep the conversation going.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -718,7 +718,7 @@ Sandbox configuration for secure command execution. Uses [bubblewrap (bwrap)](ht
 
 Directory for SQLite session storage. Supports `~` expansion.
 
-VibeCoding stores all session metadata and entries in a single, unified `sessions.db` database file under `sessionDir` (using virtual handles for CLI/TUI, and creating physical handles as needed for Hermes). See [Session Management](sessions.md) for the layout.
+MothX stores all session metadata and entries in a single, unified `sessions.db` database file under `sessionDir` (using virtual handles for CLI/TUI, and creating physical handles as needed for Hermes). See [Session Management](sessions.md) for the layout.
 
 | Platform | Default |
 |----------|---------|
@@ -733,7 +733,7 @@ VibeCoding stores all session metadata and entries in a single, unified `session
 
 ### shellPath
 
-Custom shell path for the Bash tool. When empty (default), VibeCoding uses the platform default:
+Custom shell path for the Bash tool. When empty (default), MothX uses the platform default:
 
 | Platform | Default |
 |----------|---------|
@@ -818,7 +818,7 @@ Each retry waits `baseDelayMs × 2^attempt` milliseconds, capped at 30 seconds:
 | 2nd | 4s |
 | 3rd | 8s |
 
-When a retry occurs, VibeCoding displays a status message in the TUI:
+When a retry occurs, MothX displays a status message in the TUI:
 ```
 Retrying (1/3): request timed out — waiting 2.0s...
 Retrying (2/3): rate limited (HTTP 429) — waiting 4.0s...
@@ -913,7 +913,7 @@ In --print mode:
 
 ### Project-Level Allow Rules (`allow.json`)
 
-In addition to the global `settings.json` approval configuration, VibeCoding supports project-level allow rules in `allow.json` (`.vibe/allow.json`). These rules enable auto-approval of specific bash commands **per project** without modifying global settings.
+In addition to the global `settings.json` approval configuration, MothX supports project-level allow rules in `allow.json` (`.vibe/allow.json`). These rules enable auto-approval of specific bash commands **per project** without modifying global settings.
 
 | File | Scope | Priority |
 |------|-------|----------|
@@ -957,7 +957,7 @@ In addition to the global `settings.json` approval configuration, VibeCoding sup
 
 MCP servers are configured in standalone `mcp.json` files, not in `settings.json`.
 
-VibeCoding loads MCP configuration at startup from:
+MothX loads MCP configuration at startup from:
 
 1. Global config: `~/.vibecoding/mcp.json` on Linux/macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
 2. Project config: `.vibe/mcp.json`
@@ -1004,17 +1004,17 @@ Supported transports:
 
 MCP tools are registered after built-in tools and `skill_ref`, but before the agent is created. The agent freezes its system prompt and tool definitions for the session, so changes to `mcp.json` require restarting the client.
 
-Tool names use `mcp_<server_name>_<tool_name>`. If a name already exists, VibeCoding appends a numeric suffix instead of replacing an existing tool. Starter-template placeholders such as `/absolute/path/to/mcp-server`, `example.com`, and `replace-me` are ignored during automatic startup loading.
+Tool names use `mcp_<server_name>_<tool_name>`. If a name already exists, MothX appends a numeric suffix instead of replacing an existing tool. Starter-template placeholders such as `/absolute/path/to/mcp-server`, `example.com`, and `replace-me` are ignored during automatic startup loading.
 
 ---
 
 ## Authentication Configuration
 
-VibeCoding supports multiple ways to provide API keys, with flexible resolution logic.
+MothX supports multiple ways to provide API keys, with flexible resolution logic.
 
 ### Key Resolution Order
 
-When VibeCoding needs the API key for a provider, it checks in this order:
+When MothX needs the API key for a provider, it checks in this order:
 
 1. **Provider `apiKey` field** in `settings.json` — if set, resolved using the rules below
 2. **Derived environment variable** — provider name is converted to an env var: e.g., `deepseek-openai` → `DEEPSEEK_OPENAI_API_KEY`
@@ -1049,7 +1049,7 @@ export DEEPSEEK_API_KEY=sk-...
 
 #### Shell Command (Password Manager Integration)
 
-Prefix with `!` to run a shell command. VibeCoding uses `sh -c` on Linux/macOS and `powershell.exe` on Windows.
+Prefix with `!` to run a shell command. MothX uses `sh -c` on Linux/macOS and `powershell.exe` on Windows.
 
 Shell command resolution is disabled by default. To enable it for trusted local configuration, set:
 
@@ -1074,7 +1074,7 @@ This is useful for integrating with password managers like `pass`, `1password-cl
 
 #### Derived Environment Variable Fallback
 
-If no `apiKey` is configured for a provider, VibeCoding derives an environment variable name from the provider name:
+If no `apiKey` is configured for a provider, MothX derives an environment variable name from the provider name:
 
 | Provider Name | Derived Env Var |
 |---------------|-----------------|
@@ -1094,7 +1094,7 @@ The rule: replace `-` with `_`, uppercase everything, append `_API_KEY`.
 export DEEPSEEK_API_KEY=sk-...
 ```
 
-With default config, VibeCoding will look for `DEEPSEEK_OPENAI_API_KEY` for the `deepseek-openai` provider. But if the provider's `apiKey` is set to `${DEEPSEEK_API_KEY}`, it reads that env var instead.
+With default config, MothX will look for `DEEPSEEK_OPENAI_API_KEY` for the `deepseek-openai` provider. But if the provider's `apiKey` is set to `${DEEPSEEK_API_KEY}`, it reads that env var instead.
 
 **Option 2: Inline in Configuration File**
 
@@ -1197,7 +1197,7 @@ Switch between providers at runtime using `/provider` or `--provider`:
 
 `baseUrl` points to an API endpoint or API gateway. `httpProxy` configures the network proxy used only by that provider's HTTP client. When `httpProxy` is empty, the provider keeps Go's default `HTTP_PROXY` / `HTTPS_PROXY` environment behavior. Set `forceHTTP11` to `true` when a proxy or gateway has unstable HTTP/2 streaming behavior.
 
-Use `headers` to attach custom HTTP headers to every request for a provider. Header values support the same resolution rules as `apiKey`, including `${ENV_VAR}` and opt-in `!cmd` shell commands. Custom headers are applied after VibeCoding's default provider headers, so they can also override defaults such as `Authorization`, `x-api-key`, or gateway-specific headers when needed.
+Use `headers` to attach custom HTTP headers to every request for a provider. Header values support the same resolution rules as `apiKey`, including `${ENV_VAR}` and opt-in `!cmd` shell commands. Custom headers are applied after MothX's default provider headers, so they can also override defaults such as `Authorization`, `x-api-key`, or gateway-specific headers when needed.
 
 ```json
 {
@@ -1210,7 +1210,7 @@ Use `headers` to attach custom HTTP headers to every request for a provider. Hea
       "forceHTTP11": true,
       "headers": {
         "X-Gateway-Token": "${MY_GATEWAY_TOKEN}",
-        "X-Request-Source": "vibecoding"
+        "X-Request-Source": "mothx"
       },
       "models": [
         {

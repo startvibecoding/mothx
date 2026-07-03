@@ -1,6 +1,6 @@
 # 技能系统
 
-VibeCoding 的技能系统允许您创建可重用的提示片段，称为技能 (Skills)。
+MothX 的技能系统允许您创建可重用的提示片段，称为技能 (Skills)。
 
 ## 概述
 
@@ -303,7 +303,7 @@ func TestFunction(t *testing.T) {
 
 1. 确认技能内容格式正确
 2. 检查系统提示是否包含技能内容
-3. 重启 VibeCoding 重新加载
+3. 重启 MothX 重新加载
 
 ## 相关文档
 
@@ -315,7 +315,7 @@ func TestFunction(t *testing.T) {
 
 ### workflow-elisp 技能
 
-当启用 `--workflows` 模式时，VibeCoding 会自动在项目目录下创建 `.skills/workflow-elisp/` 技能目录，包含完整的语法规则、模式骨架和最佳实践。该技能包含 8 个参考文件：
+当启用 `--workflows` 模式时，MothX 会自动在项目目录下创建 `.skills/workflow-elisp/` 技能目录，包含完整的语法规则、模式骨架和最佳实践。该技能包含 8 个参考文件：
 
 - 核心规则（默认加载）
 - 研究与调查模式

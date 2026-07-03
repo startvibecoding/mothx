@@ -6,13 +6,13 @@
 
 ## 🚀 安装与启动
 
-### Q: 安装后运行 `vibecoding` 提示 "command not found"
+### Q: 安装后运行 `mothx` 提示 "command not found"
 
 **A:** 这通常是因为安装路径不在 PATH 环境变量中。
 
 ```bash
 # 检查安装位置
-which vibecoding || where vibecoding
+which mothx || where mothx
 
 # 如果使用 npm 安装，检查 npm 全局路径
 npm root -g
@@ -22,7 +22,7 @@ npm root -g
 export PATH="$HOME/.local/bin:$PATH"
 
 # 或者重新安装到系统路径
-sudo npm install -g vibecoding-installer
+sudo npm install -g mothx
 ```
 
 ### Q: npm 安装失败，提示权限错误
@@ -36,10 +36,10 @@ npm config set prefix '~/.npm-global'
 export PATH=~/.npm-global/bin:$PATH
 
 # 方案二：使用 npx 直接运行
-npx vibecoding-installer
+npx mothx
 
 # 方案三：使用一键安装脚本
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 ```
 
 ### Q: 启动后没有任何反应，光标闪烁
@@ -48,7 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/ins
 
 ```bash
 # 方案一：使用 print 模式（非交互）
-vibecoding -P "hello"
+mothx -P "hello"
 
 # 方案二：检查终端支持
 echo $TERM  # 应该是 xterm-256color 或类似
@@ -75,7 +75,7 @@ export OPENAI_API_KEY=sk-...
 cat ~/.vibecoding/settings.json
 
 # 方案三：运行诊断
-vibecoding doctor
+mothx doctor
 ```
 
 ### Q: 提示 "connection timeout" 或 "network error"
@@ -121,16 +121,16 @@ nslookup api.deepseek.com
 }
 
 # 方案三：切换到其他提供商
-vibecoding --provider openai --model gpt-4o
+mothx --provider openai --model gpt-4o
 ```
 
 ---
 
 ## 💰 成本与计费
 
-### Q: 使用 VibeCoding 会花多少钱？
+### Q: 使用 MothX 会花多少钱？
 
-**A:** VibeCoding 本身免费开源，费用来自 LLM API 调用：
+**A:** MothX 本身免费开源，费用来自 LLM API 调用：
 
 | 提供商 | 大致价格（每百万 token） |
 |--------|------------------------|
@@ -154,7 +154,7 @@ vibecoding --provider openai --model gpt-4o
 
 ```bash
 # 使用 debug 模式查看详细信息
-vibecoding --debug
+mothx --debug
 ```
 
 ### Q: 如何降低 API 成本？
@@ -208,7 +208,7 @@ vibecoding --debug
 
 ```bash
 # 命令行
-vibecoding --mode plan
+mothx --mode plan
 
 # 交互式
 /mode plan
@@ -236,7 +236,7 @@ vibecoding --mode plan
 # 切换思考级别
 /think          # 循环切换
 Tab             # 快捷键
-vibecoding -t high  # 命令行指定
+mothx -t high  # 命令行指定
 ```
 
 ### Q: 思考模式为什么没有效果？
@@ -245,12 +245,12 @@ vibecoding -t high  # 命令行指定
 
 ```bash
 # 支持思考模式的模型
-vibecoding --provider deepseek --model deepseek-v4-pro -t high
-vibecoding --provider openai --model o1 -t high
-vibecoding --provider anthropic --model claude-3-5-sonnet -t high
+mothx --provider deepseek --model deepseek-v4-pro -t high
+mothx --provider openai --model o1 -t high
+mothx --provider anthropic --model claude-3-5-sonnet -t high
 
 # 不支持的模型会忽略思考参数
-vibecoding --model deepseek-v4-flash -t high  # 无效
+mothx --model deepseek-v4-flash -t high  # 无效
 ```
 
 ### Q: 如何切换到其他模型？
@@ -259,7 +259,7 @@ vibecoding --model deepseek-v4-flash -t high  # 无效
 
 ```bash
 # 临时切换
-vibecoding --provider openai --model gpt-4o
+mothx --provider openai --model gpt-4o
 
 # 交互式切换
 /model gpt-4o
@@ -304,7 +304,7 @@ vibecoding --provider openai --model gpt-4o
 
 ```bash
 # 继续最近的会话
-vibecoding -c
+mothx -c
 
 # 列出所有会话
 /sessions
@@ -313,7 +313,7 @@ vibecoding -c
 /sessions set abc123
 
 # 或命令行
-vibecoding --resume abc123
+mothx --resume abc123
 ```
 
 ### Q: 会话存储占用太多空间怎么办？
@@ -344,10 +344,10 @@ cp -a ~/.vibecoding/sessions ~/backups/sessions
 ls -la <file>
 
 # 方案二：检查沙箱配置
-vibecoding doctor
+mothx doctor
 
 # 方案三：临时禁用沙箱
-vibecoding --no-sandbox
+mothx --no-sandbox
 
 # 方案四：切换到 YOLO 模式
 /mode yolo
@@ -360,10 +360,10 @@ vibecoding --no-sandbox
 ```bash
 # 确保在项目目录下运行
 cd /path/to/your/project
-vibecoding
+mothx
 
 # 使用绝对路径
-vibecoding -P "在 /path/to/project 中搜索 TODO"
+mothx -P "在 /path/to/project 中搜索 TODO"
 
 # 检查 .gitignore 是否排除了目标文件
 ```
@@ -377,7 +377,7 @@ vibecoding -P "在 /path/to/project 中搜索 TODO"
 /mode plan
 
 # 方案二：在 prompt 中明确说明
-vibecoding -P "分析这段代码，不要执行任何命令"
+mothx -P "分析这段代码，不要执行任何命令"
 
 # 方案三：配置审批
 {
@@ -392,9 +392,9 @@ vibecoding -P "分析这段代码，不要执行任何命令"
 
 ## 🔒 安全与隐私
 
-### Q: VibeCoding 会上传我的代码吗？
+### Q: MothX 会上传我的代码吗？
 
-**A:** VibeCoding 本身不会上传代码，但会将你的 prompt 发送到配置的 LLM API：
+**A:** MothX 本身不会上传代码，但会将你的 prompt 发送到配置的 LLM API：
 
 - **本地处理**：文件读取、工具执行都在本地
 - **API 调用**：prompt 内容会发送到 LLM 提供商
@@ -419,7 +419,7 @@ vibecoding -P "分析这段代码，不要执行任何命令"
 git add -A && git commit -m "backup before AI changes"
 
 # 方案四：启用沙箱
-vibecoding --sandbox
+mothx --sandbox
 ```
 
 ### Q: 沙箱模式不工作？
@@ -442,7 +442,7 @@ sudo pacman -S bubblewrap        # Arch
 
 ## 💻 IDE 集成
 
-### Q: VS Code 中看不到 VibeCoding
+### Q: VS Code 中看不到 MothX
 
 **A:** 检查 ACP 配置：
 
@@ -450,8 +450,8 @@ sudo pacman -S bubblewrap        # Arch
 // .vscode/settings.json 或全局 settings.json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent"]
     }
   }
@@ -459,7 +459,7 @@ sudo pacman -S bubblewrap        # Arch
 ```
 
 确保：
-1. VibeCoding 已安装并在 PATH 中
+1. MothX 已安装并在 PATH 中
 2. VS Code 版本支持 ACP
 3. 重启 VS Code
 
@@ -469,8 +469,8 @@ sudo pacman -S bubblewrap        # Arch
 
 1. 打开 `Settings → Tools → ACP Agents`
 2. 添加 Agent：
-   - Name: `VibeCoding`
-   - Command: `vibecoding`
+   - Name: `MothX`
+   - Command: `mothx`
    - Arguments: `acp --mode agent`
 3. 点击 Test 验证连接
 4. 重启 IDE
@@ -479,13 +479,13 @@ sudo pacman -S bubblewrap        # Arch
 
 ## 🌐 Gateway 模式
 
-### Q: 如何将 VibeCoding 作为 API 服务器？
+### Q: 如何将 MothX 作为 API 服务器？
 
 **A:**
 
 ```bash
 # 启动 Gateway
-vibecoding gateway
+mothx gateway
 
 # 配置文件 ~/.vibecoding/gateway.json
 {
@@ -521,7 +521,7 @@ curl http://localhost:8080/v1/chat/completions \
 
 ```bash
 # 启动 Hermes 模式
-vibecoding hermes
+mothx hermes
 
 # 配置文件 ~/.vibecoding/hermes.json
 {
@@ -538,12 +538,12 @@ vibecoding hermes
 
 ## 🔧 故障排查
 
-### Q: 运行 `vibecoding doctor` 报错
+### Q: 运行 `mothx doctor` 报错
 
 **A:** doctor 命令会检查：
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 常见问题：
@@ -558,7 +558,7 @@ vibecoding doctor
 
 ```bash
 # 启用 debug 模式
-vibecoding --debug
+mothx --debug
 
 # 日志会显示
 - API 请求/响应详情
@@ -582,7 +582,7 @@ vibecoding --debug
 }
 
 # 方案三：使用更大上下文的模型
-vibecoding --model deepseek-v4-pro  # 1M context
+mothx --model deepseek-v4-pro  # 1M context
 
 # 方案四：清除对话重新开始
 /clear
@@ -611,11 +611,11 @@ vibecoding --model deepseek-v4-pro  # 1M context
 
 ## 🆚 与其他工具对比
 
-### Q: VibeCoding 和 Claude Code 有什么区别？
+### Q: MothX 和 Claude Code 有什么区别？
 
 **A:**
 
-| 特性 | VibeCoding | Claude Code |
+| 特性 | MothX | Claude Code |
 |------|-----------|-------------|
 | 价格 | 免费开源 | 付费 |
 | 模型 | 多提供商 | 仅 Anthropic |
@@ -625,17 +625,17 @@ vibecoding --model deepseek-v4-pro  # 1M context
 | 消息平台 | ✅ 微信/飞书 | ❌ |
 | Gateway | ✅ OpenAI 兼容 | ❌ |
 
-### Q: VibeCoding 和 Cursor 有什么区别？
+### Q: MothX 和 Cursor 有什么区别？
 
 **A:**
 
-- **VibeCoding**：终端工具，轻量级，适合命令行用户
+- **MothX**：终端工具，轻量级，适合命令行用户
 - **Cursor**：IDE，图形界面，适合喜欢 GUI 的用户
 
 选择建议：
-- 喜欢终端 → VibeCoding
+- 喜欢终端 → MothX
 - 喜欢图形界面 → Cursor
-- 需要 API 服务 → VibeCoding Gateway
+- 需要 API 服务 → MothX Gateway
 
 ---
 
@@ -651,5 +651,5 @@ vibecoding --model deepseek-v4-pro  # 1M context
 
 <p align="center">
   <strong>还有问题？在 GitHub 上提问！</strong><br>
-  <a href="https://gitee.com/startvibecoding/vibecoding/issues">Gitee Issues</a> · <a href="https://gitee.com/startvibecoding/vibecoding">Gitee 仓库</a>
+  <a href="https://gitee.com/startvibecoding/mothx/issues">Gitee Issues</a> · <a href="https://gitee.com/startvibecoding/mothx">Gitee 仓库</a>
 </p>

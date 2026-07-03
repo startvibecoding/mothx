@@ -1,7 +1,7 @@
 package hermes
 
 import (
-	"github.com/startvibecoding/vibecoding/internal/hermes/remotetui"
+	"github.com/startvibecoding/mothx/internal/hermes/remotetui"
 )
 
 // ClientOptions configures the hermes client.

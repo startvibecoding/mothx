@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
+	agentpkg "github.com/startvibecoding/mothx/agent"
 )
 
 type toolModalTarget struct {

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	internalagent "github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // RegisterTools registers workflow tools.

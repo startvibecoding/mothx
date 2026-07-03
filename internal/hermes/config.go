@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // HermesConfig holds all configuration for hermes mode.

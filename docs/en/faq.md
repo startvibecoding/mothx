@@ -6,13 +6,13 @@
 
 ## 🚀 Installation & Startup
 
-### Q: After installation, running `vibecoding` shows "command not found"
+### Q: After installation, running `mothx` shows "command not found"
 
 **A:** This usually means the installation path isn't in your PATH environment variable.
 
 ```bash
 # Check installation location
-which vibecoding || where vibecoding
+which mothx || where mothx
 
 # If installed via npm, check npm global path
 npm root -g
@@ -22,7 +22,7 @@ npm root -g
 export PATH="$HOME/.local/bin:$PATH"
 
 # Or reinstall to system path
-sudo npm install -g vibecoding-installer
+sudo npm install -g mothx
 ```
 
 ### Q: npm installation fails with permission error
@@ -36,10 +36,10 @@ npm config set prefix '~/.npm-global'
 export PATH=~/.npm-global/bin:$PATH
 
 # Option 2: Use npx to run directly
-npx vibecoding-installer
+npx mothx
 
 # Option 3: Use one-line install script
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 ```
 
 ### Q: After starting, nothing happens, cursor just blinks
@@ -48,7 +48,7 @@ curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/ins
 
 ```bash
 # Option 1: Use print mode (non-interactive)
-vibecoding -P "hello"
+mothx -P "hello"
 
 # Option 2: Check terminal support
 echo $TERM  # Should be xterm-256color or similar
@@ -75,7 +75,7 @@ export OPENAI_API_KEY=sk-...
 cat ~/.vibecoding/settings.json
 
 # Option 3: Run diagnostics
-vibecoding doctor
+mothx doctor
 ```
 
 ### Q: Shows "connection timeout" or "network error"
@@ -121,16 +121,16 @@ nslookup api.deepseek.com
 }
 
 # Option 3: Switch to another provider
-vibecoding --provider openai --model gpt-4o
+mothx --provider openai --model gpt-4o
 ```
 
 ---
 
 ## 💰 Cost & Billing
 
-### Q: How much does it cost to use VibeCoding?
+### Q: How much does it cost to use MothX?
 
-**A:** VibeCoding itself is free and open source. Costs come from LLM API calls:
+**A:** MothX itself is free and open source. Costs come from LLM API calls:
 
 | Provider | Approximate Price (per million tokens) |
 |----------|---------------------------------------|
@@ -154,7 +154,7 @@ vibecoding --provider openai --model gpt-4o
 
 ```bash
 # Use debug mode for detailed info
-vibecoding --debug
+mothx --debug
 ```
 
 ### Q: How to reduce API costs?
@@ -208,7 +208,7 @@ vibecoding --debug
 
 ```bash
 # Command line
-vibecoding --mode plan
+mothx --mode plan
 
 # Interactive
 /mode plan
@@ -236,7 +236,7 @@ vibecoding --mode plan
 # Switch thinking level
 /think          # Cycle through levels
 Tab             # Keyboard shortcut
-vibecoding -t high  # Specify on command line
+mothx -t high  # Specify on command line
 ```
 
 ### Q: Why doesn't thinking mode work?
@@ -245,12 +245,12 @@ vibecoding -t high  # Specify on command line
 
 ```bash
 # Models that support thinking mode
-vibecoding --provider deepseek --model deepseek-v4-pro -t high
-vibecoding --provider openai --model o1 -t high
-vibecoding --provider anthropic --model claude-3-5-sonnet -t high
+mothx --provider deepseek --model deepseek-v4-pro -t high
+mothx --provider openai --model o1 -t high
+mothx --provider anthropic --model claude-3-5-sonnet -t high
 
 # Unsupported models ignore thinking parameters
-vibecoding --model deepseek-v4-flash -t high  # No effect
+mothx --model deepseek-v4-flash -t high  # No effect
 ```
 
 ### Q: How to switch to a different model?
@@ -259,7 +259,7 @@ vibecoding --model deepseek-v4-flash -t high  # No effect
 
 ```bash
 # Temporary switch
-vibecoding --provider openai --model gpt-4o
+mothx --provider openai --model gpt-4o
 
 # Interactive switch
 /model gpt-4o
@@ -304,7 +304,7 @@ vibecoding --provider openai --model gpt-4o
 
 ```bash
 # Continue most recent session
-vibecoding -c
+mothx -c
 
 # List all sessions
 /sessions
@@ -313,7 +313,7 @@ vibecoding -c
 /sessions set abc123
 
 # Or via command line
-vibecoding --resume abc123
+mothx --resume abc123
 ```
 
 ### Q: Session storage is taking up too much space
@@ -344,10 +344,10 @@ cp -a ~/.vibecoding/sessions ~/backups/sessions
 ls -la <file>
 
 # Option 2: Check sandbox configuration
-vibecoding doctor
+mothx doctor
 
 # Option 3: Temporarily disable sandbox
-vibecoding --no-sandbox
+mothx --no-sandbox
 
 # Option 4: Switch to YOLO mode
 /mode yolo
@@ -360,10 +360,10 @@ vibecoding --no-sandbox
 ```bash
 # Make sure you're in the project directory
 cd /path/to/your/project
-vibecoding
+mothx
 
 # Use absolute paths
-vibecoding -P "Search for TODO in /path/to/project"
+mothx -P "Search for TODO in /path/to/project"
 
 # Check if .gitignore is excluding target files
 ```
@@ -377,7 +377,7 @@ vibecoding -P "Search for TODO in /path/to/project"
 /mode plan
 
 # Option 2: Be explicit in your prompt
-vibecoding -P "Analyze this code, don't execute any commands"
+mothx -P "Analyze this code, don't execute any commands"
 
 # Option 3: Configure approval
 {
@@ -392,9 +392,9 @@ vibecoding -P "Analyze this code, don't execute any commands"
 
 ## 🔒 Security & Privacy
 
-### Q: Does VibeCoding upload my code?
+### Q: Does MothX upload my code?
 
-**A:** VibeCoding itself doesn't upload code, but it sends your prompts to the configured LLM API:
+**A:** MothX itself doesn't upload code, but it sends your prompts to the configured LLM API:
 
 - **Local processing**: File reads, tool execution happen locally
 - **API calls**: Prompt content is sent to LLM providers
@@ -419,7 +419,7 @@ vibecoding -P "Analyze this code, don't execute any commands"
 git add -A && git commit -m "backup before AI changes"
 
 # Option 4: Enable sandbox
-vibecoding --sandbox
+mothx --sandbox
 ```
 
 ### Q: Sandbox mode not working?
@@ -442,7 +442,7 @@ sudo pacman -S bubblewrap        # Arch
 
 ## 💻 IDE Integration
 
-### Q: Can't see VibeCoding in VS Code
+### Q: Can't see MothX in VS Code
 
 **A:** Check ACP configuration:
 
@@ -450,8 +450,8 @@ sudo pacman -S bubblewrap        # Arch
 // .vscode/settings.json or global settings.json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent"]
     }
   }
@@ -459,7 +459,7 @@ sudo pacman -S bubblewrap        # Arch
 ```
 
 Make sure:
-1. VibeCoding is installed and in PATH
+1. MothX is installed and in PATH
 2. VS Code version supports ACP
 3. Restart VS Code
 
@@ -469,8 +469,8 @@ Make sure:
 
 1. Open `Settings → Tools → ACP Agents`
 2. Add Agent:
-   - Name: `VibeCoding`
-   - Command: `vibecoding`
+   - Name: `MothX`
+   - Command: `mothx`
    - Arguments: `acp --mode agent`
 3. Click Test to verify connection
 4. Restart IDE
@@ -479,13 +479,13 @@ Make sure:
 
 ## 🌐 Gateway Mode
 
-### Q: How to use VibeCoding as an API server?
+### Q: How to use MothX as an API server?
 
 **A:**
 
 ```bash
 # Start Gateway
-vibecoding gateway
+mothx gateway
 
 # Config file ~/.vibecoding/gateway.json
 {
@@ -521,7 +521,7 @@ curl http://localhost:8080/v1/chat/completions \
 
 ```bash
 # Start Hermes mode
-vibecoding hermes
+mothx hermes
 
 # Config file ~/.vibecoding/hermes.json
 {
@@ -538,12 +538,12 @@ See [Hermes Mode](hermes.md) documentation for details.
 
 ## 🔧 Troubleshooting
 
-### Q: `vibecoding doctor` shows errors
+### Q: `mothx doctor` shows errors
 
 **A:** The doctor command checks:
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 Common issues:
@@ -558,7 +558,7 @@ Common issues:
 
 ```bash
 # Enable debug mode
-vibecoding --debug
+mothx --debug
 
 # Logs will show
 - API request/response details
@@ -582,7 +582,7 @@ vibecoding --debug
 }
 
 # Option 3: Use a model with larger context
-vibecoding --model deepseek-v4-pro  # 1M context
+mothx --model deepseek-v4-pro  # 1M context
 
 # Option 4: Clear conversation and start fresh
 /clear
@@ -611,11 +611,11 @@ vibecoding --model deepseek-v4-pro  # 1M context
 
 ## 🆚 Comparison with Other Tools
 
-### Q: What's the difference between VibeCoding and Claude Code?
+### Q: What's the difference between MothX and Claude Code?
 
 **A:**
 
-| Feature | VibeCoding | Claude Code |
+| Feature | MothX | Claude Code |
 |---------|-----------|-------------|
 | Price | Free & Open Source | Paid |
 | Models | Multi-provider | Anthropic only |
@@ -625,17 +625,17 @@ vibecoding --model deepseek-v4-pro  # 1M context
 | Messaging | ✅ WeChat/Feishu | ❌ |
 | Gateway | ✅ OpenAI compatible | ❌ |
 
-### Q: What's the difference between VibeCoding and Cursor?
+### Q: What's the difference between MothX and Cursor?
 
 **A:**
 
-- **VibeCoding**: Terminal tool, lightweight, great for CLI users
+- **MothX**: Terminal tool, lightweight, great for CLI users
 - **Cursor**: IDE with GUI, great for users who prefer graphical interfaces
 
 Choose based on:
-- Prefer terminal → VibeCoding
+- Prefer terminal → MothX
 - Prefer GUI → Cursor
-- Need API service → VibeCoding Gateway
+- Need API service → MothX Gateway
 
 ---
 
@@ -651,5 +651,5 @@ Choose based on:
 
 <p align="center">
   <strong>Still have questions? Ask on GitHub!</strong><br>
-  <a href="https://github.com/startvibecoding/vibecoding/issues">GitHub Issues</a> · <a href="https://github.com/startvibecoding/vibecoding/discussions">GitHub Discussions</a>
+  <a href="https://github.com/startvibecoding/mothx/issues">GitHub Issues</a> · <a href="https://github.com/startvibecoding/mothx/discussions">GitHub Discussions</a>
 </p>

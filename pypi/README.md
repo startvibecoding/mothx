@@ -1,6 +1,6 @@
-# VibeCoding
+# MothX
 
-A terminal-based AI coding assistant. Each PyPI wheel includes a platform-native `vibecoding` binary — just install and run.
+MothX was formerly known as VibeCoding. This PyPI package is kept as a legacy compatibility distribution: each wheel includes a platform-native `vibecoding` binary, while new installs and future updates should prefer `npm install -g mothx`.
 
 ## Installation
 
@@ -14,7 +14,7 @@ Or with an isolated environment:
 pipx install vibecoding-installer
 ```
 
-After installation, the `vibecoding` command is available on your `PATH`.
+After installation, the legacy `vibecoding` command is available on your `PATH`.
 
 ## Quick Start
 
@@ -65,7 +65,7 @@ vibecoding --provider anthropic --model claude-3-5-sonnet-20241022
 
 ## Session Management
 
-VibeCoding persists conversation history in SQLite with branching support:
+MothX persists conversation history in SQLite with branching support:
 
 ```bash
 vibecoding                    # start new session
@@ -78,7 +78,7 @@ Sessions live in `~/.vibecoding/sessions/` (Linux/macOS) or `%APPDATA%\vibecodin
 
 ## Print / CI Mode
 
-Use VibeCode in non-interactive mode for scripting and CI/CD:
+Use MothX in non-interactive mode for scripting and CI/CD:
 
 ```bash
 vibecoding -P "Write unit tests for auth.go"
@@ -100,7 +100,7 @@ Levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` — toggle in TUI wit
 
 ## Security & Sandboxing
 
-VibeCoding uses [bubblewrap](https://github.com/containers/bubblewrap) for process-level isolation. Three layers of protection:
+MothX uses [bubblewrap](https://github.com/containers/bubblewrap) for process-level isolation. Three layers of protection:
 
 - **Blacklist** — dangerous commands (`rm -rf`, `sudo`) are always blocked, even in YOLO mode
 - **Approval gates** — Agent mode prompts before executing bash commands
@@ -136,7 +136,7 @@ Compatible with [SkillHub](https://github.com/startvibecoding/skillhub) for disc
 
 ## IDE Integration
 
-VibeCoding speaks [Agent Client Protocol (ACP)](https://github.com/startvibecoding/vibecoding/blob/main/docs/en/acp.md), integrating with VS Code, Zed, and JetBrains IDEs.
+MothX speaks [Agent Client Protocol (ACP)](https://github.com/startvibecoding/mothx/blob/main/docs/en/acp.md), integrating with VS Code, Zed, and JetBrains IDEs.
 
 ### VS Code
 
@@ -156,13 +156,13 @@ Add to `.vscode/settings.json`:
 ### JetBrains (IntelliJ, WebStorm, etc.)
 
 Go to `Settings → Tools → ACP Agents` and add:
-- Name: `VibeCoding`
+- Name: `MothX`
 - Command: `vibecoding`
 - Arguments: `acp --mode agent`
 
 ## Gateway Mode
 
-Run VibeCoding as an OpenAI-compatible HTTP server:
+Run MothX as an OpenAI-compatible HTTP server:
 
 ```bash
 vibecoding gateway
@@ -188,7 +188,7 @@ vibecoding --delegate
 
 ## Hermes / Messaging Mode
 
-Deploy VibeCoding as a chatbot on WeChat, Feishu, or WebSocket:
+Deploy MothX as a chatbot on WeChat, Feishu, or WebSocket:
 
 ```bash
 vibecoding hermes
@@ -215,7 +215,7 @@ Config in `~/.vibecoding/hermes.json`. Each user gets an independent, persistent
 - macOS x86_64, arm64
 - Windows x64, arm64
 
-Other platforms (LoongArch64, RISC-V64, *BSD) are available via `npm install -g vibecoding-installer` or the one-line installer.
+Other platforms (LoongArch64, RISC-V64, *BSD) are available via `npm install -g mothx` or the one-line installer.
 
 ## Diagnostics
 
@@ -236,8 +236,8 @@ pipx uninstall vibecoding-installer
 
 ## Links
 
-- **Homepage** — <https://github.com/startvibecoding/vibecoding>
-- **Documentation** — <https://github.com/startvibecoding/vibecoding/tree/main/docs>
-- **Changelog** — <https://github.com/startvibecoding/vibecoding/blob/main/docs/en/changelog.md>
-- **Issues** — <https://github.com/startvibecoding/vibecoding/issues>
+- **Homepage** — <https://github.com/startvibecoding/mothx>
+- **Documentation** — <https://github.com/startvibecoding/mothx/tree/main/docs>
+- **Changelog** — <https://github.com/startvibecoding/mothx/blob/main/docs/en/changelog.md>
+- **Issues** — <https://github.com/startvibecoding/mothx/issues>
 - **License** — MIT

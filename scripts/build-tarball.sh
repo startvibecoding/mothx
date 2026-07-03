@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# VibeCoding Tarball Builder
+# MothX Tarball Builder
 # Usage: ./scripts/build-tarball.sh <arch> [version]
 # Example: ./scripts/build-tarball.sh amd64 v0.0.2
 
-BINARY_NAME="vibecoding"
-PACKAGE_NAME="vibecoding"
+BINARY_NAME="mothx"
+PACKAGE_NAME="mothx"
 
 # Parse arguments
 OS="${1:-linux}"
@@ -66,7 +66,7 @@ if [ "${OS}" != "windows" ]; then
 #!/bin/bash
 set -e
 
-BINARY_NAME="vibecoding"
+BINARY_NAME="mothx"
 INSTALL_DIR="/usr/local/bin"
 
 # Check if running as root
@@ -89,7 +89,7 @@ echo ""
 echo "Add to your shell rc file if needed:"
 echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
 echo ""
-echo "Run 'vibecoding' to get started."
+echo "Run 'mothx' to get started."
 echo "=========================================="
 EOF
     chmod +x "${BUILD_DIR}/${TARBALL_NAME}/install.sh"
@@ -99,7 +99,7 @@ EOF
 #!/bin/bash
 set -e
 
-BINARY_NAME="vibecoding"
+BINARY_NAME="mothx"
 
 # Check common install locations
 LOCATIONS=("/usr/local/bin/${BINARY_NAME}" "$HOME/.local/bin/${BINARY_NAME}")

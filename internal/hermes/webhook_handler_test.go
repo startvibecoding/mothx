@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/hermes/webhook"
-	"github.com/startvibecoding/vibecoding/internal/messaging"
+	"github.com/startvibecoding/mothx/internal/hermes/webhook"
+	"github.com/startvibecoding/mothx/internal/messaging"
 )
 
 func TestWebhookHandlerRequiresMultiAgent(t *testing.T) {

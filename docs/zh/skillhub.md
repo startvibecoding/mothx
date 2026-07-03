@@ -1,13 +1,13 @@
 # 在线 Skill 市场集成
 
-VibeCoding 兼容市面上的 Skill 市场（SkillHub / ClawHub），可以直接使用这些平台发布的技能包。
+MothX 兼容市面上的 Skill 市场（SkillHub / ClawHub），可以直接使用这些平台发布的技能包。
 
 | 平台 | 地址 | 区域 |
 |------|------|------|
 | **SkillHub** | [https://skillhub.cn](https://skillhub.cn/) | 中国 |
 | **ClawHub** | [https://clawhub.ai](https://clawhub.ai/) | 海外 |
 
-> **说明：** VibeCoding 不内建 Skill 市场，但采用标准的技能目录格式（`SKILL.md`），
+> **说明：** MothX 不内建 Skill 市场，但采用标准的技能目录格式（`SKILL.md`），
 > 与 SkillHub / ClawHub 发布的技能包完全兼容。从市场下载的技能放入技能目录即可直接使用，
 > 无需任何额外适配。
 
@@ -57,7 +57,7 @@ Loaded 3 skills:
 
 ## 技能格式兼容
 
-VibeCoding 的技能格式与 SkillHub / ClawHub 标准完全一致：
+MothX 的技能格式与 SkillHub / ClawHub 标准完全一致：
 
 ```
 skill-name/
@@ -160,7 +160,7 @@ EOF
 
 ## Cron 基础设施
 
-VibeCoding 已有内部 cron 基础设施（`internal/cron` 包）和 TUI 命令入口。Cron 存储将任务持久化到 `~/.vibecoding/cron.json`，调度器每 30 秒检查一次到期任务。
+MothX 已有内部 cron 基础设施（`internal/cron` 包）和 TUI 命令入口。Cron 存储将任务持久化到 `~/.vibecoding/cron.json`，调度器每 30 秒检查一次到期任务。
 
 ### `/cron` TUI 命令
 

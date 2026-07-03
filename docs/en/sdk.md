@@ -1,6 +1,6 @@
 # SDK Integration Guide
 
-VibeCoding exposes a public Go package (`github.com/startvibecoding/vibecoding/agent`) that lets you embed an AI coding agent into your own applications. This guide covers:
+MothX exposes a public Go package (`github.com/startvibecoding/mothx/agent`) that lets you embed an AI coding agent into your own applications. This guide covers:
 
 1. [Public Agent Package](#public-agent-package) — types, interfaces, and Builder API
 2. [Implementing a Custom Provider](#implementing-a-custom-provider) — bring your own LLM backend
@@ -15,7 +15,7 @@ VibeCoding exposes a public Go package (`github.com/startvibecoding/vibecoding/a
 Import path:
 
 ```go
-import "github.com/startvibecoding/vibecoding/agent"
+import "github.com/startvibecoding/mothx/agent"
 ```
 
 This package contains **only public types and interfaces** — no internal dependencies. It defines:
@@ -103,7 +103,7 @@ package mybackend
 import (
     "context"
 
-    "github.com/startvibecoding/vibecoding/agent"
+    "github.com/startvibecoding/mothx/agent"
 )
 
 type MyProvider struct {
@@ -197,8 +197,8 @@ import (
     "fmt"
     "os"
 
-    "github.com/startvibecoding/vibecoding/agent"
-    _ "github.com/startvibecoding/vibecoding/internal/agent" // register internal builder
+    "github.com/startvibecoding/mothx/agent"
+    _ "github.com/startvibecoding/mothx/internal/agent" // register internal builder
 )
 
 func main() {
@@ -499,7 +499,7 @@ router.RegisterGlobal(agent.RouterEventHandlerFunc(func(e agent.Event) error {
 
 ## External Tools (Embedding)
 
-When embedding VibeCoding in your own application, you can expose host-provided capabilities to the agent alongside (or instead of) the built-in coding tools.
+When embedding MothX in your own application, you can expose host-provided capabilities to the agent alongside (or instead of) the built-in coding tools.
 
 ### ExternalTool Interface
 
@@ -527,8 +527,8 @@ type ExternalToolResult struct {
 
 ```go
 import (
-    "github.com/startvibecoding/vibecoding/agent"
-    _ "github.com/startvibecoding/vibecoding/bootstrap" // required for embedding
+    "github.com/startvibecoding/mothx/agent"
+    _ "github.com/startvibecoding/mothx/bootstrap" // required for embedding
 )
 
 a, err := agent.NewBuilder().
@@ -565,7 +565,7 @@ type ExternalToolPromptInfo interface {
 External modules must blank-import the `bootstrap` package once to register the internal builder and provider resolution hooks (since internal packages cannot be imported directly):
 
 ```go
-import _ "github.com/startvibecoding/vibecoding/bootstrap"
+import _ "github.com/startvibecoding/mothx/bootstrap"
 ```
 
 ### Approval Forwarding

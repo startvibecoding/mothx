@@ -12,7 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
+	"github.com/startvibecoding/mothx/internal/platform"
 )
 
 const (

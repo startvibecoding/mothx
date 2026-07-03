@@ -13,13 +13,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/contextfiles"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/skills"
-	"github.com/startvibecoding/vibecoding/internal/workflow"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
+	"github.com/startvibecoding/mothx/internal/provider"
+	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/skills"
+	"github.com/startvibecoding/mothx/internal/workflow"
 )
 
 // RunOptions holds the CLI flags for the gateway command.
@@ -50,8 +50,8 @@ type Server struct {
 	providerName string // user-configured vendor name (e.g. "longcat")
 	model        *provider.Model
 	sandboxMgr   *sandbox.Manager
-	skillsMgr  *skills.Manager
-	pool       *SessionPool
+	skillsMgr    *skills.Manager
+	pool         *SessionPool
 
 	extraContext      string
 	defaultSessionIDs map[string]string // key: workDir, used when x_session_id is empty

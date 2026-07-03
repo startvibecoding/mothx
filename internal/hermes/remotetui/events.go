@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/net/websocket"
 
-	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
 )
 
 type agentEventMsg struct{ event agent.Event }

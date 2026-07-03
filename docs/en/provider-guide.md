@@ -1,10 +1,10 @@
 # Adding a New Provider
 
-This guide explains how to add support for a new LLM provider or vendor to VibeCoding.
+This guide explains how to add support for a new LLM provider or vendor to MothX.
 
 ## Architecture Overview
 
-VibeCoding separates two concerns when adding provider support:
+MothX separates two concerns when adding provider support:
 
 1. **Protocol Providers** — handle the wire protocol (OpenAI Chat Completions, Anthropic Messages, Google Gemini). These live in `internal/provider/openai/`, `internal/provider/anthropic/`, and `internal/provider/google/`.
 2. **Vendor Adapters** — apply vendor-specific defaults (thinking format, cache control, default API) on top of a protocol provider. These live in `internal/provider/vendor_*.go`.

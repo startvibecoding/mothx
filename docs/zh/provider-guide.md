@@ -1,10 +1,10 @@
 # 添加新的 Provider
 
-本指南介绍如何为 VibeCoding 添加新的 LLM 供应商（vendor）支持。
+本指南介绍如何为 MothX 添加新的 LLM 供应商（vendor）支持。
 
 ## 架构概览
 
-VibeCoding 在添加 Provider 支持时区分两个层面：
+MothX 在添加 Provider 支持时区分两个层面：
 
 1. **协议 Provider** — 处理底层通信协议（OpenAI Chat Completions、Anthropic Messages、Google Gemini）。位于 `internal/provider/openai/`、`internal/provider/anthropic/`、`internal/provider/google/`。
 2. **供应商适配器** — 在协议 Provider 之上应用供应商特定的默认值（思考格式、缓存控制、默认 API）。位于 `internal/provider/vendor_*.go`。

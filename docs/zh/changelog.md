@@ -1,6 +1,38 @@
 # 更新日志
 
 
+## v1.1.57
+
+### ✨ 新功能
+
+- **图片预处理与多模态增强**
+  - 统一的图片预处理流水线，元数据在整个工具链中传递。
+  - 新增图片裁剪、浏览器截图预处理，以及 OpenAI `detail` 参数透传，支持 `auto`/`low`/`high` 质量控制。
+  - 图片输出尺寸校验，带厂商特定的坐标映射提示，用于边界框标注。
+  - 新增 Qwen 专用的 28px patch 图片 token 估算和多图片累加，确保 token 统计准确。
+  - 新增 `/paste-image` 命令，支持 `Ctrl+R` 预览。
+
+- **统计面板改进**
+  - 新增分享按钮、Token 趋势图和整体 UI 优化。
+  - 新增 2.5 小时时间桶分组和最近请求页的筛选功能。
+
+- **首次运行自动打开认证对话框**
+  - 未配置任何 provider 时，首次运行自动弹出认证对话框。
+
+- **MothX npm 改名过渡**
+  - 新增面向后续更新的 npm 包 `mothx`。
+  - 本版本保留 `vibecoding-installer` 作为兼容包，并提示用户后续使用 `npm install -g mothx@latest` 更新。
+  - npm 平台二进制包从 `vibecoding-installer-*` 改名为 `mothx-*`。
+
+### 🔧 改进
+
+- `MaxTokens` 现在从模型默认值解析，并限制在上下文窗口大小范围内。
+- 新增压缩超时和摘要 token 上限设置。
+- 命令建议和 `/mode` / `/agent` 描述更清晰，避免混淆。
+- 将 HTTP 500 加入可重试状态码列表。
+- 更新 `vibe-browser` 到 v0.1.3，移除本地 replace 指令。
+- 默认设置文件现在以更精简的方式写入，省略未设置的字段。
+
 ## v1.1.56
 
 ### ✨ 新功能
@@ -11,12 +43,12 @@
   - 在 TUI 中继续或切换会话时，会把加载到的会话历史打印到终端 scrollback 中。
 
 - **统计 Web 面板**
-  - `vibecoding stats` 启动 Web 面板，默认监听 `127.0.0.1:7878`，含图表与筛选功能。
+  - `mothx stats` 启动 Web 面板，默认监听 `127.0.0.1:7878`，含图表与筛选功能。
   - 纯 HTML/CSS/JS 面板，无外部依赖，图表通过 `<canvas>` 绘制。
   - 显示总体概览（请求数、token、费用、时长）、时间序列图、按厂商/模型分类统计，以及分页的最近请求列表。
   - 支持按时间范围（今日/本周/本月/全部）、厂商和协议筛选。
-  - `vibecoding stats --cli` 直接在终端打印统计信息。
-  - `vibecoding stats --db <path>` 可打开指定的 sessions.db 文件。
+  - `mothx stats --cli` 直接在终端打印统计信息。
+  - `mothx stats --db <path>` 可打开指定的 sessions.db 文件。
 
 - **统计面板：协议与厂商分离**
   - 统计面板中的「Provider」列已按语义拆分为**厂商**（公司名称）和**协议**（API 协议类型，如 `openai-chat`、`anthropic-messages`、`google-gemini`）。
@@ -78,7 +110,7 @@
   - `/clear` 斜杠命令改为清空会话历史消息，但保持会话卡槽（Session Slot）不变，无需重建。
 
 - **PyPI 安装包**
-  - 新增 `vibecoding-installer` 的 PyPI 包装器，提供 `vibecoding` 命令入口，并通过内嵌原生二进制的平台 wheel 分发。
+  - 新增 `vibecoding-installer` 的 PyPI 包装器，提供兼容用的 `vibecoding` 命令入口，并通过内嵌原生二进制的平台 wheel 分发。
   - 新增 `make pypi-*` 发布目标，以及版本同步和 wheel 构建脚本，在流程上对齐 npm 发布方式，同时使用 pip 原生的平台 wheel 选择机制。
   - 更新安装与发布文档，补充 `pipx install vibecoding-installer`。
 
@@ -104,7 +136,7 @@
   - 新增 `ExternalToolResult`（文本/错误 + 可选的富 `Contents` 内容块）以及可选的 `ExternalToolPromptInfo` 接口，用于贡献系统提示词信息（`PromptSnippet`、`PromptGuidelines`）。
   - 新增 `Builder.WithExternalTools(...)` 用于注册自定义工具，`Builder.WithoutBuiltinTools()` 用于禁用全部内置工具，从而构建只能使用宿主工具的 agent。
   - 外部工具通过内部 factory 的 `externalToolAdapter` 接入，内部包现在通过 `CreateFromPublicOptions` 从公开 `Builder` 配置构建 agent。
-  - 新增 `bootstrap` 包：外部模块只需空白导入 `github.com/startvibecoding/vibecoding/bootstrap` 一次即可注册内部 builder 与 provider 解析 hook（因为内部包无法被直接导入）。
+  - 新增 `bootstrap` 包：外部模块只需空白导入 `github.com/startvibecoding/mothx/bootstrap` 一次即可注册内部 builder 与 provider 解析 hook（因为内部包无法被直接导入）。
 
 ### 💅 优化
 
@@ -197,7 +229,7 @@
 ### ✨ 新功能
 
 - **`/systeminit` 与 `/reload` 指令**
-  - 新增 `/systeminit`：生成或刷新项目级 `AGENTS.md`。在 TUI、ACP 以及 `vibecoding systeminit` CLI 子命令中均可用。TUI 与 ACP 下会启发式地使用 `question` 工具先向用户提问几个关键问题，再生成更优质的 `AGENTS.md`；CLI 为非交互式直接生成。支持传入附加说明，例如 `/systeminit 用中文提问我，用英文写 AGENTS.md`。
+  - 新增 `/systeminit`：生成或刷新项目级 `AGENTS.md`。在 TUI、ACP 以及 `mothx systeminit` CLI 子命令中均可用。TUI 与 ACP 下会启发式地使用 `question` 工具先向用户提问几个关键问题，再生成更优质的 `AGENTS.md`；CLI 为非交互式直接生成。支持传入附加说明，例如 `/systeminit 用中文提问我，用英文写 AGENTS.md`。
   - `question` 工具现在在 `agent` 模式下也可用（以前仅 plan），并为 ACP 服务器注册，ACP 通过 `session/request_permission` 通道呈现问题。
   - 新增 `/reload`（TUI）：以全新进程重启并开启新 session，重新加载配置、上下文文件、skills 与 MCP，等同于重新启动程序。
 
@@ -209,7 +241,7 @@
   - 仅放宽审批层，不改变 sandbox / allowedWorkDirs 物理边界，也不改变 plan / yolo 语义。
 
 - **基于 npm 接口的版本更新检测**
-  - VibeCoding 现在会通过 npm registry（`vibecoding-installer`）检测是否有新版本，并在启动时给出非阻塞的更新提醒。
+  - MothX 现在会通过 npm registry（`vibecoding-installer`）检测是否有新版本，并在启动时给出非阻塞的更新提醒。
   - 网络检测在后台进行（最多每 24 小时一次），仅刷新本地缓存（`update-check.json`），前台不会因网络请求而阻塞。
   - 提醒会显示在 TUI 启动信息中，`--print` 模式下输出到 stderr，并提示执行 `npm install -g vibecoding-installer@latest`。
   - 可在配置文件 `settings.json` 中设置 `"updateCheck": false` 关闭，也可通过 `VIBECODING_NO_UPDATE_CHECK=1` 关闭；通过 `VIBECODING_NPM_REGISTRY` 覆盖 registry 地址。
@@ -450,7 +482,7 @@
 - **版本号字符串**
   - 修复 `Makefile` 中 `git describe` 使用 `--abbrev=0`，确保生成干净的标签版本号，不附带 commit 数量和 hash 后缀。
   - 修复 `sync-npm-version.sh`，去除版本号中的 commit 数量和 hash 后缀。
-  - 更新 `npm/bin/vibecoding`，使用 GitHub raw URL 作为安装脚本的 fallback。
+  - 更新 `npm/bin/mothx`，使用 GitHub raw URL 作为安装脚本的 fallback。
 
 ### 🔧 重构
 
@@ -707,7 +739,7 @@
 
 ### ✨ 新功能
 
-- **Doctor 子命令** (`vibecoding doctor`)
+- **Doctor 子命令** (`mothx doctor`)
   - 新增诊断命令，检查环境、配置、Provider、沙箱、MCP 服务器、Session、技能和上下文文件
   - 报告 OS/架构、Go 版本、Shell、Home/工作目录
   - 校验 settings、gateway 和 MCP 配置文件，带解析检查
@@ -985,7 +1017,7 @@
 ### 🐛 Bug 修复
 
 - **NPM 包装修复**
-  - 修复 `npm/bin/vibecoding` 入口脚本，确保安装包正确附带可执行包装器
+  - 修复 `npm/bin/mothx` 入口脚本，确保安装包正确附带可执行包装器
   - 调整 `build-npm.sh` 和 `build-npm-packages.sh` 保证包装器一致性
 
 ## v0.1.28
@@ -1018,7 +1050,7 @@
 
 ### ✨ 新功能
 
-- **Hermes 模式** (`vibecoding hermes`)
+- **Hermes 模式** (`mothx hermes`)
   - 新增消息平台网关模式，支持微信、飞书和 WebSocket
   - 持久化 per-user session，`/new` 时自动归档
   - 默认 `yolo` 模式，适合无人值守场景
@@ -1026,15 +1058,15 @@
   - 用户白名单访问控制
   - WebSocket 流式推送：text_delta/think_delta/tool_call/tool_result/tool_diff/usage/done
 
-- **A2A 协议** (`vibecoding a2a`)
+- **A2A 协议** (`mothx a2a`)
   - 新增 Agent-to-Agent 协议服务器（JSON-RPC 2.0 over HTTP + SSE 流式）
-  - 独立模式：`vibecoding a2a start`（端口 8093）
+  - 独立模式：`mothx a2a start`（端口 8093）
   - 集成模式：`hermes.json` 中 `a2a.enabled: true`，共享 hermes HTTP 端口
   - Agent Card：`/.well-known/agent.json`
   - Task 生命周期：submitted → working → completed/failed/canceled
   - REST 端点：`/a2a/send`、`/a2a/task`、`/a2a/task/cancel`、`/a2a/events`
-  - **A2A Client**：`vibecoding a2a send <message>` 向其他 A2A Server 发送任务
-  - **A2A 发现**：`vibecoding a2a discover <url>` 获取远程 Agent Card
+  - **A2A Client**：`mothx a2a send <message>` 向其他 A2A Server 发送任务
+  - **A2A 发现**：`mothx a2a discover <url>` 获取远程 Agent Card
   - **A2A 调度**：Cron 任务支持 `--a2a-target` 参数，定时向 A2A Server 发送任务
 
 - **A2A Master 模式** (`--enable-a2a-master`)
@@ -1045,9 +1077,9 @@
   - 默认关闭，需显式启用
 
 - **A2A 配置初始化**
-  - `vibecoding a2a --init-a2a-config` 生成 `a2a.json` 配置模板
-  - `vibecoding --init-gateway` 生成 `gateway.json` 配置模板（已有）
-  - `vibecoding --init-a2a-master-config` 生成 `a2a-list.json` 配置模板
+  - `mothx a2a --init-a2a-config` 生成 `a2a.json` 配置模板
+  - `mothx --init-gateway` 生成 `gateway.json` 配置模板（已有）
+  - `mothx --init-a2a-master-config` 生成 `a2a-list.json` 配置模板
   - 所有 `--init-*` 支持 `--force` 覆盖已存在的文件
 
 - **场景演示文档**
@@ -1130,7 +1162,7 @@
 ### 🐛 问题修复
 
 - **NPM 安装包修复**
-  - 修复发布流水线，确保 `vibecoding-installer` 始终包含可执行入口 `bin/vibecoding`。
+  - 修复发布流水线，确保 `vibecoding-installer` 始终包含可执行入口 `bin/mothx`。
   - 新增 `scripts/npm-installer-wrapper.js` 作为统一的 wrapper 逻辑源，并被 `scripts/build-npm.sh`
     与 `scripts/build-npm-packages.sh` 复用，避免实现分叉。
   - 调整 `npm/.npmignore` 与 `npm/bin` 的处理方式，避免误打包非发布文件，并通过 `files` 字段显式声明要发布内容。
@@ -1153,11 +1185,11 @@
 
 ### ✨ 新功能
 
-- **Gateway 模式** (`vibecoding gateway`)
+- **Gateway 模式** (`mothx gateway`)
   - 新增 HTTP 服务，对外暴露标准 OpenAI Chat Completions API (`/v1/chat/completions`、`/v1/models`、`/health`)
   - 任何兼容 OpenAI SDK 的客户端（Cursor、Continue、Open WebUI、Python SDK 等）可直接接入
   - 完整支持 Streaming (SSE) 和 Non-streaming 响应
-  - 后端由 VibeCoding agent 循环驱动，tool 执行对调用方透明
+  - 后端由 MothX agent 循环驱动，tool 执行对调用方透明
 
 - **多 Session 支持**
   - 内置 `SessionPool` 支持并发 session，每个 session 拥有独立的 agent、工具和消息历史
@@ -1197,7 +1229,7 @@
 - **Gateway 配置文件** (`gateway.json`)
   - 独立配置文件，位于 `~/.vibecoding/gateway.json`
   - 覆盖: 监听地址、认证、模式、沙箱、工作目录、目录白名单、session 管理、CORS、tool 可见性、system prompt 策略、请求超时、并发限制、日志
-  - `vibecoding --init-gateway` 生成配置模板；`--force` 强制覆盖
+  - `mothx --init-gateway` 生成配置模板；`--force` 强制覆盖
 
 - **请求超时与并发控制**
   - `requestTimeoutSeconds` (默认 1800s)；streaming 有数据流动不超时
@@ -1634,7 +1666,7 @@
 
 - **ACP 支持文档**
   - 在 README 中添加 ACP（Agent Client Protocol）支持文档
-  - VibeCoding 可作为 ACP stdio Agent 运行，用于编辑器集成
+  - MothX 可作为 ACP stdio Agent 运行，用于编辑器集成
   - 兼容 VS Code、Zed 和 JetBrains IDE（IntelliJ IDEA/WebStorm），通过 ACP 兼容插件接入
 
 ### 📖 文档
@@ -1936,7 +1968,7 @@
   - 自动选择平台特定的沙箱实现
 
 - **仓库重命名**
-  - 模块路径更名为 `github.com/startvibecoding/vibecoding`
+  - 模块路径更名为 `github.com/startvibecoding/mothx`
   - 所有导入、文档和脚本已同步更新
 
 ### 🛠 改进
@@ -2084,7 +2116,7 @@
 
 - **品牌素材**
   - 新增 `docs/assets/icon.svg`（512×512）用于打包
-  - 新增 `docs/assets/logo.svg`（128×128）用于 README 和小尺寸显示
+  - 新增 `docs/assets/mothx.png` 用于 README 和小尺寸显示
   - 简洁专业的石板色调设计
 
 - **构建系统**
@@ -2102,4 +2134,4 @@
 
 ---
 
-**完整变更日志**: https://gitee.com/startvibecoding/vibecoding/compare/v0.1.26...v0.1.27
+**完整变更日志**: https://gitee.com/startvibecoding/mothx/compare/v0.1.26...v0.1.27

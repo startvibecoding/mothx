@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

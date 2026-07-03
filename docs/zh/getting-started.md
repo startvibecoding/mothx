@@ -1,6 +1,6 @@
 # 快速入门
 
-本指南帮助你在 5 分钟内开始使用 VibeCoding。
+本指南帮助你在 5 分钟内开始使用 MothX。
 
 ## 系统要求
 
@@ -13,7 +13,7 @@
 ### 方法一: npm 安装 (推荐)
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 这将自动下载适合你平台的二进制文件。
@@ -37,39 +37,39 @@ python -m pip install --user vibecoding-installer
 **Linux/macOS:**
 
 ```bash
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex
+irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
 ```
 
 或者指定安装目录:
 
 ```bash
 # Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash
+INSTALL_DIR=~/.local/bin curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash
 
 # Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex
+$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
 ```
 
 **卸载:**
 
 ```bash
 # npm
-npm uninstall -g vibecoding-installer
+npm uninstall -g mothx
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
 
 # Windows
-irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
 ```
 
 这将自动从 Gitee 下载最新版本并安装二进制文件。默认安装位置：
@@ -79,20 +79,20 @@ irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uni
 ### 方法四: Go Install
 
 ```bash
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 ### 方法五: 从源码构建
 
 ```bash
 # 克隆仓库
-git clone https://gitee.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://gitee.com/startvibecoding/mothx.git
+cd mothx
 
 # 构建
 make build
 
-# 二进制文件位于 bin/vibecoding
+# 二进制文件位于 bin/mothx
 ```
 
 ### 方法六: 安装到系统
@@ -128,7 +128,7 @@ export DEEPSEEK_API_KEY=sk-...
 }
 ```
 
-可选的 `vendor` 字段用于选择厂商适配器。未设置时，VibeCoding 会尽量根据 `baseUrl` 自动识别厂商，否则根据 `api` 回退到通用协议 provider。详见 [配置详解](configuration.md)。
+可选的 `vendor` 字段用于选择厂商适配器。未设置时，MothX 会尽量根据 `baseUrl` 自动识别厂商，否则根据 `api` 回退到通用协议 provider。详见 [配置详解](configuration.md)。
 
 ## 首次运行
 
@@ -136,37 +136,37 @@ export DEEPSEEK_API_KEY=sk-...
 
 ```bash
 # 启动交互式会话
-vibecoding
+mothx
 ```
 
 ### 非交互模式
 
 ```bash
 # 单次提问
-vibecoding -p "解释这段代码的作用"
+mothx -p "解释这段代码的作用"
 
 # 从 stdin 读取
-echo "写一个 Hello World" | vibecoding -P
+echo "写一个 Hello World" | mothx -P
 ```
 
 ### 指定模型
 
 ```bash
 # 使用 DeepSeek-V4-Flash
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # 使用 DeepSeek-V4-Pro
-vibecoding --provider deepseek-openai --model deepseek-v4-pro
+mothx --provider deepseek-openai --model deepseek-v4-pro
 ```
 
 ### 多 Agent 模式
 
 ```bash
 # 启用子 Agent 工具和多 Agent 命令
-vibecoding --multi-agent
+mothx --multi-agent
 
 # ACP 会话也可以启用
-vibecoding acp --multi-agent
+mothx acp --multi-agent
 ```
 
 多 Agent 模式会注册 `subagent_*` 工具，用于委托边界清晰的任务。TUI 多 Agent 工作流中也提供 cron 命令入口。
@@ -175,7 +175,7 @@ vibecoding acp --multi-agent
 
 ```bash
 # 启用阻塞式单子 Agent 委托
-vibecoding --delegate
+mothx --delegate
 
 # 在 TUI 中运行时切换
 /delegate on
@@ -189,27 +189,27 @@ Delegate 模式会注册 `delegate_subagent`，这是一个一次只处理一个
 
 ```bash
 # 生成示例配置
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # 启用 master 模式
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 ```
 
 A2A Master 模式让你管理多个远程 A2A Agent，LLM 可自动通过 `a2a_dispatch` tool 分发任务。详见 [A2A 协议](a2a.md)。
 
 ## 选择模式
 
-VibeCoding 提供三种模式:
+MothX 提供三种模式:
 
 ```bash
 # Plan 模式 - 只读分析
-vibecoding --mode plan
+mothx --mode plan
 
 # Agent 模式 - 标准读写 (默认)
-vibecoding --mode agent
+mothx --mode agent
 
 # YOLO 模式 - 完全访问
-vibecoding --mode yolo
+mothx --mode yolo
 ```
 
 | 模式 | 文件系统 | 网络 | 用途 |
@@ -253,29 +253,29 @@ vibecoding --mode yolo
 ### 代码解释
 
 ```bash
-vibecoding -P "解释 main.go 的作用"
+mothx -P "解释 main.go 的作用"
 ```
 
 ### 代码生成
 
 ```bash
-vibecoding -P "写一个 Go HTTP 服务器"
+mothx -P "写一个 Go HTTP 服务器"
 ```
 
 ### 文件操作
 
 ```bash
-vibecoding -P "在当前目录创建一个 README.md"
+mothx -P "在当前目录创建一个 README.md"
 ```
 
 ### 继续会话
 
 ```bash
 # 继续最近的会话
-vibecoding --continue
+mothx --continue
 
 # 恢复特定会话
-vibecoding --resume <session-id>
+mothx --resume <session-id>
 ```
 
 ## 技能系统
@@ -298,7 +298,7 @@ vibecoding --resume <session-id>
 
 ## IDE 集成
 
-VibeCoding 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
+MothX 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
 
 ### VS Code
 
@@ -306,8 +306,8 @@ VibeCoding 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent", "--multi-agent"]
     }
   }
@@ -317,8 +317,8 @@ VibeCoding 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
 ### JetBrains IDE
 
 导航到 `Settings → Tools → ACP Agents` 并添加：
-- **Name**: VibeCoding
-- **Command**: `vibecoding`
+- **Name**: MothX
+- **Command**: `mothx`
 - **Arguments**: `acp --mode agent`
 
 详见 [ACP 协议](acp.md) 文档。
@@ -328,7 +328,7 @@ VibeCoding 可以通过 Agent Client Protocol (ACP) 集成到你的 IDE：
 如果遇到问题，可以运行内置诊断命令：
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 这会检查你的环境、配置文件、Provider、沙箱、MCP、会话、技能和上下文文件，并报告任何问题。

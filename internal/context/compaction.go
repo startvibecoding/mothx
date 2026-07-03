@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/util"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 const defaultMaxCompactionSummaryTokens = 4096

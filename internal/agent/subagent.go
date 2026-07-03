@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // SubAgentSpawnTool creates and starts a sub-agent.

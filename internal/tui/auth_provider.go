@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
+	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 // --- Provider group constants ---

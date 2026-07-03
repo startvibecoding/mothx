@@ -2,20 +2,20 @@
 
 ## Overview
 
-Gateway mode runs VibeCoding as an HTTP server that exposes a **standard OpenAI Chat Completions API**. Any OpenAI-compatible client — Cursor, Continue, Open WebUI, Python SDK, custom scripts — can connect directly, with the VibeCoding agent loop handling tool execution transparently behind the scenes.
+Gateway mode runs MothX as an HTTP server that exposes a **standard OpenAI Chat Completions API**. Any OpenAI-compatible client — Cursor, Continue, Open WebUI, Python SDK, custom scripts — can connect directly, with the MothX agent loop handling tool execution transparently behind the scenes.
 
 ```bash
-vibecoding gateway
+mothx gateway
 ```
 
 ## Quick Start
 
 ```bash
 # Generate config template
-vibecoding --init-gateway
+mothx --init-gateway
 
 # Start the gateway (default :8080)
-vibecoding gateway
+mothx gateway
 
 # Test it
 curl http://localhost:8080/v1/chat/completions \
@@ -55,8 +55,8 @@ Gateway uses its own config file `gateway.json`, separate from `settings.json`.
 Generate a template with:
 
 ```bash
-vibecoding --init-gateway
-vibecoding --init-gateway --force  # overwrite existing
+mothx --init-gateway
+mothx --init-gateway --force  # overwrite existing
 ```
 
 ### Full Config Reference

@@ -26,10 +26,10 @@ type BackgroundJob struct {
 
 // JobManager manages background processes.
 type JobManager struct {
-	jobs     map[int]*BackgroundJob
-	nextID   int
-	mu       sync.RWMutex
-	lastGC   time.Time // last time stale jobs were cleaned up
+	jobs   map[int]*BackgroundJob
+	nextID int
+	mu     sync.RWMutex
+	lastGC time.Time // last time stale jobs were cleaned up
 }
 
 // NewJobManager creates a new job manager.

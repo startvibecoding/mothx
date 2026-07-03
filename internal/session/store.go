@@ -1,6 +1,6 @@
 package session
 
-import "github.com/startvibecoding/vibecoding/internal/provider"
+import "github.com/startvibecoding/mothx/internal/provider"
 
 // Store is the interface for session persistence backends.
 // Manager implements this interface using SQLite. Alternative backends

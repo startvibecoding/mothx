@@ -1,6 +1,6 @@
 # Development Guide
 
-This document describes how to contribute code to VibeCoding.
+This document describes how to contribute code to MothX.
 
 ## Development Environment Setup
 
@@ -14,8 +14,8 @@ This document describes how to contribute code to VibeCoding.
 ### Get Source Code
 
 ```bash
-git clone https://github.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://github.com/startvibecoding/mothx.git
+cd mothx
 ```
 
 ### Install Dependencies
@@ -50,10 +50,10 @@ go test -run TestReadTool ./internal/tools/
 ## Project Structure
 
 ```
-vibecoding/
+mothx/
 ├── agent/                     # Public Agent/Provider interfaces and Builder
 ├── bootstrap/                 # Bootstrap package for embedding
-├── cmd/vibecoding/            # CLI entry point
+├── cmd/mothx/            # CLI entry point
 │   ├── main.go                # Main program
 │   └── main_doctor.go         # `doctor` subcommand
 ├── internal/
@@ -259,7 +259,7 @@ func init() {
 ```
 
 Provider creation for CLI and ACP goes through `internal/provider/factory`, so
-do not add vendor-specific creation code to `cmd/vibecoding/main.go` or
+do not add vendor-specific creation code to `cmd/mothx/main.go` or
 `internal/acp/acp.go`.
 
 ### Add a New Protocol Provider
@@ -380,7 +380,7 @@ docs(readme): update installation guide
 ### Enable Debug Logging
 
 ```bash
-vibecoding --debug
+mothx --debug
 ```
 
 ### Using dlv
@@ -390,7 +390,7 @@ vibecoding --debug
 go install github.com/go-delve/delve/cmd/dlv@latest
 
 # Debug
-dlv debug ./cmd/vibecoding -- --debug
+dlv debug ./cmd/mothx -- --debug
 ```
 
 ## Release Process
@@ -431,7 +431,7 @@ make npm-publish-pre
 Users can install via npm:
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 ### Publish to PyPI

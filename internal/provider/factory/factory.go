@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/provider/anthropic"
-	"github.com/startvibecoding/vibecoding/internal/provider/google"
-	"github.com/startvibecoding/vibecoding/internal/provider/openai"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/provider/anthropic"
+	"github.com/startvibecoding/mothx/internal/provider/google"
+	"github.com/startvibecoding/mothx/internal/provider/openai"
 )
 
 // Create creates a provider and model from settings without changing the config schema.

@@ -25,9 +25,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/startvibecoding/vibecoding"
-Repository = "https://github.com/startvibecoding/vibecoding"
-Documentation = "https://github.com/startvibecoding/vibecoding/tree/main/docs"
+Homepage = "https://github.com/startvibecoding/mothx"
+Repository = "https://github.com/startvibecoding/mothx"
+Documentation = "https://github.com/startvibecoding/mothx/tree/main/docs"
 
 [project.scripts]
 vibecoding = "vibecoding_installer.cli:main"

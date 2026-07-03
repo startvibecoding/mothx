@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
+	"github.com/startvibecoding/mothx/internal/platform"
 )
 
 // Verbose controls whether config loading prints diagnostic messages to stderr.

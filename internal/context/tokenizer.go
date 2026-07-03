@@ -3,8 +3,8 @@ package context
 import (
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // TokenEstimator estimates the context footprint of provider messages.

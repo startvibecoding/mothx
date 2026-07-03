@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 func TestResolveAdapterConfigExplicitVendor(t *testing.T) {

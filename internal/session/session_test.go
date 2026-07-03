@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/provider"
 	_ "modernc.org/sqlite"
 )
 

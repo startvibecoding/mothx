@@ -2,7 +2,7 @@
 // External Go developers can import this package to create custom Agent implementations
 // or use the Builder to instantiate the built-in Agent.
 //
-// Import path: github.com/startvibecoding/vibecoding/agent
+// Import path: github.com/startvibecoding/mothx/agent
 package agent
 
 import "context"

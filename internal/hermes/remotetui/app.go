@@ -14,9 +14,9 @@ import (
 	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
 	"golang.org/x/net/websocket"
 
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/tools"
-	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tui/renderutil"
 )
 
 var (

@@ -156,9 +156,9 @@ func VendorFromBaseURL(baseURL string) string {
 		// deepseek
 		"api.deepseek.com": "deepseek",
 		// kimi / moonshot
-		"api.moonshot.cn":  "kimi",
-		"api.kimi.com":     "kimi",
-		"api.moonshot.ai":  "moonshotai",
+		"api.moonshot.cn": "kimi",
+		"api.kimi.com":    "kimi",
+		"api.moonshot.ai": "moonshotai",
 		// zai
 		"api.z.ai":         "zai",
 		"open.bigmodel.cn": "zai",
@@ -174,17 +174,17 @@ func VendorFromBaseURL(baseURL string) string {
 		"api.groq.com":              "groq",
 		"api.fireworks.ai":          "fireworks",
 		// newly added to match vendor adapters
-		"api.anthropic.com":               "anthropic",
-		"api.ant-ling.com":                "ant-ling",
-		"api.cerebras.ai":                 "cerebras",
+		"api.anthropic.com":                 "anthropic",
+		"api.ant-ling.com":                  "ant-ling",
+		"api.cerebras.ai":                   "cerebras",
 		"generativelanguage.googleapis.com": "google-gemini",
-		"aiplatform.googleapis.com":        "google-vertex",
-		"router.huggingface.co":            "huggingface",
-		"integrate.api.nvidia.com":         "nvidia",
-		"api.openai.com":                   "openai",
-		"opencode.ai":                      "opencode",
-		"ai-gateway.vercel.sh":             "vercel-ai-gateway",
-		"api.x.ai":                         "xai",
+		"aiplatform.googleapis.com":         "google-vertex",
+		"router.huggingface.co":             "huggingface",
+		"integrate.api.nvidia.com":          "nvidia",
+		"api.openai.com":                    "openai",
+		"opencode.ai":                       "opencode",
+		"ai-gateway.vercel.sh":              "vercel-ai-gateway",
+		"api.x.ai":                          "xai",
 	}
 	for domain, vendor := range vendorMap {
 		if contains(baseURL, domain) {

@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/hermes/hooks"
-	"github.com/startvibecoding/vibecoding/internal/messaging"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/session"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/hermes/hooks"
+	"github.com/startvibecoding/mothx/internal/messaging"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 type recordingHermesProvider struct {
@@ -40,7 +40,7 @@ func (p *recordingHermesProvider) Chat(ctx context.Context, params provider.Chat
 }
 
 func (p *recordingHermesProvider) Name() string              { return "recording-hermes" }
-func (p *recordingHermesProvider) API() string                 { return "openai-chat" }
+func (p *recordingHermesProvider) API() string               { return "openai-chat" }
 func (p *recordingHermesProvider) Models() []*provider.Model { return p.models }
 func (p *recordingHermesProvider) GetModel(id string) *provider.Model {
 	for _, m := range p.models {

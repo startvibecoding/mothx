@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/startvibecoding/vibecoding/agent"
-	_ "github.com/startvibecoding/vibecoding/internal/agent" // Register internal agent builder
+	"github.com/startvibecoding/mothx/agent"
+	_ "github.com/startvibecoding/mothx/internal/agent" // Register internal agent builder
 )
 
 func main() {

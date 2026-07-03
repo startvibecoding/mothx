@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	xansi "github.com/charmbracelet/x/ansi"
 
-	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
+	"github.com/startvibecoding/mothx/internal/tui/renderutil"
 )
 
 func (a *App) renderMessageAt(idx int) string {

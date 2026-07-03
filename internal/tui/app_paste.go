@@ -68,4 +68,3 @@ func (a *App) expandPasteMarkers(text string) string {
 
 	return result
 }
-

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	internalagent "github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	internalagent "github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 func TestRegisterToolsRegistersOnlyWorkflowTools(t *testing.T) {

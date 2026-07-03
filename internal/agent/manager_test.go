@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
+	agentpkg "github.com/startvibecoding/mothx/agent"
 )
 
 // --- AgentManager tests ---

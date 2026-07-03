@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	ctxpkg "github.com/startvibecoding/vibecoding/internal/context"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 const defaultCompactionTimeout = 5 * time.Minute

@@ -1,6 +1,6 @@
 # Security & Sandbox
 
-VibeCoding implements Linux process-level sandbox isolation through bubblewrap (bwrap) to protect system security.
+MothX implements Linux process-level sandbox isolation through bubblewrap (bwrap) to protect system security.
 
 ## Sandbox Overview
 
@@ -63,8 +63,8 @@ A sandbox is a security mechanism that restricts a program's file system and net
 **Purpose:** Read-only analysis and planning
 
 ```bash
-vibecoding --mode plan
-vibecoding -M plan
+mothx --mode plan
+mothx -M plan
 ```
 
 **Features:**
@@ -83,8 +83,8 @@ vibecoding -M plan
 **Purpose:** Standard development tasks
 
 ```bash
-vibecoding --mode agent --sandbox
-vibecoding -M agent --sandbox
+mothx --mode agent --sandbox
+mothx -M agent --sandbox
 ```
 
 **Features:**
@@ -103,8 +103,8 @@ vibecoding -M agent --sandbox
 **Purpose:** Full access
 
 ```bash
-vibecoding --mode yolo
-vibecoding -M yolo
+mothx --mode yolo
+mothx -M yolo
 ```
 
 **Features:**
@@ -148,13 +148,13 @@ Prefer environment-variable references such as `${DEEPSEEK_API_KEY}` for shared 
 
 ```bash
 # Enable sandbox
-vibecoding --sandbox
+mothx --sandbox
 
 # Disable sandbox
-vibecoding --no-sandbox
+mothx --no-sandbox
 
 # Combine with mode
-vibecoding --sandbox --mode plan
+mothx --sandbox --mode plan
 ```
 
 ### Configuration File
@@ -310,7 +310,7 @@ const (
 
 ```bash
 # Set alias in shell configuration
-alias vibecoding='vibecoding --sandbox'
+alias mothx='mothx --sandbox'
 ```
 
 ### 2. Choose Mode Based on Task
@@ -348,7 +348,7 @@ git checkout -b feature/new-feature
 ```bash
 # Run from project root directory
 cd /home/user/project
-vibecoding --sandbox
+mothx --sandbox
 ```
 
 ## Sandbox Limitations
@@ -398,7 +398,7 @@ git commit -m "initial"
 cp -r project project.backup
 
 # 3. Limit resources
-timeout 300 vibecoding --sandbox
+timeout 300 mothx --sandbox
 
 # 4. Check symbolic links
 find . -type l -ls
@@ -406,7 +406,7 @@ find . -type l -ls
 
 ## Approval Mechanism
 
-VibeCoding uses a multi-layer approval system for Agent mode.
+MothX uses a multi-layer approval system for Agent mode.
 
 ### How It Works
 
@@ -510,7 +510,7 @@ Project allow rules are stored in `.vibe/allow.json` and support:
 ### Enable Debug Logging
 
 ```bash
-vibecoding --debug
+mothx --debug
 ```
 
 ### View Executed Commands
@@ -527,10 +527,10 @@ In debug mode, all executed commands are output to stderr:
 
 ```bash
 # Save logs
-vibecoding --debug 2>vibecoding.log
+mothx --debug 2>mothx.log
 
 # Analyze logs
-grep "Executing:" vibecoding.log
+grep "Executing:" mothx.log
 ```
 
 ## Troubleshooting
@@ -548,7 +548,7 @@ Error: bwrap: command not found
 sudo apt install bubblewrap
 
 # Or disable sandbox
-vibecoding --no-sandbox
+mothx --no-sandbox
 ```
 
 ### Permission Issues

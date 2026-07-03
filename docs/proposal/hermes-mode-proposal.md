@@ -11,22 +11,22 @@
 
 ## 1. 概述
 
-VibeCoding 当前提供三种运行模式：**CLI (TUI)**、**ACP (编辑器集成)**、**Gateway (HTTP API)**。
+MothX 当前提供三种运行模式：**CLI (TUI)**、**ACP (编辑器集成)**、**Gateway (HTTP API)**。
 
-本提案引入第四种运行模式 **`hermes`** — 通过 `vibecoding hermes` 子命令启动，提供**消息平台网关 + 自动化调度 + 持久化记忆**等能力，让 VibeCoding 从"编码助手"扩展为"可部署的自主代理"。
+本提案引入第四种运行模式 **`hermes`** — 通过 `mothx hermes` 子命令启动，提供**消息平台网关 + 自动化调度 + 持久化记忆**等能力，让 MothX 从"编码助手"扩展为"可部署的自主代理"。
 
 ### 设计哲学
 
 - **渐进式采纳**：Hermes 模式是对现有 CLI/Gateway 的增强，不是替代
 - **复用优先**：尽量复用已有的 agent loop、provider、tools、session、sandbox 基础设施
-- **Go 原生**：VibeCoding 是 Go 项目，不移植 Python 生态，只借鉴架构思路
+- **Go 原生**：MothX 是 Go 项目，不移植 Python 生态，只借鉴架构思路
 - **缓存友好**：memory 等动态内容通过 tool call 按需加载（同 `skill_ref`），不注入 system prompt，保护 prompt cache 命中率
 
 ---
 
 ## 2. 配置目录约定
 
-VibeCoding 使用 **全局 + 项目级** 的两层配置体系，项目级优先级更高。
+MothX 使用 **全局 + 项目级** 的两层配置体系，项目级优先级更高。
 
 ### 2.1 全局配置目录 `<GLOBAL_DIR>`
 
@@ -117,7 +117,7 @@ memory 工具查找记忆文件时遵循以下优先级：
 | Checkpoints/Rollback | **不做** — 推迟到后续版本 | 降低 v0.1.27 范围 |
 | Session 策略 | **单 session + 命令新建** | 每个 `platform:user_id` 默认一个持久 session，`/new` 强制新建；各平台独立不打通 |
 | Session 存储 | **`<sessionDir>/hermes/` 隔离** | 与 CLI session 分开存储，行为差异大 |
-| A2A 协议 | **采纳** — 独立子命令 `vibecoding a2a`，hermes 通过配置启用 | 详见 §5.3 |
+| A2A 协议 | **采纳** — 独立子命令 `mothx a2a`，hermes 通过配置启用 | 详见 §5.3 |
 | Cron 实现 | **CLI 命令范围已确定** | list/add/remove/enable/disable 已满足需求，edit/run 不做。底层 cron 实现与项目共享，有 bug 或缺陷仍需修复完善 |
 | Smart Approvals | **已实现** | 方案 D 分级策略，WebSocket 高风险阻塞审批，消息平台高风险自动拒绝+通知 |
 | Budget Pressure | **已实现** | Event 通知模式，剩余 20% 时触发一次，阈值可配置 |
@@ -186,7 +186,7 @@ memory 工具查找记忆文件时遵循以下优先级：
 | **会话恢复** | `context_token` 自动管理；session 过期（errcode -14）自动重新登录 |
 | **优势** | 无需公网暴露；个人微信即可；长轮询天然可靠 |
 
-**代码结构**（参考 iLink 协议，VibeCoding 内部包自行实现）：
+**代码结构**（参考 iLink 协议，MothX 内部包自行实现）：
 
 ```
 internal/messaging/wechat/
@@ -234,7 +234,7 @@ internal/messaging/wechat/
 
 ### 5.3 A2A 协议 (Agent-to-Agent)
 
-> ✅ **已完成** — `internal/a2a/` 独立顶层包，零外部依赖实现 JSON-RPC 2.0 over HTTP + SSE 流式。支持独立模式（`vibecoding a2a start`）和集成模式（hermes + `a2a.enabled: true`）。
+> ✅ **已完成** — `internal/a2a/` 独立顶层包，零外部依赖实现 JSON-RPC 2.0 over HTTP + SSE 流式。支持独立模式（`mothx a2a start`）和集成模式（hermes + `a2a.enabled: true`）。
 
 **依赖**: `github.com/a2aproject/a2a-go/v2` — Google A2A 官方 Go SDK
 
@@ -243,7 +243,7 @@ internal/messaging/wechat/
 #### 命令设计
 
 ```
-vibecoding a2a
+mothx a2a
 ├── start                 # 启动独立 A2A Server（不依赖 hermes）
 │   ├── --port <port>     # 监听端口（默认 8093）
 │   ├── --work-dir <dir>  # 工作目录
@@ -259,15 +259,15 @@ vibecoding a2a
 
 | 模式 | 命令 | 端口 | 说明 |
 |------|------|------|------|
-| **独立模式** | `vibecoding a2a start` | 8093 | 独立运行，有自己的 HTTP 端口和 agent loop |
-| **集成模式** | `vibecoding hermes start` + `a2a.enabled: true` | 8090 (共享) | A2A 端点挂载到 hermes 的 HTTP 端口上 |
+| **独立模式** | `mothx a2a start` | 8093 | 独立运行，有自己的 HTTP 端口和 agent loop |
+| **集成模式** | `mothx hermes start` + `a2a.enabled: true` | 8090 (共享) | A2A 端点挂载到 hermes 的 HTTP 端口上 |
 
 **集成模式**：hermes 启动时，如果 `hermes.json` 中 `a2a.enabled: true`，自动将 A2A 端点注册到 hermes 的 HTTP mux 上：
 - `/.well-known/agent.json` → Agent Card
 - `/a2a` → JSON-RPC 2.0 handler
 - 复用 hermes 的认证、dispatcher、agent loop 基础设施
 
-**独立模式**：`vibecoding a2a start` 启动独立的 HTTP 服务器，适用于不需要消息平台但需要 A2A 能力的场景。
+**独立模式**：`mothx a2a start` 启动独立的 HTTP 服务器，适用于不需要消息平台但需要 A2A 能力的场景。
 
 #### 协议细节
 
@@ -287,13 +287,13 @@ vibecoding a2a
 | **ACP** (Agent Client Protocol) | 编辑器 ↔ Agent | 已有，用于 IDE 集成 |
 | **MCP** (Model Context Protocol) | Agent ↔ 工具服务 | 已有，让 Agent 调用外部工具 |
 | **A2A** (Agent-to-Agent) | Agent ↔ Agent | **新增**，Agent 间对等协作 |
-| **Gateway** (OpenAI 兼容) | 应用 ↔ LLM API | 已有，应用调 VibeCoding 当 LLM |
+| **Gateway** (OpenAI 兼容) | 应用 ↔ LLM API | 已有，应用调 MothX 当 LLM |
 
 **A2A Server 暴露的能力 (Agent Card)**：
 
 ```json
 {
-  "name": "VibeCoding",
+  "name": "MothX",
   "description": "AI coding assistant with file editing, terminal, and search capabilities",
   "url": "http://localhost:8093/a2a",
   "version": "0.1.27",
@@ -345,7 +345,7 @@ internal/a2a/                     # 独立于 hermes 的顶层包
     "enabled": true,           // 启用后将 A2A 端点挂载到 hermes HTTP 端口
     "port": 8093,              // 独立模式端口（集成模式忽略）
     "agent_card": {            // 可选：自定义 Agent Card
-      "name": "VibeCoding",
+      "name": "MothX",
       "description": "AI coding assistant"
     }
   }
@@ -392,7 +392,7 @@ memory.md 遵循全局/项目级两层配置体系（详见第 2 节）：
 
 ## Working Memory
 
-- vibecoding 项目版本当前为 v0.1.26，下一个版本 v0.1.27
+- mothx 项目版本当前为 v0.1.26，下一个版本 v0.1.27
 - 用户对消息平台的优先级：微信 > 飞书 > Telegram > Discord
 - settings.json 中 provider 配置不要随意改动 schema
 
@@ -582,7 +582,7 @@ func (d *Dispatcher) rotateSession(platform, userID string) (*session.Manager, e
 > ⚠️ **大部分实现** — 仅 Smart Approvals 待讨论，其余均已实现。A2A 新增为独立子命令。
 
 ```
-vibecoding hermes
+mothx hermes
 ├── start                 # ✅ 启动 hermes 守护进程（前台运行）
 │   ├── -d                # ✅ 后台启动
 │   ├── --port <port>     # ✅ 指定 WebSocket+HTTP 监听端口（默认 8090）
@@ -636,7 +636,7 @@ vibecoding hermes
 **新增：A2A 独立子命令**（与 hermes 平级）：
 
 ```
-vibecoding a2a
+mothx a2a
 ├── start                 # 🔶 待实现 — 启动独立 A2A Server
 │   ├── --port <port>     # 监听端口（默认 8093）
 │   ├── --work-dir <dir>  # 工作目录
@@ -650,10 +650,10 @@ vibecoding a2a
 
 ### 8.2 Hermes 启动流程
 
-`vibecoding hermes start` 启动后做以下事情：
+`mothx hermes start` 启动后做以下事情：
 
 ```
-vibecoding hermes start
+mothx hermes start
   │
   ├─ 1. 加载配置 ─────────────────────────────────
   │     <GLOBAL_DIR>/hermes.json → .vibe/hermes.json 合并
@@ -1071,22 +1071,22 @@ X-Hub-Signature-256: sha256=...
 
 > ✅ **已实现** — `internal/hermes/client.go` WebSocket 客户端，支持流式输出（text_delta/think_delta/tool_call/tool_result/done）和斜杠命令（/new /clear /status /sessions /mode /compact）。
 
-`vibecoding hermes client` 通过 WebSocket 连接正在运行的 Hermes 网关。
+`mothx hermes client` 通过 WebSocket 连接正在运行的 Hermes 网关。
 
 ```bash
 # 连接本地 hermes
-vibecoding hermes client
+mothx hermes client
 
 # 连接远程 hermes
-vibecoding hermes client --url ws://192.168.1.100:8090/ws
+mothx hermes client --url ws://192.168.1.100:8090/ws
 
 # 恢复已有 session
-vibecoding hermes client --session abc123
+mothx hermes client --session abc123
 ```
 
-**与直接运行 `vibecoding` 的区别**：
+**与直接运行 `mothx` 的区别**：
 
-| 维度 | `vibecoding`（普通 CLI） | `vibecoding hermes client` |
+| 维度 | `mothx`（普通 CLI） | `mothx hermes client` |
 |------|--------------------------|----------------------------|
 | **Agent 进程** | 本地独立进程 | 连接 Hermes 守护进程 |
 | **通信方式** | 本地函数调用 | WebSocket 流式通信 |
@@ -1105,9 +1105,9 @@ vibecoding hermes client --session abc123
 ### 8.5 `config init` — 初始化级别
 
 ```
-vibecoding hermes config init              # 默认写入 <GLOBAL_DIR>/hermes.json
-vibecoding hermes config init --global     # 显式写入 <GLOBAL_DIR>/hermes.json
-vibecoding hermes config init --project    # 写入 .vibe/hermes.json（自动创建 .vibe/ 目录）
+mothx hermes config init              # 默认写入 <GLOBAL_DIR>/hermes.json
+mothx hermes config init --global     # 显式写入 <GLOBAL_DIR>/hermes.json
+mothx hermes config init --project    # 写入 .vibe/hermes.json（自动创建 .vibe/ 目录）
 ```
 
 `--global` 和 `--project` 互斥。目标文件已存在时报错，需加 `--force` 覆盖。
@@ -1272,7 +1272,7 @@ Hermes 模式下，agent 执行过程中会实时向消息平台（微信/飞书
 
 ```bash
 # CLI 标志（最高优先级）
-vibecoding hermes start -p openai -m gpt-4o
+mothx hermes start -p openai -m gpt-4o
 
 # hermes.json 配置
 { "default_provider": "openai", "default_model": "gpt-4o" }
@@ -1477,7 +1477,7 @@ hermes server (internal/hermes/)
 - [x] `internal/hermes/` 编排层骨架
 - [x] `internal/hermes/config.go` — hermes.json 配置加载（含 `server` 节、平台 `work_dir`、全局/项目级合并）
 - [x] `internal/hermes/ws/` — WebSocket + HTTP 网关骨架（server.go + handler.go + api.go）
-- [x] `vibecoding hermes` 子命令注册（start/stop/status/config/client/wechat/feishu/cron）
+- [x] `mothx hermes` 子命令注册（start/stop/status/config/client/wechat/feishu/cron）
 - [x] Hermes server 主循环框架（启动网关 → 可选连接消息平台）
 - [x] `hermes/dispatcher.go` — per-user session 路由（`<sessionDir>/hermes/<platform>/<user_id>/active.db`）
 - [x] session 归档逻辑（`/new` → `active.db` 重命名 + 新建）
@@ -1520,7 +1520,7 @@ hermes server (internal/hermes/)
 - [x] `internal/messaging/wechat/crypto.go` — AES-128-ECB CDN 加解密
 - [x] `internal/messaging/wechat/wechat.go` — 实现 `messaging.Platform`
 - [x] `internal/hermes/dispatcher.go` — 消息 → Agent 转发
-- [x] `vibecoding hermes wechat login` — QR 码登录
+- [x] `mothx hermes wechat login` — QR 码登录
 - [x] 消息平台命令（/new /clear /mode /status /sessions）
 
 > **无偏差** — 微信网关完整实现了提案中所有功能点。
@@ -1529,8 +1529,8 @@ hermes server (internal/hermes/)
 
 - [x] `go get github.com/larksuite/oapi-sdk-go/v3`
 - [x] `internal/messaging/feishu/feishu.go` — 实现 `messaging.Platform`（长连接）
-- [x] `vibecoding hermes feishu setup` — 交互式配置
-- [x] `vibecoding hermes feishu status` — 连接状态
+- [x] `mothx hermes feishu setup` — 交互式配置
+- [x] `mothx hermes feishu status` — 连接状态
 
 > **偏差**：
 > - 提案中的 `feishu/session.go`（per-user Session 管理）**未创建** — session 由 `dispatcher.go` 统一管理
@@ -1544,7 +1544,7 @@ hermes server (internal/hermes/)
 - [x] `internal/a2a/agent_card.go` — Agent Card 生成 (/.well-known/agent.json)
 - [x] `internal/a2a/executor.go` — DefaultExecutor（A2A Task → agent loop）
 - [x] `internal/a2a/server.go` — A2A HTTP server（独立模式 + 集成模式）
-- [x] `cmd/vibecoding/main_a2a.go` — `vibecoding a2a` 子命令（start/stop/status/card）
+- [x] `cmd/mothx/main_a2a.go` — `mothx a2a` 子命令（start/stop/status/card）
 - [x] hermes 集成：`a2a.enabled: true` 时将 A2A 端点挂载到 hermes HTTP mux
 - [x] `internal/hermes/webhook/` — HTTP 入站 webhook 路由
 - [x] Webhook 路由 → Agent 任务（webhook_handler.go）
@@ -1600,7 +1600,7 @@ hermes server (internal/hermes/)
 - [x] hermes.json 配置文档（含全局/项目级层级说明）
 - [x] 微信 iLink / 飞书 Bot 设置指南
 - [x] A2A Server 接入文档 (`docs/en/a2a.md`, `docs/zh/a2a.md`)
-- [x] `vibecoding a2a` 子命令文档
+- [x] `mothx a2a` 子命令文档
 - [x] 单元测试（schedule, progress buffer, security, config, cron tool, webhook handler）
 - [x] Changelog 更新 (`docs/en/changelog.md`, `docs/zh/changelog.md`)
 - [ ] 集成测试

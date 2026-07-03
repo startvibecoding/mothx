@@ -1,6 +1,6 @@
 package context
 
-import "github.com/startvibecoding/vibecoding/internal/provider"
+import "github.com/startvibecoding/mothx/internal/provider"
 
 // ContextUsage holds the current context usage information.
 type ContextUsage struct {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/startvibecoding/GoStreamingMarkdown/gsm"
-	"github.com/startvibecoding/vibecoding/internal/tui/renderutil"
+	"github.com/startvibecoding/mothx/internal/tui/renderutil"
 )
 
 func (a *App) updateViewportContent() {
@@ -101,4 +101,3 @@ func (a *App) renderFixedHeight(view string) string {
 	}
 	return strings.Join(lines, "\n")
 }
-

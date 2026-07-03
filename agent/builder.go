@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
+	"github.com/startvibecoding/mothx/internal/platform"
 )
 
 // Builder provides a fluent API for creating Agent instances.

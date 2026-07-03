@@ -2,20 +2,20 @@
 
 ## Overview
 
-VibeCoding implements the **Agent Client Protocol (ACP)**, a JSON-RPC based protocol that allows AI coding agents to be integrated directly into IDEs and editors. ACP enables a client-server architecture where your IDE acts as the client and VibeCoding runs as a background agent.
+MothX implements the **Agent Client Protocol (ACP)**, a JSON-RPC based protocol that allows AI coding agents to be integrated directly into IDEs and editors. ACP enables a client-server architecture where your IDE acts as the client and MothX runs as a background agent.
 
 ## Supported IDEs
 
 ### Visual Studio Code (VS Code)
 
-VibeCoding can be used as an ACP agent in VS Code through compatible extensions. To configure, add the following to your VS Code settings:
+MothX can be used as an ACP agent in VS Code through compatible extensions. To configure, add the following to your VS Code settings:
 
 ```json
 {
   "your-acp-extension.servers": {
-    "vibecoding": {
+    "mothx": {
       "type": "agent",
-      "command": "vibecoding",
+      "command": "mothx",
       "args": ["acp"],
       "env": {}
     }
@@ -23,7 +23,7 @@ VibeCoding can be used as an ACP agent in VS Code through compatible extensions.
 }
 ```
 
-Make sure `vibecoding` is available in your `PATH`, or use the full path to the binary.
+Make sure `mothx` is available in your `PATH`, or use the full path to the binary.
 
 ### JetBrains IDEs (IntelliJ IDEA, GoLand, WebStorm, etc.)
 
@@ -32,8 +32,8 @@ JetBrains IDEs also support ACP agents. Configure in your IDE settings:
 ```json
 {
   "acpAgentServers": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp"]
     }
   }
@@ -46,19 +46,19 @@ JetBrains IDEs also support ACP agents. Configure in your IDE settings:
 
 ```bash
 # Basic ACP server (stdin/stdout)
-vibecoding acp
+mothx acp
 
 # With specific provider and model
-vibecoding acp --provider deepseek-openai --model deepseek-v4-flash
+mothx acp --provider deepseek-openai --model deepseek-v4-flash
 
 # With sandbox enabled
-vibecoding acp --sandbox
+mothx acp --sandbox
 
 # Specify mode
-vibecoding acp --mode agent
+mothx acp --mode agent
 
 # Enable multi-agent tools
-vibecoding acp --multi-agent
+mothx acp --multi-agent
 ```
 
 ### ACP Command Flags
@@ -92,7 +92,7 @@ ACP uses JSON-RPC 2.0 over stdio for communication. The protocol supports:
 
 ### Capabilities
 
-VibeCoding advertises the following ACP capabilities during initialization:
+MothX advertises the following ACP capabilities during initialization:
 
 - **Load Session**: Load and continue previous sessions
 - **Prompt Capabilities**: Text prompts; ACP prompt image/audio inputs are not advertised
@@ -114,13 +114,13 @@ The server sends `session/update` notifications with the following event types:
 
 ## MCP Server Integration
 
-VibeCoding supports connecting to **MCP (Model Context Protocol)** servers during ACP sessions. This allows the agent to access external tools and data sources.
+MothX supports connecting to **MCP (Model Context Protocol)** servers during ACP sessions. This allows the agent to access external tools and data sources.
 
 ACP sessions use the same MCP connection and tool-registration runtime as normal CLI/TUI sessions. The difference is that ACP clients pass `mcpServers` during session creation/loading, while normal CLI/TUI sessions load `mcp.json` at process startup.
 
 ### Configuring MCP Servers
 
-MCP servers are configured by the IDE client and passed to VibeCoding when creating or loading sessions. The configuration format:
+MCP servers are configured by the IDE client and passed to MothX when creating or loading sessions. The configuration format:
 
 ```json
 {
@@ -154,11 +154,11 @@ MCP servers are configured by the IDE client and passed to VibeCoding when creat
 
 ### MCP Tool Registration
 
-When an MCP server is connected, VibeCoding automatically discovers and registers all tools exposed by the server. The tools are registered with the naming convention `mcp_<server_name>_<tool_name>`, allowing the agent to use them alongside built-in tools.
+When an MCP server is connected, MothX automatically discovers and registers all tools exposed by the server. The tools are registered with the naming convention `mcp_<server_name>_<tool_name>`, allowing the agent to use them alongside built-in tools.
 
 Registration happens before the agent freezes its system prompt and tool definitions for the session. MCP server changes therefore require creating/loading a new ACP session with the updated `mcpServers` payload.
 
-In addition to `tools/*`, VibeCoding now also discovers:
+In addition to `tools/*`, MothX now also discovers:
 
 - `resources/*`: exposed as MCP resource read tools
 - `prompts/*`: exposed as MCP prompt rendering tools
@@ -183,7 +183,7 @@ Additional notes:
 In ACP mode, the agent can request user permissions for tool execution. The IDE client receives `session/request_permission` notifications and can respond with allow/reject decisions.
 
 ```
-Client                                    Server (vibecoding acp)
+Client                                    Server (mothx acp)
   │                                           │
   │  ── session/request_permission ────────▶  │
   │      (tool_call_id, title, options)       │
@@ -194,12 +194,12 @@ Client                                    Server (vibecoding acp)
 
 ## Example: VS Code Integration
 
-### Step 1: Install VibeCoding
+### Step 1: Install MothX
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 # or
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 ### Step 2: Configure VS Code
@@ -209,10 +209,10 @@ Add to your VS Code `settings.json`:
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent"],
-      "description": "VibeCoding AI Assistant"
+      "description": "MothX AI Assistant"
     }
   }
 }
@@ -224,18 +224,18 @@ Open your project in VS Code, launch the ACP agent, and start asking questions o
 
 ## Example: JetBrains IDE Integration
 
-### Step 1: Install VibeCoding
+### Step 1: Install MothX
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 ### Step 2: Configure in JetBrains IDE
 
 Navigate to `Settings → Tools → ACP Agents` and add a new agent:
 
-- **Name**: VibeCoding
-- **Command**: `vibecoding`
+- **Name**: MothX
+- **Command**: `mothx`
 - **Arguments**: `acp --mode agent`
 
 Or add to `.idea/workspace.xml`:
@@ -246,7 +246,7 @@ Or add to `.idea/workspace.xml`:
     <list>
       <ACPAgentSetting>
         <option name="name" value="Vibecoding" />
-        <option name="command" value="vibecoding" />
+        <option name="command" value="mothx" />
         <option name="args" value="acp --mode agent" />
       </ACPAgentSetting>
     </list>
@@ -256,4 +256,4 @@ Or add to `.idea/workspace.xml`:
 
 ### Step 3: Start using
 
-Use the ACP tool window in your JetBrains IDE to interact with VibeCoding.
+Use the ACP tool window in your JetBrains IDE to interact with MothX.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/sandbox"
 )
 
 func TestFileLockManagerAcquireWaitsAndCancels(t *testing.T) {

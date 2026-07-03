@@ -2,32 +2,32 @@
 
 ## Overview
 
-Hermes mode runs VibeCoding as a **messaging gateway daemon** with WebSocket/HTTP API, WeChat, Feishu, and A2A protocol support. It transforms VibeCoding from a coding assistant into a deployable autonomous agent.
+Hermes mode runs MothX as a **messaging gateway daemon** with WebSocket/HTTP API, WeChat, Feishu, and A2A protocol support. It transforms MothX from a coding assistant into a deployable autonomous agent.
 
 ```bash
-vibecoding hermes start
+mothx hermes start
 ```
 
 ## Quick Start
 
 ```bash
 # Generate config template
-vibecoding hermes config init
+mothx hermes config init
 
 # Start hermes (foreground)
-vibecoding hermes start
+mothx hermes start
 
 # Start hermes (background)
-vibecoding hermes start -d
+mothx hermes start -d
 
 # Check status
-vibecoding hermes status
+mothx hermes status
 
 # Stop hermes
-vibecoding hermes stop
+mothx hermes stop
 
 # Connect as client
-vibecoding hermes client
+mothx hermes client
 ```
 
 ## Architecture
@@ -105,9 +105,9 @@ Connect to a running Hermes instance via WebSocket.
 Manage Hermes configuration.
 
 ```bash
-vibecoding hermes config init              # Create global config template
-vibecoding hermes config init --project    # Create project config template
-vibecoding hermes config show              # Show effective config
+mothx hermes config init              # Create global config template
+mothx hermes config init --project    # Create project config template
+mothx hermes config show              # Show effective config
 ```
 
 ### `hermes wechat`
@@ -115,9 +115,9 @@ vibecoding hermes config show              # Show effective config
 Manage WeChat iLink connection.
 
 ```bash
-vibecoding hermes wechat login             # QR code login
-vibecoding hermes wechat login --force     # Force re-login
-vibecoding hermes wechat status            # Show connection status
+mothx hermes wechat login             # QR code login
+mothx hermes wechat login --force     # Force re-login
+mothx hermes wechat status            # Show connection status
 ```
 
 ### `hermes feishu`
@@ -125,8 +125,8 @@ vibecoding hermes wechat status            # Show connection status
 Manage Feishu (Lark) connection.
 
 ```bash
-vibecoding hermes feishu setup             # Show configuration guide
-vibecoding hermes feishu status            # Show connection status
+mothx hermes feishu setup             # Show configuration guide
+mothx hermes feishu status            # Show connection status
 ```
 
 ### `hermes webhook`
@@ -134,7 +134,7 @@ vibecoding hermes feishu status            # Show connection status
 Manage webhook routes.
 
 ```bash
-vibecoding hermes webhook list             # List configured routes
+mothx hermes webhook list             # List configured routes
 ```
 
 ### `hermes memory`
@@ -142,8 +142,8 @@ vibecoding hermes webhook list             # List configured routes
 Manage persistent memory.
 
 ```bash
-vibecoding hermes memory show              # Show memory.md content
-vibecoding hermes memory clear             # Reset memory.md
+mothx hermes memory show              # Show memory.md content
+mothx hermes memory clear             # Reset memory.md
 ```
 
 ### `hermes sessions`
@@ -151,7 +151,7 @@ vibecoding hermes memory clear             # Reset memory.md
 Manage sessions.
 
 ```bash
-vibecoding hermes sessions list            # List active sessions (queries running instance)
+mothx hermes sessions list            # List active sessions (queries running instance)
 ```
 
 ### `hermes cron`
@@ -159,11 +159,11 @@ vibecoding hermes sessions list            # List active sessions (queries runni
 Manage cron scheduled tasks.
 
 ```bash
-vibecoding hermes cron list                # List all cron jobs
-vibecoding hermes cron add <name> <prompt> # Add a cron job
-vibecoding hermes cron remove <id>         # Remove a cron job
-vibecoding hermes cron enable <id>         # Enable a cron job
-vibecoding hermes cron disable <id>        # Disable a cron job
+mothx hermes cron list                # List all cron jobs
+mothx hermes cron add <name> <prompt> # Add a cron job
+mothx hermes cron remove <id>         # Remove a cron job
+mothx hermes cron enable <id>         # Enable a cron job
+mothx hermes cron disable <id>        # Disable a cron job
 ```
 
 ## Configuration

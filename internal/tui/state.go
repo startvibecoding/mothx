@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
+	agentpkg "github.com/startvibecoding/mothx/agent"
 )
 
 // resetTranscriptState clears rendered conversation bookkeeping without

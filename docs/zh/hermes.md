@@ -2,32 +2,32 @@
 
 ## 概述
 
-Hermes 模式将 VibeCoding 作为**消息平台网关守护进程**运行，支持 WebSocket/HTTP API、微信、飞书和 A2A 协议。它将 VibeCoding 从编码助手扩展为可部署的自主代理。
+Hermes 模式将 MothX 作为**消息平台网关守护进程**运行，支持 WebSocket/HTTP API、微信、飞书和 A2A 协议。它将 MothX 从编码助手扩展为可部署的自主代理。
 
 ```bash
-vibecoding hermes start
+mothx hermes start
 ```
 
 ## 快速开始
 
 ```bash
 # 生成配置模板
-vibecoding hermes config init
+mothx hermes config init
 
 # 启动 hermes（前台）
-vibecoding hermes start
+mothx hermes start
 
 # 启动 hermes（后台）
-vibecoding hermes start -d
+mothx hermes start -d
 
 # 查看状态
-vibecoding hermes status
+mothx hermes status
 
 # 停止 hermes
-vibecoding hermes stop
+mothx hermes stop
 
 # 以客户端连接
-vibecoding hermes client
+mothx hermes client
 ```
 
 ## 架构
@@ -105,9 +105,9 @@ vibecoding hermes client
 管理 Hermes 配置。
 
 ```bash
-vibecoding hermes config init              # 创建全局配置模板
-vibecoding hermes config init --project    # 创建项目配置模板
-vibecoding hermes config show              # 查看生效配置
+mothx hermes config init              # 创建全局配置模板
+mothx hermes config init --project    # 创建项目配置模板
+mothx hermes config show              # 查看生效配置
 ```
 
 ### `hermes wechat`
@@ -115,9 +115,9 @@ vibecoding hermes config show              # 查看生效配置
 管理微信 iLink 连接。
 
 ```bash
-vibecoding hermes wechat login             # 扫码登录
-vibecoding hermes wechat login --force     # 强制重新登录
-vibecoding hermes wechat status            # 查看连接状态
+mothx hermes wechat login             # 扫码登录
+mothx hermes wechat login --force     # 强制重新登录
+mothx hermes wechat status            # 查看连接状态
 ```
 
 ### `hermes feishu`
@@ -125,8 +125,8 @@ vibecoding hermes wechat status            # 查看连接状态
 管理飞书连接。
 
 ```bash
-vibecoding hermes feishu setup             # 显示配置指南
-vibecoding hermes feishu status            # 查看连接状态
+mothx hermes feishu setup             # 显示配置指南
+mothx hermes feishu status            # 查看连接状态
 ```
 
 ### `hermes webhook`
@@ -134,7 +134,7 @@ vibecoding hermes feishu status            # 查看连接状态
 管理 webhook 路由。
 
 ```bash
-vibecoding hermes webhook list             # 列出配置的路由
+mothx hermes webhook list             # 列出配置的路由
 ```
 
 ### `hermes memory`
@@ -142,8 +142,8 @@ vibecoding hermes webhook list             # 列出配置的路由
 管理持久化记忆。
 
 ```bash
-vibecoding hermes memory show              # 查看 memory.md 内容
-vibecoding hermes memory clear             # 重置 memory.md
+mothx hermes memory show              # 查看 memory.md 内容
+mothx hermes memory clear             # 重置 memory.md
 ```
 
 ### `hermes sessions`
@@ -151,7 +151,7 @@ vibecoding hermes memory clear             # 重置 memory.md
 管理 session。
 
 ```bash
-vibecoding hermes sessions list            # 列出活跃 session（查询运行实例）
+mothx hermes sessions list            # 列出活跃 session（查询运行实例）
 ```
 
 ### `hermes cron`
@@ -159,11 +159,11 @@ vibecoding hermes sessions list            # 列出活跃 session（查询运行
 管理定时任务。
 
 ```bash
-vibecoding hermes cron list                # 列出所有定时任务
-vibecoding hermes cron add <name> <prompt> # 添加定时任务
-vibecoding hermes cron remove <id>         # 删除定时任务
-vibecoding hermes cron enable <id>         # 启用定时任务
-vibecoding hermes cron disable <id>        # 禁用定时任务
+mothx hermes cron list                # 列出所有定时任务
+mothx hermes cron add <name> <prompt> # 添加定时任务
+mothx hermes cron remove <id>         # 删除定时任务
+mothx hermes cron enable <id>         # 启用定时任务
+mothx hermes cron disable <id>        # 禁用定时任务
 ```
 
 ## 配置

@@ -1,6 +1,6 @@
 # SDK 集成指南
 
-VibeCoding 提供了一个公共 Go 包（`github.com/startvibecoding/vibecoding/agent`），允许你将 AI 编码 Agent 嵌入到自己的应用中。本指南涵盖：
+MothX 提供了一个公共 Go 包（`github.com/startvibecoding/mothx/agent`），允许你将 AI 编码 Agent 嵌入到自己的应用中。本指南涵盖：
 
 1. [公共 Agent 包](#公共-agent-包) — 类型、接口和 Builder API
 2. [实现自定义 Provider](#实现自定义-provider) — 接入自有 LLM 后端
@@ -15,7 +15,7 @@ VibeCoding 提供了一个公共 Go 包（`github.com/startvibecoding/vibecoding
 导入路径：
 
 ```go
-import "github.com/startvibecoding/vibecoding/agent"
+import "github.com/startvibecoding/mothx/agent"
 ```
 
 该包**仅包含公共类型和接口**，不依赖任何 internal 包。定义了以下核心类型：
@@ -103,7 +103,7 @@ package mybackend
 import (
     "context"
 
-    "github.com/startvibecoding/vibecoding/agent"
+    "github.com/startvibecoding/mothx/agent"
 )
 
 type MyProvider struct {
@@ -197,8 +197,8 @@ import (
     "fmt"
     "os"
 
-    "github.com/startvibecoding/vibecoding/agent"
-    _ "github.com/startvibecoding/vibecoding/internal/agent" // 注册内部 builder
+    "github.com/startvibecoding/mothx/agent"
+    _ "github.com/startvibecoding/mothx/internal/agent" // 注册内部 builder
 )
 
 func main() {
@@ -499,7 +499,7 @@ router.RegisterGlobal(agent.RouterEventHandlerFunc(func(e agent.Event) error {
 
 ## 外部工具（嵌入式使用）
 
-将 VibeCoding 嵌入到自己的应用中时，可以将宿主应用提供的能力暴露给 Agent，与内置编码工具并存（或完全替代）。
+将 MothX 嵌入到自己的应用中时，可以将宿主应用提供的能力暴露给 Agent，与内置编码工具并存（或完全替代）。
 
 ### ExternalTool 接口
 
@@ -527,8 +527,8 @@ type ExternalToolResult struct {
 
 ```go
 import (
-    "github.com/startvibecoding/vibecoding/agent"
-    _ "github.com/startvibecoding/vibecoding/bootstrap" // 嵌入时必须
+    "github.com/startvibecoding/mothx/agent"
+    _ "github.com/startvibecoding/mothx/bootstrap" // 嵌入时必须
 )
 
 a, err := agent.NewBuilder().
@@ -565,7 +565,7 @@ type ExternalToolPromptInfo interface {
 外部模块必须空白导入 `bootstrap` 包一次，以注册内部 builder 和 provider 解析 hook（因为 internal 包无法被直接导入）：
 
 ```go
-import _ "github.com/startvibecoding/vibecoding/bootstrap"
+import _ "github.com/startvibecoding/mothx/bootstrap"
 ```
 
 ### 审批转发

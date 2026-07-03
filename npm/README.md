@@ -1,6 +1,8 @@
-# VibeCoding
+# vibecoding-installer compatibility package
 
-🚀 一个二进制文件搞定一切 — 你的终端 AI 编程助手
+This package is kept for a smooth transition to **MothX**.
+
+> `vibecoding-installer` is a compatibility package for this release. Future updates should use `mothx`.
 
 A terminal-based AI coding assistant. One binary, multiple providers, sandbox, sessions, skills, and more.
 
@@ -8,6 +10,8 @@ A terminal-based AI coding assistant. One binary, multiple providers, sandbox, s
 
 ```bash
 npm install -g vibecoding-installer
+# Future updates:
+npm install -g mothx
 ```
 
 ## Quick Start
@@ -69,9 +73,9 @@ Or configure in `~/.vibecoding/settings.json`:
 
 ## More Information
 
-- **GitHub**: [github.com/startvibecoding/vibecoding](https://github.com/startvibecoding/vibecoding)
-- **Gitee (国内)**: [gitee.com/startvibecoding/vibecoding](https://gitee.com/startvibecoding/vibecoding)
-- **Documentation**: [docs](https://github.com/startvibecoding/vibecoding/tree/main/docs)
+- **GitHub**: [github.com/startvibecoding/mothx](https://github.com/startvibecoding/mothx)
+- **Gitee (国内)**: [gitee.com/startvibecoding/mothx](https://gitee.com/startvibecoding/mothx)
+- **Documentation**: [docs](https://github.com/startvibecoding/mothx/tree/main/docs)
 
 ## Uninstall
 
@@ -80,10 +84,10 @@ Or configure in `~/.vibecoding/settings.json`:
 npm uninstall -g vibecoding-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
 
 # Windows (one-line install)
-irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-VibeCoding
 ```
 
 ## License

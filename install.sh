@@ -4,23 +4,23 @@ set -euo pipefail
 # Show error location on failure
 trap 'error "Installation failed at line $LINENO."' ERR
 
-# VibeCoding Installer
+# MothX Installer
 # Progressive and agile vibe-coding tool. No need to re-deploy Claw/Hermes;
 # everything is packed into a single file.
-# 主打渐进式、敏捷开发体验的 VibeCoding 工具，整体打包为单个文件，开箱即用，
+# 主打渐进式、敏捷开发体验的 MothX 工具，整体打包为单个文件，开箱即用，
 # 无需重复搭建部署 Claude Code、codex、Claw、Hermes 环境。
 #
 # Downloads and installs the latest release from GitHub
 #
 # Supports non-root installation to ~/.vibecoding/bin
 #
-# Repository: https://github.com/startvibecoding/vibecoding
-# Gitee:      https://gitee.com/startvibecoding/vibecoding
+# Repository: https://github.com/startvibecoding/mothx
+# Gitee:      https://gitee.com/startvibecoding/mothx
 # Author:     zhenruyan
 # Blog:       https://pkold.com
 
-REPO="startvibecoding/vibecoding"
-BINARY_NAME="vibecoding"
+REPO="startvibecoding/mothx"
+BINARY_NAME="mothx"
 
 # User-level install directory (no root required)
 USER_INSTALL_DIR="${HOME}/.vibecoding/bin"
@@ -64,8 +64,8 @@ error() {
 show_help() {
     echo ""
     echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                   VibeCoding Installer                        ║"
-    echo "║               https://github.com/startvibecoding/vibecoding    ║"
+    echo "║                   MothX Installer                        ║"
+    echo "║               https://github.com/startvibecoding/mothx    ║"
     echo "║                  Author: zhenruyan | pkold.com                ║"
     echo "╚═══════════════════════════════════════════════════════════════╝"
     echo ""
@@ -73,7 +73,7 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -h, --help        Show this help message"
-    echo "  -u, --uninstall   Uninstall VibeCoding"
+    echo "  -u, --uninstall   Uninstall MothX"
     echo "  -d, --dir DIR     Install to DIR (default: auto-detect)"
     echo ""
     echo "Environment variables:"
@@ -81,24 +81,24 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  # Install (default)"
-    echo "  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash"
+    echo "  curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash"
     echo ""
     echo "  # Install to custom directory"
-    echo "  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- -d ~/.local/bin"
+    echo "  curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- -d ~/.local/bin"
     echo ""
     echo "  # Uninstall"
-    echo "  curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall"
+    echo "  curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall"
     echo ""
     echo "  # Or download and run"
     echo "  ./install.sh --uninstall"
     echo ""
 }
 
-# Uninstall VibeCoding
+# Uninstall MothX
 uninstall() {
     echo ""
     echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                 VibeCoding Uninstaller                        ║"
+    echo "║                 MothX Uninstaller                        ║"
     echo "╚═══════════════════════════════════════════════════════════════╝"
     echo ""
 
@@ -123,7 +123,7 @@ uninstall() {
     fi
 
     if [ ${#found_paths[@]} -eq 0 ]; then
-        warn "VibeCoding not found in common locations"
+        warn "MothX not found in common locations"
         echo ""
         echo "Checked locations:"
         echo "  - /usr/local/bin/$BINARY_NAME"
@@ -137,7 +137,7 @@ uninstall() {
     fi
 
     # Show found installations
-    info "Found VibeCoding installations:"
+    info "Found MothX installations:"
     echo ""
     for p in "${found_paths[@]}"; do
         echo "  - $p"
@@ -213,8 +213,8 @@ uninstall() {
         answer="${answer:-N}"
 
         if [[ "$answer" =~ ^[Yy]$ ]]; then
-            # Remove VibeCoding PATH entry (works for bash/zsh)
-            sed -i.bak '/# VibeCoding/,+1d' "$config_file"
+            # Remove MothX PATH entry (works for bash/zsh)
+            sed -i.bak '/# MothX/,+1d' "$config_file"
             rm -f "${config_file}.bak"
             success "Removed PATH entry from $config_file"
         fi
@@ -239,11 +239,11 @@ uninstall() {
     echo ""
     success "Uninstall complete!"
     echo ""
-    echo "  Thank you for using VibeCoding! 🙏"
+    echo "  Thank you for using MothX! 🙏"
     echo ""
     echo "  If you have any feedback, please visit:"
-    echo "    - GitHub: https://github.com/startvibecoding/vibecoding"
-    echo "    - Gitee:  https://gitee.com/startvibecoding/vibecoding"
+    echo "    - GitHub: https://github.com/startvibecoding/mothx"
+    echo "    - Gitee:  https://gitee.com/startvibecoding/mothx"
     echo ""
 }
 
@@ -431,7 +431,7 @@ add_to_path() {
     esac
     
     echo "" >> "$config_file"
-    echo "# VibeCoding" >> "$config_file"
+    echo "# MothX" >> "$config_file"
     echo "$path_line" >> "$config_file"
     
     success "Added ${INSTALL_DIR} to PATH in ${config_file}"
@@ -517,8 +517,8 @@ check_path() {
 main_install() {
     echo ""
     echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║                   VibeCoding Installer                        ║"
-    echo "║               https://github.com/startvibecoding/vibecoding    ║"
+    echo "║                   MothX Installer                        ║"
+    echo "║               https://github.com/startvibecoding/mothx    ║"
     echo "║                  Author: zhenruyan | pkold.com                ║"
     echo "╚═══════════════════════════════════════════════════════════════╝"
     echo ""

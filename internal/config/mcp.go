@@ -10,11 +10,11 @@ import (
 
 // MCPServer defines one MCP server entry in mcp.json.
 type MCPServer struct {
-	Name       string `json:"name"`
-	Type       string `json:"type,omitempty"`
-	Command    string `json:"command,omitempty"`
-	URL        string `json:"url,omitempty"`
-	MessageURL string `json:"messageUrl,omitempty"`
+	Name       string   `json:"name"`
+	Type       string   `json:"type,omitempty"`
+	Command    string   `json:"command,omitempty"`
+	URL        string   `json:"url,omitempty"`
+	MessageURL string   `json:"messageUrl,omitempty"`
 	Args       []string `json:"args,omitempty"`
 	Headers    []struct {
 		Name  string `json:"name"`

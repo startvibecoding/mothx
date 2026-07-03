@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/startvibecoding/vibecoding/internal/tools"
+import "github.com/startvibecoding/mothx/internal/tools"
 
 // RegisterSubAgentTools registers the built-in sub-agent tools when multi-agent
 // mode is enabled. It is safe to call more than once; Registry.Register replaces

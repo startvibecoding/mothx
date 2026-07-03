@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	internalprovider "github.com/startvibecoding/vibecoding/internal/provider"
+	internalprovider "github.com/startvibecoding/mothx/internal/provider"
 )
 
 // MockProvider is a mock implementation of Provider for testing.
@@ -531,7 +531,7 @@ func TestBuilderConfig(t *testing.T) {
 		WithModel("gpt-4").
 		WithMode("yolo").
 		WithWorkDir("/home/user/project").
-			WithThinkingLevel(ThinkingHigh).
+		WithThinkingLevel(ThinkingHigh).
 		WithMaxTokens(8192).
 		WithSystemPromptExtra("extra").
 		WithMaxIterations(100).

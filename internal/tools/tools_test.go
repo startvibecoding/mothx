@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/imageproc"
-	"github.com/startvibecoding/vibecoding/internal/platform"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/imageproc"
+	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/sandbox"
 )
 
 func TestMain(m *testing.M) {

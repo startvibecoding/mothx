@@ -1,6 +1,6 @@
 # 开发指南
 
-本文档介绍如何为 VibeCoding 贡献代码。
+本文档介绍如何为 MothX 贡献代码。
 
 ## 开发环境搭建
 
@@ -14,8 +14,8 @@
 ### 获取源码
 
 ```bash
-git clone https://gitee.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://gitee.com/startvibecoding/mothx.git
+cd mothx
 ```
 
 ### 安装依赖
@@ -50,10 +50,10 @@ go test -run TestReadTool ./internal/tools/
 ## 项目结构
 
 ```
-vibecoding/
+mothx/
 ├── agent/                     # 公共 Agent/Provider 接口和 Builder
 ├── bootstrap/                 # 嵌入式使用的 bootstrap 包
-├── cmd/vibecoding/            # CLI 入口点
+├── cmd/mothx/            # CLI 入口点
 │   ├── main.go                # 主程序
 │   └── main_doctor.go         # `doctor` 子命令
 ├── internal/
@@ -256,7 +256,7 @@ func init() {
 }
 ```
 
-CLI 和 ACP 的 provider 创建统一走 `internal/provider/factory`，不要在 `cmd/vibecoding/main.go` 或 `internal/acp/acp.go` 中添加厂商专用创建逻辑。
+CLI 和 ACP 的 provider 创建统一走 `internal/provider/factory`，不要在 `cmd/mothx/main.go` 或 `internal/acp/acp.go` 中添加厂商专用创建逻辑。
 
 ### 添加新的协议 Provider
 
@@ -375,7 +375,7 @@ docs(readme): update installation guide
 ### 启用调试日志
 
 ```bash
-vibecoding --debug
+mothx --debug
 ```
 
 ### 使用 dlv
@@ -385,7 +385,7 @@ vibecoding --debug
 go install github.com/go-delve/delve/cmd/dlv@latest
 
 # 调试
-dlv debug ./cmd/vibecoding -- --debug
+dlv debug ./cmd/mothx -- --debug
 ```
 
 ## 发布流程
@@ -426,7 +426,7 @@ make npm-publish-pre
 用户可以通过 npm 安装:
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 ### 发布到 PyPI

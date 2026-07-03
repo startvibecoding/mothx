@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/tools"
+	"github.com/startvibecoding/mothx/internal/tools"
 )
 
 // showNextApproval pops the next approval request from the queue and displays it.

@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/ua"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/ua"
 )
 
 // responsesRequest represents the request body for OpenAI Responses API.

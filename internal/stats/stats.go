@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
-	"github.com/startvibecoding/vibecoding/internal/session"
+	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/session"
 	_ "modernc.org/sqlite"
 )
 

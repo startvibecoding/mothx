@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // ProviderFactory creates a Provider from a ProviderConfig.

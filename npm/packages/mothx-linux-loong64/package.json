@@ -1,0 +1,23 @@
+{
+  "name": "mothx-linux-loong64",
+  "version": "1.1.56",
+  "description": "MothX native binary for linux-loong64",
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "loong64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "files": [
+    "bin/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/startvibecoding/mothx.git",
+    "directory": "npm"
+  }
+}

@@ -3,7 +3,7 @@ package mcp
 import (
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 func TestIsTemplateServer(t *testing.T) {

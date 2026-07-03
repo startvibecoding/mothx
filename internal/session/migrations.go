@@ -71,7 +71,7 @@ var migrations = []migration{
 	},
 	{
 		Name: "006_add_request_stats_protocol_column",
-		SQL: `ALTER TABLE request_stats ADD COLUMN protocol TEXT NOT NULL DEFAULT '';`,
+		SQL:  `ALTER TABLE request_stats ADD COLUMN protocol TEXT NOT NULL DEFAULT '';`,
 	},
 }
 

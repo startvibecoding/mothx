@@ -3,7 +3,7 @@ package factory
 import (
 	"testing"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 func TestCreateAppliesExplicitVendorDefaults(t *testing.T) {

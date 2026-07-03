@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // MemoryStore is an in-memory implementation of Store for testing.

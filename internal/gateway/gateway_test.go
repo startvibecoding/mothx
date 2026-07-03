@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/agent"
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	"github.com/startvibecoding/vibecoding/internal/sandbox"
-	"github.com/startvibecoding/vibecoding/internal/session"
-	"github.com/startvibecoding/vibecoding/internal/skills"
-	"github.com/startvibecoding/vibecoding/internal/tools"
-	"github.com/startvibecoding/vibecoding/internal/workflow"
+	"github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/skills"
+	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/workflow"
 )
 
 type recordingGatewayProvider struct {
@@ -49,7 +49,7 @@ func (p *recordingGatewayProvider) Chat(ctx context.Context, params provider.Cha
 }
 
 func (p *recordingGatewayProvider) Name() string              { return "recording-gateway" }
-func (p *recordingGatewayProvider) API() string                 { return "openai-chat" }
+func (p *recordingGatewayProvider) API() string               { return "openai-chat" }
 func (p *recordingGatewayProvider) Models() []*provider.Model { return p.models }
 func (p *recordingGatewayProvider) GetModel(id string) *provider.Model {
 	for _, m := range p.models {

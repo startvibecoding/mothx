@@ -1,6 +1,6 @@
 # 场景演示
 
-本文档通过实际场景演示 VibeCoding 的各种使用模式。
+本文档通过实际场景演示 MothX 的各种使用模式。
 
 ---
 
@@ -21,10 +21,10 @@ cd ~/projects/myapp
 ### 场景 A：代码解释
 
 ```bash
-$ vibecoding -P "解释 internal/agent/agent.go 的核心逻辑"
+$ mothx -P "解释 internal/agent/agent.go 的核心逻辑"
 ```
 
-VibeCoding 会：
+MothX 会：
 1. 加载上下文文件（`AGENTS.md`、`CLAUDE.md`）
 2. 用 `read` 读取文件
 3. 用 `ls`、`grep` 探索相关代码
@@ -33,7 +33,7 @@ VibeCoding 会：
 ### 场景 B：修复 Bug
 
 ```bash
-$ vibecoding
+$ mothx
 ```
 
 ```
@@ -83,35 +83,35 @@ $ vibecoding
 
 | 任务 | 推荐模式 | 命令 |
 |------|---------|------|
-| 阅读代码、学习项目 | `plan` | `vibecoding --mode plan` |
-| 写代码、修 bug | `agent`（默认） | `vibecoding` |
-| 安装依赖、系统操作 | `yolo` | `vibecoding --mode yolo` |
+| 阅读代码、学习项目 | `plan` | `mothx --mode plan` |
+| 写代码、修 bug | `agent`（默认） | `mothx` |
+| 安装依赖、系统操作 | `yolo` | `mothx --mode yolo` |
 
 ---
 
 ## 场景 2：非交互模式（CI/脚本集成）
 
-在 CI 流水线或脚本中使用 VibeCoding。
+在 CI 流水线或脚本中使用 MothX。
 
 ### 场景 A：代码审查
 
 ```bash
 # 在 CI 中审查 PR
-git diff main..feature | vibecoding -P "审查这个 diff，指出潜在问题"
+git diff main..feature | mothx -P "审查这个 diff，指出潜在问题"
 ```
 
 ### 场景 B：自动重构
 
 ```bash
 # 批量重构
-vibecoding -P "将所有 fmt.Errorf 调用改为使用 %w 包装错误" --mode yolo
+mothx -P "将所有 fmt.Errorf 调用改为使用 %w 包装错误" --mode yolo
 ```
 
 ### 场景 C：生成文档
 
 ```bash
 # 为包生成 README
-vibecoding -P "为 internal/cache 包生成 README.md，包括使用示例" --mode yolo
+mothx -P "为 internal/cache 包生成 README.md，包括使用示例" --mode yolo
 ```
 
 ---
@@ -123,7 +123,7 @@ vibecoding -P "为 internal/cache 包生成 README.md，包括使用示例" --mo
 ### 启动
 
 ```bash
-$ vibecoding --multi-agent
+$ mothx --multi-agent
 ```
 
 ### 场景：并行重构和测试
@@ -175,7 +175,7 @@ $ vibecoding --multi-agent
 
 ```bash
 # 每天早上运行代码审查
-vibecoding hermes cron add "daily-review" \
+mothx hermes cron add "daily-review" \
   "审查最近 24 小时的 git 变更，输出问题报告" \
   --schedule "@daily"
 ```
@@ -184,12 +184,12 @@ vibecoding hermes cron add "daily-review" \
 
 ## 场景 4：VS Code ACP 集成
 
-在 VS Code 中直接使用 VibeCoding 作为 AI 编码助手。
+在 VS Code 中直接使用 MothX 作为 AI 编码助手。
 
 ### 步骤 1：安装
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 ### 步骤 2：配置 VS Code
@@ -199,10 +199,10 @@ npm install -g vibecoding-installer
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent", "--multi-agent"],
-      "description": "VibeCoding AI Assistant"
+      "description": "MothX AI Assistant"
     }
   }
 }
@@ -219,7 +219,7 @@ npm install -g vibecoding-installer
 ```
 你: 将 utils.go 中的 ParseConfig 函数改为支持 YAML 格式
 
-VibeCoding:
+MothX:
   [tool_call: read utils.go]
   [tool_call: edit utils.go]
   [tool_call: bash "go test ./..."]
@@ -239,26 +239,26 @@ VibeCoding:
 
 ## 场景 5：A2A 独立服务器模式
 
-将 VibeCoding 作为 A2A 服务器运行，供其他 Agent 调用。
+将 MothX 作为 A2A 服务器运行，供其他 Agent 调用。
 
 ### 场景 A：启动独立 A2A 服务器
 
 ```bash
 # 初始化配置
-vibecoding a2a --init-a2a-config
+mothx a2a --init-a2a-config
 
 # 编辑 a2a.json（可选）
 vim ~/.vibecoding/a2a.json
 
 # 启动服务器
-vibecoding a2a start --port 8093 --work-dir ~/projects/myapp
+mothx a2a start --port 8093 --work-dir ~/projects/myapp
 ```
 
 ### 场景 B：其他 Agent 调用
 
 ```bash
-# 用 vibecoding 客户端
-vibecoding a2a send "列出项目中的所有 Go 文件" --target http://localhost:8093
+# 用 mothx 客户端
+mothx a2a send "列出项目中的所有 Go 文件" --target http://localhost:8093
 
 # 用 curl
 curl -X POST http://localhost:8093/a2a \
@@ -276,17 +276,17 @@ curl -X POST http://localhost:8093/a2a \
   }'
 
 # 发现远程 Agent 能力
-vibecoding a2a discover http://localhost:8093
+mothx a2a discover http://localhost:8093
 ```
 
 ### 场景 C：带认证的 A2A 服务器
 
 ```bash
 # 启动带 Token 认证的服务器
-vibecoding a2a start --auth-token "my-secret-token-xxx"
+mothx a2a start --auth-token "my-secret-token-xxx"
 
 # 客户端调用时传 Token
-vibecoding a2a send "review main.go" \
+mothx a2a send "review main.go" \
   --target http://remote-server:8093 \
   --auth-token "my-secret-token-xxx"
 ```
@@ -301,9 +301,9 @@ vibecoding a2a send "review main.go" \
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  本机 (VibeCoding + A2A Master)                          │
+│  本机 (MothX + A2A Master)                          │
 │                                                         │
-│  vibecoding --enable-a2a-master                         │
+│  mothx --enable-a2a-master                         │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  LLM 自动决策 → a2a_dispatch tool                │   │
 │  └─────────────────────────────────────────────────┘   │
@@ -322,20 +322,20 @@ vibecoding a2a send "review main.go" \
 **机器 A（代码审查 Agent）：**
 ```bash
 # 192.168.1.10
-vibecoding a2a start --port 8093 --work-dir ~/projects/shared
+mothx a2a start --port 8093 --work-dir ~/projects/shared
 ```
 
 **机器 B（CI Agent）：**
 ```bash
 # 192.168.1.20
-vibecoding a2a start --port 8093 --work-dir ~/ci-runner --auth-token "ci-secret"
+mothx a2a start --port 8093 --work-dir ~/ci-runner --auth-token "ci-secret"
 ```
 
 ### 步骤 2：本机初始化 Master 配置
 
 ```bash
 # 生成示例配置
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # 编辑 a2a-list.json
 vim ~/.vibecoding/a2a-list.json
@@ -360,7 +360,7 @@ vim ~/.vibecoding/a2a-list.json
 ### 步骤 3：启用 Master 模式
 
 ```bash
-$ vibecoding --enable-a2a-master --verbose
+$ mothx --enable-a2a-master --verbose
 ```
 
 ```
@@ -414,19 +414,19 @@ A2A master mode enabled: 2 agents loaded from /home/user/.vibecoding/a2a-list.js
 
 ## 场景 7：Gateway 模式（HTTP API）
 
-将 VibeCoding 作为 OpenAI 兼容的 HTTP 服务，供其他应用调用。
+将 MothX 作为 OpenAI 兼容的 HTTP 服务，供其他应用调用。
 
 ### 初始化和启动
 
 ```bash
 # 生成配置模板
-vibecoding --init-gateway
+mothx --init-gateway
 
 # 编辑 gateway.json（设置 token、端口等）
 vim ~/.vibecoding/gateway.json
 
 # 启动网关
-vibecoding gateway --port 8080 --work-dir ~/projects/myapp
+mothx gateway --port 8080 --work-dir ~/projects/myapp
 ```
 
 ### 调用
@@ -456,7 +456,7 @@ response = client.chat.completions.create(
 
 ## 场景 8：Hermes 消息平台网关
 
-将 VibeCoding 接入微信/飞书，实现无人值守的 AI 编码助手。
+将 MothX 接入微信/飞书，实现无人值守的 AI 编码助手。
 
 ### 启动
 
@@ -465,7 +465,7 @@ response = client.chat.completions.create(
 vim ~/.vibecoding/hermes.json
 
 # 启动
-vibecoding hermes start
+mothx hermes start
 ```
 
 ### 典型配置
@@ -515,10 +515,10 @@ Bot:   [执行 go test ./...]
 ```bash
 # 1. 本地开发（TUI 模式）
 cd ~/projects/myapp
-vibecoding --mode yolo
+mothx --mode yolo
 
 # 2. 提交前审查（Plan 模式）
-vibecoding --mode plan "审查 git diff 中的所有变更"
+mothx --mode plan "审查 git diff 中的所有变更"
 
 # 3. 推送后 CI 自动审查（Gateway 模式）
 # CI 脚本中：
@@ -526,7 +526,7 @@ curl http://gateway:8080/v1/chat/completions \
   -d '{"messages": [{"role": "user", "content": "审查 PR #42 的代码"}]}'
 
 # 4. 定时巡检（Hermes + Cron）
-vibecoding hermes cron add "security-scan" \
+mothx hermes cron add "security-scan" \
   "扫描项目中的安全漏洞和敏感信息泄露" \
   --schedule "@weekly"
 ```
@@ -537,18 +537,18 @@ vibecoding hermes cron add "security-scan" \
 
 | 场景 | 命令 |
 |------|------|
-| 日常编码 | `vibecoding` |
-| 只读分析 | `vibecoding --mode plan` |
-| 完全访问 | `vibecoding --mode yolo` |
-| 非交互 | `vibecoding -P "..."` |
-| 多 Agent | `vibecoding --multi-agent` |
-| A2A 服务器 | `vibecoding a2a start` |
-| A2A Master | `vibecoding --enable-a2a-master` |
-| HTTP 网关 | `vibecoding gateway` |
-| 消息平台 | `vibecoding hermes start` |
-| IDE 集成 | `vibecoding acp` |
-| 继续会话 | `vibecoding -c` |
-| 恢复会话 | `vibecoding -r <id>` |
-| 生成配置 | `vibecoding --init-gateway` |
-| 生成 A2A 配置 | `vibecoding a2a --init-a2a-config` |
-| 生成 Master 配置 | `vibecoding --init-a2a-master-config` |
+| 日常编码 | `mothx` |
+| 只读分析 | `mothx --mode plan` |
+| 完全访问 | `mothx --mode yolo` |
+| 非交互 | `mothx -P "..."` |
+| 多 Agent | `mothx --multi-agent` |
+| A2A 服务器 | `mothx a2a start` |
+| A2A Master | `mothx --enable-a2a-master` |
+| HTTP 网关 | `mothx gateway` |
+| 消息平台 | `mothx hermes start` |
+| IDE 集成 | `mothx acp` |
+| 继续会话 | `mothx -c` |
+| 恢复会话 | `mothx -r <id>` |
+| 生成配置 | `mothx --init-gateway` |
+| 生成 A2A 配置 | `mothx a2a --init-a2a-config` |
+| 生成 Master 配置 | `mothx --init-a2a-master-config` |

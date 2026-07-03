@@ -1,26 +1,28 @@
 <p align="center">
-  <img src="docs/assets/logo.webp" alt="VibeCoding" width="128" height="128">
+  <img src="docs/assets/mothx.png" alt="MothX" width="128" height="128">
 </p>
 
-<h1 align="center">VibeCoding</h1>
+<h1 align="center">MothX</h1>
 
 <p align="center">
   一个基于终端的 AI 编码助手，使用约 10,000 行 Go 代码编写，灵感来源于 <a href="https://pi.dev">pi.dev</a>
 </p>
 
 <p align="center">
-  主打渐进式、敏捷开发体验的 VibeCoding 工具，整体打包为单个文件，开箱即用，无需重复搭建部署 Claude Code 、 codex、Claw、Hermes 环境。
+  主打渐进式、敏捷开发体验的 MothX 工具，整体打包为单个文件，开箱即用，无需重复搭建部署 Claude Code 、 codex、Claw、Hermes 环境。
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
   <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
+  <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
-  <a href="https://pkg.go.dev/github.com/startvibecoding/vibecoding"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/vibecoding?status.svg" alt="GoDoc"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/vibecoding" alt="Dependencies"></a>
+  <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
+  <a href="https://pkg.go.dev/github.com/startvibecoding/mothx"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/mothx?status.svg" alt="GoDoc"></a>
+  <a href="https://github.com/startvibecoding/mothx/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/mothx" alt="Dependencies"></a>
 </p>
+
+> **改名说明：** MothX 原名 VibeCoding。本过渡版本仍保留 `vibecoding` 命令、`vibecoding-installer` npm 包以及现有 `.vibecoding` 配置目录作为兼容入口；新安装和后续更新请使用 `mothx`。
 
 ## 功能特性
 
@@ -51,8 +53,10 @@
 **选项 1：npm（推荐）**
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
+
+旧 npm 包 `vibecoding-installer` 本版本仍保留兼容，但后续更新请切换到 `mothx`。
 
 **选项 2：PyPI**
 
@@ -65,36 +69,36 @@ pipx install vibecoding-installer
 Linux/macOS：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 ```
 
 Windows（PowerShell）：
 
 ```powershell
-irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
 ```
 
 或自定义安装目录：
 
 ```bash
 # Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 
 # Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
+$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
 ```
 
 **选项 4：Go 安装**
 
 ```bash
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 **选项 5：从源码构建**
 
 ```bash
-git clone https://github.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://github.com/startvibecoding/mothx.git
+cd mothx
 make build
 ```
 
@@ -132,33 +136,33 @@ export DEEPSEEK_API_KEY=sk-...
 
 ```bash
 # 交互模式
-vibecoding
+mothx
 
 # 带初始提示
-vibecoding "解释这个代码库"
+mothx "解释这个代码库"
 
 # 非交互模式（打印模式）
-vibecoding -p "用 Go 写一个 hello world"
+mothx -p "用 Go 写一个 hello world"
 
 # 指定提供商和模型
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # 启用子 Agent 工具和多 Agent 命令
-vibecoding --multi-agent
+mothx --multi-agent
 
 # 启用阻塞式单子 Agent 委托
-vibecoding --delegate
+mothx --delegate
 
 # 更改模式
-vibecoding --mode plan    # 只读规划
-vibecoding --mode agent   # 标准模式（默认）
-vibecoding --mode yolo    # 完全访问
+mothx --mode plan    # 只读规划
+mothx --mode agent   # 标准模式（默认）
+mothx --mode yolo    # 完全访问
 
 # 继续最近会话
-vibecoding -c
+mothx -c
 
 # 禁用沙箱
-vibecoding --no-sandbox
+mothx --no-sandbox
 ```
 
 ## 配置
@@ -170,6 +174,8 @@ vibecoding --no-sandbox
 | `~/.vibecoding/settings.json` | Linux/macOS | 全局（所有项目） |
 | `%APPDATA%\vibecoding\settings.json` | Windows | 全局（所有项目） |
 | `.vibe/settings.json` | 所有 | 项目（覆盖全局） |
+
+`.vibecoding` 配置目录和 `VIBECODING_*` 环境变量会继续作为改名过渡期的兼容接口保留。
 
 > **Windows 用户：** `%APPDATA%` 解析为 `C:\Users\<用户名>\AppData\Roaming`。
 
@@ -224,7 +230,7 @@ vibecoding --no-sandbox
 
 ## 沙箱安全
 
-VibeCoding 使用 [bubblewrap](https://github.com/containers/bubblewrap) 实现 Linux 沙箱化。
+MothX 使用 [bubblewrap](https://github.com/containers/bubblewrap) 实现 Linux 沙箱化。
 
 | 模式 | 文件系统 | 网络 | bwrap |
 |------|----------|------|-------|
@@ -248,7 +254,7 @@ sudo pacman -S bubblewrap
 ## CLI 参考
 
 ```
-vibecoding [标志] [消息...]
+mothx [标志] [消息...]
 别名：vc
 
 标志：
@@ -305,8 +311,8 @@ make dist       # 构建分发包 (.deb, .tar.gz)
 ## 架构
 
 ```
-vibecoding/
-├── cmd/vibecoding/        # CLI 入口点
+mothx/
+├── cmd/mothx/        # CLI 入口点
 ├── internal/
 │   ├── a2a/               # A2A 协议服务器与 Master 模式
 │   ├── acp/               # ACP / MCP 集成
@@ -339,13 +345,13 @@ vibecoding/
 ### 运行模式
 
 ```
-vibecoding                    # 交互式终端 (TUI)
-vibecoding -p "..."           # 非交互打印模式
-vibecoding acp                # ACP stdio 代理 (编辑器集成)
-vibecoding gateway            # OpenAI 兼容 HTTP 网关
-vibecoding hermes             # 消息平台网关 (微信/飞书/WebSocket)
-vibecoding a2a start          # A2A 协议服务器 (独立模式)
-vibecoding --enable-a2a-master  # A2A Master 模式 (远程 agent 调度)
+mothx                    # 交互式终端 (TUI)
+mothx -p "..."           # 非交互打印模式
+mothx acp                # ACP stdio 代理 (编辑器集成)
+mothx gateway            # OpenAI 兼容 HTTP 网关
+mothx hermes             # 消息平台网关 (微信/飞书/WebSocket)
+mothx a2a start          # A2A 协议服务器 (独立模式)
+mothx --enable-a2a-master  # A2A Master 模式 (远程 agent 调度)
 ```
 
 ## 许可证

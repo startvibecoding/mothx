@@ -7,9 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	providerfactory "github.com/startvibecoding/vibecoding/internal/provider/factory"
-	"github.com/startvibecoding/vibecoding/internal/tui/components/editor"
+	"github.com/startvibecoding/mothx/internal/config"
+	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
+	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 type defaultModelView int

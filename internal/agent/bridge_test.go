@@ -3,8 +3,8 @@ package agent
 import (
 	"testing"
 
-	agentpkg "github.com/startvibecoding/vibecoding/agent"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 func TestChatParamsBridgePreservesModelID(t *testing.T) {

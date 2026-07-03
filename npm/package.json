@@ -1,10 +1,7 @@
 {
   "name": "vibecoding-installer",
   "version": "1.1.56",
-  "description": "AI coding assistant for the terminal",
-  "bin": {
-    "vibecoding": "bin/vibecoding"
-  },
+  "description": "Compatibility installer for MothX. Use the mothx package for future updates.",
   "scripts": {
     "postinstall": "node scripts/postinstall.js"
   },
@@ -27,29 +24,32 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/startvibecoding/vibecoding.git",
+    "url": "https://github.com/startvibecoding/mothx.git",
     "directory": "npm"
   },
   "engines": {
     "node": ">=14"
   },
   "optionalDependencies": {
-    "vibecoding-installer-linux-x64": "1.1.56",
-    "vibecoding-installer-linux-arm64": "1.1.56",
-    "vibecoding-installer-linux-loong64": "1.1.56",
-    "vibecoding-installer-linux-ppc64le": "1.1.56",
-    "vibecoding-installer-linux-s390x": "1.1.56",
-    "vibecoding-installer-linux-riscv64": "1.1.56",
-    "vibecoding-installer-linux-musl-x64": "1.1.56",
-    "vibecoding-installer-linux-musl-arm64": "1.1.56",
-    "vibecoding-installer-darwin-x64": "1.1.56",
-    "vibecoding-installer-darwin-arm64": "1.1.56",
-    "vibecoding-installer-win32-x64": "1.1.56",
-    "vibecoding-installer-win32-arm64": "1.1.56",
-    "vibecoding-installer-freebsd-x64": "1.1.56",
-    "vibecoding-installer-freebsd-arm64": "1.1.56",
-    "vibecoding-installer-openbsd-x64": "1.1.56",
-    "vibecoding-installer-openbsd-arm64": "1.1.56",
-    "vibecoding-installer-netbsd-x64": "1.1.56"
+    "mothx-darwin-arm64": "1.1.56",
+    "mothx-darwin-x64": "1.1.56",
+    "mothx-freebsd-arm64": "1.1.56",
+    "mothx-freebsd-x64": "1.1.56",
+    "mothx-linux-arm64": "1.1.56",
+    "mothx-linux-loong64": "1.1.56",
+    "mothx-linux-musl-arm64": "1.1.56",
+    "mothx-linux-musl-x64": "1.1.56",
+    "mothx-linux-ppc64le": "1.1.56",
+    "mothx-linux-riscv64": "1.1.56",
+    "mothx-linux-s390x": "1.1.56",
+    "mothx-linux-x64": "1.1.56",
+    "mothx-netbsd-x64": "1.1.56",
+    "mothx-openbsd-arm64": "1.1.56",
+    "mothx-openbsd-x64": "1.1.56",
+    "mothx-win32-arm64": "1.1.56",
+    "mothx-win32-x64": "1.1.56"
+  },
+  "bin": {
+    "vibecoding": "bin/vibecoding"
   }
 }

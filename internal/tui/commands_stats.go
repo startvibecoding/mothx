@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/startvibecoding/vibecoding/internal/stats"
+	"github.com/startvibecoding/mothx/internal/stats"
 )
 
 const defaultStatsAddr = "127.0.0.1:7878"

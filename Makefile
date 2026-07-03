@@ -10,10 +10,10 @@
 .PHONY: pypi-version pypi-packages pypi-pack pypi-publish pypi-publish-pre
 
 # Variables
-BINARY_NAME=vibecoding
+BINARY_NAME=mothx
 VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
 PRE_VERSION=$(if $(filter %-pre,$(VERSION)),$(VERSION),$(VERSION)-pre)
-LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X github.com/startvibecoding/vibecoding/internal/ua.Version=$(VERSION)"
+LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X github.com/startvibecoding/mothx/internal/ua.Version=$(VERSION)"
 GOBUILD_FLAGS=-trimpath
 DIST_DIR=dist
 CHECKSUM_FILE=$(DIST_DIR)/checksums.txt
@@ -81,8 +81,8 @@ help:
 	@echo "NPM targets:"
 	@echo "  npm-version       Sync version to npm package"
 	@echo "  npm-packages      Build platform-specific npm packages"
-	@echo "  npm-pack          Pack main + all platform packages"
-	@echo "  npm-publish-all   Publish main + all platform packages"
+	@echo "  npm-pack          Pack mothx, compatibility package, and all platform packages"
+	@echo "  npm-publish-all   Publish mothx, compatibility package, and all platform packages"
 	@echo "  npm-publish-pre   Publish pre-release packages"
 	@echo "  npm-binaries      [Legacy] Build all binaries into single package"
 	@echo "  npm-publish       [Legacy] Publish main package only"
@@ -107,65 +107,65 @@ help:
 
 # Build for current platform
 build:
-	go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/vibecoding
+	go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME) ./cmd/mothx
 
 # Platform builds
 build-linux:
 	@echo "Building for Linux..."
 	@mkdir -p bin
-	GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 ./cmd/vibecoding
-	GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-arm64 ./cmd/vibecoding
-	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/vibecoding
-	GOOS=linux GOARCH=ppc64le go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-ppc64le ./cmd/vibecoding
-	GOOS=linux GOARCH=s390x go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-s390x ./cmd/vibecoding
-	GOOS=linux GOARCH=riscv64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-riscv64 ./cmd/vibecoding
+	GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-amd64 ./cmd/mothx
+	GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-arm64 ./cmd/mothx
+	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/mothx
+	GOOS=linux GOARCH=ppc64le go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-ppc64le ./cmd/mothx
+	GOOS=linux GOARCH=s390x go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-s390x ./cmd/mothx
+	GOOS=linux GOARCH=riscv64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-riscv64 ./cmd/mothx
 	@echo "Compressing Linux amd64 binary with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-linux-amd64
 
 build-linux-loong64:
 	@echo "Building for Linux LoongArch64..."
 	@mkdir -p bin
-	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/vibecoding
+	GOOS=linux GOARCH=loong64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-loong64 ./cmd/mothx
 
 # musl: static build with CGO_ENABLED=0
 build-linux-musl:
 	@echo "Building for Linux musl..."
 	@mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-musl-amd64 ./cmd/vibecoding
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-musl-arm64 ./cmd/vibecoding
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-musl-amd64 ./cmd/mothx
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-linux-musl-arm64 ./cmd/mothx
 	@echo "Compressing Linux musl binaries with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-linux-musl-amd64
 
 build-darwin:
 	@echo "Building for macOS..."
 	@mkdir -p bin
-	GOOS=darwin GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-amd64 ./cmd/vibecoding
-	GOOS=darwin GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-arm64 ./cmd/vibecoding
+	GOOS=darwin GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-amd64 ./cmd/mothx
+	GOOS=darwin GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-darwin-arm64 ./cmd/mothx
 
 build-windows:
 	@echo "Building for Windows..."
 	@mkdir -p bin
-	GOOS=windows GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe ./cmd/vibecoding
-	GOOS=windows GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-arm64.exe ./cmd/vibecoding
+	GOOS=windows GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe ./cmd/mothx
+	GOOS=windows GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-windows-arm64.exe ./cmd/mothx
 	@echo "Compressing Windows amd64 binary with UPX..."
 	$(UPX_CMD) bin/$(BINARY_NAME)-windows-amd64.exe
 
 build-freebsd:
 	@echo "Building for FreeBSD..."
 	@mkdir -p bin
-	GOOS=freebsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-amd64 ./cmd/vibecoding
-	GOOS=freebsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-arm64 ./cmd/vibecoding
+	GOOS=freebsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-amd64 ./cmd/mothx
+	GOOS=freebsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-freebsd-arm64 ./cmd/mothx
 
 build-openbsd:
 	@echo "Building for OpenBSD..."
 	@mkdir -p bin
-	GOOS=openbsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-openbsd-amd64 ./cmd/vibecoding
-	GOOS=openbsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-openbsd-arm64 ./cmd/vibecoding
+	GOOS=openbsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-openbsd-amd64 ./cmd/mothx
+	GOOS=openbsd GOARCH=arm64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-openbsd-arm64 ./cmd/mothx
 
 build-netbsd:
 	@echo "Building for NetBSD..."
 	@mkdir -p bin
-	GOOS=netbsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-netbsd-amd64 ./cmd/vibecoding
+	GOOS=netbsd GOARCH=amd64 go build $(GOBUILD_FLAGS) $(LDFLAGS) -o bin/$(BINARY_NAME)-netbsd-amd64 ./cmd/mothx
 
 # Build all platforms
 build-all: build-linux build-linux-musl build-darwin build-windows build-freebsd build-openbsd build-netbsd
@@ -175,7 +175,7 @@ build-all: build-linux build-linux-musl build-darwin build-windows build-freebsd
 
 # Install
 install:
-	go install $(GOBUILD_FLAGS) $(LDFLAGS) ./cmd/vibecoding
+	go install $(GOBUILD_FLAGS) $(LDFLAGS) ./cmd/mothx
 
 # Test
 test:
@@ -331,7 +331,7 @@ npm-binaries: build-all
 npm-packages: build-all
 	./scripts/build-npm-packages.sh
 
-# Pack main + platform packages
+# Pack main packages + platform packages
 npm-pack: npm-version npm-packages
 	@echo "Packing platform packages..."
 	@for d in npm/packages/*/; do \
@@ -341,11 +341,14 @@ npm-pack: npm-version npm-packages
 			mv "$$d"/*.tgz npm/ 2>/dev/null || true; \
 		fi; \
 	done
-	@echo "Packing main package..."
+	@echo "Packing mothx package..."
+	cd npm/mothx && npm pack
+	mv npm/mothx/*.tgz npm/ 2>/dev/null || true
+	@echo "Packing compatibility package..."
 	cd npm && npm pack
 	@echo "Done. Tarballs in npm/"
 
-# Publish platform packages first, then main
+# Publish platform packages first, then main packages
 npm-publish-all: npm-version npm-packages
 	@echo "Publishing platform packages..."
 	@for d in npm/packages/*/; do \
@@ -354,7 +357,9 @@ npm-publish-all: npm-version npm-packages
 			cd "$$d" && npm publish --tag latest && cd - > /dev/null; \
 		fi; \
 	done
-	@echo "Publishing main package..."
+	@echo "Publishing mothx package..."
+	cd npm/mothx && npm publish --tag latest
+	@echo "Publishing compatibility package..."
 	cd npm && npm publish --tag latest
 	@echo "Published all packages!"
 
@@ -369,7 +374,9 @@ npm-publish-pre:
 			cd "$$d" && npm publish --tag next && cd - > /dev/null; \
 		fi; \
 	done
-	@echo "Publishing main package (pre-release)..."
+	@echo "Publishing mothx package (pre-release)..."
+	cd npm/mothx && npm publish --tag next
+	@echo "Publishing compatibility package (pre-release)..."
 	cd npm && npm publish --tag next
 	@echo "Published all packages (pre-release)!"
 

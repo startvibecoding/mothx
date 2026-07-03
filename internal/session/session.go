@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/platform"
-	"github.com/startvibecoding/vibecoding/internal/provider"
+	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/provider"
 	_ "modernc.org/sqlite"
 )
 

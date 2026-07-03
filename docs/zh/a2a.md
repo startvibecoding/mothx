@@ -2,28 +2,28 @@
 
 ## 概述
 
-A2A（Agent-to-Agent）协议使不同的 AI Agent 能够互相发现、通信和协作。VibeCoding 实现了 A2A 协议，支持**独立服务器**和 **Hermes 集成模式**两种运行方式。
+A2A（Agent-to-Agent）协议使不同的 AI Agent 能够互相发现、通信和协作。MothX 实现了 A2A 协议，支持**独立服务器**和 **Hermes 集成模式**两种运行方式。
 
 ## 快速开始
 
 ```bash
 # 独立模式
-vibecoding a2a start
+mothx a2a start
 
 # 查看状态
-vibecoding a2a status
+mothx a2a status
 
 # 查看 Agent Card
-vibecoding a2a card
+mothx a2a card
 
 # 向其他 A2A 服务器发送任务
-vibecoding a2a send "列出所有 Go 文件" --target http://remote:8093
+mothx a2a send "列出所有 Go 文件" --target http://remote:8093
 
 # 发现远程 Agent Card
-vibecoding a2a discover http://remote:8093
+mothx a2a discover http://remote:8093
 
 # 停止
-vibecoding a2a stop
+mothx a2a stop
 ```
 
 ## 运行模式
@@ -33,7 +33,7 @@ vibecoding a2a stop
 在单独的端口运行专用的 A2A HTTP 服务器（默认：`127.0.0.1:8093`）。
 
 ```bash
-vibecoding a2a start --port 8093 --work-dir /path/to/project
+mothx a2a start --port 8093 --work-dir /path/to/project
 ```
 
 只有在明确需要对外暴露 A2A 服务时才使用 `--host 0.0.0.0`，并为对外部署配置 auth token。
@@ -68,7 +68,7 @@ Agent Card 描述 Agent 的能力，在 `/.well-known/agent.json` 提供。
 
 ```json
 {
-  "name": "VibeCoding",
+  "name": "MothX",
   "description": "AI coding assistant with file editing, terminal, and search capabilities",
   "url": "http://localhost:8093/a2a",
   "version": "0.1.31",
@@ -272,13 +272,13 @@ Authorization: Bearer <auth_token>
 
 ```bash
 # 发送任务
-vibecoding a2a send "解释项目结构" --target http://remote:8093
+mothx a2a send "解释项目结构" --target http://remote:8093
 
 # 带认证发送
-vibecoding a2a send "运行测试" --target http://remote:8093 --auth-token xxx
+mothx a2a send "运行测试" --target http://remote:8093 --auth-token xxx
 
 # 发现服务器能力
-vibecoding a2a discover http://remote:8093
+mothx a2a discover http://remote:8093
 ```
 
 ## A2A 调度
@@ -287,12 +287,12 @@ vibecoding a2a discover http://remote:8093
 
 ```bash
 # 调度每日任务到远程 A2A 服务器
-vibecoding hermes cron add "daily-review" "review recent changes" \
+mothx hermes cron add "daily-review" "review recent changes" \
   --schedule "@daily" \
   --a2a-target http://review-agent:8093
 
 # 带认证的调度
-vibecoding hermes cron add "ci-check" "run CI tests" \
+mothx hermes cron add "ci-check" "run CI tests" \
   --schedule "@every 1h" \
   --a2a-target http://ci-agent:8093 \
   --a2a-token ${CI_TOKEN}
@@ -302,19 +302,19 @@ vibecoding hermes cron add "ci-check" "run CI tests" \
 
 ## A2A Master 模式
 
-A2A Master 模式让你可以在一个 VibeCoding 实例中管理多个远程 A2A Agent，通过 `a2a_dispatch` tool 向它们分发任务。
+A2A Master 模式让你可以在一个 MothX 实例中管理多个远程 A2A Agent，通过 `a2a_dispatch` tool 向它们分发任务。
 
 ### 快速开始
 
 ```bash
 # 1. 生成示例配置
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # 2. 编辑 a2a-list.json，填入实际的远程 agent 信息
 #    位置：~/.vibecoding/a2a-list.json 或 .vibe/a2a-list.json
 
 # 3. 启用 master 模式
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 ```
 
 ### 配置文件

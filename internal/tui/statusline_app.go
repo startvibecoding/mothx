@@ -9,10 +9,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/startvibecoding/vibecoding/internal/config"
-	"github.com/startvibecoding/vibecoding/internal/provider"
-	tuistatusline "github.com/startvibecoding/vibecoding/internal/tui/statusline"
-	"github.com/startvibecoding/vibecoding/internal/ua"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
+	tuistatusline "github.com/startvibecoding/mothx/internal/tui/statusline"
+	"github.com/startvibecoding/mothx/internal/ua"
 )
 
 type statusLineRenderedMsg struct {

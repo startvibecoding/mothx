@@ -1,4 +1,4 @@
-# 🚀 VibeCoding 5 分钟快速上手
+# 🚀 MothX 5 分钟快速上手
 
 > 别读长文档了，直接上手！
 
@@ -6,29 +6,29 @@
 
 ```bash
 # 方式一：npm（推荐，自动下载对应平台二进制文件）
-npm install -g vibecoding-installer
+npm install -g mothx
 
 # 方式二：PyPI
 pipx install vibecoding-installer
 
 # 方式三：一键安装（Linux/macOS）
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash
 
 # 方式四：Go 安装
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 **卸载:**
 
 ```bash
 # npm
-npm uninstall -g vibecoding-installer
+npm uninstall -g mothx
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS（一键安装）
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
 ```
 
 ## 第二步：配置 API 密钥（30 秒）
@@ -48,10 +48,10 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 ```bash
 # 启动交互式会话
-vibecoding
+mothx
 
 # 或者直接提问
-vibecoding -P "Hello, VibeCoding!"
+mothx -P "Hello, MothX!"
 ```
 
 就这样，你已经在用 AI 编程了！
@@ -62,9 +62,9 @@ vibecoding -P "Hello, VibeCoding!"
 
 | 模式 | 命令 | 用途 |
 |------|------|------|
-| 🗒️ **Plan** | `vibecoding --mode plan` | 只读分析，安全探索 |
-| 🔧 **Agent** | `vibecoding --mode agent` | 标准开发（默认） |
-| 🚀 **YOLO** | `vibecoding --mode yolo` | 完全自由，没有限制 |
+| 🗒️ **Plan** | `mothx --mode plan` | 只读分析，安全探索 |
+| 🔧 **Agent** | `mothx --mode agent` | 标准开发（默认） |
+| 🚀 **YOLO** | `mothx --mode yolo` | 完全自由，没有限制 |
 
 在交互模式中，按 `Tab` 或输入 `/mode plan|agent|yolo` 切换。
 
@@ -74,37 +74,37 @@ vibecoding -P "Hello, VibeCoding!"
 
 ### 📝 代码生成
 ```bash
-vibecoding -P "写一个 Go HTTP 服务器，支持 RESTful API"
-vibecoding -P "用 Python 写一个爬虫，抓取新闻标题"
-vibecoding -P "生成一个 React 组件，包含搜索框和列表"
+mothx -P "写一个 Go HTTP 服务器，支持 RESTful API"
+mothx -P "用 Python 写一个爬虫，抓取新闻标题"
+mothx -P "生成一个 React 组件，包含搜索框和列表"
 ```
 
 ### 🔍 代码理解
 ```bash
-vibecoding -P "解释 main.go 的作用"
-vibecoding -P "这段正则表达式是什么意思？"
-vibecoding -P "分析这个项目的架构"
+mothx -P "解释 main.go 的作用"
+mothx -P "这段正则表达式是什么意思？"
+mothx -P "分析这个项目的架构"
 ```
 
 ### 🛠️ 代码重构
 ```bash
-vibecoding -P "把这个函数重构成泛型版本"
-vibecoding -P "优化这段代码的性能"
-vibecoding -P "把这个类拆分成更小的模块"
+mothx -P "把这个函数重构成泛型版本"
+mothx -P "优化这段代码的性能"
+mothx -P "把这个类拆分成更小的模块"
 ```
 
 ### 🧪 测试生成
 ```bash
-vibecoding -P "为 UserService 写单元测试"
-vibecoding -P "生成集成测试用例"
-vibecoding -P "写一个端到端测试"
+mothx -P "为 UserService 写单元测试"
+mothx -P "生成集成测试用例"
+mothx -P "写一个端到端测试"
 ```
 
 ### 📚 文档生成
 ```bash
-vibecoding -P "为这个函数生成 JSDoc 注释"
-vibecoding -P "写一个 README.md"
-vibecoding -P "生成 API 文档"
+mothx -P "为这个函数生成 JSDoc 注释"
+mothx -P "写一个 README.md"
+mothx -P "生成 API 文档"
 ```
 
 ---
@@ -143,27 +143,27 @@ vibecoding -P "生成 API 文档"
 
 ### 示例 1：创建一个新项目
 ```bash
-vibecoding -P "创建一个 Express.js 项目，包含用户认证和数据库连接"
+mothx -P "创建一个 Express.js 项目，包含用户认证和数据库连接"
 ```
 
 ### 示例 2：调试代码
 ```bash
-vibecoding -P "这段代码报错了：TypeError: Cannot read property 'map' of undefined，帮我修复"
+mothx -P "这段代码报错了：TypeError: Cannot read property 'map' of undefined，帮我修复"
 ```
 
 ### 示例 3：代码审查
 ```bash
-vibecoding --mode plan "审查当前目录的代码，找出潜在问题"
+mothx --mode plan "审查当前目录的代码，找出潜在问题"
 ```
 
 ### 示例 4：生成配置文件
 ```bash
-vibecoding -P "生成一个 Docker Compose 文件，包含 Node.js、PostgreSQL 和 Redis"
+mothx -P "生成一个 Docker Compose 文件，包含 Node.js、PostgreSQL 和 Redis"
 ```
 
 ### 示例 5：写正则表达式
 ```bash
-vibecoding -P "写一个正则表达式，匹配中国手机号码"
+mothx -P "写一个正则表达式，匹配中国手机号码"
 ```
 
 ---
@@ -185,8 +185,8 @@ vibecoding -P "写一个正则表达式，匹配中国手机号码"
 # VS Code：在 settings.json 中添加
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent"]
     }
   }
@@ -196,13 +196,13 @@ vibecoding -P "写一个正则表达式，匹配中国手机号码"
 ### API 服务器
 ```bash
 # 启动 OpenAI 兼容的 HTTP 服务器
-vibecoding gateway
+mothx gateway
 ```
 
 ### 聊天机器人
 ```bash
 # 部署为微信/飞书机器人
-vibecoding hermes
+mothx hermes
 ```
 
 ---
@@ -211,13 +211,13 @@ vibecoding hermes
 
 ```bash
 # 运行诊断命令
-vibecoding doctor
+mothx doctor
 
 # 查看帮助
-vibecoding --help
+mothx --help
 
 # 启用调试模式
-vibecoding --debug
+mothx --debug
 ```
 
 ---
@@ -233,6 +233,6 @@ vibecoding --debug
 ---
 
 <p align="center">
-  <strong>🎉 恭喜！你已经掌握了 VibeCoding 的基础用法。</strong><br>
+  <strong>🎉 恭喜！你已经掌握了 MothX 的基础用法。</strong><br>
   <strong>现在，开始你的 AI 编程之旅吧！</strong>
 </p>

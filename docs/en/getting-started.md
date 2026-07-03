@@ -1,6 +1,6 @@
 # Quick Start
 
-This guide helps you get started with VibeCoding in 5 minutes.
+This guide helps you get started with MothX in 5 minutes.
 
 ## System Requirements
 
@@ -13,7 +13,7 @@ This guide helps you get started with VibeCoding in 5 minutes.
 ### Method 1: npm (Recommended)
 
 ```bash
-npm install -g vibecoding-installer
+npm install -g mothx
 ```
 
 This will automatically download the correct binary for your platform.
@@ -37,39 +37,39 @@ This installs the platform-specific wheel for your machine.
 **Linux/macOS:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
 ```
 
 Or with custom install directory:
 
 ```bash
 # Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 
 # Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex
+$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
 ```
 
 **Uninstall:**
 
 ```bash
 # npm
-npm uninstall -g vibecoding-installer
+npm uninstall -g mothx
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall
 
 # Windows
-irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex; Uninstall-VibeCoding
+irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex; Uninstall-MothX
 ```
 
 This will automatically download the latest release from GitHub and install the binary. Default install locations:
@@ -79,20 +79,20 @@ This will automatically download the latest release from GitHub and install the 
 ### Method 4: Go Install
 
 ```bash
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 ### Method 5: Build from Source
 
 ```bash
 # Clone repository
-git clone https://github.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://github.com/startvibecoding/mothx.git
+cd mothx
 
 # Build
 make build
 
-# Binary is located at bin/vibecoding
+# Binary is located at bin/mothx
 ```
 
 ### Method 6: Install to System
@@ -128,7 +128,7 @@ Or add keys directly to your settings.json:
 }
 ```
 
-The optional `vendor` field selects a vendor adapter. If it is omitted, VibeCoding detects the vendor from `baseUrl` when possible and otherwise falls back to the generic provider selected by `api`. See the [Configuration Guide](configuration.md) for details.
+The optional `vendor` field selects a vendor adapter. If it is omitted, MothX detects the vendor from `baseUrl` when possible and otherwise falls back to the generic provider selected by `api`. See the [Configuration Guide](configuration.md) for details.
 
 ## First Run
 
@@ -136,37 +136,37 @@ The optional `vendor` field selects a vendor adapter. If it is omitted, VibeCodi
 
 ```bash
 # Start interactive session
-vibecoding
+mothx
 ```
 
 ### Non-Interactive Mode
 
 ```bash
 # Single question
-vibecoding -p "Explain what this code does"
+mothx -p "Explain what this code does"
 
 # Read from stdin
-echo "Write a Hello World" | vibecoding -P
+echo "Write a Hello World" | mothx -P
 ```
 
 ### Specify Model
 
 ```bash
 # Use DeepSeek-V4-Flash
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # Use DeepSeek-V4-Pro
-vibecoding --provider deepseek-openai --model deepseek-v4-pro
+mothx --provider deepseek-openai --model deepseek-v4-pro
 ```
 
 ### Multi-Agent Mode
 
 ```bash
 # Enable sub-agent tools and multi-agent commands
-vibecoding --multi-agent
+mothx --multi-agent
 
 # ACP sessions can opt in too
-vibecoding acp --multi-agent
+mothx acp --multi-agent
 ```
 
 Multi-agent mode registers `subagent_*` tools for delegated work. Cron command entry points are available in TUI multi-agent workflows.
@@ -175,7 +175,7 @@ Multi-agent mode registers `subagent_*` tools for delegated work. Cron command e
 
 ```bash
 # Enable blocking single sub-agent delegation
-vibecoding --delegate
+mothx --delegate
 
 # Toggle it at runtime in TUI
 /delegate on
@@ -189,27 +189,27 @@ Delegate mode registers `delegate_subagent`, a synchronous tool for one bounded 
 
 ```bash
 # Generate sample config
-vibecoding --init-a2a-master-config
+mothx --init-a2a-master-config
 
 # Enable master mode
-vibecoding --enable-a2a-master
+mothx --enable-a2a-master
 ```
 
 A2A Master mode lets you manage multiple remote A2A agents, with the LLM automatically dispatching tasks via the `a2a_dispatch` tool. See [A2A Protocol](a2a.md) for details.
 
 ## Choose Mode
 
-VibeCoding provides three modes:
+MothX provides three modes:
 
 ```bash
 # Plan mode - read-only analysis
-vibecoding --mode plan
+mothx --mode plan
 
 # Agent mode - standard read/write (default)
-vibecoding --mode agent
+mothx --mode agent
 
 # YOLO mode - full access
-vibecoding --mode yolo
+mothx --mode yolo
 ```
 
 | Mode | File System | Network | Use Case |
@@ -253,29 +253,29 @@ Completed conversation blocks are printed to the terminal's native scrollback, s
 ### Code Explanation
 
 ```bash
-vibecoding -P "Explain the purpose of main.go"
+mothx -P "Explain the purpose of main.go"
 ```
 
 ### Code Generation
 
 ```bash
-vibecoding -P "Write a Go HTTP server"
+mothx -P "Write a Go HTTP server"
 ```
 
 ### File Operations
 
 ```bash
-vibecoding -P "Create a README.md in the current directory"
+mothx -P "Create a README.md in the current directory"
 ```
 
 ### Continue Session
 
 ```bash
 # Continue most recent session
-vibecoding --continue
+mothx --continue
 
 # Resume specific session
-vibecoding --resume <session-id>
+mothx --resume <session-id>
 ```
 
 ## Skills System
@@ -298,7 +298,7 @@ See the [Skills System](skills.md) documentation for details.
 
 ## IDE Integration
 
-VibeCoding can be integrated into your IDE via the Agent Client Protocol (ACP):
+MothX can be integrated into your IDE via the Agent Client Protocol (ACP):
 
 ### VS Code
 
@@ -306,8 +306,8 @@ Add to `settings.json`:
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent", "--multi-agent"]
     }
   }
@@ -317,8 +317,8 @@ Add to `settings.json`:
 ### JetBrains IDEs
 
 Navigate to `Settings → Tools → ACP Agents` and add:
-- **Name**: VibeCoding
-- **Command**: `vibecoding`
+- **Name**: MothX
+- **Command**: `mothx`
 - **Arguments**: `acp --mode agent`
 
 See the [ACP Protocol](acp.md) documentation for details.
@@ -328,7 +328,7 @@ See the [ACP Protocol](acp.md) documentation for details.
 If something doesn't work, run the built-in diagnostics:
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 This checks your environment, config files, providers, sandbox, MCP, sessions, skills, and context files, and reports any issues.

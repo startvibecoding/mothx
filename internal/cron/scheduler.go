@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/startvibecoding/vibecoding/internal/agent"
+	"github.com/startvibecoding/mothx/internal/agent"
 )
 
 // Scheduler checks for due cron jobs and executes them via sub-agents.
