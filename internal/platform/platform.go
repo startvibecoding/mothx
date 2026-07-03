@@ -207,6 +207,29 @@ func CacheDir() string {
 	}
 }
 
+// OpenFile opens path with the platform default application.
+func OpenFile(path string) error {
+	var candidates [][]string
+	switch runtime.GOOS {
+	case "darwin":
+		candidates = [][]string{{"open", path}}
+	case "windows":
+		candidates = [][]string{{"cmd", "/c", "start", "", path}}
+	default:
+		candidates = [][]string{{"xdg-open", path}, {"gio", "open", path}}
+	}
+	for _, candidate := range candidates {
+		if _, err := exec.LookPath(candidate[0]); err != nil {
+			continue
+		}
+		if err := exec.Command(candidate[0], candidate[1:]...).Start(); err != nil {
+			return err
+		}
+		return nil
+	}
+	return &exec.Error{Name: candidates[0][0], Err: exec.ErrNotFound}
+}
+
 // SessionDir returns the platform-specific session directory.
 func SessionDir() string {
 	return filepath.Join(ConfigDir(), "sessions")

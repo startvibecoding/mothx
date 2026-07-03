@@ -700,6 +700,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		} else {
 			a.listSkills()
 		}
+	case "/paste-image":
+		a.handlePasteImageCommand()
 	case "/compact":
 		if a.isThinking {
 			a.addCommandError("Cannot compact while the agent is running.")

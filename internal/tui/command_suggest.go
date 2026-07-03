@@ -17,6 +17,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/defaultModel", Value: "/defaultModel ", Description: "Set default provider/model; defaults to global settings"},
 		{Label: "/skills", Value: "/skills", Description: "List available skills"},
 		{Label: "/skill", Value: "/skill ", Description: "Activate a skill"},
+		{Label: "/paste-image", Value: "/paste-image", Description: "Paste clipboard image as a local file path"},
 		{Label: "/clear", Value: "/clear", Description: "Clear conversation"},
 		{Label: "/compact", Value: "/compact", Description: "Trigger context compaction"},
 		{Label: "/sessions", Value: "/sessions", Description: "List/switch sessions"},

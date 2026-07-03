@@ -137,7 +137,7 @@ func TestMoarkModelMaxTokens(t *testing.T) {
 		"qwen3.7-plus":      65536,
 		"minimax-m2.7":      131072,
 		"minimax-m3":        128000,
-		"deepseek-v4-flash": 65536,
+		"deepseek-v4-flash": 384000,
 	}
 
 	moark := s.Providers["moark"]
@@ -185,7 +185,7 @@ func TestRoutedProviderModelMaxTokensAreExplicit(t *testing.T) {
 			"qwen3.7-plus":      65536,
 			"minimax-m2.7":      131072,
 			"minimax-m3":        128000,
-			"deepseek-v4-flash": 65536,
+			"deepseek-v4-flash": 384000,
 		},
 		"alibaba-standard": {
 			"qwen3.6-plus":      65536,

@@ -149,6 +149,10 @@ type App struct {
 	pasteCounter int
 	pastes       map[int]string
 
+	clipboardImageSaver ClipboardImageSaver
+	fileOpener          FileOpener
+	lastPastedImagePath string
+
 	// Input queue for batching
 	inputQueue     []InputEvent
 	inputQueueMu   sync.Mutex
@@ -397,6 +401,8 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 		timer:               stopwatch.NewWithInterval(time.Second),
 		printQueue:          make([]string, 0, 256),
 		pastes:              make(map[int]string),
+		clipboardImageSaver: newSystemClipboardImageSaver(),
+		fileOpener:          systemFileOpener{},
 		inputQueue:          make([]InputEvent, 0, 100),
 		inputBatchSize:      10,
 		inputDelay:          16 * time.Millisecond, // ~60fps
@@ -922,6 +928,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			a.addMessage(statusStyle.Render("No conversation details yet."))
 			return a, nil
+		case tea.KeyCtrlR:
+			return a, a.previewLastPastedImage()
 		case tea.KeyCtrlG:
 			a.compactMode = !a.compactMode
 			if a.compactMode {
