@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -43,6 +44,49 @@ func TestCommandSuggestionsHiddenAfterSpace(t *testing.T) {
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
 		t.Fatal("expected argument suggestions after space")
+	}
+}
+
+func TestCommandSuggestionContinuesToArgumentSuggestions(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/mo")
+	a.updateCommandSuggestions()
+	if !a.applySelectedCommandSuggestion() {
+		t.Fatal("expected selected command suggestion to apply")
+	}
+	if got := a.input.Value(); got != "/mode " {
+		t.Fatalf("input = %q, want /mode ", got)
+	}
+	if !a.commandSuggestionsVisible() {
+		t.Fatal("expected argument suggestions to remain visible")
+	}
+	item, ok := a.suggest.Selected()
+	if !ok {
+		t.Fatal("expected selected argument suggestion")
+	}
+	if item.Value != "/mode plan" {
+		t.Fatalf("selected value = %q, want /mode plan", item.Value)
+	}
+}
+
+func TestEnterSubmitsExactCommandSuggestion(t *testing.T) {
+	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a.input = a.input.SetValue("/clear")
+	a.updateCommandSuggestions()
+	if !a.commandSuggestionsVisible() {
+		t.Fatal("expected command suggestions to be visible")
+	}
+
+	a.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	if got := a.input.Value(); got != "" {
+		t.Fatalf("input = %q, want empty after submit", got)
+	}
+	if a.commandSuggestionsVisible() {
+		t.Fatal("expected suggestions hidden after submit")
+	}
+	if len(a.messages) == 0 || !strings.Contains(stripANSI(a.messages[len(a.messages)-1]), "Conversation cleared") {
+		t.Fatalf("expected /clear to execute, messages = %#v", a.messages)
 	}
 }
 

@@ -76,7 +76,7 @@ func (a *App) handleBtwCommand(cmd string) tea.Cmd {
 		Model:         a.model,
 		Mode:          "agent", // read-only tool set anyway; no write/edit/bash registered
 		ThinkingLevel: provider.ThinkingLevel(a.settings.DefaultThinkingLevel),
-		MaxTokens:     a.settings.MaxOutputTokens,
+		MaxTokens:     agent.ResolveMaxTokens(a.settings, a.model),
 		Settings:      a.settings,
 		Allow:         a.allow,
 		Session:       nil, // no persistence: answer never hits the main session

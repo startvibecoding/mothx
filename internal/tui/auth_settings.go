@@ -73,7 +73,7 @@ func (a *App) initModelFromDefault(modelID string) *modelEditState {
 		ID:            modelID,
 		Name:          modelID,
 		ContextWindow: 128000,
-		MaxTokens:     8192,
+		MaxTokens:     0,
 		Input:         []string{"text"},
 	}
 }

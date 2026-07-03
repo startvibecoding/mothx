@@ -123,6 +123,129 @@ func TestGetModelConfig(t *testing.T) {
 	}
 }
 
+func TestMoarkModelMaxTokens(t *testing.T) {
+	s := DefaultSettings()
+	want := map[string]int{
+		"glm-5.1":           131072,
+		"qwen3.6-max":       65536,
+		"qwen3.6-plus":      65536,
+		"deepseek-v4-pro":   384000,
+		"qwen3.7-max":       65536,
+		"glm-5.2":           131072,
+		"kimi-k2.7-code":    262144,
+		"glm-5":             32768,
+		"qwen3.7-plus":      65536,
+		"minimax-m2.7":      131072,
+		"minimax-m3":        128000,
+		"deepseek-v4-flash": 65536,
+	}
+
+	moark := s.Providers["moark"]
+	if moark == nil {
+		t.Fatal("expected moark provider")
+	}
+	if len(moark.Models) != len(want) {
+		t.Fatalf("moark models = %d, want %d", len(moark.Models), len(want))
+	}
+	for _, model := range moark.Models {
+		wantMaxTokens, ok := want[model.ID]
+		if !ok {
+			t.Fatalf("unexpected moark model %q", model.ID)
+		}
+		if model.MaxTokens != wantMaxTokens {
+			t.Fatalf("moark %s MaxTokens = %d, want %d", model.ID, model.MaxTokens, wantMaxTokens)
+		}
+	}
+}
+
+func TestRoutedProviderModelMaxTokensAreExplicit(t *testing.T) {
+	s := DefaultSettings()
+	wantByProvider := map[string]map[string]int{
+		"minimax": {
+			"MiniMax-M3":             128000,
+			"MiniMax-M2.7":           131072,
+			"MiniMax-M2.7-highspeed": 131072,
+			"MiniMax-M2.5":           131072,
+			"MiniMax-M2.5-highspeed": 131072,
+		},
+		"modelscope": {
+			"deepseek-ai/DeepSeek-V4-Flash": 384000,
+			"Qwen/Qwen3.5-397B-A17B":        130000,
+			"ZhipuAI/GLM-5.1":               131072,
+		},
+		"gitee": {
+			"glm-5.1":           131072,
+			"qwen3.6-max":       65536,
+			"qwen3.6-plus":      65536,
+			"deepseek-v4-pro":   384000,
+			"qwen3.7-max":       65536,
+			"glm-5.2":           131072,
+			"kimi-k2.7-code":    262144,
+			"glm-5":             32768,
+			"qwen3.7-plus":      65536,
+			"minimax-m2.7":      131072,
+			"minimax-m3":        128000,
+			"deepseek-v4-flash": 65536,
+		},
+		"alibaba-standard": {
+			"qwen3.6-plus":      65536,
+			"qwen3.7-plus":      65536,
+			"qwen3.7-max":       65536,
+			"glm-5.1":           131072,
+			"deepseek-v4-pro":   384000,
+			"deepseek-v4-flash": 384000,
+		},
+		"alibaba-coding-plan": {
+			"qwen3.5-plus":         65536,
+			"qwen3.6-plus":         65536,
+			"qwen3.7-plus":         65536,
+			"glm-5":                32768,
+			"kimi-k2.5":            262144,
+			"MiniMax-M2.5":         131072,
+			"qwen3-coder-plus":     65536,
+			"qwen3-coder-next":     65536,
+			"qwen3-max-2026-01-23": 65536,
+			"glm-4.7":              131072,
+		},
+		"alibaba-token-plan": {
+			"qwen3.6-plus":      65536,
+			"qwen3.7-max":       65536,
+			"qwen3.6-flash":     65536,
+			"deepseek-v4-pro":   384000,
+			"deepseek-v4-flash": 384000,
+			"deepseek-v3.2":     65536,
+			"kimi-k2.6":         262144,
+			"kimi-k2.5":         262144,
+			"glm-5.1":           131072,
+			"glm-5":             32768,
+			"MiniMax-M2.5":      131072,
+		},
+	}
+
+	for providerName, wantModels := range wantByProvider {
+		provider := s.Providers[providerName]
+		if provider == nil {
+			t.Fatalf("expected %s provider", providerName)
+		}
+		gotModels := map[string]int{}
+		for _, model := range provider.Models {
+			gotModels[model.ID] = model.MaxTokens
+		}
+		for modelID, wantMaxTokens := range wantModels {
+			got, ok := gotModels[modelID]
+			if !ok {
+				t.Fatalf("%s missing model %q", providerName, modelID)
+			}
+			if got != wantMaxTokens {
+				t.Fatalf("%s %s MaxTokens = %d, want %d", providerName, modelID, got, wantMaxTokens)
+			}
+			if got == 8192 {
+				t.Fatalf("%s %s still uses placeholder MaxTokens 8192", providerName, modelID)
+			}
+		}
+	}
+}
+
 func TestResolveConfigJSONExplicitZeroValuesOverrideDefaults(t *testing.T) {
 	var runtime Settings
 	data := []byte(`{

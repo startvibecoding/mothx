@@ -153,9 +153,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		thinkingLevel = provider.ThinkingLevel(s.settings.DefaultThinkingLevel)
 	}
 
-	maxTokens := s.settings.MaxOutputTokens
-	if req.MaxTokens > 0 {
-		maxTokens = req.MaxTokens
+	maxTokens := req.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = agent.ResolveMaxTokens(s.settings, currentModel)
 	}
 
 	// Per-request temperature/top_p override (from OpenAI-compatible client)

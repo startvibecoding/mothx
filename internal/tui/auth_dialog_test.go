@@ -686,8 +686,8 @@ func TestInitModelFromDefaultFallsBackToGeneric(t *testing.T) {
 	if me.ContextWindow != 128000 {
 		t.Fatalf("ContextWindow = %d, want 128000", me.ContextWindow)
 	}
-	if me.MaxTokens != 8192 {
-		t.Fatalf("MaxTokens = %d, want 8192", me.MaxTokens)
+	if me.MaxTokens != 0 {
+		t.Fatalf("MaxTokens = %d, want 0 for unknown model", me.MaxTokens)
 	}
 }
 

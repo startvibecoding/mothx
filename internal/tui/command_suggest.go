@@ -70,9 +70,12 @@ func (a *App) applySelectedCommandSuggestion() bool {
 	if !ok {
 		return false
 	}
+	if item.Value == a.input.Value() {
+		return false
+	}
 	a.input = a.input.SetValue(item.Value)
 	a.input = a.input.CursorEnd()
-	a.suggest = a.suggest.Update("")
+	a.updateCommandSuggestions()
 	a.scheduleRender()
 	return true
 }

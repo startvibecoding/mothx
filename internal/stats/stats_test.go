@@ -205,8 +205,8 @@ func TestRecentFiltered(t *testing.T) {
 		"2026-07-03T10:00:00Z", "moark", "openai-chat", "qwen3.6-plus", 200, 100, 300)
 
 	page, err := db.RecentFiltered(Query{
-		From:  time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC),
-		To:    time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC),
+		From:   time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC),
+		To:     time.Date(2026, 7, 4, 0, 0, 0, 0, time.UTC),
 		Vendor: "moark",
 	}, 1, 20)
 	if err != nil {

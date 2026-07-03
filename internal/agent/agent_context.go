@@ -223,6 +223,30 @@ func (a *Agent) prepareRequestMessages(sessionContextMsg provider.Message, ch ch
 	return nil, fmt.Errorf("estimated request still exceeds context after omitting oversized tool outputs")
 }
 
+func clampMaxTokensToContext(maxTokens, contextWindow, estimatedInputTokens int) int {
+	if maxTokens <= 0 || contextWindow <= 0 || estimatedInputTokens <= 0 {
+		return maxTokens
+	}
+	available := contextWindow - estimatedInputTokens
+	if available < 1 {
+		available = 1
+	}
+	if maxTokens > available {
+		return available
+	}
+	return maxTokens
+}
+
+func (a *Agent) maxTokensForRequest(messages []provider.Message) int {
+	maxTokens := a.config.MaxTokens
+	if a.config.Model == nil || a.config.Model.ContextWindow <= 0 || maxTokens <= 0 {
+		return maxTokens
+	}
+	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
+	estimatedTokens := estimateChatRequestTokens(a.frozenSystemPrompt, messages, a.frozenToolDefs, estimator)
+	return clampMaxTokensToContext(maxTokens, a.config.Model.ContextWindow, estimatedTokens)
+}
+
 func selectCacheMarkers(messages []provider.Message) [2]int {
 	var markers [2]int
 	markers[0] = -1

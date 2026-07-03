@@ -93,7 +93,7 @@ func runPrint(args []string, p provider.Provider, model *provider.Model, mode st
 		Model:              model,
 		Mode:               mode,
 		ThinkingLevel:      thinkingLevel,
-		MaxTokens:          settings.MaxOutputTokens,
+		MaxTokens:          agent.ResolveMaxTokens(settings, model),
 		Settings:           settings,
 		Allow:              config.LoadAllow(),
 		Session:            sess,

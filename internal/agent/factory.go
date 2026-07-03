@@ -197,10 +197,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 			return provider.ThinkingLevel(agentpkg.ThinkingMedium)
 		}(),
 		MaxTokens: func() int {
-			if f.settings != nil && f.settings.MaxOutputTokens > 0 {
-				return f.settings.MaxOutputTokens
-			}
-			return 16384
+			return ResolveMaxTokens(f.settings, model)
 		}(),
 		SandboxMgr:         f.sandboxMgr,
 		Settings:           f.settings,
@@ -353,7 +350,7 @@ func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
 		Model:              model,
 		Mode:               cfg.Mode,
 		ThinkingLevel:      provider.ThinkingLevel(cfg.ThinkingLevel),
-		MaxTokens:          cfg.MaxTokens,
+		MaxTokens:          ResolveMaxTokensValue(cfg.MaxTokens, model),
 		SandboxMgr:         sandboxMgr,
 		Session:            sess,
 		ExtraContext:       cfg.SystemPromptExtra,
