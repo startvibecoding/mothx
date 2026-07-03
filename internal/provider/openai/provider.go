@@ -105,7 +105,7 @@ func newProviderWithHTTPClient(apiKey, baseURL string, models []*provider.Model,
 		apiKey = os.Getenv("OPENAI_API_KEY")
 	}
 
-p := &Provider{
+	p := &Provider{
 		BaseProvider: provider.NewBaseProvider("openai", models),
 		apiKey:       apiKey,
 		baseURL:      strings.TrimRight(baseURL, "/"),
@@ -212,7 +212,8 @@ type openAIContentBlock struct {
 }
 
 type openAIImage struct {
-	URL string `json:"url"`
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type openAITool struct {
@@ -699,7 +700,7 @@ func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantRea
 				var imageBlocks []openAIContentBlock
 				for _, c := range msg.Contents {
 					if c.Type == "image" && c.Image != nil {
-						imageBlocks = append(imageBlocks, openAIContentBlock{Type: "image_url", ImageURL: &openAIImage{URL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)}})
+						imageBlocks = append(imageBlocks, openAIContentBlock{Type: "image_url", ImageURL: p.openAIImage(c.Image)})
 					}
 				}
 				if len(imageBlocks) > 0 {
@@ -719,7 +720,7 @@ func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantRea
 					blocks = append(blocks, openAIContentBlock{Type: "text", Text: c.Text})
 				case "image":
 					if c.Image != nil {
-						blocks = append(blocks, openAIContentBlock{Type: "image_url", ImageURL: &openAIImage{URL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)}})
+						blocks = append(blocks, openAIContentBlock{Type: "image_url", ImageURL: p.openAIImage(c.Image)})
 					}
 				case "thinking":
 					// Store reasoning content for OpenAI-compatible APIs
@@ -758,6 +759,40 @@ func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantRea
 		messages = append(messages, om)
 	}
 	return messages
+}
+
+func (p *Provider) openAIImage(image *provider.ImageContent) *openAIImage {
+	if image == nil {
+		return nil
+	}
+	result := &openAIImage{URL: fmt.Sprintf("data:%s;base64,%s", image.MimeType, image.Data)}
+	if p.supportsImageDetail() {
+		result.Detail = normalizeImageDetail(image.Detail)
+	}
+	return result
+}
+
+func (p *Provider) supportsImageDetail() bool {
+	if p == nil {
+		return false
+	}
+	lower := strings.ToLower(p.baseURL)
+	return strings.Contains(lower, "api.openai.com") || strings.Contains(lower, "api.x.ai")
+}
+
+func normalizeImageDetail(detail string) string {
+	switch strings.ToLower(strings.TrimSpace(detail)) {
+	case "fast", "low":
+		return "low"
+	case "auto":
+		return "auto"
+	case "detail", "high":
+		return "high"
+	case "raw", "original":
+		return "high"
+	default:
+		return ""
+	}
 }
 
 func (p *Provider) convertTools(tools []provider.ToolDefinition) []openAITool {

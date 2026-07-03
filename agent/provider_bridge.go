@@ -53,6 +53,11 @@ func (a *providerAdapter) Chat(ctx context.Context, params ChatParams) <-chan St
 					OriginalBytes:  cb.Image.OriginalBytes,
 					Detail:         cb.Image.Detail,
 					Scale:          cb.Image.Scale,
+					Cropped:        cb.Image.Cropped,
+					CropX:          cb.Image.CropX,
+					CropY:          cb.Image.CropY,
+					CropWidth:      cb.Image.CropWidth,
+					CropHeight:     cb.Image.CropHeight,
 				}
 			}
 			if cb.ToolCall != nil {

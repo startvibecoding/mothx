@@ -1,18 +1,25 @@
 # 多模态图片处理优化方案
 
-> 状态: Phase 1A/1B 已落地，后续 provider request 参数透传和更精确 token 估算仍待实现
+> 状态: Phase 1A/1B 已落地；Phase 2/3 部分落地；剩余 Gemini 参数透传、tile/多图预算、动态约束发现
 > 日期: 2026-07-03
 > 目标: 优化图片输入的可靠性、成本、上下文估算和用户体验
 
-当前实施进度：
+## 0. 实现进度快照
+
+更新时间：2026-07-03。
 
 - 已完成：新增统一图片处理基础、`read` 图片自动预处理、WebP decode/inspect 依赖、`ImageContent` 元数据、通用尺寸优先 token 估算、provider/model family policy hint、相关测试。
 - 已完成的 family 映射：OpenAI、Anthropic、Anthropic-on-Bedrock、Gemini、Mistral/Pixtral/Devstral、Doubao Seed、Qwen、Kimi、MiniMax、GLM、Grok/xAI、Llama Vision、Gemma Vision、MiMo、Amazon Nova、DeepSeek-on-gateway。
-- 未完成：OpenAI/xAI `detail` 透传、Gemini `media_resolution`、Claude/Gemini/OpenAI 精确视觉 token 估算接入、browser screenshot 接入、crop/tile、多图预算。
+- 已完成的估算改进：agent compaction 路径通过 `ResolveTokenEstimator(settings, model)` 使用模型感知图片估算；Claude/Bedrock Claude 使用 28px patch，Gemini 使用 384/768 tile，OpenAI/Grok 使用 low/high tile 近似；旧 `EstimateTokens()` 仍保持通用估算。
+- 已完成的 provider 参数透传：官方 OpenAI (`api.openai.com`) 和 xAI (`api.x.ai`) 图片请求会从内部 `Detail` 映射到 `low/auto/high`；OpenAI-compatible 聚合层默认不发送额外 `detail` 字段。
+- 已完成的截图接入：browser `screenshot` 直接返回图片时默认用 `detail` 策略进入统一 `imageproc` 流程，并携带发送/原始尺寸元数据；指定 `outputPath` 时仍保存原始截图文件。
+- 已完成的裁剪能力：`read` 支持 `crop` 源图像素矩形，`ImageContent` 保留 crop 元数据，输出描述显示裁剪区域。
+- 已验证：`go test ./...` 通过。
+- 未完成：Gemini `media_resolution`、tile、多图预算、供应商模型目录动态约束发现。
 
 ## 1. 背景
 
-VibeCoding 已支持通过 `read` 工具读取图片文件，并把图片作为 rich content block 传给支持视觉输入的模型。浏览器截图工具也可以直接返回图片内容。当前能力已经能覆盖基本识图场景，但图片处理仍处于“原样透传”阶段。
+VibeCoding 已支持通过 `read` 工具读取图片文件，并把图片作为 rich content block 传给支持视觉输入的模型。浏览器截图工具也可以直接返回图片内容。此前图片处理主要是“原样透传”，本轮实现已把主要入口升级为可控预处理。
 
 主流多模态模型通常不会直接按原始图片字节理解图片，而是先把图片转换为视觉 token、patch 或 tile。图片过大时，供应商侧往往会进行缩放、切块或拒绝请求。工程侧如果完全依赖供应商隐式处理，会带来请求体过大、延迟抖动、成本不可控、上下文估算不准等问题。
 
@@ -28,16 +35,19 @@ VibeCoding 已支持通过 `read` 工具读取图片文件，并把图片作为 
 2. 浏览器截图工具直接返回截图。
 3. TUI `/paste-image` 把剪贴板图片保存成本地文件路径，再由用户或 agent 后续读取。
 
-核心文件：
+当前核心文件：
 
-- `internal/tools/read.go` - 图片文件识别、读取和 base64 编码。
-- `internal/tools/tool.go` - `NewImageToolResult()` 构造 text + image rich content。
-- `internal/provider/types.go` - `ImageContent` 仅包含 base64 data 和 MIME type。
-- `internal/provider/openai/responses.go` - OpenAI Responses 图片转换。
+- `internal/imageproc/imageproc.go` - 统一图片 inspect、crop、resize、transcode 和安全限制。
+- `internal/imageproc/policy.go` - provider/model family policy 推断和图片策略。
+- `internal/tools/read.go` - 图片文件识别、`imageMode`、`maxLongEdge`、`crop` 参数和 rich image result。
+- `internal/tools/tool.go` - `NewImageToolResultWithContent()` 构造 text + image rich content。
+- `internal/provider/types.go` - `ImageContent` 包含 base64、MIME、尺寸、字节数、detail、scale、crop 元数据。
+- `internal/provider/openai/responses.go` - OpenAI Responses 图片转换和官方 OpenAI/xAI `detail` 透传。
+- `internal/provider/openai/provider.go` - OpenAI Chat Completions 图片转换和官方 OpenAI/xAI `detail` 透传。
 - `internal/provider/anthropic/provider.go` - Anthropic 图片转换。
 - `internal/provider/google/provider.go` - Gemini 图片转换。
-- `internal/context/tokenizer.go` - 上下文 token 估算。
-- `internal/browser/browser.go` - 浏览器截图结果。
+- `internal/context/tokenizer.go` - 通用和模型感知图片 token 估算。
+- `internal/browser/browser.go` - 浏览器截图统一图片处理。
 - `internal/tui/clipboard_image.go` - `/paste-image`。
 
 ### 2.2 当前行为
@@ -46,19 +56,33 @@ VibeCoding 已支持通过 `read` 工具读取图片文件，并把图片作为 
 
 ```
 1. 根据扩展名判断 jpg/jpeg/png/gif/webp。
-2. 检查文件大小，当前上限为 10MB。
-3. 读取完整文件。
-4. base64 编码。
-5. 返回 text block + image block。
+2. 根据当前 agent provider/model hint 选择 image policy。
+3. 检查文件大小和像素数。
+4. inspect 原始尺寸和格式。
+5. 可选按源图像素 `crop`。
+6. 按 `imageMode` / `maxLongEdge` resize。
+7. 必要时转码到 PNG/JPEG 并控制输出体积。
+8. base64 编码处理后的图片。
+9. 返回 text block + image block，包含原图/发送图尺寸、字节数、detail、scale、crop 元数据。
 ```
 
-provider 适配层基本原样透传图片：
+provider 适配层当前行为：
 
-- OpenAI: 转成 data URL，放入 `input_image`。
+- OpenAI Responses: 转成 data URL，放入 `input_image`；官方 OpenAI/xAI baseURL 会发送 `detail`。
+- OpenAI Chat Completions: 转成 `image_url`；官方 OpenAI/xAI baseURL 会发送 `detail`。
 - Anthropic: 转成 base64 source。
 - Gemini: 转成 inline data。
+- 其他 OpenAI-compatible 聚合层：默认只发送标准图片字段，不透传非标准 `detail`。
 
-上下文估算目前把图片折算为至少 4800 chars，并在 base64 字符串更长时按 base64 长度估算。
+上下文估算当前行为：
+
+- `EstimateTokens()` 仍保持通用兼容逻辑：有宽高时使用 generic 512 tile 估算；无宽高时保留旧 fallback。
+- agent compaction 路径通过 `ResolveTokenEstimator(settings, model)` 使用模型感知估算：Claude/Bedrock Claude 28px patch，Gemini 384/768 tile，OpenAI/Grok low/high tile 近似。
+
+browser 截图当前行为：
+
+- 未指定 `outputPath` 时，截图直接进入 `imageproc`，默认 `detail`，返回 rich image block 和尺寸/字节元数据。
+- 指定 `outputPath` 时，保存浏览器返回的原始截图文件，不做预处理。
 
 ### 2.3 当前优点
 
@@ -394,6 +418,8 @@ type Meta struct {
 
 Phase 1 可以先实现 `imageMode` 和 `maxLongEdge`，`crop` 留到 Phase 2。
 
+当前实现状态：`imageMode`、`maxLongEdge`、`crop` 均已在 `read` 中落地。`crop` 在源图像像素坐标上执行，先 crop 再 resize/transcode，越界裁剪会返回错误。
+
 ### 6.2 read 输出说明
 
 当前描述：
@@ -418,11 +444,12 @@ Phase 1 可以先实现 `imageMode` 和 `maxLongEdge`，`crop` 留到 Phase 2。
 
 ### 6.3 browser screenshot 接入
 
-浏览器截图当前直接 `NewImageToolResult()`。建议改为：
+浏览器截图已接入统一处理。当前行为：
 
-1. 截图结果先进入 `imageproc.PrepareBytes()`。
-2. 默认用 `detail` 或专门的 screenshot policy。
-3. 输出描述包含实际发送尺寸。
+1. 未指定 `outputPath` 时，截图 bytes 进入 `imageproc.PrepareBytes()`。
+2. 默认使用 `detail` policy；也支持 `imageMode` 和 `maxLongEdge`。
+3. 输出描述包含原始截图尺寸、发送尺寸和处理模式。
+4. 指定 `outputPath` 时仍保存浏览器返回的原始截图，不做转码或缩放。
 
 截图往往包含文字和 UI，默认不应压得过低。
 
@@ -568,10 +595,17 @@ func estimateGenericImageTokens(w, h int) int {
 5. Amazon Nova、Mistral/MiniMax、MiMo/Llama/Gemma 等 family 当前只做保守输出体积 cap，不透传 provider-specific 参数。
 6. `deepseek-v4-*` 只有在已知 gateway provider 下才归为 `deepseek-gateway-vision`；直接 DeepSeek provider 仍不按视觉模型处理。
 
+已完成：
+
+1. `ResolveTokenEstimator()` 在有 model 上下文时返回模型感知估算器。
+2. Claude/Bedrock Claude 图片按 `ceil(width/28) * ceil(height/28)` 估算。
+3. Gemini 图片按小图 258 tokens、大图 768 tile * 258 tokens 估算。
+4. OpenAI/Grok 图片按 `fast/low=85 tokens`、其他模式 `85 + 170 * 512-tile` 近似估算。
+
 仍未完成：
 
-1. `ResolveTokenEstimator()` 的 provider/model-aware 精确估算。
-2. OpenAI/xAI `detail`、Gemini `media_resolution` 等请求参数透传。
+1. Qwen/Doubao/Kimi/MiniMax/GLM/MiMo/Nova/Llama/Gemma 的更精确官方公式或模型目录约束。
+2. Gemini `media_resolution` 等请求参数透传。
 3. 从供应商模型目录/API 动态发现图片限制。
 
 ## 9. 配置设计
@@ -640,17 +674,17 @@ func estimateGenericImageTokens(w, h int) int {
 - 已验证：Bedrock Claude 使用更严格文件/输出体积。
 - 已验证：直接 DeepSeek provider 不因 `deepseek-v4-*` 名称误判为视觉模型；只有 gateway provider 命中 `deepseek-gateway-vision`。
 
-### Phase 2: 上下文估算和 provider detail
+### Phase 2: 上下文估算和 provider detail（部分落地）
 
 目标：让 compaction 和成本估算更贴近真实视觉 token。
 
 改动：
 
-1. 图片 token 估算优先使用宽高。
-2. OpenAI patch/tile、Claude 28px patch、Gemini 768 tile、Groq limits、Nova 粗略 token 表进入估算或 policy。
-3. provider/model-aware 估算规则接入 `ResolveTokenEstimator()`。
-4. OpenAI/xAI 支持 `detail`，仅在确认兼容时发送；Gemini `media_resolution` 单独评估。
-5. browser screenshot 接入统一预处理。
+1. 已完成：图片 token 估算优先使用宽高。
+2. 已完成：OpenAI/Grok tile 近似、Claude 28px patch、Gemini 768 tile 接入估算。
+3. 已完成：provider/model-aware 估算规则接入 `ResolveTokenEstimator()`。
+4. 已完成：OpenAI/xAI 支持 `detail`，仅在官方 baseURL 确认兼容时发送；Gemini `media_resolution` 单独评估。
+5. 已完成：browser screenshot 接入统一预处理。
 6. 更新相关测试。
 
 验收：
@@ -659,21 +693,21 @@ func estimateGenericImageTokens(w, h int) int {
 - 不同尺寸图片估算随 tile/patch 规则变化。
 - browser screenshot 不再原样无限制透传。
 
-### Phase 3: 裁剪和显式细节控制
+### Phase 3: 裁剪和显式细节控制（部分落地）
 
 目标：支持 OCR、局部 UI 和坐标任务。
 
 改动：
 
-1. `read` 支持 `crop` 参数。
-2. 输出描述包含 crop 坐标和缩放比例。
-3. 可选支持返回坐标映射辅助信息。
-4. 系统 prompt 或 tool guideline 提醒 agent 对小字/局部区域使用 crop/detail。
+1. 已完成：`read` 支持 `crop` 参数。
+2. 已完成：输出描述包含 crop 坐标；`ImageContent` 保存 `Cropped/CropX/CropY/CropWidth/CropHeight`。
+3. 待完成：可选支持返回坐标映射辅助信息。
+4. 待完成：系统 prompt 或 tool guideline 更明确地提醒 agent 对小字/局部区域使用 crop/detail。
 
 验收：
 
-- 用户可要求“看这张图左上角”，agent 能读取局部图。
-- 模型输出坐标时，有足够信息映射回原图。
+- 已验证：用户可要求“看这张图左上角”，agent 能读取局部图。
+- 部分满足：模型输出坐标时，已有 crop/scale 元数据，但还缺少专门坐标映射 helper。
 
 ### Phase 4: 多图预算和 tile
 
@@ -741,65 +775,80 @@ OpenAI-compatible 供应商不一定接受 `detail` 字段。
 - `detail` 先作为内部元数据。
 - 只有官方 OpenAI 或明确支持的 vendor 才发送。
 
-## 12. 测试计划
+## 12. 测试状态
 
 ### 12.1 imageproc 单元测试
 
-- 小 PNG 不缩放。
-- 大 JPEG 等比缩放。
-- 超大像素拒绝。
-- `raw` 模式不缩放但仍校验安全限制。
-- alpha PNG 不被错误转成 JPEG。
-- 输出元数据正确。
+- 已覆盖：大 JPEG 等比缩放。
+- 已覆盖：`raw` 模式不缩放但仍校验安全限制。
+- 已覆盖：超大像素拒绝。
+- 已覆盖：裁剪输出尺寸、crop 元数据和越界裁剪错误。
+- 待补充：alpha PNG 不被错误转成 JPEG。
+- 待补充：WebP decode/resize 的显式测试样例。
 
 ### 12.2 read 工具测试
 
-- 默认图片输出包含 image block。
-- 输出描述包含原图和发送图尺寸。
-- `imageMode=fast/detail/raw` 行为不同。
-- 非图片文本读取不受影响。
-- 大文件和坏图片错误信息清晰。
+- 已覆盖：默认图片输出包含 image block。
+- 已覆盖：输出描述包含原图和发送图尺寸。
+- 已覆盖：`maxLongEdge` resize。
+- 已覆盖：registry image policy 被 `read` 使用。
+- 已覆盖：`crop` 参数、crop 元数据和输出描述。
+- 已覆盖：大文件错误信息。
+- 待补充：`imageMode=fast/detail/raw` 的端到端差异测试。
+- 待补充：坏图片错误信息。
 
 ### 12.3 provider 测试
 
-- OpenAI/Anthropic/Gemini 仍能序列化 image block。
-- 新增元数据不会进入不支持的 provider payload。
-- OpenAI detail 只在启用时出现。
+- 已覆盖：OpenAI Chat Completions 图片 `detail` 只在官方 OpenAI/xAI baseURL 出现。
+- 已覆盖：OpenAI Responses 图片 `detail` 只在官方 OpenAI baseURL 出现。
+- 已通过全量测试：Anthropic/Gemini 现有图片序列化未被新增元数据破坏。
+- 待补充：Gemini `media_resolution`，如果后续实现。
 
 ### 12.4 context/tokenizer 测试
 
-- 有宽高图片按视觉规则估算。
-- 无宽高旧图片 fallback 到兼容逻辑。
-- 多图估算累加正确。
+- 已覆盖：无宽高旧图片 fallback 到兼容逻辑。
+- 已覆盖：有宽高图片按 generic 规则估算。
+- 已覆盖：Claude/Bedrock Claude、Gemini、OpenAI low/high 的模型感知图片估算。
+- 待补充：多图估算累加和 provider family 更多分支。
+
+### 12.5 browser 测试
+
+- 已覆盖：browser tool 注册/移除。
+- 已覆盖：截图 bytes 进入统一图片处理后返回 rich image block、尺寸元数据和 resize 描述。
 
 ## 13. 待讨论问题
 
-1. 默认 `auto` 长边选 `1568` 还是 `2048`？
-2. 截图默认是否应该使用 `detail`？
+1. 默认 `auto` 长边是否继续保持 `1568`，还是在更多实测后调到 `2048`？
+2. 截图默认已使用 `detail`；是否需要为 full-page/长截图单独使用更激进的压缩或 tile？
 3. `read` 是否应该默认把 PNG 截图转 JPEG，还是只在超过体积阈值时转？
-4. WebP 第一阶段是否引入解码依赖？
+4. WebP 已引入 decode/inspect；是否需要 WebP encoder 或继续统一输出 PNG/JPEG？
 5. `/paste-image` 是否新增直接 attach 模式，还是继续保持路径优先？
 6. 是否需要在 settings 中暴露 image 配置，还是先使用内置策略？
-7. OpenAI `detail` 是立即实现，还是等 provider capability 标记完善后再做？
-8. crop 参数应该进入 Phase 1，还是等基础稳定后再加？
+7. OpenAI/xAI 官方 baseURL 已透传 `detail`；是否需要显式 vendor capability 表让部分聚合层也能安全透传？
+8. crop 参数已落地；是否需要继续补坐标映射 helper？
 9. 是否要把 Groq/Bedrock 这类严格体积限制作为全局默认，还是只作为 provider policy？
 10. 对 OpenRouter/Vercel/GitHub Copilot/opencode 这类聚合层，是否只按底层 model ID 推断，还是增加显式 vendor capability 表？
 11. Doubao Seed、Qwen Plus、Kimi、MiMo、MiniMax、DeepSeek-on-gateway 的精确图片限制是否应通过 provider 模型目录/API 动态发现，而不是硬编码在客户端？
 12. 默认配置里 `deepseek-v4-pro` / `deepseek-v4-flash` 的 image 声明是否准确，是否需要单独开配置核对任务修正 `Input`？
 
-## 14. 推荐决策
+## 14. 已采纳决策和剩余建议
 
-建议先做一个保守的 Phase 1：
+已采纳：
 
 1. 不改 settings schema。
 2. 新增 `internal/imageproc`。
 3. `read` 默认 `auto`，最长边先用 `1568`。
 4. `auto` 处理后 raw bytes 目标约 `3MB`，为 Groq base64 4MB 和 Bedrock Claude 5MB base64 留余量。
-5. 不做 tile，不做自动 ROI。
-6. 截图暂不改默认行为，或只接入 metadata inspect，不做强制压缩。
+5. 不做 tile，不做自动 ROI；先实现显式 `crop`。
+6. 截图直接返回图片时默认 `detail` 并进入统一预处理；保存到 `outputPath` 时保留原始截图。
 7. WebP 第一版引入 `golang.org/x/image/webp` 读取和 inspect；发送侧优先 JPEG/PNG。
 8. 默认配置中所有 38 个视觉 provider preset 都必须能落入一个明确 policy family；第一版精确公式缺失的 family 先走 generic/保守估算。
 9. `ImageContent` 加元数据，为后续 token 估算和坐标映射铺路。
-10. `detail` 先作为内部元数据；只有 OpenAI 官方和 xAI 这类已确认支持的 provider 才考虑发送。
+10. `detail` 默认作为内部元数据；只有 OpenAI 官方和 xAI 这类已确认支持的 provider 发送。
 
-这样可以先解决最大的问题：请求体和图片尺寸不可控、上下文估算缺少基础元数据，同时避免一次性引入过多行为变化。
+剩余建议：
+
+1. 先不要开放 settings schema，等默认策略跑一段时间后再决定是否暴露配置。
+2. Gemini `media_resolution` 应单独评估，不和 OpenAI/xAI `detail` 混在同一批改动里。
+3. tile/多图预算应等 crop/detail 的实际使用反馈稳定后再做。
+4. 对 DeepSeek-on-gateway 的 image 声明需要单独核对默认配置准确性。

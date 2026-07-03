@@ -132,6 +132,11 @@ type ImageContent struct {
 	OriginalBytes  int
 	Detail         string
 	Scale          float64
+	Cropped        bool
+	CropX          int
+	CropY          int
+	CropWidth      int
+	CropHeight     int
 }
 
 // CacheControl represents cache control metadata on a content block.

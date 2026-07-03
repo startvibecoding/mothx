@@ -52,6 +52,39 @@ func TestPrepareBytesRawPreservesPNG(t *testing.T) {
 	}
 }
 
+func TestPrepareBytesCropsImage(t *testing.T) {
+	data := encodeTestPNG(t, 120, 80)
+	policy := DefaultPolicy(ModeDetail)
+	policy.Crop = &Crop{X: 10, Y: 12, Width: 40, Height: 20}
+
+	result, err := PrepareBytes(data, policy)
+	if err != nil {
+		t.Fatalf("PrepareBytes() error = %v", err)
+	}
+	if result.Meta.Width != 40 || result.Meta.Height != 20 {
+		t.Fatalf("sent size = %dx%d, want 40x20", result.Meta.Width, result.Meta.Height)
+	}
+	if !result.Meta.Cropped {
+		t.Fatal("expected Cropped")
+	}
+	if result.Meta.CropX != 10 || result.Meta.CropY != 12 || result.Meta.CropWidth != 40 || result.Meta.CropHeight != 20 {
+		t.Fatalf("crop meta = %+v, want 40x20+10+12", result.Meta)
+	}
+	if result.Meta.OriginalWidth != 120 || result.Meta.OriginalHeight != 80 {
+		t.Fatalf("original size = %dx%d, want 120x80", result.Meta.OriginalWidth, result.Meta.OriginalHeight)
+	}
+}
+
+func TestPrepareBytesRejectsOutOfBoundsCrop(t *testing.T) {
+	data := encodeTestPNG(t, 20, 20)
+	policy := DefaultPolicy(ModeAuto)
+	policy.Crop = &Crop{X: 10, Y: 10, Width: 20, Height: 20}
+	_, err := PrepareBytes(data, policy)
+	if err == nil {
+		t.Fatal("PrepareBytes() error = nil, want crop bounds error")
+	}
+}
+
 func TestPrepareBytesRejectsPixelLimit(t *testing.T) {
 	data := encodeTestPNG(t, 10, 10)
 	policy := DefaultPolicy(ModeAuto)

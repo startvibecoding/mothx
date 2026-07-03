@@ -295,12 +295,47 @@ func TestReadToolImagePolicyUsesRegistryHint(t *testing.T) {
 	})
 	tool := NewReadTool(r)
 
-	policy := tool.imageReadPolicy(map[string]any{"imageMode": "detail"})
+	policy, err := tool.imageReadPolicy(map[string]any{"imageMode": "detail"})
+	if err != nil {
+		t.Fatalf("imageReadPolicy() error = %v", err)
+	}
 	if policy.MaxFileBytes != 4<<20 {
 		t.Fatalf("MaxFileBytes = %d, want %d", policy.MaxFileBytes, 4<<20)
 	}
 	if policy.MaxOutputBytes != 3<<20 {
 		t.Fatalf("MaxOutputBytes = %d, want %d", policy.MaxOutputBytes, 3<<20)
+	}
+}
+
+func TestReadToolImageCrop(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "crop.png")
+	writeTestPNG(t, tmpFile, 100, 80)
+
+	r := NewRegistry(tmpDir, sandbox.NewNoneSandbox())
+	tool := NewReadTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": "crop.png",
+		"crop": map[string]any{
+			"x":      float64(10),
+			"y":      float64(12),
+			"width":  float64(40),
+			"height": float64(20),
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	image := result.Contents[1].Image
+	if image.Width != 40 || image.Height != 20 {
+		t.Fatalf("image size = %dx%d, want 40x20", image.Width, image.Height)
+	}
+	if !image.Cropped || image.CropX != 10 || image.CropY != 12 || image.CropWidth != 40 || image.CropHeight != 20 {
+		t.Fatalf("crop meta = %+v, want 40x20+10+12", image)
+	}
+	if !strings.Contains(result.Text, "crop: 40x20+10+12") {
+		t.Fatalf("description missing crop details: %s", result.Text)
 	}
 }
 

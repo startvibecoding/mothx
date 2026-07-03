@@ -1,6 +1,10 @@
 package browser
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,6 +112,34 @@ func TestRegisterAndRemoveBrowserTool(t *testing.T) {
 	}
 }
 
+func TestScreenshotToolResultProcessesImage(t *testing.T) {
+	registry := tools.NewRegistry(t.TempDir(), nil)
+	tool := NewTool(registry)
+
+	result, err := tool.screenshotToolResult(testPNG(t, 200, 100), map[string]any{
+		"maxLongEdge": float64(50),
+	})
+	if err != nil {
+		t.Fatalf("screenshotToolResult() error = %v", err)
+	}
+	if len(result.Contents) != 2 || result.Contents[1].Image == nil {
+		t.Fatalf("contents = %#v, want text + image", result.Contents)
+	}
+	image := result.Contents[1].Image
+	if image.Width != 50 || image.Height != 25 {
+		t.Fatalf("image size = %dx%d, want 50x25", image.Width, image.Height)
+	}
+	if image.OriginalWidth != 200 || image.OriginalHeight != 100 {
+		t.Fatalf("original size = %dx%d, want 200x100", image.OriginalWidth, image.OriginalHeight)
+	}
+	if image.Detail != "detail" {
+		t.Fatalf("detail = %q, want detail", image.Detail)
+	}
+	if !strings.Contains(result.Text, "Browser screenshot") || !strings.Contains(result.Text, "original: 200x100") {
+		t.Fatalf("description = %q, want screenshot resize details", result.Text)
+	}
+}
+
 func TestClientOptionsDefaultLaunchViewport(t *testing.T) {
 	opts := clientOptions(map[string]any{})
 	if opts.Launch == nil {
@@ -122,6 +154,21 @@ func TestClientOptionsDefaultLaunchViewport(t *testing.T) {
 	if !opts.Launch.Headless {
 		t.Fatal("default launch should remain headless")
 	}
+}
+
+func testPNG(t *testing.T, width, height int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			img.Set(x, y, color.RGBA{R: uint8(x % 255), G: uint8(y % 255), B: 180, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatalf("png.Encode() error = %v", err)
+	}
+	return buf.Bytes()
 }
 
 func TestClientOptionsAllowsViewportAndHeadlessOverride(t *testing.T) {

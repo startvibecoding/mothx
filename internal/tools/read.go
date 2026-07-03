@@ -65,6 +65,17 @@ func (t *ReadTool) Parameters() json.RawMessage {
 			"maxLongEdge": {
 				"type": "integer",
 				"description": "Optional maximum long edge in pixels for image resizing"
+			},
+			"crop": {
+				"type": "object",
+				"description": "Optional crop rectangle in source image pixels before resizing",
+				"properties": {
+					"x": {"type": "integer"},
+					"y": {"type": "integer"},
+					"width": {"type": "integer"},
+					"height": {"type": "integer"}
+				},
+				"required": ["x", "y", "width", "height"]
 			}
 		},
 		"required": ["path"]
@@ -94,7 +105,10 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	// Check for image files
 	ext := strings.ToLower(filepath.Ext(path))
 	if mimeType, ok := imageMimeType[ext]; ok {
-		policy := t.imageReadPolicy(params)
+		policy, err := t.imageReadPolicy(params)
+		if err != nil {
+			return ToolResult{}, err
+		}
 		info, err := os.Stat(path)
 		if err != nil {
 			return ToolResult{}, fmt.Errorf("cannot stat image file: %w", err)
@@ -117,6 +131,11 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 			OriginalBytes:  result.Meta.OriginalBytes,
 			Detail:         result.Meta.Detail,
 			Scale:          result.Meta.Scale,
+			Cropped:        result.Meta.Cropped,
+			CropX:          result.Meta.CropX,
+			CropY:          result.Meta.CropY,
+			CropWidth:      result.Meta.CropWidth,
+			CropHeight:     result.Meta.CropHeight,
 		}
 		desc := imageDescription(path, mimeType, result)
 		return NewImageToolResultWithContent(desc, image), nil
@@ -170,7 +189,7 @@ func (t *ReadTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	return NewTextToolResult(result), nil
 }
 
-func (t *ReadTool) imageReadPolicy(params map[string]any) imageproc.Policy {
+func (t *ReadTool) imageReadPolicy(params map[string]any) (imageproc.Policy, error) {
 	mode := imageproc.NormalizeMode("")
 	if v, ok := params["imageMode"].(string); ok {
 		mode = imageproc.NormalizeMode(v)
@@ -181,16 +200,58 @@ func (t *ReadTool) imageReadPolicy(params map[string]any) imageproc.Policy {
 	} else if v, ok := params["maxLongEdge"].(int); ok && v > 0 {
 		policy.MaxLongEdge = v
 	}
-	return policy
+	if crop, ok, err := imageCropParam(params["crop"]); err != nil {
+		return imageproc.Policy{}, err
+	} else if ok {
+		policy.Crop = crop
+	}
+	return policy, nil
 }
 
 func imageDescription(path, sourceMime string, result imageproc.Result) string {
 	original := fmt.Sprintf("%dx%d %s %s", result.Meta.OriginalWidth, result.Meta.OriginalHeight, formatBytes(result.Meta.OriginalBytes), sourceMime)
 	sent := fmt.Sprintf("%dx%d %s %s", result.Meta.Width, result.Meta.Height, formatBytes(result.Meta.Bytes), result.MimeType)
-	if result.Meta.Resized || result.Meta.Transcoded || result.Meta.OriginalBytes != result.Meta.Bytes || sourceMime != result.MimeType {
-		return fmt.Sprintf("[Image file: %s, original: %s, sent: %s, mode: %s]", path, original, sent, result.Meta.Detail)
+	crop := ""
+	if result.Meta.Cropped {
+		crop = fmt.Sprintf(", crop: %dx%d+%d+%d", result.Meta.CropWidth, result.Meta.CropHeight, result.Meta.CropX, result.Meta.CropY)
 	}
-	return fmt.Sprintf("[Image file: %s, %s, mode: %s]", path, sent, result.Meta.Detail)
+	if result.Meta.Resized || result.Meta.Transcoded || result.Meta.OriginalBytes != result.Meta.Bytes || sourceMime != result.MimeType {
+		return fmt.Sprintf("[Image file: %s, original: %s%s, sent: %s, mode: %s]", path, original, crop, sent, result.Meta.Detail)
+	}
+	return fmt.Sprintf("[Image file: %s, %s%s, mode: %s]", path, sent, crop, result.Meta.Detail)
+}
+
+func imageCropParam(value any) (*imageproc.Crop, bool, error) {
+	if value == nil {
+		return nil, false, nil
+	}
+	obj, ok := value.(map[string]any)
+	if !ok {
+		return nil, false, fmt.Errorf("crop must be an object")
+	}
+	crop := &imageproc.Crop{
+		X:      intParamValue(obj["x"]),
+		Y:      intParamValue(obj["y"]),
+		Width:  intParamValue(obj["width"]),
+		Height: intParamValue(obj["height"]),
+	}
+	return crop, true, nil
+}
+
+func intParamValue(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case json.Number:
+		i, _ := v.Int64()
+		return int(i)
+	default:
+		return 0
+	}
 }
 
 func formatBytes(n int) string {

@@ -91,6 +91,11 @@ func contentBlocksToProvider(blocks []agentpkg.ContentBlock) []provider.ContentB
 				OriginalBytes:  b.Image.OriginalBytes,
 				Detail:         b.Image.Detail,
 				Scale:          b.Image.Scale,
+				Cropped:        b.Image.Cropped,
+				CropX:          b.Image.CropX,
+				CropY:          b.Image.CropY,
+				CropWidth:      b.Image.CropWidth,
+				CropHeight:     b.Image.CropHeight,
 			}
 		}
 		out = append(out, pb)

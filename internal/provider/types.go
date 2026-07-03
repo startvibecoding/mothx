@@ -34,6 +34,11 @@ type ImageContent struct {
 	OriginalBytes  int     `json:"originalBytes,omitempty"`
 	Detail         string  `json:"detail,omitempty"` // "auto", "fast", "detail", "raw"
 	Scale          float64 `json:"scale,omitempty"`
+	Cropped        bool    `json:"cropped,omitempty"`
+	CropX          int     `json:"cropX,omitempty"`
+	CropY          int     `json:"cropY,omitempty"`
+	CropWidth      int     `json:"cropWidth,omitempty"`
+	CropHeight     int     `json:"cropHeight,omitempty"`
 }
 
 // ToolCallBlock represents a tool call in an assistant message.

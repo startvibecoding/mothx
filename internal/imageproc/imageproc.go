@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	imagedraw "image/draw"
 	"image/jpeg"
 	"image/png"
 	"math"
@@ -36,6 +37,14 @@ type Policy struct {
 	MaxPixels      int
 	MaxLongEdge    int
 	MaxOutputBytes int
+	Crop           *Crop
+}
+
+type Crop struct {
+	X      int
+	Y      int
+	Width  int
+	Height int
 }
 
 type Meta struct {
@@ -46,9 +55,14 @@ type Meta struct {
 	OriginalHeight int
 	OriginalBytes  int
 	Resized        bool
+	Cropped        bool
 	Transcoded     bool
 	Scale          float64
 	Detail         string
+	CropX          int
+	CropY          int
+	CropWidth      int
+	CropHeight     int
 }
 
 type Result struct {
@@ -130,21 +144,42 @@ func PrepareBytes(data []byte, policy Policy) (Result, error) {
 		Detail:         string(policy.Mode),
 	}
 
-	if policy.Mode == ModeRaw {
+	if policy.Mode == ModeRaw && policy.Crop == nil {
 		return Result{Data: data, MimeType: sourceMime, Meta: meta}, nil
 	}
 
-	targetW, targetH, scale := scaledDimensions(cfg.Width, cfg.Height, policy.MaxLongEdge)
-	needsResize := targetW != cfg.Width || targetH != cfg.Height
+	cropRect, needsCrop, err := normalizedCrop(policy.Crop, cfg.Width, cfg.Height)
+	if err != nil {
+		return Result{}, err
+	}
+
+	sourceW, sourceH := cfg.Width, cfg.Height
+	if needsCrop {
+		sourceW = cropRect.Dx()
+		sourceH = cropRect.Dy()
+		meta.Width = sourceW
+		meta.Height = sourceH
+		meta.Cropped = true
+		meta.CropX = cropRect.Min.X
+		meta.CropY = cropRect.Min.Y
+		meta.CropWidth = sourceW
+		meta.CropHeight = sourceH
+	}
+
+	targetW, targetH, scale := scaledDimensions(sourceW, sourceH, policy.MaxLongEdge)
+	needsResize := targetW != sourceW || targetH != sourceH
 	needsTranscode := sourceMime != "image/png" && sourceMime != "image/jpeg"
 	tooLarge := policy.MaxOutputBytes > 0 && len(data) > policy.MaxOutputBytes
-	if !needsResize && !needsTranscode && !tooLarge {
+	if !needsCrop && !needsResize && !needsTranscode && !tooLarge {
 		return Result{Data: data, MimeType: sourceMime, Meta: meta}, nil
 	}
 
 	img, format, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return Result{}, fmt.Errorf("decode image: %w", err)
+	}
+	if needsCrop {
+		img = cropImage(img, cropRect)
 	}
 	if needsResize {
 		img = resizeImage(img, targetW, targetH)
@@ -181,6 +216,10 @@ func normalizePolicy(policy Policy) Policy {
 	if policy.MaxOutputBytes > 0 {
 		base.MaxOutputBytes = policy.MaxOutputBytes
 	}
+	if policy.Crop != nil {
+		crop := *policy.Crop
+		base.Crop = &crop
+	}
 	return base
 }
 
@@ -208,6 +247,33 @@ func resizeImage(src image.Image, width, height int) image.Image {
 	dst := image.NewRGBA(image.Rect(0, 0, width, height))
 	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), xdraw.Over, nil)
 	return dst
+}
+
+func cropImage(src image.Image, rect image.Rectangle) image.Image {
+	dst := image.NewRGBA(image.Rect(0, 0, rect.Dx(), rect.Dy()))
+	imagedraw.Draw(dst, dst.Bounds(), src, rect.Min, imagedraw.Src)
+	return dst
+}
+
+func normalizedCrop(crop *Crop, width, height int) (image.Rectangle, bool, error) {
+	if crop == nil {
+		return image.Rectangle{}, false, nil
+	}
+	if crop.Width <= 0 || crop.Height <= 0 {
+		return image.Rectangle{}, false, fmt.Errorf("invalid crop: width and height must be positive")
+	}
+	if crop.X < 0 || crop.Y < 0 {
+		return image.Rectangle{}, false, fmt.Errorf("invalid crop: x and y must be non-negative")
+	}
+	rect := image.Rect(crop.X, crop.Y, crop.X+crop.Width, crop.Y+crop.Height)
+	bounds := image.Rect(0, 0, width, height)
+	if !rect.In(bounds) {
+		return image.Rectangle{}, false, fmt.Errorf("invalid crop: rectangle %dx%d+%d+%d exceeds image bounds %dx%d", crop.Width, crop.Height, crop.X, crop.Y, width, height)
+	}
+	if rect.Eq(bounds) {
+		return image.Rectangle{}, false, nil
+	}
+	return rect, true, nil
 }
 
 func encodeForPolicy(img image.Image, sourceMime string, policy Policy) ([]byte, string, error) {

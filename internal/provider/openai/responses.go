@@ -51,6 +51,7 @@ type responsesContentBlock struct {
 	Type     string `json:"type"`
 	Text     string `json:"text,omitempty"`
 	ImageURL string `json:"image_url,omitempty"`
+	Detail   string `json:"detail,omitempty"`
 }
 
 type responsesTool struct {
@@ -272,7 +273,11 @@ func (p *Provider) responsesMessageContent(msg provider.Message, textType string
 			blocks = append(blocks, responsesContentBlock{Type: textType, Text: c.Text})
 		case "image":
 			if c.Image != nil {
-				blocks = append(blocks, responsesContentBlock{Type: "input_image", ImageURL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)})
+				block := responsesContentBlock{Type: "input_image", ImageURL: fmt.Sprintf("data:%s;base64,%s", c.Image.MimeType, c.Image.Data)}
+				if p.supportsImageDetail() {
+					block.Detail = normalizeImageDetail(c.Image.Detail)
+				}
+				blocks = append(blocks, block)
 			}
 		}
 	}

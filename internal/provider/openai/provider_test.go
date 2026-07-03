@@ -216,6 +216,73 @@ func TestConvertMessagesToolResultUsesTextContents(t *testing.T) {
 	}
 }
 
+func TestConvertMessagesImageDetailForOfficialProviders(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		detail  string
+		want    string
+	}{
+		{name: "openai detail", baseURL: "https://api.openai.com/v1", detail: "detail", want: "high"},
+		{name: "xai fast", baseURL: "https://api.x.ai/v1", detail: "fast", want: "low"},
+		{name: "compatible gateway omitted", baseURL: "https://openrouter.ai/api/v1", detail: "detail", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Provider{baseURL: tt.baseURL}
+			messages := p.convertMessages(provider.ChatParams{
+				Messages: []provider.Message{
+					{
+						Role: "user",
+						Contents: []provider.ContentBlock{
+							{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc123", Detail: tt.detail}},
+						},
+					},
+				},
+			}, false)
+
+			if len(messages) != 1 {
+				t.Fatalf("messages len = %d, want 1", len(messages))
+			}
+			blocks, ok := messages[0].Content.([]openAIContentBlock)
+			if !ok || len(blocks) != 1 || blocks[0].ImageURL == nil {
+				t.Fatalf("content = %#v, want one image block", messages[0].Content)
+			}
+			if got := blocks[0].ImageURL.Detail; got != tt.want {
+				t.Fatalf("detail = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResponsesMessageContentImageDetailForOfficialOpenAI(t *testing.T) {
+	msg := provider.Message{
+		Role: "user",
+		Contents: []provider.ContentBlock{
+			{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "abc123", Detail: "detail"}},
+		},
+	}
+
+	p := &Provider{baseURL: "https://api.openai.com/v1"}
+	content, ok := p.responsesMessageContent(msg, "input_text").([]responsesContentBlock)
+	if !ok || len(content) != 1 {
+		t.Fatalf("content = %#v, want one responses content block", content)
+	}
+	if content[0].Detail != "high" {
+		t.Fatalf("openai detail = %q, want high", content[0].Detail)
+	}
+
+	p = &Provider{baseURL: "https://openrouter.ai/api/v1"}
+	content, ok = p.responsesMessageContent(msg, "input_text").([]responsesContentBlock)
+	if !ok || len(content) != 1 {
+		t.Fatalf("content = %#v, want one responses content block", content)
+	}
+	if content[0].Detail != "" {
+		t.Fatalf("gateway detail = %q, want empty", content[0].Detail)
+	}
+}
+
 func TestOpenAICustomHeaders(t *testing.T) {
 	p := newMockOpenAIProvider(t, []*provider.Model{{ID: "gpt-test"}}, "data: [DONE]\n", nil, func(r *http.Request) {
 		if r.Header.Get("X-Custom-Header") != "custom-value" {

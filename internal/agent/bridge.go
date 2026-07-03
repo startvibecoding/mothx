@@ -84,6 +84,11 @@ func ContentBlockToPublic(cb provider.ContentBlock) agentpkg.ContentBlock {
 			OriginalBytes:  cb.Image.OriginalBytes,
 			Detail:         cb.Image.Detail,
 			Scale:          cb.Image.Scale,
+			Cropped:        cb.Image.Cropped,
+			CropX:          cb.Image.CropX,
+			CropY:          cb.Image.CropY,
+			CropWidth:      cb.Image.CropWidth,
+			CropHeight:     cb.Image.CropHeight,
 		}
 	}
 	if cb.CacheControl != nil {
@@ -121,6 +126,11 @@ func ContentBlockFromPublic(cb agentpkg.ContentBlock) provider.ContentBlock {
 			OriginalBytes:  cb.Image.OriginalBytes,
 			Detail:         cb.Image.Detail,
 			Scale:          cb.Image.Scale,
+			Cropped:        cb.Image.Cropped,
+			CropX:          cb.Image.CropX,
+			CropY:          cb.Image.CropY,
+			CropWidth:      cb.Image.CropWidth,
+			CropHeight:     cb.Image.CropHeight,
 		}
 	}
 	if cb.CacheControl != nil {

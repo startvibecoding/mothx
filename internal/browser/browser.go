@@ -14,6 +14,8 @@ import (
 	vbclient "github.com/startvibecoding/vibe-browser/pkg/client"
 	vbprotocol "github.com/startvibecoding/vibe-browser/pkg/protocol"
 
+	"github.com/startvibecoding/vibecoding/internal/imageproc"
+	"github.com/startvibecoding/vibecoding/internal/provider"
 	"github.com/startvibecoding/vibecoding/internal/tools"
 )
 
@@ -154,6 +156,8 @@ func (t *Tool) Parameters() json.RawMessage {
     "outputPath": {"type": "string", "description": "Project-relative path for screenshot output"},
     "format": {"type": "string", "enum": ["png", "jpeg", "webp"]},
     "quality": {"type": "integer"},
+    "imageMode": {"type": "string", "enum": ["auto", "fast", "detail", "raw"], "description": "Image processing mode for returned screenshots. Defaults to detail."},
+    "maxLongEdge": {"type": "integer", "description": "Optional maximum long edge in pixels for returned screenshot resizing"},
     "fullPage": {"type": "boolean"},
     "interactive": {"type": "boolean"},
     "compact": {"type": "boolean"},
@@ -387,13 +391,64 @@ func (t *Tool) screenshot(ctx context.Context, c *vbclient.Client, params map[st
 		}
 		return tools.NewTextToolResult(fmt.Sprintf("screenshot saved: %s", resolved)), nil
 	}
-	mime := "image/png"
-	if format == "jpeg" {
-		mime = "image/jpeg"
-	} else if format == "webp" {
-		mime = "image/webp"
+	return t.screenshotToolResult(data, params)
+}
+
+func (t *Tool) screenshotToolResult(data []byte, params map[string]any) (tools.ToolResult, error) {
+	policy := t.screenshotImagePolicy(params)
+	result, err := imageproc.PrepareBytes(data, policy)
+	if err != nil {
+		return tools.ToolResult{}, fmt.Errorf("process screenshot: %w", err)
 	}
-	return tools.NewImageToolResult("browser screenshot", mime, base64.StdEncoding.EncodeToString(data)), nil
+	image := provider.ImageContent{
+		Data:           base64.StdEncoding.EncodeToString(result.Data),
+		MimeType:       result.MimeType,
+		Width:          result.Meta.Width,
+		Height:         result.Meta.Height,
+		Bytes:          result.Meta.Bytes,
+		OriginalWidth:  result.Meta.OriginalWidth,
+		OriginalHeight: result.Meta.OriginalHeight,
+		OriginalBytes:  result.Meta.OriginalBytes,
+		Detail:         result.Meta.Detail,
+		Scale:          result.Meta.Scale,
+	}
+	return tools.NewImageToolResultWithContent(browserScreenshotDescription(result), image), nil
+}
+
+func (t *Tool) screenshotImagePolicy(params map[string]any) imageproc.Policy {
+	mode := imageproc.ModeDetail
+	if v := stringParam(params, "imageMode"); v != "" {
+		mode = imageproc.NormalizeMode(v)
+	}
+	policy := imageproc.DefaultPolicy(mode)
+	if t.registry != nil {
+		policy = t.registry.ImagePolicy(mode)
+	}
+	if v := intParam(params, "maxLongEdge"); v > 0 {
+		policy.MaxLongEdge = v
+	}
+	return policy
+}
+
+func browserScreenshotDescription(result imageproc.Result) string {
+	original := fmt.Sprintf("%dx%d %s", result.Meta.OriginalWidth, result.Meta.OriginalHeight, formatBytes(result.Meta.OriginalBytes))
+	sent := fmt.Sprintf("%dx%d %s %s", result.Meta.Width, result.Meta.Height, formatBytes(result.Meta.Bytes), result.MimeType)
+	if result.Meta.Resized || result.Meta.Transcoded || result.Meta.OriginalBytes != result.Meta.Bytes {
+		return fmt.Sprintf("[Browser screenshot, original: %s, sent: %s, mode: %s]", original, sent, result.Meta.Detail)
+	}
+	return fmt.Sprintf("[Browser screenshot, %s, mode: %s]", sent, result.Meta.Detail)
+}
+
+func formatBytes(n int) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%dB", n)
+	}
+	kb := float64(n) / unit
+	if kb < unit {
+		return fmt.Sprintf("%.1fKB", kb)
+	}
+	return fmt.Sprintf("%.1fMB", kb/unit)
 }
 
 func (t *Tool) pageSummary(ctx context.Context, c *vbclient.Client, prefix string) (tools.ToolResult, error) {
