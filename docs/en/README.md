@@ -1,7 +1,7 @@
-# VibeCoding Documentation
+# MothX Documentation
 
 <p align="center">
-  <img src="assets/logo.svg" alt="VibeCoding" width="128" height="128">
+  <img src="assets/mothx-small.png" alt="MothX" width="128" height="128">
 </p>
 
 <p align="center">
@@ -10,28 +10,30 @@
 
 <p align="center">
   Stop switching between Claude Code, Codex, Claw, and Hermes.<br>
-  VibeCoding packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
+  MothX packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
   <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/vibecoding.svg" alt="GitHub release"></a>
+  <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
-  <a href="https://pkg.go.dev/github.com/startvibecoding/vibecoding"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/vibecoding?status.svg" alt="GoDoc"></a>
-  <a href="https://github.com/startvibecoding/vibecoding/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/vibecoding" alt="Dependencies"></a>
+  <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
+  <a href="https://pkg.go.dev/github.com/startvibecoding/mothx"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/mothx?status.svg" alt="GoDoc"></a>
+  <a href="https://github.com/startvibecoding/mothx/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/mothx" alt="Dependencies"></a>
 </p>
+
+> **Rename notice:** MothX was formerly known as VibeCoding. The `vibecoding` command, `vibecoding-installer` package, and `.vibecoding` config directory remain available as compatibility entry points during this transition release; use `mothx` for new installs and future updates.
 
 ---
 
-Welcome to the VibeCoding Documentation Center!
+Welcome to the MothX Documentation Center!
 
-## ✨ Why VibeCoding?
+## ✨ Why MothX?
 
 **The Problem:** You're juggling multiple AI coding tools — Claude Code for one thing, Codex for another, Claw for something else. Each has its own setup, its own quirks, its own dependencies.
 
-**The Solution:** VibeCoding is the **all-in-one terminal AI coding assistant** that does it all. One binary. One config. Zero hassle.
+**The Solution:** MothX is the **all-in-one terminal AI coding assistant** that does it all. One binary. One config. Zero hassle.
 
 ### 🎯 Key Highlights
 
@@ -77,7 +79,7 @@ Welcome to the VibeCoding Documentation Center!
 - [Online Skill Marketplace](skillhub.md) — SkillHub / ClawHub integration
 - [Session Management](sessions.md) — Session storage and management
 - [Workflow Mode](workflow.md) — Elisp DSL for multi-agent orchestration
-- [SDK Integration](sdk.md) — Embed VibeCoding agent in your Go applications
+- [SDK Integration](sdk.md) — Embed MothX agent in your Go applications
 
 ### 🔒 Security
 - [Security & Sandbox](security.md) — Sandbox modes, permissions, approval
@@ -103,32 +105,38 @@ Welcome to the VibeCoding Documentation Center!
 
 ```bash
 # npm (recommended)
+npm install -g mothx
+
+# Compatibility package for this transition release
 npm install -g vibecoding-installer
 
 # PyPI
 pipx install vibecoding-installer
 
 # One-line install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 
 # Go install
-go install github.com/startvibecoding/vibecoding/cmd/vibecoding@latest
+go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
 ## 🗑️ Uninstall
 
 ```bash
 # npm
+npm uninstall -g mothx
+
+# Compatibility package, if installed before the rename
 npm uninstall -g vibecoding-installer
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall
 
 # Windows (one-line install)
-irm https://raw.githubusercontent.com/startvibecoding/vibecoding/main/install.ps1 | iex; Uninstall-VibeCoding
+irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex; Uninstall-MothX
 ```
 
 ## 🎮 Three Modes for Every Situation
@@ -145,29 +153,29 @@ Switch modes anytime with `/mode plan|agent|yolo` or press `Tab`.
 
 ### 💻 Daily Development
 ```bash
-vibecoding -P "Refactor this function to use generics"
-vibecoding -P "Write tests for the UserService struct"
-vibecoding -P "Explain what this regex does"
+mothx -P "Refactor this function to use generics"
+mothx -P "Write tests for the UserService struct"
+mothx -P "Explain what this regex does"
 ```
 
 ### 🔍 Code Review
 ```bash
-vibecoding --mode plan "Review this PR and suggest improvements"
+mothx --mode plan "Review this PR and suggest improvements"
 ```
 
 ### 🚀 CI/CD Integration
 ```bash
-vibecoding -p "Generate changelog from git log" > CHANGELOG.md
+mothx -p "Generate changelog from git log" > CHANGELOG.md
 ```
 
 ### 🌐 API Server
 ```bash
-vibecoding gateway  # Start OpenAI-compatible HTTP server
+mothx gateway  # Start OpenAI-compatible HTTP server
 ```
 
 ### 📱 Chatbot
 ```bash
-vibecoding hermes   # Deploy as WeChat/Feishu bot
+mothx hermes   # Deploy as WeChat/Feishu bot
 ```
 
 ## 🛠️ Built-in Tools

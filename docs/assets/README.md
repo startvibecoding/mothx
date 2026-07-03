@@ -1,17 +1,18 @@
-# VibeCoding Assets
+# MothX Assets
 
-This directory contains branding assets for VibeCoding.
+This directory contains branding assets for MothX.
 
 ## Files
 
 | File | Description | Usage |
 |------|-------------|-------|
+| `mothx.png` | Primary MothX logo (2048×2048, ~666KB) | Landing page hero, large displays |
+| `mothx-small.png` | Resized MothX logo (128×128, ~10KB) | App bar (28px), README inline (128px) |
 | `icon.svg` | Full icon (512×512) | Deb packaging, documentation hero |
-| `logo.svg` | Compact logo (128×128) | README, favicons, small displays |
 
 ## Icon Design
 
-The VibeCoding icon represents:
+The MothX icon represents:
 
 - **Terminal Window**: The core interface of the tool
 - **Prompt Symbol (❯)**: Command-line interaction
@@ -50,29 +51,29 @@ debian/
 │           └── hicolor/
 │               ├── 48x48/
 │               │   └── apps/
-│               │       └── vibecoding.png
+│               │       └── mothx.png
 │               ├── 128x128/
 │               │   └── apps/
-│               │       └── vibecoding.png
+│               │       └── mothx.png
 │               └── 256x256/
 │                   └── apps/
-│                       └── vibecoding.png
+│                       └── mothx.png
 └── usr/
     └── share/
         └── applications/
-            └── vibecoding.desktop
+            └── mothx.desktop
 ```
 
 ## Desktop Entry
 
-Example `vibecoding.desktop`:
+Example `mothx.desktop`:
 
 ```desktop
 [Desktop Entry]
-Name=VibeCoding
+Name=MothX
 Comment=AI Coding Assistant
-Exec=vibecoding
-Icon=vibecoding
+Exec=mothx
+Icon=mothx
 Terminal=true
 Type=Application
 Categories=Development;
@@ -80,4 +81,4 @@ Categories=Development;
 
 ## License
 
-These assets are part of the VibeCoding project and follow the same MIT license.
+These assets are part of the MothX project and follow the same MIT license.

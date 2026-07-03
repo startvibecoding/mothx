@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="VibeCoding" width="128" height="128">
+  <img src="assets/mothx-small.png" alt="MothX" width="128" height="128">
 </p>
 
-<h1 align="center">VibeCoding</h1>
+<h1 align="center">MothX</h1>
 
 <p align="center">
   <strong>🚀 一个二进制文件搞定一切 — 你的终端 AI 编程助手</strong>
@@ -10,29 +10,31 @@
 
 <p align="center">
   别再在 Claude Code、Codex、Claw、Hermes 之间来回切换了。<br>
-  VibeCoding 把所有功能打包成一个文件 — 提供商、工具、沙箱、会话、技能，一应俱全。
+  MothX 把所有功能打包成一个文件 — 提供商、工具、沙箱、会话、技能，一应俱全。
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/vibecoding-installer"><img src="https://img.shields.io/npm/dm/vibecoding-installer.svg" alt="npm downloads"></a>
+  <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
   <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
-  <a href="https://gitee.com/startvibecoding/vibecoding/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
+  <a href="https://gitee.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="https://goreportcard.com/report/github.com/startvibecoding/vibecoding"><img src="https://goreportcard.com/badge/github.com/startvibecoding/vibecoding" alt="Go Report Card"></a>
-  <a href="https://pkg.go.dev/github.com/startvibecoding/vibecoding"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/vibecoding?status.svg" alt="GoDoc"></a>
+  <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
+  <a href="https://pkg.go.dev/github.com/startvibecoding/mothx"><img src="https://pkg.go.dev/badge/github.com/startvibecoding/mothx?status.svg" alt="GoDoc"></a>
 </p>
 
 <p align="center">
-  <strong>GitHub: <a href="https://github.com/startvibecoding/vibecoding">海外用户</a></strong>
+  <strong>GitHub: <a href="https://github.com/startvibecoding/mothx">海外用户</a></strong>
 </p>
+
+> **改名说明：** MothX 原名 VibeCoding。本过渡版本仍保留 `vibecoding` 命令、`vibecoding-installer` 包以及 `.vibecoding` 配置目录作为兼容入口；新安装和后续更新请使用 `mothx`。
 
 ---
 
-## ✨ 为什么选择 VibeCoding？
+## ✨ 为什么选择 MothX？
 
 **问题：** 你在多个 AI 编程工具之间疲于奔命 — Claude Code 做这个，Codex 做那个，Claw 又是另一个。每个都有自己的配置、自己的坑、自己的依赖。
 
-**解决方案：** VibeCoding 是**全能终端 AI 编程助手**，一个工具搞定所有事情。一个二进制文件，一份配置，零烦恼。
+**解决方案：** MothX 是**全能终端 AI 编程助手**，一个工具搞定所有事情。一个二进制文件，一份配置，零烦恼。
 
 ### 🎯 核心亮点
 
@@ -60,15 +62,16 @@
 
 ```bash
 # 安装（任选其一）
-npm install -g vibecoding-installer          # npm（推荐）
+npm install -g mothx                         # npm（推荐）
+npm install -g vibecoding-installer          # 兼容包，本过渡版本保留
 pipx install vibecoding-installer           # PyPI
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash  # Linux/macOS
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS
 
 # 设置 API 密钥
 export DEEPSEEK_API_KEY=sk-...
 
 # 运行
-vibecoding
+mothx
 ```
 
 就这么简单，你已经在用 AI 编程了。
@@ -77,16 +80,17 @@ vibecoding
 
 ```bash
 # npm
-npm uninstall -g vibecoding-installer
+npm uninstall -g mothx
+npm uninstall -g vibecoding-installer        # 如果曾安装旧兼容包
 
 # PyPI
 pipx uninstall vibecoding-installer
 
 # Linux/macOS（一键安装）
-curl -fsSL https://gitee.com/startvibecoding/vibecoding/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
 
 # Windows（一键安装）
-irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uninstall-VibeCoding
+irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
 ```
 
 ---
@@ -106,8 +110,8 @@ irm https://gitee.com/startvibecoding/vibecoding/raw/main/install.ps1 | iex; Uni
 ## 🏗️ 架构概览
 
 ```
-vibecoding/
-├── cmd/vibecoding/        # CLI 入口
+mothx/
+├── cmd/mothx/        # CLI 入口
 ├── internal/
 │   ├── agent/             # 核心 Agent 循环
 │   ├── provider/          # LLM 提供商抽象（20+ 厂商）
@@ -172,29 +176,29 @@ vibecoding/
 
 ### 💻 日常开发
 ```bash
-vibecoding -P "把这个函数重构成泛型版本"
-vibecoding -P "为 UserService 结构体写测试"
-vibecoding -P "解释这个正则表达式的作用"
+mothx -P "把这个函数重构成泛型版本"
+mothx -P "为 UserService 结构体写测试"
+mothx -P "解释这个正则表达式的作用"
 ```
 
 ### 🔍 代码审查
 ```bash
-vibecoding --mode plan "审查这个 PR 并提出改进建议"
+mothx --mode plan "审查这个 PR 并提出改进建议"
 ```
 
 ### 🚀 CI/CD 集成
 ```bash
-vibecoding -p "从 git log 生成更新日志" > CHANGELOG.md
+mothx -p "从 git log 生成更新日志" > CHANGELOG.md
 ```
 
 ### 🌐 API 服务器
 ```bash
-vibecoding gateway  # 启动 OpenAI 兼容 HTTP 服务器
+mothx gateway  # 启动 OpenAI 兼容 HTTP 服务器
 ```
 
 ### 📱 聊天机器人
 ```bash
-vibecoding hermes   # 部署为微信/飞书机器人
+mothx hermes   # 部署为微信/飞书机器人
 ```
 
 ---
@@ -248,8 +252,8 @@ vibecoding hermes   # 部署为微信/飞书机器人
 我们欢迎贡献！详见 [开发指南](development.md)。
 
 ```bash
-git clone https://gitee.com/startvibecoding/vibecoding.git
-cd vibecoding
+git clone https://gitee.com/startvibecoding/mothx.git
+cd mothx
 make build
 make test
 ```
