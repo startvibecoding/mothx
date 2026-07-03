@@ -35,6 +35,24 @@ func trimLineRightSpace(s string) string {
 	return strings.Join(lines, "\n")
 }
 
+func TestRenderHeaderShowsMothXRenameNotice(t *testing.T) {
+	got := stripANSI(renderHeader(80, "1.2.3", "openai", "gpt-4o", "/repo"))
+
+	for _, want := range []string{
+		"██   ██  ███  ████ █  █ █  █",
+		"MothX (1.2.3)",
+		"openai | gpt-4o",
+		"Renamed: VibeCoding -> MothX. Use mothx.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("renderHeader() = %q, want substring %q", got, want)
+		}
+	}
+	if strings.Contains(got, "VibeCoding (1.2.3)") {
+		t.Fatalf("renderHeader() kept old title: %q", got)
+	}
+}
+
 func TestRenderEditToolResultShowsCompactDiff(t *testing.T) {
 	app := &App{}
 	result := toolResult{

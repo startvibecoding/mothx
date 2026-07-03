@@ -6,14 +6,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const vibeLogo = `   _    ___ __        
-  | |  / (_) /_  ___   
-  | | / / / __ \/ _ \  
-  | |/ / / /_/ /  __/  
-  |___/_/_.___/\___/   `
+const mothxLogo = `██   ██  ███  ████ █  █ █  █
+███ ███ █   █  ██  █  █  ██
+█ ███ █ █   █  ██  ████  ██
+█  █  █ █   █  ██  █  █ █  █
+█     █  ███   ██  █  █ █  █`
 
-func asciiLogoWidth() int {
-	lines := strings.Split(vibeLogo, "\n")
+const renameNotice = "Renamed: VibeCoding -> MothX. Use mothx."
+
+func logoWidth() int {
+	lines := strings.Split(mothxLogo, "\n")
 	max := 0
 	for _, l := range lines {
 		if w := lipgloss.Width(l); w > max {
@@ -24,18 +26,18 @@ func asciiLogoWidth() int {
 }
 
 func renderHeader(width int, version string, providerName string, modelName string, cwd string) string {
-	logoW := asciiLogoWidth()
+	logoW := logoWidth()
 
 	infoStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("86")).
 		Padding(0, 0)
 
-	line1 := lipgloss.NewStyle().Bold(true).Render("VibeCoding (" + version + ")")
+	line1 := lipgloss.NewStyle().Bold(true).Render("MothX (" + version + ")")
 	line2 := providerName + " | " + modelName
 	line3 := cwd
 
-	infoContent := line1 + "\n" + line2 + "\n" + line3
+	infoContent := line1 + "\n" + line2 + "\n" + line3 + "\n" + renameNotice
 	infoPanel := infoStyle.Render(infoContent)
 	infoW := lipgloss.Width(infoPanel)
 
@@ -50,7 +52,7 @@ func renderHeader(width int, version string, providerName string, modelName stri
 	available := width - logoW - gap - 4 // border chars
 	if lipgloss.Width(line3) > available && available > 3 {
 		line3 = lipgloss.NewStyle().MaxWidth(available).Render(cwd)
-		infoContent = line1 + "\n" + line2 + "\n" + line3
+		infoContent = line1 + "\n" + line2 + "\n" + line3 + "\n" + renameNotice
 		infoPanel = infoStyle.Render(infoContent)
 	}
 
@@ -60,6 +62,6 @@ func renderHeader(width int, version string, providerName string, modelName stri
 		Height(boxHeight).
 		AlignVertical(lipgloss.Center).
 		MarginRight(gap).
-		Render(vibeLogo)
+		Render(mothxLogo)
 	return lipgloss.JoinHorizontal(lipgloss.Top, logoStyled, infoPanel)
 }
