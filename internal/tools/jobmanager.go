@@ -99,7 +99,7 @@ func (jm *JobManager) KillJob(id int) error {
 	}
 
 	if job.cmd.Process != nil {
-		return job.cmd.Process.Kill()
+		return killCommandProcess(job.cmd)
 	}
 	return nil
 }

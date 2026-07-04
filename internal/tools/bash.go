@@ -206,8 +206,14 @@ func (t *BashTool) buildCommand(ctx context.Context, shell, command, workDir str
 }
 
 func (t *BashTool) configureCommand(cmd *exec.Cmd) {
-	// Detach child process group so background children don't block the shell.
+	// Bash tools are non-interactive. Prevent subprocesses from stealing the
+	// TUI terminal for auth prompts, and make cancellation kill descendants.
 	setSysProcAttr(cmd)
+	cmd.Stdin = strings.NewReader("")
+	cmd.Env = nonInteractiveEnv(cmd.Env)
+	cmd.Cancel = func() error {
+		return killCommandProcess(cmd)
+	}
 	// If the shell exits while a background child still holds stdio,
 	// don't wait forever; give it 100ms then force-close copied pipes.
 	cmd.WaitDelay = 100 * time.Millisecond
@@ -391,6 +397,25 @@ func prefixPathValue(pathValue, dir string) string {
 		return dir
 	}
 	return dir + string(os.PathListSeparator) + pathValue
+}
+
+func nonInteractiveEnv(env []string) []string {
+	env = setEnvDefault(env, "GIT_TERMINAL_PROMPT", "0")
+	env = setEnvDefault(env, "GIT_ASKPASS", "true")
+	env = setEnvDefault(env, "SSH_ASKPASS", "true")
+	env = setEnvDefault(env, "SSH_ASKPASS_REQUIRE", "never")
+	env = setEnvDefault(env, "SUDO_ASKPASS", "true")
+	return env
+}
+
+func setEnvDefault(env []string, key, value string) []string {
+	prefix := key + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			return env
+		}
+	}
+	return append(env, prefix+value)
 }
 
 func runtimeForShell(shell string) string {

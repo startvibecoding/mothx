@@ -639,6 +639,57 @@ func TestBashToolExecuteNoOutput(t *testing.T) {
 	}
 }
 
+func TestBashToolExecuteUsesNonInteractiveEnvironment(t *testing.T) {
+	if platform.IsWindows() {
+		t.Skip("shell env syntax differs on Windows")
+	}
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "printf '%s:%s:%s:%s' \"$GIT_TERMINAL_PROMPT\" \"$GIT_ASKPASS\" \"$SSH_ASKPASS\" \"$SSH_ASKPASS_REQUIRE\"",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "[stdout]\n0:true:true:never") {
+		t.Fatalf("expected non-interactive auth env, got: %s", result.Text)
+	}
+}
+
+func TestNonInteractiveEnvKeepsUserValues(t *testing.T) {
+	env := nonInteractiveEnv([]string{"GIT_ASKPASS=/custom/askpass"})
+	got := ""
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "GIT_ASKPASS=") {
+			got = entry
+		}
+	}
+	if got != "GIT_ASKPASS=/custom/askpass" {
+		t.Fatalf("GIT_ASKPASS = %q, want existing value preserved", got)
+	}
+}
+
+func TestBashToolExecuteProvidesEOFStdin(t *testing.T) {
+	if platform.IsWindows() {
+		t.Skip("shell read syntax differs on Windows")
+	}
+	sb := sandbox.NewNoneSandbox()
+	r := NewRegistry("/tmp", sb)
+	tool := NewBashTool(r)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"command": "if read value; then echo got:$value; else echo eof; fi",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(result.Text, "[stdout]\neof") {
+		t.Fatalf("expected stdin EOF, got: %s", result.Text)
+	}
+}
+
 func TestBashToolExecutionTimeout(t *testing.T) {
 	sb := sandbox.NewNoneSandbox()
 	r := NewRegistry("/tmp", sb)
