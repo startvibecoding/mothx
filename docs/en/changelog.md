@@ -1,6 +1,21 @@
 # Changelog
 
 
+## v1.1.60
+
+### 🐛 Bug Fixes
+
+- **Legacy `VIBECODING_DIR` Handling**
+  - `ConfigDir()` now falls back to the default `.mothx/` path when `VIBECODING_DIR` is set to the legacy default `~/.vibecoding`, avoiding an unintended override of the new config directory.
+  - `ConfigDirOverridden()` no longer reports a custom override when `VIBECODING_DIR` equals the default legacy path.
+  - The stats CLI now reads `sessionDir` from `config.LoadSettings()` instead of calling `platform.SessionDir()` directly, ensuring it respects the configured session directory.
+
+### 🧪 Tests
+
+- Added `TestConfigDirIgnoresLegacyDefaultEnvDir` and `TestConfigDirHonorsCustomLegacyEnvDir` to verify `ConfigDir` correctly ignores or honors `VIBECODING_DIR` based on whether it matches the legacy default.
+- Added `TestLoadSettingsWithLegacyDefaultEnvCreatesMothXConfig` to verify settings migration creates `.mothx/` config when `VIBECODING_DIR` points to the legacy default.
+- Added `TestOpenStatsDBUsesConfiguredSessionDir` to verify the stats command resolves the session database path from settings.
+
 ## v1.1.59
 
 ### ✨ Features

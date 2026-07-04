@@ -1,6 +1,21 @@
 # 更新日志
 
 
+## v1.1.60
+
+### 🐛 Bug 修复
+
+- **旧版 `VIBECODING_DIR` 环境变量处理**
+  - `ConfigDir()` 当 `VIBECODING_DIR` 设为旧版默认值 `~/.vibecoding` 时，现在会回退到默认的 `.mothx/` 路径，避免意外覆盖新配置目录。
+  - `ConfigDirOverridden()` 当 `VIBECODING_DIR` 等于旧版默认路径时不再报告为自定义覆盖。
+  - stats CLI 现在从 `config.LoadSettings()` 读取 `sessionDir`，而非直接调用 `platform.SessionDir()`，确保尊重配置中的会话目录。
+
+### 🧪 测试
+
+- 新增 `TestConfigDirIgnoresLegacyDefaultEnvDir` 和 `TestConfigDirHonorsCustomLegacyEnvDir`，验证 `ConfigDir` 在 `VIBECODING_DIR` 为旧版默认值或自定义路径时的正确行为。
+- 新增 `TestLoadSettingsWithLegacyDefaultEnvCreatesMothXConfig`，验证当 `VIBECODING_DIR` 指向旧版默认值时，设置迁移会创建 `.mothx/` 配置。
+- 新增 `TestOpenStatsDBUsesConfiguredSessionDir`，验证 stats 命令从设置中解析会话数据库路径。
+
 ## v1.1.59
 
 ### ✨ 新功能
