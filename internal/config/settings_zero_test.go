@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -21,8 +22,8 @@ func TestLoadSettingsProjectSupportsFalseAndZeroOverrides(t *testing.T) {
 	t.Setenv("VIBECODING_MODE", "")
 	t.Setenv("VIBECODING_THINKING", "")
 
-	if err := os.MkdirAll(".vibe", 0700); err != nil {
-		t.Fatalf("mkdir .vibe: %v", err)
+	if err := os.MkdirAll(filepath.Dir(ProjectSettingsPath()), 0700); err != nil {
+		t.Fatalf("mkdir project config dir: %v", err)
 	}
 	data := []byte(`{
 		"maxContextTokens": 0,

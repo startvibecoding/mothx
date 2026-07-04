@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/startvibecoding/mothx/internal/acp"
 	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
 )
 
 func TestRootPrintAcceptsMessageArgument(t *testing.T) {
@@ -52,6 +55,42 @@ func TestBuildInitialMessageForCreatedGlobalConfig(t *testing.T) {
 	}
 	if !strings.Contains(msg, "Opening /auth") {
 		t.Fatalf("initial message = %q, want /auth prompt", msg)
+	}
+}
+
+func TestFormatContextFilesInfoIncludesLoadedRule(t *testing.T) {
+	tmpDir := t.TempDir()
+	rulePath := filepath.Join(tmpDir, contextfiles.RuleFile)
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
+		t.Fatalf("mkdir rule dir: %v", err)
+	}
+	ruleContent := "project safety rules"
+	if err := os.WriteFile(rulePath, []byte(ruleContent), 0644); err != nil {
+		t.Fatalf("write rule file: %v", err)
+	}
+
+	info := formatContextFilesInfo(&contextfiles.LoadResult{
+		ProjectFiles: []contextfiles.FileContent{{Name: "AGENTS.md", Path: filepath.Join(tmpDir, "AGENTS.md"), Content: "# Agent"}},
+	}, tmpDir, ruleContent)
+
+	if !strings.Contains(info, "✓ AGENTS.md (project)") {
+		t.Fatalf("info = %q, want project context file", info)
+	}
+	if !strings.Contains(info, "✓ "+contextfiles.RuleFile+" (project rules)") {
+		t.Fatalf("info = %q, want loaded rule", info)
+	}
+}
+
+func TestFormatContextFilesInfoPromptsRuleWhenMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	info := formatContextFilesInfo(&contextfiles.LoadResult{}, tmpDir, "")
+
+	if !strings.Contains(info, contextfiles.RuleFile+" not found") {
+		t.Fatalf("info = %q, want missing rule", info)
+	}
+	if !strings.Contains(info, "run /rule") {
+		t.Fatalf("info = %q, want /rule prompt", info)
 	}
 }
 

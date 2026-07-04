@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Build platform-specific PyPI wheels.
-# Each wheel contains exactly one native vibecoding binary, and pip selects the
+# Each wheel contains exactly one native mothx binary, and pip selects the
 # correct artifact using standard wheel platform tags.
 
 set -euo pipefail
@@ -82,18 +82,18 @@ for row in "${PLATFORMS[@]}"; do
 
   mkdir -p "$WORK_DIR/src"
   cp "$PYPI_DIR/pyproject.toml" "$PYPI_DIR/setup.py" "$PYPI_DIR/README.md" "$WORK_DIR/"
-  cp -R "$PYPI_DIR/src/vibecoding_installer" "$WORK_DIR/src/"
-  rm -rf "$WORK_DIR/src/vibecoding_installer/bin"
-  mkdir -p "$WORK_DIR/src/vibecoding_installer/bin"
+  cp -R "$PYPI_DIR/src/mothx_installer" "$WORK_DIR/src/"
+  rm -rf "$WORK_DIR/src/mothx_installer/bin"
+  mkdir -p "$WORK_DIR/src/mothx_installer/bin"
 
   if [[ "$PLATFORM_KEY" == win32-* ]]; then
-    INNER_BINARY="vibecoding.exe"
+    INNER_BINARY="mothx.exe"
   else
-    INNER_BINARY="vibecoding"
+    INNER_BINARY="mothx"
   fi
 
-  cp "$BINARY_PATH" "$WORK_DIR/src/vibecoding_installer/bin/$INNER_BINARY"
-  chmod +x "$WORK_DIR/src/vibecoding_installer/bin/$INNER_BINARY" 2>/dev/null || true
+  cp "$BINARY_PATH" "$WORK_DIR/src/mothx_installer/bin/$INNER_BINARY"
+  chmod +x "$WORK_DIR/src/mothx_installer/bin/$INNER_BINARY" 2>/dev/null || true
 
   (
     cd "$WORK_DIR"

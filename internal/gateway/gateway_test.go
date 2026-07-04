@@ -15,6 +15,7 @@ import (
 
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/sandbox"
 	"github.com/startvibecoding/mothx/internal/session"
@@ -530,8 +531,11 @@ func newTestServer(t *testing.T) *Server {
 
 	pool := NewSessionPool(0, 0)
 
+	cfg := DefaultGatewayConfig()
+	cfg.WorkingDir = cwd
+
 	return &Server{
-		cfg:        DefaultGatewayConfig(),
+		cfg:        cfg,
 		settings:   settings,
 		version:    "test",
 		provider:   mockP,
@@ -811,7 +815,7 @@ func TestCommands_RuleCreatesFile(t *testing.T) {
 	if result.Error {
 		t.Fatalf("unexpected error: %s", result.Message)
 	}
-	rulePath := filepath.Join(workDir, ".vibe", "rule.md")
+	rulePath := contextfiles.RuleFilePath(workDir)
 	data, err := os.ReadFile(rulePath)
 	if err != nil {
 		t.Fatalf("read rule file: %v", err)
@@ -827,7 +831,7 @@ func TestCommands_RuleCreatesFile(t *testing.T) {
 func TestCommands_RulePreservesExistingUnlessForced(t *testing.T) {
 	srv := newTestServer(t)
 	workDir := t.TempDir()
-	rulePath := filepath.Join(workDir, ".vibe", "rule.md")
+	rulePath := contextfiles.RuleFilePath(workDir)
 	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
 		t.Fatalf("mkdir rule dir: %v", err)
 	}
@@ -983,7 +987,7 @@ func TestChatHandlerUsesSessionRuleContent(t *testing.T) {
 	defer srv.pool.Stop()
 
 	workDir := t.TempDir()
-	rulePath := filepath.Join(workDir, ".vibe", "rule.md")
+	rulePath := contextfiles.RuleFilePath(workDir)
 	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
 		t.Fatalf("mkdir rule dir: %v", err)
 	}
@@ -1013,7 +1017,7 @@ func TestChatHandlerDoesNotFallbackToOtherWorkDirRule(t *testing.T) {
 	defer srv.pool.Stop()
 
 	serverWorkDir := srv.cfg.GetWorkDir()
-	serverRulePath := filepath.Join(serverWorkDir, ".vibe", "rule.md")
+	serverRulePath := contextfiles.RuleFilePath(serverWorkDir)
 	if err := os.MkdirAll(filepath.Dir(serverRulePath), 0755); err != nil {
 		t.Fatalf("mkdir server rule dir: %v", err)
 	}
@@ -1336,7 +1340,7 @@ func TestLoadGatewayConfig_ProjectOverlay(t *testing.T) {
 	SaveGatewayConfig(globalPath, globalCfg)
 
 	// Create project config that overrides some fields
-	projectDir := filepath.Join(dir, "project", ".vibe")
+	projectDir := filepath.Join(dir, "project", config.ProjectDirName)
 	os.MkdirAll(projectDir, 0755)
 	projectPath := filepath.Join(projectDir, "gateway.json")
 	os.WriteFile(projectPath, []byte(`{"defaultMode":"yolo","toolVisibility":{"detail":"expanded"}}`), 0644)

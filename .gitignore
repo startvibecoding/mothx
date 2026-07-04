@@ -13,6 +13,10 @@ npm/bin/
 # Test binary
 *.test
 
+# Python cache
+__pycache__/
+*.pyc
+
 # Output of go coverage
 *.out
 
@@ -30,8 +34,10 @@ Thumbs.db
 
 # Project
 .vibe/
+.mothx/
 dist/
 /vibecoding
+/mothx
 npm/*.tgz
 pypi/.venv-build/
 pypi/build/
@@ -40,3 +46,4 @@ pypi/*.egg-info/
 *.png
 internal/vendored/bin/
 .vibe
+.mothx

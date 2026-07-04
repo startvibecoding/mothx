@@ -21,13 +21,13 @@ This will automatically download the correct binary for your platform.
 ### Method 2: PyPI
 
 ```bash
-pipx install vibecoding-installer
+pipx install mothx-installer
 ```
 
 Or without pipx:
 
 ```bash
-python -m pip install --user vibecoding-installer
+python -m pip install --user mothx-installer
 ```
 
 This installs the platform-specific wheel for your machine.
@@ -63,7 +63,7 @@ $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercon
 npm uninstall -g mothx
 
 # PyPI
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 
 # Linux/macOS
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall

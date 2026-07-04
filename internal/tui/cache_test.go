@@ -238,7 +238,7 @@ func TestStatusLineCommandOnWritesProjectSettings(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.handleCommand("/statusline on")
 
-	data, err := os.ReadFile(".vibe/settings.json")
+	data, err := os.ReadFile(config.ProjectSettingsPath())
 	if err != nil {
 		t.Fatalf("read project settings: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestStatusLineCommandCommandWritesProjectSettings(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.handleCommand("/statusline command echo hello")
 
-	data, err := os.ReadFile(".vibe/settings.json")
+	data, err := os.ReadFile(config.ProjectSettingsPath())
 	if err != nil {
 		t.Fatalf("read project settings: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestStatusLineCommandRefreshWritesProjectSettings(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.handleCommand("/statusline refresh 7")
 
-	data, err := os.ReadFile(".vibe/settings.json")
+	data, err := os.ReadFile(config.ProjectSettingsPath())
 	if err != nil {
 		t.Fatalf("read project settings: %v", err)
 	}
@@ -665,7 +665,7 @@ func TestAssistantRendersAGENTSMarkdownFixture(t *testing.T) {
 		t.Fatalf("rendered AGENTS.md should not expose raw markdown fences")
 	}
 	flattened := removeWhitespace(plain)
-	for _, want := range []string{"AGENTS.md", "CLAUDE.md", ".vibe/memory.md", "docs/en/changelog.md", "docs/zh/changelog.md"} {
+	for _, want := range []string{"AGENTS.md", "CLAUDE.md", ".mothx/memory.md", "docs/en/changelog.md", "docs/zh/changelog.md"} {
 		if !strings.Contains(flattened, want) {
 			t.Fatalf("rendered AGENTS.md lost filename order for %q", want)
 		}
@@ -1575,7 +1575,7 @@ func TestRuleCommandCreatesRuleFileAndLoadsContent(t *testing.T) {
 
 	a.handleCommand("/rule")
 
-	rulePath := filepath.Join(tmpDir, ".vibe", "rule.md")
+	rulePath := contextfiles.RuleFilePath(tmpDir)
 	data, err := os.ReadFile(rulePath)
 	if err != nil {
 		t.Fatalf("read rule file: %v", err)
@@ -1590,7 +1590,7 @@ func TestRuleCommandCreatesRuleFileAndLoadsContent(t *testing.T) {
 
 func TestRuleCommandPreservesExistingUnlessForced(t *testing.T) {
 	tmpDir := t.TempDir()
-	rulePath := filepath.Join(tmpDir, ".vibe", "rule.md")
+	rulePath := contextfiles.RuleFilePath(tmpDir)
 	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
 		t.Fatalf("mkdir rule dir: %v", err)
 	}

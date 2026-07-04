@@ -6,6 +6,7 @@
 ### 🔧 Improvements
 
 - Renamed npm platform binary packages from `mothx-*` to `mothx-installer-*` for consistent naming with the root `mothx-installer` package.
+- Renamed the PyPI installer package from `vibecoding-installer` to `mothx-installer`; the Python wrapper now exposes `mothx` as the primary command while keeping `vibecoding` as a compatibility alias.
 
 ## v1.1.57
 

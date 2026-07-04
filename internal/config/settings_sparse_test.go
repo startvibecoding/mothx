@@ -69,7 +69,20 @@ func TestSaveGlobalSettingsPatchPreservesSparseFile(t *testing.T) {
 
 func TestLoadSettingsWithMetaCreatesSparseDefaultFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Setenv("VIBECODING_DIR", tmpDir)
+	projectDir := filepath.Join(tmpDir, "project")
+	if err := os.MkdirAll(projectDir, 0700); err != nil {
+		t.Fatalf("mkdir project dir: %v", err)
+	}
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	configDir := filepath.Join(tmpDir, "config")
+	t.Setenv("VIBECODING_DIR", configDir)
 
 	s, meta, err := LoadSettingsWithMeta()
 	if err != nil {
@@ -82,7 +95,7 @@ func TestLoadSettingsWithMetaCreatesSparseDefaultFile(t *testing.T) {
 		t.Fatal("runtime defaults should still include built-in providers")
 	}
 
-	data, err := os.ReadFile(filepath.Join(tmpDir, "settings.json"))
+	data, err := os.ReadFile(filepath.Join(configDir, "settings.json"))
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}

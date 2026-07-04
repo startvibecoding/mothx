@@ -177,7 +177,7 @@ func newHermesCommand() *cobra.Command {
 		},
 	}
 
-	configInitCmd.Flags().BoolVar(&flagProject, "project", false, "Write to .vibe/hermes.json")
+	configInitCmd.Flags().BoolVar(&flagProject, "project", false, "Write to .mothx/hermes.json")
 	configInitCmd.Flags().BoolVar(&flagGlobal, "global", false, "Write to global hermes.json (default)")
 	configInitCmd.Flags().BoolVar(&flagForce, "force", false, "Overwrite existing file")
 	configInitCmd.Flags().BoolVar(&flagWebhook, "webhook", false, "Include sample webhook routes (GitHub, CI)")

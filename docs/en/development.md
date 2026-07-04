@@ -450,7 +450,7 @@ make pypi-publish-pre
 Users can install via PyPI:
 
 ```bash
-pipx install vibecoding-installer
+pipx install mothx-installer
 ```
 
 ## Frequently Asked Questions

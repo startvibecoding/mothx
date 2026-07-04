@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PYPI_DIR="$PROJECT_ROOT/pypi"
 PYPROJECT="$PYPI_DIR/pyproject.toml"
-INIT_FILE="$PYPI_DIR/src/vibecoding_installer/__init__.py"
+INIT_FILE="$PYPI_DIR/src/mothx_installer/__init__.py"
 PYTHON="${PYTHON:-python3}"
 
 if [ -n "${1:-}" ]; then

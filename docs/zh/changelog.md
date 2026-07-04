@@ -6,6 +6,7 @@
 ### 🔧 改进
 
 - npm 平台二进制包从 `mothx-*` 改名为 `mothx-installer-*`，与根包 `mothx-installer` 命名保持一致。
+- PyPI 安装包从 `vibecoding-installer` 改名为 `mothx-installer`；Python 包装器现在以 `mothx` 作为主命令，并保留 `vibecoding` 兼容别名。
 
 ## v1.1.57
 

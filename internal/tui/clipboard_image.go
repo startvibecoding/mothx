@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/platform"
 )
 
@@ -116,7 +117,7 @@ func pastedImageDir(projectDir string) string {
 	if projectDir == "" {
 		projectDir = "."
 	}
-	return filepath.Join(projectDir, ".vibe", "tmp")
+	return config.ProjectPathFor(projectDir, "tmp")
 }
 
 func pastedImageDisplayPath(projectDir string, path string) string {

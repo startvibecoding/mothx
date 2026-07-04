@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
-  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/mothx-installer/"><img src="https://img.shields.io/pypi/v/mothx-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
@@ -23,7 +23,7 @@
   <a href="https://github.com/startvibecoding/mothx/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/mothx" alt="Dependencies"></a>
 </p>
 
-> **Rename notice:** MothX was formerly known as VibeCoding. The `vibecoding` command, `vibecoding-installer` package, and `.vibecoding` config directory remain available as compatibility entry points during this transition release; use `mothx` for new installs and future updates.
+> **Rename notice:** MothX was formerly known as VibeCoding. During this transition release, legacy entry points such as the `vibecoding` command, the old installer package names, and `VIBECODING_*` environment variables are kept for compatibility. Legacy `.vibecoding` and `.vibe` directories are automatically migrated to `.mothx` when found.
 
 ---
 
@@ -111,7 +111,7 @@ npm install -g mothx-installer
 npm install -g vibecoding-installer
 
 # PyPI
-pipx install vibecoding-installer
+pipx install mothx-installer
 
 # One-line install (Linux/macOS)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
@@ -130,7 +130,7 @@ npm uninstall -g mothx-installer
 npm uninstall -g vibecoding-installer
 
 # PyPI
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall

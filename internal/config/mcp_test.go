@@ -7,10 +7,20 @@ import (
 )
 
 func TestMCPPathHelpers(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
 	if filepath.Base(GlobalMCPPath()) != "mcp.json" {
 		t.Fatalf("unexpected global MCP path: %s", GlobalMCPPath())
 	}
-	if ProjectMCPPath() != filepath.Join(".vibe", "mcp.json") {
+	if ProjectMCPPath() != filepath.Join(ProjectDirName, "mcp.json") {
 		t.Fatalf("unexpected project MCP path: %s", ProjectMCPPath())
 	}
 }

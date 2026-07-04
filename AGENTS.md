@@ -60,8 +60,8 @@ This file is for AI agents working in this repository. Keep changes aligned with
 
 - `internal/gateway/` implements an HTTP server exposing a standard OpenAI Chat Completions API.
 - Gateway reuses the same agent loop, provider factory, session, tools, sandbox, and skills as CLI/ACP — no separate agent logic.
-- Configuration lives in `gateway.json` (global `~/.config/vibecoding/gateway.json`, project `.vibe/gateway.json`), separate from `settings.json`.
-- Project-level `.vibe/gateway.json` overrides global, same pattern as `.vibe/settings.json`.
+- Configuration lives in `gateway.json` (global `~/.mothx/gateway.json`, project `.mothx/gateway.json`), separate from `settings.json`.
+- Project-level `.mothx/gateway.json` overrides global, same pattern as `.mothx/settings.json`.
 - Gateway supports slash commands (`/clear`, `/mode`, `/compact`, etc.) processed at the HTTP layer without invoking the LLM.
 - Tool output visibility (`toolVisibility.mode` + `toolVisibility.detail`) is configurable: collapsed (default, one-line summary) or expanded (full code fences).
 - `edit`/`write` diffs and errors always show in full regardless of detail level.
@@ -73,14 +73,14 @@ This file is for AI agents working in this repository. Keep changes aligned with
 
 - `internal/hermes/` implements a messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
 - Hermes reuses the same agent loop, provider factory, session, tools, sandbox, skills, and MCP as CLI/ACP.
-- Configuration lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.vibe/hermes.json`).
+- Configuration lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.mothx/hermes.json`).
 - Per-user sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.db`.
 - Default mode is `yolo` (not `agent`) — messaging platforms are unattended by nature.
 - `default_provider` / `default_model` in hermes.json override settings.json; CLI `-p`/`-m` override hermes.json.
 - `multi_agent` enables sub-agent tools (spawn/status/send/destroy).
 - `sandbox` enables bwrap sandbox (default off).
 - MCP servers from global/project `mcp.json` are loaded per-session and auto-closed on removal.
-- memory.md defaults to project directory (`.vibe/memory.md`); only uses global when `memory.path` is explicitly set.
+- memory.md defaults to project directory (`.mothx/memory.md`); only uses global when `memory.path` is explicitly set.
 - Progress events (tool execution + thinking) are sent to messaging platforms via `InboundMessage.ProgressFunc`.
 - The `messaging.InboundMessage.ProgressFunc` callback is set by each platform bot; nil means no progress updates.
 - `formatToolProgress` in `dispatcher.go` formats tool events as `[tool]: args ✅/❌`.
@@ -90,7 +90,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 
 - `internal/stats/` implements a web server that displays usage statistics (tokens, requests, duration) with charts.
 - The `vibecoding stats` CLI subcommand starts the dashboard server (default `127.0.0.1:7878`).
-- Flags: `--addr` (listen address), `--db` (path to sessions.db, defaults to `~/.vibecoding/sessions/sessions.db`).
+- Flags: `--addr` (listen address), `--db` (path to sessions.db, defaults to `~/.mothx/sessions/sessions.db`).
 - Stats are recorded automatically by the agent loop after every LLM call via `session.RecordUsageFromProviderUsage()`.
 - The dashboard is pure HTML/CSS/JS — no external JS/CSS libraries. Charts are drawn on `<canvas>`.
 - API endpoints: `/api/summary`, `/api/timeseries`, `/api/by-provider`, `/api/by-model`, `/api/recent`.

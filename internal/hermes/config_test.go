@@ -158,7 +158,7 @@ func TestInitHermesConfig(t *testing.T) {
 }
 
 func TestInitWebhookConfig(t *testing.T) {
-	// Use project mode to write to .vibe/hermes.json in a temp dir
+	// Use project mode to write to .mothx/hermes.json in a temp dir
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
 	os.Chdir(dir)

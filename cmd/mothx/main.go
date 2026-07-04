@@ -38,6 +38,11 @@ import (
 var version = "dev"
 
 func main() {
+	if cwd, err := os.Getwd(); err == nil {
+		config.AutoMigrateLegacyDirs(cwd)
+	} else {
+		config.AutoMigrateLegacyDirs(".")
+	}
 	_ = platform.EnsureWindowsBusybox()
 	rootCmd := newRootCommand(run, acp.Run)
 	if err := rootCmd.Execute(); err != nil {
@@ -353,8 +358,8 @@ func run(args []string, opts runOptions) error {
 		return fmt.Errorf("get working directory: %w", err)
 	}
 
-	contextFiles := loadContextFiles(cwd, settings)
 	ruleContent := contextfiles.LoadRuleFile(cwd)
+	contextFiles := loadContextFiles(cwd, settings, ruleContent)
 	selection := resolveProviderSelection(settings, opts)
 	args, opts, selection = applySystemInit(args, opts, selection)
 
@@ -441,22 +446,20 @@ func applyRuntimeSettings(settings *config.Settings, opts runOptions) {
 	}
 }
 
-func loadContextFiles(cwd string, settings *config.Settings) contextFilesResult {
-	if !settings.ContextFiles.Enabled {
-		return contextFilesResult{}
-	}
-	cfResult := contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
-	contextStr := contextfiles.BuildContextString(cfResult)
-	if contextStr == "" {
-		return contextFilesResult{}
+func loadContextFiles(cwd string, settings *config.Settings, ruleContent string) contextFilesResult {
+	cfResult := &contextfiles.LoadResult{}
+	var contextStr string
+	if settings.ContextFiles.Enabled {
+		cfResult = contextfiles.LoadContextFiles(cwd, config.ConfigDir(), settings.ContextFiles.ExtraFiles)
+		contextStr = contextfiles.BuildContextString(cfResult)
 	}
 	return contextFilesResult{
 		context: contextStr,
-		info:    formatContextFilesInfo(cfResult),
+		info:    formatContextFilesInfo(cfResult, cwd, ruleContent),
 	}
 }
 
-func formatContextFilesInfo(result *contextfiles.LoadResult) string {
+func formatContextFilesInfo(result *contextfiles.LoadResult, cwd string, ruleContent string) string {
 	var sb strings.Builder
 	sb.WriteString("📄 Loaded context files:\n")
 	for _, f := range result.GlobalFiles {
@@ -468,7 +471,25 @@ func formatContextFilesInfo(result *contextfiles.LoadResult) string {
 	for _, f := range result.ProjectFiles {
 		sb.WriteString(fmt.Sprintf("  ✓ %s (project)\n", f.Name))
 	}
+	appendRuleFileInfo(&sb, cwd, ruleContent)
 	return sb.String()
+}
+
+func appendRuleFileInfo(sb *strings.Builder, cwd string, ruleContent string) {
+	path := contextfiles.RuleFilePath(cwd)
+	if _, err := os.Stat(path); err == nil {
+		if strings.TrimSpace(ruleContent) == "" {
+			sb.WriteString(fmt.Sprintf("  ⚠ %s (project rules, empty)\n", contextfiles.RuleFile))
+			return
+		}
+		sb.WriteString(fmt.Sprintf("  ✓ %s (project rules)\n", contextfiles.RuleFile))
+		return
+	} else if os.IsNotExist(err) {
+		sb.WriteString(fmt.Sprintf("  ! %s not found (run /rule to create default project rules)\n", contextfiles.RuleFile))
+		return
+	} else {
+		sb.WriteString(fmt.Sprintf("  ! %s unavailable: %v\n", contextfiles.RuleFile, err))
+	}
 }
 
 func resolveProviderSelection(settings *config.Settings, opts runOptions) providerSelection {

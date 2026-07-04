@@ -9,7 +9,7 @@
 npm install -g mothx
 
 # Option 2: PyPI
-pipx install vibecoding-installer
+pipx install mothx-installer
 
 # Option 3: One-line install (Linux/macOS)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
@@ -25,7 +25,7 @@ go install github.com/startvibecoding/mothx/cmd/mothx@latest
 npm uninstall -g mothx
 
 # PyPI
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall

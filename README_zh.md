@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
-  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/mothx-installer/"><img src="https://img.shields.io/pypi/v/mothx-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
@@ -22,7 +22,7 @@
   <a href="https://github.com/startvibecoding/mothx/network/dependencies"><img src="https://img.shields.io/librariesio/release/github/startvibecoding/mothx" alt="Dependencies"></a>
 </p>
 
-> **改名说明：** MothX 原名 VibeCoding。本过渡版本仍保留 `vibecoding` 命令、`vibecoding-installer` npm 包以及现有 `.vibecoding` 配置目录作为兼容入口；新安装和后续更新请使用 `mothx`。
+> **改名说明：** MothX 原名 VibeCoding。本过渡版本仍保留 `vibecoding` 命令、旧安装包名以及 `VIBECODING_*` 环境变量作为兼容入口；发现旧 `.vibecoding` 和 `.vibe` 目录时会自动迁移到 `.mothx`。
 
 ## 功能特性
 
@@ -61,7 +61,7 @@ npm install -g mothx-installer
 **选项 2：PyPI**
 
 ```bash
-pipx install vibecoding-installer
+pipx install mothx-installer
 ```
 
 **选项 3：一键安装**
@@ -171,11 +171,11 @@ mothx --no-sandbox
 
 | 位置 | 平台 | 范围 |
 |------|------|------|
-| `~/.vibecoding/settings.json` | Linux/macOS | 全局（所有项目） |
-| `%APPDATA%\vibecoding\settings.json` | Windows | 全局（所有项目） |
-| `.vibe/settings.json` | 所有 | 项目（覆盖全局） |
+| `~/.mothx/settings.json` | Linux/macOS | 全局（所有项目） |
+| `%APPDATA%\mothx\settings.json` | Windows | 全局（所有项目） |
+| `.mothx/settings.json` | 所有 | 项目（覆盖全局） |
 
-`.vibecoding` 配置目录和 `VIBECODING_*` 环境变量会继续作为改名过渡期的兼容接口保留。
+发现旧 `.vibecoding` 和 `.vibe` 目录且新 `.mothx` 目录不存在时会自动迁移。`VIBECODING_*` 环境变量会继续作为改名过渡期的兼容接口保留；新的自定义配置目录优先使用 `MOTHX_DIR`。
 
 > **Windows 用户：** `%APPDATA%` 解析为 `C:\Users\<用户名>\AppData\Roaming`。
 
@@ -220,7 +220,8 @@ mothx --no-sandbox
 | 变量 | 描述 |
 |------|------|
 | `DEEPSEEK_API_KEY` | DeepSeek API 密钥 |
-| `VIBECODING_DIR` | 覆盖配置目录 |
+| `MOTHX_DIR` | 覆盖配置目录 |
+| `VIBECODING_DIR` | 覆盖配置目录（兼容旧变量） |
 | `VIBECODING_PROVIDER` | 覆盖默认提供商 |
 | `VIBECODING_MODEL` | 覆盖默认模型 |
 | `VIBECODING_MODE` | 覆盖默认模式 |

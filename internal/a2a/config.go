@@ -43,9 +43,9 @@ func ConfigPath() string {
 	return filepath.Join(config.ConfigDir(), "a2a.json")
 }
 
-// ProjectConfigPath returns the path to the project-level .vibe/a2a.json.
+// ProjectConfigPath returns the path to the project-level .mothx/a2a.json.
 func ProjectConfigPath() string {
-	return filepath.Join(".vibe", "a2a.json")
+	return config.ProjectPath("a2a.json")
 }
 
 // GetListenAddr returns the listen address.

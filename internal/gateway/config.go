@@ -99,11 +99,11 @@ func GatewayConfigPath() string {
 
 // ProjectGatewayConfigPath returns the path to the project-level gateway.json.
 func ProjectGatewayConfigPath() string {
-	return filepath.Join(".vibe", "gateway.json")
+	return config.ProjectPath("gateway.json")
 }
 
 // LoadGatewayConfig loads the gateway configuration, merging global + project.
-// Priority: .vibe/gateway.json > ~/.vibecoding/gateway.json > defaults
+// Priority: .mothx/gateway.json > ~/.mothx/gateway.json > defaults
 func LoadGatewayConfig() (*GatewayConfig, error) {
 	cfg, err := LoadGatewayConfigFrom(GatewayConfigPath())
 	if err != nil {

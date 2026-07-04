@@ -1,22 +1,22 @@
-> **Rename notice:** VibeCoding is now **MothX**. PyPI install name: `vibecoding-installer` (`pipx install vibecoding-installer` or `pip install vibecoding-installer`).
+> **Rename notice:** VibeCoding is now **MothX**. PyPI install name: `mothx-installer` (`pipx install mothx-installer` or `pip install mothx-installer`).
 
 # MothX
 
-MothX was formerly known as VibeCoding. This PyPI package is kept as a legacy compatibility distribution: each wheel includes a platform-native `vibecoding` binary, while new installs and future updates should prefer `npm install -g mothx-installer`.
+MothX was formerly known as VibeCoding. Each wheel includes a platform-native `mothx` binary. The `vibecoding` console command is still registered as a compatibility alias during the rename transition.
 
 ## Installation
 
 ```bash
-pip install vibecoding-installer
+pip install mothx-installer
 ```
 
 Or with an isolated environment:
 
 ```bash
-pipx install vibecoding-installer
+pipx install mothx-installer
 ```
 
-After installation, the legacy `vibecoding` command is available on your `PATH`.
+After installation, the `mothx` command is available on your `PATH`.
 
 ## Quick Start
 
@@ -25,10 +25,10 @@ After installation, the legacy `vibecoding` command is available on your `PATH`.
 export DEEPSEEK_API_KEY=sk-...
 
 # Start an interactive session
-vibecoding
+mothx
 
 # Or ask a question directly
-vibecoding -P "Write a Go HTTP server"
+mothx -P "Write a Go HTTP server"
 ```
 
 ## Choose Your Mode
@@ -42,9 +42,9 @@ Every session runs in one of three modes, switchable anytime with `Tab` or `/mod
 | **YOLO** | Full | ✓ | System administration, automation |
 
 ```bash
-vibecoding --mode plan     # read-only
-vibecoding --mode agent    # standard (default)
-vibecoding --mode yolo     # full access
+mothx --mode plan     # read-only
+mothx --mode agent    # standard (default)
+mothx --mode yolo     # full access
 ```
 
 ## Multi-Provider Support
@@ -53,13 +53,13 @@ Switch providers with a single flag:
 
 ```bash
 # DeepSeek (default)
-vibecoding --provider deepseek-openai --model deepseek-v4-flash
+mothx --provider deepseek-openai --model deepseek-v4-flash
 
 # OpenAI
-vibecoding --provider openai --model gpt-4o
+mothx --provider openai --model gpt-4o
 
 # Anthropic
-vibecoding --provider anthropic --model claude-3-5-sonnet-20241022
+mothx --provider anthropic --model claude-3-5-sonnet-20241022
 
 # 20+ vendor adapters supported: Gemini, Kimi, Volcengine, Mistral,
 # OpenRouter, Groq, Bedrock, GitHub Copilot, and more
@@ -70,22 +70,22 @@ vibecoding --provider anthropic --model claude-3-5-sonnet-20241022
 MothX persists conversation history in SQLite with branching support:
 
 ```bash
-vibecoding                    # start new session
-vibecoding --continue         # resume last session
-vibecoding --resume <id>      # resume a specific session
-vibecoding --session <file>   # open a specific session file
+mothx                    # start new session
+mothx --continue         # resume last session
+mothx --resume <id>      # resume a specific session
+mothx --session <file>   # open a specific session file
 ```
 
-Sessions live in `~/.vibecoding/sessions/` (Linux/macOS) or `%APPDATA%\vibecoding\sessions\` (Windows).
+Sessions live in `~/.mothx/sessions/` (Linux/macOS) or `%APPDATA%\mothx\sessions\` (Windows).
 
 ## Print / CI Mode
 
 Use MothX in non-interactive mode for scripting and CI/CD:
 
 ```bash
-vibecoding -P "Write unit tests for auth.go"
-vibecoding -P "Generate a CHANGELOG from git log" > CHANGELOG.md
-echo "Explain this function" | vibecoding -P
+mothx -P "Write unit tests for auth.go"
+mothx -P "Generate a CHANGELOG from git log" > CHANGELOG.md
+echo "Explain this function" | mothx -P
 ```
 
 Use `--mode plan` for read-only tasks and pair with `--print` to fail fast when approval is required.
@@ -95,7 +95,7 @@ Use `--mode plan` for read-only tasks and pair with `--print` to fail fast when 
 Enable deeper reasoning for complex problems:
 
 ```bash
-vibecoding --thinking high "Solve this architecture problem"
+mothx --thinking high "Solve this architecture problem"
 ```
 
 Levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh` — toggle in TUI with `/think`.
@@ -131,7 +131,7 @@ Skills are reusable prompt snippets for project conventions:
 ```
 
 Place `SKILL.md` files in:
-- **Global** — `~/.vibecoding/skills/<name>/SKILL.md`
+- **Global** — `~/.mothx/skills/<name>/SKILL.md`
 - **Project** — `.skills/<name>/SKILL.md` (overrides global)
 
 Compatible with [SkillHub](https://github.com/startvibecoding/skillhub) for discovering and sharing community skills.
@@ -147,8 +147,8 @@ Add to `.vscode/settings.json`:
 ```json
 {
   "acp.agents": {
-    "vibecoding": {
-      "command": "vibecoding",
+    "mothx": {
+      "command": "mothx",
       "args": ["acp", "--mode", "agent"]
     }
   }
@@ -159,7 +159,7 @@ Add to `.vscode/settings.json`:
 
 Go to `Settings → Tools → ACP Agents` and add:
 - Name: `MothX`
-- Command: `vibecoding`
+- Command: `mothx`
 - Arguments: `acp --mode agent`
 
 ## Gateway Mode
@@ -167,17 +167,17 @@ Go to `Settings → Tools → ACP Agents` and add:
 Run MothX as an OpenAI-compatible HTTP server:
 
 ```bash
-vibecoding gateway
+mothx gateway
 ```
 
-Config in `~/.vibecoding/gateway.json` or `.vibe/gateway.json`. Ideal for team sharing, CI/CD pipelines, and embedding into your own tools.
+Config in `~/.mothx/gateway.json` or `.mothx/gateway.json`. Ideal for team sharing, CI/CD pipelines, and embedding into your own tools.
 
 ## Multi-Agent Mode
 
 Enable sub-agent delegation and cron workflows:
 
 ```bash
-vibecoding --multi-agent
+mothx --multi-agent
 ```
 
 Sub-agent tools: `subagent_spawn`, `subagent_status`, `subagent_send`, `subagent_destroy`.
@@ -185,7 +185,7 @@ Sub-agent tools: `subagent_spawn`, `subagent_status`, `subagent_send`, `subagent
 For a single blocking investigation:
 
 ```bash
-vibecoding --delegate
+mothx --delegate
 ```
 
 ## Hermes / Messaging Mode
@@ -193,10 +193,10 @@ vibecoding --delegate
 Deploy MothX as a chatbot on WeChat, Feishu, or WebSocket:
 
 ```bash
-vibecoding hermes
+mothx hermes
 ```
 
-Config in `~/.vibecoding/hermes.json`. Each user gets an independent, persistent session.
+Config in `~/.mothx/hermes.json`. Each user gets an independent, persistent session.
 
 ## Keyboard Shortcuts
 
@@ -222,7 +222,7 @@ Other platforms (LoongArch64, RISC-V64, *BSD) are available via `npm install -g 
 ## Diagnostics
 
 ```bash
-vibecoding doctor
+mothx doctor
 ```
 
 Checks config files, API connections, sandbox, MCP servers, sessions, and skills.
@@ -230,10 +230,10 @@ Checks config files, API connections, sandbox, MCP servers, sessions, and skills
 ## Uninstall
 
 ```bash
-pip uninstall vibecoding-installer
+pip uninstall mothx-installer
 
 # or if you used pipx:
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 ```
 
 ## Links

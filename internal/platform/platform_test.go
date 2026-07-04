@@ -189,13 +189,21 @@ func TestHomeDir(t *testing.T) {
 }
 
 func TestConfigDir(t *testing.T) {
-	// Test with env var
-	os.Setenv("VIBECODING_DIR", "/tmp/test-vibecoding")
+	// Test with new env var
+	t.Setenv("MOTHX_DIR", "/tmp/test-mothx")
 	dir := ConfigDir()
+	if dir != "/tmp/test-mothx" {
+		t.Errorf("expected '/tmp/test-mothx', got '%s'", dir)
+	}
+
+	// Test legacy env var fallback
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "/tmp/test-vibecoding")
+	dir = ConfigDir()
 	if dir != "/tmp/test-vibecoding" {
 		t.Errorf("expected '/tmp/test-vibecoding', got '%s'", dir)
 	}
-	os.Unsetenv("VIBECODING_DIR")
+	t.Setenv("VIBECODING_DIR", "")
 
 	// Test default
 	dir = ConfigDir()
@@ -222,48 +230,48 @@ func TestConfigDirForOS(t *testing.T) {
 		{
 			name: "darwin defaults to home dot directory",
 			goos: "darwin",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name: "linux defaults to home dot directory",
 			goos: "linux",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name: "freebsd defaults to home dot directory",
 			goos: "freebsd",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name: "openbsd defaults to home dot directory",
 			goos: "openbsd",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name: "solaris defaults to home dot directory",
 			goos: "solaris",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name: "aix defaults to home dot directory",
 			goos: "aix",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name: "plan9 defaults to home dot directory",
 			goos: "plan9",
-			want: filepath.Join(home, ".vibecoding"),
+			want: filepath.Join(home, ".mothx"),
 		},
 		{
 			name:    "windows uses appdata when available",
 			goos:    "windows",
 			appData: appData,
-			want:    filepath.Join(appData, "vibecoding"),
+			want:    filepath.Join(appData, "mothx"),
 		},
 		{
 			name: "windows falls back to roaming appdata",
 			goos: "windows",
-			want: filepath.Join(home, "AppData", "Roaming", "vibecoding"),
+			want: filepath.Join(home, "AppData", "Roaming", "mothx"),
 		},
 	}
 

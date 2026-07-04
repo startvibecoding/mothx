@@ -86,7 +86,7 @@ type CronConfig struct {
 // MemoryConfig defines persistent memory settings.
 type MemoryConfig struct {
 	Enabled bool   `json:"enabled"`
-	Path    string `json:"path"` // empty = auto-discover .vibe/memory.md → <GLOBAL_DIR>/memory.md
+	Path    string `json:"path"` // empty = auto-discover .mothx/memory.md → <GLOBAL_DIR>/memory.md
 }
 
 // SecurityConfig defines security settings.
@@ -147,11 +147,11 @@ func HermesConfigPath() string {
 
 // ProjectHermesConfigPath returns the path to the project-level hermes.json.
 func ProjectHermesConfigPath() string {
-	return filepath.Join(".vibe", "hermes.json")
+	return config.ProjectPath("hermes.json")
 }
 
 // LoadHermesConfig loads the hermes configuration, merging global + project.
-// Priority: defaults → <GLOBAL_DIR>/hermes.json → .vibe/hermes.json
+// Priority: defaults → <GLOBAL_DIR>/hermes.json → .mothx/hermes.json
 func LoadHermesConfig() (*HermesConfig, error) {
 	cfg := DefaultHermesConfig()
 
@@ -239,7 +239,7 @@ func (c *HermesConfig) GetWechatCredPath() string {
 }
 
 // InitHermesConfig creates a hermes.json config template.
-// If project is true, writes to .vibe/hermes.json; otherwise <GLOBAL_DIR>/hermes.json.
+// If project is true, writes to .mothx/hermes.json; otherwise <GLOBAL_DIR>/hermes.json.
 func InitHermesConfig(project, force bool) (string, error) {
 	var path string
 	if project {

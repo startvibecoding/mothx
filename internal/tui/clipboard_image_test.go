@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -35,12 +34,12 @@ func (f *fakeFileOpener) Open(path string) error {
 func TestPasteImageCommandInsertsPathAndHintsPreview(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.cwd = t.TempDir()
-	absPath := filepath.Join(a.cwd, ".vibe", "tmp", "paste-1.png")
+	absPath := config.ProjectPathFor(a.cwd, "tmp", "paste-1.png")
 	a.clipboardImageSaver = fakeClipboardImageSaver{path: absPath, ok: true}
 
 	a.handleCommand("/paste-image")
 
-	if got := a.input.Value(); got != "Image Path : .vibe/tmp/paste-1.png" {
+	if got := a.input.Value(); got != "Image Path : .mothx/tmp/paste-1.png" {
 		t.Fatalf("input = %q, want pasted image path", got)
 	}
 	if a.lastPastedImagePath != absPath {
@@ -50,7 +49,7 @@ func TestPasteImageCommandInsertsPathAndHintsPreview(t *testing.T) {
 		t.Fatal("expected status message")
 	}
 	plain := stripANSI(a.messages[len(a.messages)-1])
-	if !strings.Contains(plain, "Image pasted: .vibe/tmp/paste-1.png") || !strings.Contains(plain, "Press Ctrl+R to preview.") {
+	if !strings.Contains(plain, "Image pasted: .mothx/tmp/paste-1.png") || !strings.Contains(plain, "Press Ctrl+R to preview.") {
 		t.Fatalf("status = %q, want paste path and Ctrl+R hint", plain)
 	}
 }

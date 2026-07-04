@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/mothx-installer"><img src="https://img.shields.io/npm/dm/mothx-installer.svg" alt="npm downloads"></a>
-  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/mothx-installer/"><img src="https://img.shields.io/pypi/v/mothx-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
   <a href="https://gitee.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
@@ -28,7 +28,7 @@
   <strong>国内镜像: <a href="https://gitee.com/startvibecoding/mothx">Gitee</a></strong>
 </p>
 
-> **Rename notice:** MothX was formerly known as VibeCoding. During this transition release, legacy entry points such as the `vibecoding` command, the `vibecoding-installer` npm package, and the existing `.vibecoding` configuration directory are kept for compatibility. New installs and future updates should use `mothx`.
+> **Rename notice:** MothX was formerly known as VibeCoding. During this transition release, legacy entry points such as the `vibecoding` command, the old installer package names, and `VIBECODING_*` environment variables are kept for compatibility. Legacy `.vibecoding` and `.vibe` directories are automatically migrated to `.mothx` when found.
 
 ---
 
@@ -67,7 +67,7 @@
 ```bash
 # Install (pick one)
 npm install -g mothx-installer               # npm (recommended)
-pipx install vibecoding-installer           # PyPI
+pipx install mothx-installer                # PyPI
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS/FreeBSD (GitHub)
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS/FreeBSD (Gitee 国内镜像)
 
@@ -92,7 +92,7 @@ npm uninstall -g mothx-installer
 npm uninstall -g vibecoding-installer
 
 # PyPI
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
@@ -259,18 +259,19 @@ mothx -P "Extract text from this image" --image document.jpg
 
 | Location | Platform | Scope |
 |----------|----------|-------|
-| `~/.vibecoding/settings.json` | Linux/macOS/FreeBSD | Global |
-| `%APPDATA%\vibecoding\settings.json` | Windows | Global |
-| `.vibe/settings.json` | All | Project (overrides global) |
+| `~/.mothx/settings.json` | Linux/macOS/FreeBSD | Global |
+| `%APPDATA%\mothx\settings.json` | Windows | Global |
+| `.mothx/settings.json` | All | Project (overrides global) |
 
-The `.vibecoding` config directory and `VIBECODING_*` environment variables are retained as compatibility interfaces for this rename.
+Existing `.vibecoding` and `.vibe` directories are automatically migrated to `.mothx` when the destination does not already exist. `VIBECODING_*` environment variables remain supported for compatibility; use `MOTHX_DIR` for new custom config directory overrides.
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `DEEPSEEK_API_KEY` | DeepSeek API key |
-| `VIBECODING_DIR` | Override config directory |
+| `MOTHX_DIR` | Override config directory |
+| `VIBECODING_DIR` | Override config directory (legacy compatibility) |
 | `VIBECODING_PROVIDER` | Override default provider |
 | `VIBECODING_MODEL` | Override default model |
 | `VIBECODING_MODE` | Override default mode |
@@ -280,11 +281,11 @@ The `.vibecoding` config directory and `VIBECODING_*` environment variables are 
 
 ### Gateway Configuration
 
-Gateway-specific config lives in `gateway.json` (global `~/.config/vibecoding/gateway.json`, project `.vibe/gateway.json`). See [Gateway Mode](docs/en/gateway.md) for details.
+Gateway-specific config lives in `gateway.json` (global `~/.mothx/gateway.json`, project `.mothx/gateway.json`). See [Gateway Mode](docs/en/gateway.md) for details.
 
 ### Hermes Configuration
 
-Hermes-specific config lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.vibe/hermes.json`). See [Hermes Mode](docs/en/hermes.md) for details.
+Hermes-specific config lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.mothx/hermes.json`). See [Hermes Mode](docs/en/hermes.md) for details.
 
 ---
 

@@ -770,8 +770,8 @@ func TestSaveAuthProviderReloadsEffectiveProjectOverride(t *testing.T) {
 	}
 	t.Setenv("VIBECODING_DIR", filepath.Join(tmpDir, "config"))
 
-	if err := os.MkdirAll(".vibe", 0700); err != nil {
-		t.Fatalf("mkdir .vibe: %v", err)
+	if err := os.MkdirAll(filepath.Dir(config.ProjectSettingsPath()), 0700); err != nil {
+		t.Fatalf("mkdir project config dir: %v", err)
 	}
 	projectSettings := []byte(`{
 		"providers": {

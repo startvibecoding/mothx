@@ -15,6 +15,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/mcp"
 	"github.com/startvibecoding/mothx/internal/platform"
 	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
+	"github.com/startvibecoding/mothx/internal/skills"
 )
 
 func newDoctorCommand() *cobra.Command {
@@ -156,7 +157,7 @@ func checkConfigFiles() section {
 		{"Gateway config (global)", gateway.GatewayConfigPath()},
 		{"Gateway config (project)", gateway.ProjectGatewayConfigPath()},
 		{"MCP config (global)", config.GlobalMCPPath()},
-		{"MCP config (project)", filepath.Join(".vibe", "mcp.json")},
+		{"MCP config (project)", config.ProjectMCPPath()},
 	}
 
 	for _, f := range files {
@@ -453,14 +454,15 @@ func checkSkills() section {
 
 	// Project-level skills
 	cwd, _ := os.Getwd()
-	projSkills := filepath.Join(cwd, ".vibe", "skills")
-	if info, err := os.Stat(projSkills); err == nil && info.IsDir() {
-		entries, _ := os.ReadDir(projSkills)
-		s.Checks = append(s.Checks, checkResult{
-			Name:   "Project skills dir",
-			Status: "ok",
-			Detail: fmt.Sprintf("%s (%d entries)", projSkills, len(entries)),
-		})
+	for _, projSkills := range skills.ProjectSkillDirs(cwd) {
+		if info, err := os.Stat(projSkills); err == nil && info.IsDir() {
+			entries, _ := os.ReadDir(projSkills)
+			s.Checks = append(s.Checks, checkResult{
+				Name:   "Project skills dir",
+				Status: "ok",
+				Detail: fmt.Sprintf("%s (%d entries)", projSkills, len(entries)),
+			})
+		}
 	}
 
 	return s

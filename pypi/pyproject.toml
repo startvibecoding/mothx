@@ -3,13 +3,13 @@ requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vibecoding-installer"
-version = "1.1.56"
+name = "mothx-installer"
+version = "1.1.58"
 description = "AI coding assistant for the terminal"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
-authors = [{ name = "VibeCoding" }]
+authors = [{ name = "MothX" }]
 keywords = ["ai", "coding", "assistant", "terminal", "cli", "llm"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -30,7 +30,8 @@ Repository = "https://github.com/startvibecoding/mothx"
 Documentation = "https://github.com/startvibecoding/mothx/tree/main/docs"
 
 [project.scripts]
-vibecoding = "vibecoding_installer.cli:main"
+mothx = "mothx_installer.cli:main"
+vibecoding = "mothx_installer.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -39,4 +40,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-vibecoding_installer = ["bin/vibecoding", "bin/vibecoding.exe"]
+mothx_installer = ["bin/mothx", "bin/mothx.exe", "bin/vibecoding", "bin/vibecoding.exe"]

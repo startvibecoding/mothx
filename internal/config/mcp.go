@@ -38,7 +38,7 @@ func GlobalMCPPath() string {
 
 // ProjectMCPPath returns the project-local mcp.json path.
 func ProjectMCPPath() string {
-	return filepath.Join(".vibe", "mcp.json")
+	return ProjectPath("mcp.json")
 }
 
 // LoadMCPConfig reads and parses mcp.json from path.

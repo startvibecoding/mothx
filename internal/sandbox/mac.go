@@ -138,6 +138,7 @@ func (s *macSandbox) buildProfile(opts ExecOpts) string {
 		allowedPaths = append(allowedPaths,
 			filepath.Join(homeDir, ".config"),
 			filepath.Join(homeDir, ".cache"),
+			filepath.Join(homeDir, ".mothx"),
 			filepath.Join(homeDir, ".vibecoding"),
 		)
 	}

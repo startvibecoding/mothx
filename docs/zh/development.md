@@ -445,7 +445,7 @@ make pypi-publish-pre
 用户可以通过 PyPI 安装:
 
 ```bash
-pipx install vibecoding-installer
+pipx install mothx-installer
 ```
 
 ## 常见问题

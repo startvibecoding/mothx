@@ -95,7 +95,7 @@ type Config struct {
 	Allow              *config.AllowConfig // auto-approval (allow.json): autoEdit, editPaths, bash rules
 	Session            *session.Manager
 	ExtraContext       string // extra context from files and skills
-	RuleContent        string // content of .vibe/rule.md (project rules)
+	RuleContent        string // content of .mothx/rule.md (project rules)
 	CompactionSettings ctxpkg.CompactionSettings
 	ApprovalHandler    func(toolCallID, toolName string, args map[string]any) bool
 	MultiAgent         bool // Decision 8: multi-agent mode

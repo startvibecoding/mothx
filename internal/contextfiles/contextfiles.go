@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // Well-known context file names used by various AI coding tools.
@@ -32,7 +34,7 @@ var wellKnownFiles = []string{
 
 // LoadResult contains the loaded context files.
 type LoadResult struct {
-	GlobalFiles  []FileContent // files from ~/.vibecoding/
+	GlobalFiles  []FileContent // files from ~/.mothx/
 	ParentFiles  []FileContent // files from parent directories
 	ProjectFiles []FileContent // files from current directory
 }
@@ -110,7 +112,7 @@ func LoadContextFiles(cwd string, globalConfigDir string, extraFiles []string) *
 		dir = parent
 	}
 
-	// 3. Load from global config directory (~/.vibecoding/)
+	// 3. Load from global config directory (~/.mothx/)
 	// Only the first matching file is loaded
 	if globalConfigDir != "" {
 		for _, name := range uniqueNames {
@@ -146,7 +148,7 @@ func safeContextFilePath(baseDir, name string) (string, bool) {
 }
 
 // RuleFile is the path to the project-level rule file relative to the working directory.
-const RuleFile = ".vibe/rule.md"
+const RuleFile = config.ProjectDirName + "/rule.md"
 
 // DefaultRuleContent is the default restrictive project rule template written by /rule.
 const DefaultRuleContent = `# Project Rules
@@ -171,7 +173,7 @@ const DefaultRuleContent = `# Project Rules
 - Ask before proceeding when requirements are ambiguous or an action could risk data, secrets, or external state.
 `
 
-// LoadRuleFile loads .vibe/rule.md from the given working directory.
+// LoadRuleFile loads .mothx/rule.md from the given working directory.
 // Missing or unreadable files are ignored.
 func LoadRuleFile(cwd string) string {
 	path := RuleFilePath(cwd)
@@ -184,10 +186,10 @@ func LoadRuleFile(cwd string) string {
 
 // RuleFilePath returns the rule file path for cwd.
 func RuleFilePath(cwd string) string {
-	return filepath.Join(cwd, RuleFile)
+	return config.ProjectPathFor(cwd, "rule.md")
 }
 
-// EnsureRuleFile creates .vibe/rule.md with DefaultRuleContent.
+// EnsureRuleFile creates .mothx/rule.md with DefaultRuleContent.
 // Existing files are preserved unless overwrite is true.
 func EnsureRuleFile(cwd string, overwrite bool) (path string, content string, written bool, err error) {
 	path = RuleFilePath(cwd)

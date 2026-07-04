@@ -15,7 +15,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
-  <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/mothx-installer/"><img src="https://img.shields.io/pypi/v/mothx-installer.svg" alt="PyPI version"></a>
   <a href="https://gitee.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://goreportcard.com/report/github.com/startvibecoding/mothx"><img src="https://goreportcard.com/badge/github.com/startvibecoding/mothx" alt="Go Report Card"></a>
@@ -26,7 +26,7 @@
   <strong>GitHub: <a href="https://github.com/startvibecoding/mothx">海外用户</a></strong>
 </p>
 
-> **改名说明：** MothX 原名 VibeCoding。本过渡版本仍保留 `vibecoding` 命令、`vibecoding-installer` 包以及 `.vibecoding` 配置目录作为兼容入口；新安装和后续更新请使用 `mothx`。
+> **改名说明：** MothX 原名 VibeCoding。本过渡版本仍保留 `vibecoding` 命令、旧安装包名以及 `VIBECODING_*` 环境变量作为兼容入口；发现旧 `.vibecoding` 和 `.vibe` 目录时会自动迁移到 `.mothx`。
 
 ---
 
@@ -64,7 +64,7 @@
 # 安装（任选其一）
 npm install -g mothx-installer               # npm（推荐）
 npm install -g vibecoding-installer          # 兼容包，本过渡版本保留
-pipx install vibecoding-installer           # PyPI
+pipx install mothx-installer               # PyPI
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS
 
 # 设置 API 密钥
@@ -84,7 +84,7 @@ npm uninstall -g mothx-installer
 npm uninstall -g vibecoding-installer        # 如果曾安装旧兼容包
 
 # PyPI
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 
 # Linux/macOS（一键安装）
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall

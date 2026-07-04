@@ -9,7 +9,7 @@ import (
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
-// ruleContent is the content of .vibe/rule.md (project rules), inserted after
+// ruleContent is the content of .mothx/rule.md (project rules), inserted after
 // the built-in sections but before extraContext (skills + context files like AGENTS.md).
 func BuildSystemPrompt(mode string, toolNames []string, cwd string, ruleContent string, extraContext string, toolSnippets map[string]string, toolGuidelines []string, multiAgent bool, delegateMode bool, workflows bool) string {
 	var sb strings.Builder

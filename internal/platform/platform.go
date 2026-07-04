@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+const (
+	appDirName       = "mothx"
+	legacyAppDirName = "vibecoding"
+)
+
 // ──────────────────────────────────────────────────────────────────────────────
 // OS detection
 // ──────────────────────────────────────────────────────────────────────────────
@@ -163,6 +168,9 @@ func HomeDir() string {
 
 // ConfigDir returns the platform-specific configuration directory.
 func ConfigDir() string {
+	if dir := os.Getenv("MOTHX_DIR"); dir != "" {
+		return dir
+	}
 	if dir := os.Getenv("VIBECODING_DIR"); dir != "" {
 		return dir
 	}
@@ -174,11 +182,33 @@ func configDirForOS(goos, home, appData string) string {
 	switch goos {
 	case "windows":
 		if appData != "" {
-			return filepath.Join(appData, "vibecoding")
+			return filepath.Join(appData, appDirName)
 		}
-		return filepath.Join(home, "AppData", "Roaming", "vibecoding")
+		return filepath.Join(home, "AppData", "Roaming", appDirName)
 	default: // unix-like and others
-		return filepath.Join(home, ".vibecoding")
+		return filepath.Join(home, "."+appDirName)
+	}
+}
+
+// ConfigDirOverridden reports whether the user selected a custom config dir.
+func ConfigDirOverridden() bool {
+	return os.Getenv("MOTHX_DIR") != "" || os.Getenv("VIBECODING_DIR") != ""
+}
+
+// LegacyConfigDir returns the pre-MothX default global configuration directory.
+func LegacyConfigDir() string {
+	return legacyConfigDirForOS(runtime.GOOS, HomeDir(), os.Getenv("APPDATA"))
+}
+
+func legacyConfigDirForOS(goos, home, appData string) string {
+	switch goos {
+	case "windows":
+		if appData != "" {
+			return filepath.Join(appData, legacyAppDirName)
+		}
+		return filepath.Join(home, "AppData", "Roaming", legacyAppDirName)
+	default:
+		return filepath.Join(home, "."+legacyAppDirName)
 	}
 }
 
@@ -193,17 +223,17 @@ func CacheDir() string {
 	case "windows":
 		localAppData := os.Getenv("LOCALAPPDATA")
 		if localAppData != "" {
-			return filepath.Join(localAppData, "vibecoding", "cache")
+			return filepath.Join(localAppData, appDirName, "cache")
 		}
-		return filepath.Join(HomeDir(), "AppData", "Local", "vibecoding", "cache")
+		return filepath.Join(HomeDir(), "AppData", "Local", appDirName, "cache")
 	case "darwin":
-		return filepath.Join(HomeDir(), "Library", "Caches", "vibecoding")
+		return filepath.Join(HomeDir(), "Library", "Caches", appDirName)
 	default: // linux, BSD, Solaris, illumos, AIX, and others
 		cacheHome := os.Getenv("XDG_CACHE_HOME")
 		if cacheHome != "" {
-			return filepath.Join(cacheHome, "vibecoding")
+			return filepath.Join(cacheHome, appDirName)
 		}
-		return filepath.Join(HomeDir(), ".cache", "vibecoding")
+		return filepath.Join(HomeDir(), ".cache", appDirName)
 	}
 }
 

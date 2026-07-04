@@ -21,13 +21,13 @@ npm install -g mothx
 ### 方法二: PyPI 安装
 
 ```bash
-pipx install vibecoding-installer
+pipx install mothx-installer
 ```
 
 不使用 pipx 时也可以安装到用户目录：
 
 ```bash
-python -m pip install --user vibecoding-installer
+python -m pip install --user mothx-installer
 ```
 
 这会安装适合当前平台的 wheel 包。
@@ -63,7 +63,7 @@ $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvi
 npm uninstall -g mothx
 
 # PyPI
-pipx uninstall vibecoding-installer
+pipx uninstall mothx-installer
 
 # Linux/macOS
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall

@@ -800,7 +800,7 @@ func GlobalSettingsPath() string {
 }
 
 func ProjectSettingsPath() string {
-	return filepath.Join(".vibe", "settings.json")
+	return ProjectPath("settings.json")
 }
 
 func LoadSettings() (*Settings, error) {
@@ -817,6 +817,8 @@ type LoadMeta struct {
 // LoadSettingsWithMeta loads settings and reports whether the global settings
 // file was created during this call. The loaded schema is the same as LoadSettings.
 func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
+	AutoMigrateLegacyDirs(".")
+
 	s := DefaultSettings()
 	meta := LoadMeta{GlobalSettingsPath: GlobalSettingsPath()}
 
@@ -859,9 +861,9 @@ func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
 		fmt.Fprintf(os.Stderr, "Warning: could not read project settings %s: %v\n", projectPath, err)
 	} else if Verbose {
 		fmt.Fprintf(os.Stderr, "[config] Project settings not found: %s\n", projectPath)
-		// Detect common typo: .vibe/setting.json (singular)
-		if _, err2 := os.Stat(".vibe/setting.json"); err2 == nil {
-			fmt.Fprintf(os.Stderr, "[config] Found .vibe/setting.json (singular) — expected .vibe/settings.json (plural). Please rename the file.\n")
+		// Detect common typo: .mothx/setting.json (singular)
+		if _, err2 := os.Stat(ProjectPath("setting.json")); err2 == nil {
+			fmt.Fprintf(os.Stderr, "[config] Found %s (singular) — expected %s (plural). Please rename the file.\n", ProjectPath("setting.json"), projectPath)
 		}
 	}
 
@@ -1037,7 +1039,7 @@ func writeGlobalSettingsData(data []byte) error {
 	return nil
 }
 
-// SaveProjectSettings writes .vibe/settings.json atomically with private permissions.
+// SaveProjectSettings writes .mothx/settings.json atomically with private permissions.
 func SaveProjectSettings(s *Settings) error {
 	if s == nil {
 		return fmt.Errorf("settings is nil")

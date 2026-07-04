@@ -40,7 +40,7 @@ const defaultTemplate = `# Agent Memory
 `
 
 // Resolve finds the memory.md file to use.
-// Priority: explicit path → .vibe/memory.md → <GLOBAL_DIR>/memory.md
+// Priority: explicit path → .mothx/memory.md → <GLOBAL_DIR>/memory.md
 // Returns (path, source, error). source is "explicit", "project", "global", or "".
 func (s *Store) Resolve() (path string, source string, err error) {
 	s.mu.Lock()
@@ -58,8 +58,11 @@ func (s *Store) resolveNoLock() (path string, source string, err error) {
 		return s.explicitPath, "explicit", nil
 	}
 
-	// 2. Project-level: .vibe/memory.md
-	projectPath := filepath.Join(".vibe", "memory.md")
+	// 2. Project-level: .mothx/memory.md
+	projectPath := config.ProjectPath("memory.md")
+	if s.workDir != "" {
+		projectPath = config.ProjectPathFor(s.workDir, "memory.md")
+	}
 	if _, err := os.Stat(projectPath); err == nil {
 		return projectPath, "project", nil
 	}
@@ -205,17 +208,17 @@ func (s *Store) WriteAll(content string) error {
 // --- Helpers ---
 
 // defaultWritePath determines where to create a new memory.md.
-// Default: project-level (.vibe/memory.md). Only uses global if explicitly configured.
+// Default: project-level (.mothx/memory.md). Only uses global if explicitly configured.
 func (s *Store) defaultWritePath() string {
 	if s.explicitPath != "" {
 		return s.explicitPath
 	}
-	// Default to project-level: workDir/.vibe/memory.md
+	// Default to project-level: workDir/.mothx/memory.md
 	if s.workDir != "" {
-		return filepath.Join(s.workDir, ".vibe", "memory.md")
+		return config.ProjectPathFor(s.workDir, "memory.md")
 	}
-	// Fallback: cwd/.vibe/memory.md
-	return filepath.Join(".vibe", "memory.md")
+	// Fallback: cwd/.mothx/memory.md
+	return config.ProjectPath("memory.md")
 }
 
 func replaceInSection(content, section, oldText, newText string) (string, bool) {

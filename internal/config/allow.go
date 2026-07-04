@@ -37,7 +37,7 @@ func GlobalAllowPath() string {
 
 // ProjectAllowPath returns the project-level allow.json path.
 func ProjectAllowPath() string {
-	return filepath.Join(".vibe", "allow.json")
+	return ProjectPath("allow.json")
 }
 
 // LoadAllow loads allow configuration with global->project override semantics.
@@ -254,7 +254,7 @@ func (c *AllowConfig) MatchEditPath(path string) bool {
 
 // SaveProject persists the project config. The project autoEdit key is written
 // only when it was explicitly set at project scope; inherited global state is
-// never copied into .vibe/allow.json as a side effect of editing path rules.
+// never copied into .mothx/allow.json as a side effect of editing path rules.
 func (c *AllowConfig) SaveProject() error {
 	c.mu.RLock()
 	autoEdit := c.AutoEdit

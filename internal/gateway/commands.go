@@ -682,7 +682,7 @@ func (s *Server) cmdHelp() *CommandResult {
   /status                 - Show session status
   /skill <name>           - Activate a skill
   /skills                 - List available skills
-  /rule [force]           - Create .vibe/rule.md with safe default project rules
+  /rule [force]           - Create ` + contextfiles.RuleFile + ` with safe default project rules
   /help                   - Show this help`
 	return &CommandResult{Message: help}
 }

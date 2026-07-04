@@ -728,7 +728,7 @@ func TestBashToolWindowsBusyboxCommandUsesShC(t *testing.T) {
 	r := NewRegistry("/tmp", sb)
 	tool := NewBashTool(r)
 
-	cmd, runtimeLabel := tool.buildWindowsCommand(context.Background(), sb, "C:/Users/test/.vibecoding/bin/busybox64u.exe", "echo hello", "/tmp", os.Environ(), 120*time.Second)
+	cmd, runtimeLabel := tool.buildWindowsCommand(context.Background(), sb, "C:/Users/test/.mothx/bin/busybox64u.exe", "echo hello", "/tmp", os.Environ(), 120*time.Second)
 	if runtimeLabel != "busybox" {
 		t.Fatalf("expected runtime label busybox, got %q", runtimeLabel)
 	}

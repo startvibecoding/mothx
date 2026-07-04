@@ -28,9 +28,9 @@ func AgentListConfigPath() string {
 	return filepath.Join(config.ConfigDir(), "a2a-list.json")
 }
 
-// ProjectAgentListConfigPath returns the path to the project-level .vibe/a2a-list.json.
+// ProjectAgentListConfigPath returns the path to the project-level .mothx/a2a-list.json.
 func ProjectAgentListConfigPath() string {
-	return filepath.Join(".vibe", "a2a-list.json")
+	return config.ProjectPath("a2a-list.json")
 }
 
 // LoadAgentList loads a2a-list.json from the given path.

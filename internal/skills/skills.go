@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/startvibecoding/mothx/internal/config"
 )
 
 // SkillReference represents a reference file within a skill.
@@ -32,7 +34,7 @@ type Skill struct {
 
 // Manager manages skill discovery and loading.
 type Manager struct {
-	globalDir   string   // ~/.vibecoding/skills
+	globalDir   string   // ~/.mothx/skills
 	projectDir  string   // highest-priority project skills dir
 	projectDirs []string // project skills dirs, highest priority first
 	skills      map[string]*Skill
@@ -71,6 +73,7 @@ func ProjectSkillDirs(projectRoot string) []string {
 		return nil
 	}
 	return []string{
+		config.ProjectPathFor(projectRoot, "skills"),
 		filepath.Join(projectRoot, ".skills"),
 		filepath.Join(projectRoot, "skills"),
 	}

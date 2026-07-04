@@ -323,8 +323,8 @@ func TestResolveProviderConfigPreservesFieldPresenceAcrossGlobalAndProject(t *te
 	}`), 0600); err != nil {
 		t.Fatalf("write global settings: %v", err)
 	}
-	if err := os.MkdirAll(".vibe", 0700); err != nil {
-		t.Fatalf("mkdir .vibe: %v", err)
+	if err := os.MkdirAll(filepath.Dir(ProjectSettingsPath()), 0700); err != nil {
+		t.Fatalf("mkdir project config dir: %v", err)
 	}
 	if err := os.WriteFile(ProjectSettingsPath(), []byte(`{
 		"providers": {
@@ -349,12 +349,13 @@ func TestResolveProviderConfigPreservesFieldPresenceAcrossGlobalAndProject(t *te
 
 func TestConfigDir(t *testing.T) {
 	// Test with env var
-	os.Setenv("VIBECODING_DIR", "/tmp/test-vibecoding")
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "/tmp/test-vibecoding")
 	dir := ConfigDir()
 	if dir != "/tmp/test-vibecoding" {
 		t.Errorf("expected '/tmp/test-vibecoding', got '%s'", dir)
 	}
-	os.Unsetenv("VIBECODING_DIR")
+	t.Setenv("VIBECODING_DIR", "")
 
 	// Test default
 	dir = ConfigDir()
@@ -375,9 +376,19 @@ func TestGlobalSettingsPath(t *testing.T) {
 }
 
 func TestProjectSettingsPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
 	path := ProjectSettingsPath()
-	if path != ".vibe/settings.json" {
-		t.Errorf("expected '.vibe/settings.json', got '%s'", path)
+	if path != filepath.Join(ProjectDirName, "settings.json") {
+		t.Errorf("expected '%s/settings.json', got '%s'", ProjectDirName, path)
 	}
 }
 
@@ -465,8 +476,8 @@ func TestLoadSettingsAppliesProjectOverridesAndEnv(t *testing.T) {
 		_ = os.Unsetenv("VIBECODING_THINKING")
 	}()
 
-	if err := os.MkdirAll(".vibe", 0700); err != nil {
-		t.Fatalf("mkdir .vibe: %v", err)
+	if err := os.MkdirAll(filepath.Dir(ProjectSettingsPath()), 0700); err != nil {
+		t.Fatalf("mkdir project config dir: %v", err)
 	}
 	projectSettings := `{
 		"sessionDir": "./sessions",
