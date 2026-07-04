@@ -15,7 +15,7 @@ import (
 func TestBrowserCommandOnCreatesSkillAndRegistersTool(t *testing.T) {
 	tmpDir := t.TempDir()
 	registry := tools.NewRegistry(tmpDir, nil)
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, registry, "", "", nil, "agent", false, false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, registry, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	app.cwd = tmpDir
 
 	app.handleCommand("/browser on")
@@ -50,7 +50,7 @@ func TestBrowserCommandPreservesExistingSkillAndOffRemovesTool(t *testing.T) {
 	}
 
 	registry := tools.NewRegistry(tmpDir, nil)
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, registry, "", "", nil, "agent", false, false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, registry, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	app.cwd = tmpDir
 
 	app.handleCommand("/browser on")

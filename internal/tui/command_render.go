@@ -63,6 +63,7 @@ func commandHelpText() string {
 		"  /allowautoedit [on|off] [global] - Full auto-edit in agent mode (only bash needs approval)",
 		"  /btw <question>          - Ask a side question; inherits context, answer not saved",
 		"  /systeminit [guidance]   - Generate/refresh AGENTS.md (asks first; e.g. /systeminit ask me in Chinese, write in English)",
+		"  /rule [force]            - Create .vibe/rule.md with safe default project rules",
 		"  /reload                  - Restart as a fresh process with a new session",
 		"  /workflows [list|show <id>|cancel <id>] - Inspect workflow runs",
 		"  /agent list              - List all agents (multi-agent mode)",

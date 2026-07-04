@@ -354,6 +354,7 @@ func run(args []string, opts runOptions) error {
 	}
 
 	contextFiles := loadContextFiles(cwd, settings)
+	ruleContent := contextfiles.LoadRuleFile(cwd)
 	selection := resolveProviderSelection(settings, opts)
 	args, opts, selection = applySystemInit(args, opts, selection)
 
@@ -384,7 +385,7 @@ func run(args []string, opts runOptions) error {
 	defer mcpCleanup()
 
 	extraContext := contextFiles.context + skillSetup.context
-	runtime, err := setupAgentRuntime(p, model, settings, opts, registry, sbMgr, extraContext, skillSetup.manager)
+	runtime, err := setupAgentRuntime(p, model, settings, opts, registry, sbMgr, extraContext, ruleContent, skillSetup.manager)
 	if err != nil {
 		return err
 	}
@@ -394,7 +395,7 @@ func run(args []string, opts runOptions) error {
 		startUpdateCheck(settings, func(notice string) {
 			fmt.Fprintln(os.Stderr, notice)
 		})
-		return runPrint(args, p, model, selection.mode, provider.ThinkingLevel(selection.thinkingLevel), settings, registry, sessionSetup.manager, extraContext, opts.multiAgent, opts.delegate, opts.workflows, runtime.agentManager)
+		return runPrint(args, p, model, selection.mode, provider.ThinkingLevel(selection.thinkingLevel), settings, registry, sessionSetup.manager, extraContext, ruleContent, opts.multiAgent, opts.delegate, opts.workflows, runtime.agentManager)
 	}
 
 	return runInteractive(runInteractiveConfig{
@@ -408,6 +409,7 @@ func run(args []string, opts runOptions) error {
 		registry:         registry,
 		sandboxInfo:      sbInfo,
 		extraContext:     extraContext,
+		ruleContent:      ruleContent,
 		contextFilesInfo: contextFiles.info,
 		skillsManager:    skillSetup.manager,
 		mode:             selection.mode,
@@ -691,9 +693,9 @@ func registerA2AMasterTool(registry *tools.Registry, opts runOptions) error {
 	return nil
 }
 
-func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, skillsMgr *skills.Manager) (runtimeSetup, error) {
+func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, ruleContent string, skillsMgr *skills.Manager) (runtimeSetup, error) {
 	allow := config.LoadAllow()
-	factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, skillsMgr, compactionSettingsFromConfig(settings), nil, agent.AgentFactoryOptions{
+	factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, ruleContent, skillsMgr, compactionSettingsFromConfig(settings), nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
 		DelegateEnabled:   opts.delegate,
 		WorkflowsEnabled:  opts.workflows,
@@ -769,6 +771,7 @@ type runInteractiveConfig struct {
 	registry         *tools.Registry
 	sandboxInfo      string
 	extraContext     string
+	ruleContent      string
 	contextFilesInfo string
 	skillsManager    *skills.Manager
 	mode             string
@@ -788,6 +791,7 @@ func runInteractive(cfg runInteractiveConfig) error {
 		cfg.registry,
 		cfg.sandboxInfo,
 		cfg.extraContext,
+		cfg.ruleContent,
 		cfg.skillsManager,
 		cfg.mode,
 		cfg.opts.multiAgent,

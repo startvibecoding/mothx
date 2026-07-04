@@ -22,6 +22,7 @@ type AgentFactory struct {
 	allow              *config.AllowConfig
 	sandboxMgr         *sandbox.Manager
 	extraContext       string
+	ruleContent        string
 	skillsMgr          *skills.Manager
 	compactionSettings ctxpkg.CompactionSettings
 	approvalHandler    func(toolCallID, toolName string, args map[string]any) bool
@@ -37,11 +38,12 @@ func NewAgentFactory(
 	settings *config.Settings,
 	sandboxMgr *sandbox.Manager,
 	extraContext string,
+	ruleContent string,
 	skillsMgr *skills.Manager,
 	compactionSettings ctxpkg.CompactionSettings,
 	approvalHandler func(toolCallID, toolName string, args map[string]any) bool,
 ) *AgentFactory {
-	return NewAgentFactoryWithOptions(provider, model, settings, sandboxMgr, extraContext, skillsMgr, compactionSettings, approvalHandler, AgentFactoryOptions{
+	return NewAgentFactoryWithOptions(provider, model, settings, sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, approvalHandler, AgentFactoryOptions{
 		MultiAgentEnabled: true,
 	})
 }
@@ -61,6 +63,7 @@ func NewAgentFactoryWithOptions(
 	settings *config.Settings,
 	sandboxMgr *sandbox.Manager,
 	extraContext string,
+	ruleContent string,
 	skillsMgr *skills.Manager,
 	compactionSettings ctxpkg.CompactionSettings,
 	approvalHandler func(toolCallID, toolName string, args map[string]any) bool,
@@ -77,6 +80,7 @@ func NewAgentFactoryWithOptions(
 		allow:              allow,
 		sandboxMgr:         sandboxMgr,
 		extraContext:       extraContext,
+		ruleContent:        ruleContent,
 		skillsMgr:          skillsMgr,
 		compactionSettings: compactionSettings,
 		approvalHandler:    approvalHandler,
@@ -204,6 +208,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		Allow:              f.allow,
 		Session:            sess,
 		ExtraContext:       extraContext,
+		RuleContent:        f.ruleContent,
 		CompactionSettings: f.compactionSettings,
 		ApprovalHandler: func() func(toolCallID, toolName string, args map[string]any) bool {
 			if opts.ApprovalHandler != nil {

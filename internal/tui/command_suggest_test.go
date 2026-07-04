@@ -8,7 +8,7 @@ import (
 )
 
 func TestCommandSuggestionsForSlash(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/au")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -23,7 +23,7 @@ func TestCommandSuggestionsForSlash(t *testing.T) {
 }
 
 func TestCommandSuggestionsForBareSlash(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -39,7 +39,7 @@ func TestCommandSuggestionsForBareSlash(t *testing.T) {
 }
 
 func TestCommandSuggestionsHiddenAfterSpace(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mode ")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -48,7 +48,7 @@ func TestCommandSuggestionsHiddenAfterSpace(t *testing.T) {
 }
 
 func TestCommandSuggestionContinuesToArgumentSuggestions(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mo")
 	a.updateCommandSuggestions()
 	if !a.applySelectedCommandSuggestion() {
@@ -70,7 +70,7 @@ func TestCommandSuggestionContinuesToArgumentSuggestions(t *testing.T) {
 }
 
 func TestEnterSubmitsExactCommandSuggestion(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/clear")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -91,7 +91,7 @@ func TestEnterSubmitsExactCommandSuggestion(t *testing.T) {
 }
 
 func TestCommandSuggestionEnterFlushesQueuedInputBeforeApplying(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mo")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -110,7 +110,7 @@ func TestCommandSuggestionEnterFlushesQueuedInputBeforeApplying(t *testing.T) {
 }
 
 func TestCommandArgumentSuggestionForMode(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mode a")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -125,7 +125,7 @@ func TestCommandArgumentSuggestionForMode(t *testing.T) {
 }
 
 func TestCommandArgumentSuggestionForStats(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/stats s")
 	a.updateCommandSuggestions()
 	if !a.commandSuggestionsVisible() {
@@ -140,7 +140,7 @@ func TestCommandArgumentSuggestionForStats(t *testing.T) {
 }
 
 func TestTabCompletesCommandArgumentInsteadOfCyclingMode(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/mode ")
 	a.updateCommandSuggestions()
 
@@ -155,7 +155,7 @@ func TestTabCompletesCommandArgumentInsteadOfCyclingMode(t *testing.T) {
 }
 
 func TestTabInSlashCommandWithoutArgumentSuggestionDoesNotCycleMode(t *testing.T) {
-	a := NewApp(nil, nil, nil, nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, nil, nil, nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input = a.input.SetValue("/skill ")
 	a.updateCommandSuggestions()
 

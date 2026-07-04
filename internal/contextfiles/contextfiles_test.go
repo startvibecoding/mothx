@@ -104,6 +104,92 @@ func TestExtraFilesCannotEscapeBaseDir(t *testing.T) {
 	}
 }
 
+func TestLoadRuleFileMissingDoesNotCreateFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if got := LoadRuleFile(tmpDir); got != "" {
+		t.Fatalf("LoadRuleFile() = %q, want empty string", got)
+	}
+
+	rulePath := filepath.Join(tmpDir, RuleFile)
+	if _, err := os.Stat(rulePath); !os.IsNotExist(err) {
+		t.Fatalf("LoadRuleFile created %s, stat err = %v", rulePath, err)
+	}
+}
+
+func TestLoadRuleFileReadsProjectRule(t *testing.T) {
+	tmpDir := t.TempDir()
+	rulePath := filepath.Join(tmpDir, RuleFile)
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
+		t.Fatalf("mkdir rule dir: %v", err)
+	}
+	if err := os.WriteFile(rulePath, []byte("follow local rules\n"), 0644); err != nil {
+		t.Fatalf("write rule file: %v", err)
+	}
+
+	if got := LoadRuleFile(tmpDir); got != "follow local rules\n" {
+		t.Fatalf("LoadRuleFile() = %q", got)
+	}
+}
+
+func TestEnsureRuleFileCreatesDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	path, content, written, err := EnsureRuleFile(tmpDir, false)
+	if err != nil {
+		t.Fatalf("EnsureRuleFile() error = %v", err)
+	}
+	if !written {
+		t.Fatal("EnsureRuleFile() did not report written")
+	}
+	if path != filepath.Join(tmpDir, RuleFile) {
+		t.Fatalf("path = %q", path)
+	}
+	if content != DefaultRuleContent {
+		t.Fatal("content != DefaultRuleContent")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read created rule: %v", err)
+	}
+	if string(data) != DefaultRuleContent {
+		t.Fatal("created rule content mismatch")
+	}
+}
+
+func TestEnsureRuleFilePreservesExistingUnlessForced(t *testing.T) {
+	tmpDir := t.TempDir()
+	rulePath := filepath.Join(tmpDir, RuleFile)
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
+		t.Fatalf("mkdir rule dir: %v", err)
+	}
+	if err := os.WriteFile(rulePath, []byte("custom rule"), 0644); err != nil {
+		t.Fatalf("write rule file: %v", err)
+	}
+
+	_, content, written, err := EnsureRuleFile(tmpDir, false)
+	if err != nil {
+		t.Fatalf("EnsureRuleFile() error = %v", err)
+	}
+	if written {
+		t.Fatal("EnsureRuleFile() overwrote without force")
+	}
+	if content != "custom rule" {
+		t.Fatalf("content = %q", content)
+	}
+
+	_, content, written, err = EnsureRuleFile(tmpDir, true)
+	if err != nil {
+		t.Fatalf("EnsureRuleFile(force) error = %v", err)
+	}
+	if !written {
+		t.Fatal("EnsureRuleFile(force) did not report written")
+	}
+	if content != DefaultRuleContent {
+		t.Fatal("forced content != DefaultRuleContent")
+	}
+}
+
 func TestParentFiles(t *testing.T) {
 	// Create nested directory structure
 	tmpDir := t.TempDir()

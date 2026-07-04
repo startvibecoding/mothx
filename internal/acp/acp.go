@@ -65,6 +65,7 @@ type server struct {
 	sbMgr         *sandbox.Manager
 	skillsMgr     *skills.Manager
 	extraContext  string
+	ruleContent   string
 	contextFiles  string
 
 	multiAgent bool
@@ -332,6 +333,7 @@ func Run(opts RunOptions) error {
 	if ctx := contextfiles.BuildContextString(cfResult); ctx != "" {
 		srv.extraContext = ctx
 	}
+	srv.ruleContent = contextfiles.LoadRuleFile(cwd)
 	srv.extraContext += skillsMgr.BuildAllSkillsContext()
 	if opts.Workflows {
 		srv.extraContext += skillsMgr.BuildSkillContext(workflow.SkillName)
@@ -357,7 +359,7 @@ func Run(opts RunOptions) error {
 			compactionSettings.KeepRecentTokens = 20000
 		}
 
-		srv.factory = agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, srv.extraContext, nil, compactionSettings, nil, agent.AgentFactoryOptions{
+		srv.factory = agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, srv.extraContext, srv.ruleContent, nil, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			DelegateEnabled:   opts.Delegate,
 			WorkflowsEnabled:  opts.Workflows,
@@ -615,6 +617,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			Allow:         s.allow,
 			Session:       rt.mgr,
 			ExtraContext:  s.extraContext,
+			RuleContent:   s.ruleContent,
 			CompactionSettings: ctxpkg.CompactionSettings{
 				Enabled:          s.settings.Compaction.Enabled,
 				ReserveTokens:    s.settings.Compaction.ReserveTokens,

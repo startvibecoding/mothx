@@ -11,6 +11,7 @@ import (
 
 	"github.com/startvibecoding/mothx/internal/agent"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -127,6 +128,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if extraContext == "" {
 		extraContext = s.extraContext
 	}
+	ruleContent := sess.RuleContent
 	if s.cfg.SystemPromptMode == "append" && len(systemMsgs) > 0 {
 		extraContext += "\n## Client Instructions\n" + strings.Join(systemMsgs, "\n") + "\n"
 	}
@@ -191,6 +193,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		Allow:              s.getAllow(),
 		Session:            sess.Manager,
 		ExtraContext:       extraContext,
+		RuleContent:        ruleContent,
 		CompactionSettings: compactionSettings,
 		MultiAgent:         s.cfg.EnableSubAgents,
 		DelegateMode:       sess.DelegateMode,
@@ -479,6 +482,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 			if skillsMgr != nil {
 				registry.Register(tools.NewSkillRefTool(skillsMgr))
 			}
+			ruleContent := contextfiles.LoadRuleFile(sessWorkDir)
 			gwSess := &GatewaySession{
 				ID:           sessionID,
 				WorkDir:      sessWorkDir,
@@ -486,6 +490,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 				Registry:     registry,
 				SkillsMgr:    skillsMgr,
 				ExtraContext: extraContext,
+				RuleContent:  ruleContent,
 				DelegateMode: s.cfg.EnableDelegate,
 				Workflows:    s.cfg.EnableWorkflows,
 				LastUsed:     time.Now(),
@@ -499,7 +504,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 					TokenizerModel:   s.settings.Compaction.TokenizerModel,
 					Template:         s.settings.Compaction.Template,
 				}
-				factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+				factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 					MultiAgentEnabled: true,
 					DelegateEnabled:   s.cfg.EnableDelegate,
 					WorkflowsEnabled:  s.cfg.EnableWorkflows,
@@ -534,6 +539,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 				if skillsMgr != nil {
 					registry.Register(tools.NewSkillRefTool(skillsMgr))
 				}
+				ruleContent := contextfiles.LoadRuleFile(sessWorkDir)
 				gwSess := &GatewaySession{
 					ID:           defaultID,
 					WorkDir:      sessWorkDir,
@@ -541,6 +547,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 					Registry:     registry,
 					SkillsMgr:    skillsMgr,
 					ExtraContext: extraContext,
+					RuleContent:  ruleContent,
 					DelegateMode: s.cfg.EnableDelegate,
 					Workflows:    s.cfg.EnableWorkflows,
 					LastUsed:     time.Now(),
@@ -554,7 +561,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 						TokenizerModel:   s.settings.Compaction.TokenizerModel,
 						Template:         s.settings.Compaction.Template,
 					}
-					factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+					factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 						MultiAgentEnabled: true,
 						DelegateEnabled:   s.cfg.EnableDelegate,
 						WorkflowsEnabled:  s.cfg.EnableWorkflows,
@@ -599,6 +606,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 		registry.Register(tools.NewSkillRefTool(skillsMgr))
 	}
 
+	ruleContent := contextfiles.LoadRuleFile(workDir)
 	sess := &GatewaySession{
 		ID:           id,
 		WorkDir:      workDir,
@@ -607,6 +615,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 		Mode:         "",
 		SkillsMgr:    skillsMgr,
 		ExtraContext: extraContext,
+		RuleContent:  ruleContent,
 		DelegateMode: s.cfg.EnableDelegate,
 		Workflows:    s.cfg.EnableWorkflows,
 		LastUsed:     time.Now(),
@@ -622,7 +631,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*GatewaySession,
 			TokenizerModel:   s.settings.Compaction.TokenizerModel,
 			Template:         s.settings.Compaction.Template,
 		}
-		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			DelegateEnabled:   s.cfg.EnableDelegate,
 			WorkflowsEnabled:  s.cfg.EnableWorkflows,

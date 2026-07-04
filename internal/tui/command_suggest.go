@@ -31,6 +31,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/allowautoedit", Value: "/allowautoedit ", Description: "Toggle full auto-edit in agent mode"},
 		{Label: "/btw", Value: "/btw ", Description: "Ask a side question without touching the main task"},
 		{Label: "/systeminit", Value: "/systeminit ", Description: "Generate/refresh AGENTS.md; optional guidance (e.g. ask me in Chinese)"},
+		{Label: "/rule", Value: "/rule", Description: "Create .vibe/rule.md with safe default project rules"},
 		{Label: "/reload", Value: "/reload", Description: "Restart as a fresh process with a new session"},
 		{Label: "/workflows", Value: "/workflows ", Description: "Workflow run commands"},
 		{Label: "/agent", Value: "/agent ", Description: "Multi-agent commands (not execution mode)"},

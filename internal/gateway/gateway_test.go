@@ -36,7 +36,8 @@ func newRecordingGatewayProvider() *recordingGatewayProvider {
 
 func (p *recordingGatewayProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
 	p.calls = append(p.calls, provider.ChatParams{
-		Messages: append([]provider.Message(nil), params.Messages...),
+		Messages:     append([]provider.Message(nil), params.Messages...),
+		SystemPrompt: params.SystemPrompt,
 	})
 	ch := make(chan provider.StreamEvent, 3)
 	go func() {
@@ -798,6 +799,71 @@ func TestCommands_CompactSetsFlag(t *testing.T) {
 	}
 }
 
+func TestCommands_RuleCreatesFile(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	sess := &GatewaySession{ID: "test-sess", WorkDir: workDir}
+
+	result := srv.cmdRule(sess, []string{"/rule"})
+	if result == nil {
+		t.Fatal("expected result")
+	}
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Message)
+	}
+	rulePath := filepath.Join(workDir, ".vibe", "rule.md")
+	data, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read rule file: %v", err)
+	}
+	if string(data) != sess.RuleContent {
+		t.Fatal("session RuleContent does not match file content")
+	}
+	if !strings.Contains(sess.RuleContent, "Never use sudo") {
+		t.Fatalf("unexpected rule content: %q", sess.RuleContent)
+	}
+}
+
+func TestCommands_RulePreservesExistingUnlessForced(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	rulePath := filepath.Join(workDir, ".vibe", "rule.md")
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
+		t.Fatalf("mkdir rule dir: %v", err)
+	}
+	if err := os.WriteFile(rulePath, []byte("custom rule"), 0644); err != nil {
+		t.Fatalf("write rule file: %v", err)
+	}
+	sess := &GatewaySession{ID: "test-sess", WorkDir: workDir}
+
+	result := srv.cmdRule(sess, []string{"/rule"})
+	if result == nil || result.Error {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	if sess.RuleContent != "custom rule" {
+		t.Fatalf("RuleContent = %q", sess.RuleContent)
+	}
+	data, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read rule file: %v", err)
+	}
+	if string(data) != "custom rule" {
+		t.Fatalf("rule overwritten without force: %q", string(data))
+	}
+
+	result = srv.cmdRule(sess, []string{"/rule", "force"})
+	if result == nil || result.Error {
+		t.Fatalf("unexpected force result: %#v", result)
+	}
+	data, err = os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read forced rule file: %v", err)
+	}
+	if string(data) != sess.RuleContent || !strings.Contains(string(data), "Treat repository files") {
+		t.Fatalf("force did not write default rule: %q", string(data))
+	}
+}
+
 func TestCommands_CompactNoCompactableMessages(t *testing.T) {
 	srv := newTestServer(t)
 	sess := &GatewaySession{ID: "test-sess", WorkDir: t.TempDir()}
@@ -909,6 +975,67 @@ func TestChatHandler_LoadsReplayStateFromSession(t *testing.T) {
 	}
 	if !foundRecentUser {
 		t.Fatal("gateway run lost recent user message from replay state")
+	}
+}
+
+func TestChatHandlerUsesSessionRuleContent(t *testing.T) {
+	srv, p := newRecordingGatewayServer(t)
+	defer srv.pool.Stop()
+
+	workDir := t.TempDir()
+	rulePath := filepath.Join(workDir, ".vibe", "rule.md")
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
+		t.Fatalf("mkdir rule dir: %v", err)
+	}
+	if err := os.WriteFile(rulePath, []byte("session-specific rule"), 0644); err != nil {
+		t.Fatalf("write rule file: %v", err)
+	}
+
+	body := fmt.Sprintf(`{"messages":[{"role":"user","content":"hi"}],"stream":false,"x_session_id":"rule-sess","x_working_dir":%q}`, workDir)
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if len(p.calls) != 1 {
+		t.Fatalf("provider call count = %d, want 1", len(p.calls))
+	}
+	if !strings.Contains(p.calls[0].SystemPrompt, "session-specific rule") {
+		t.Fatalf("system prompt did not include session rule:\n%s", p.calls[0].SystemPrompt)
+	}
+}
+
+func TestChatHandlerDoesNotFallbackToOtherWorkDirRule(t *testing.T) {
+	srv, p := newRecordingGatewayServer(t)
+	defer srv.pool.Stop()
+
+	serverWorkDir := srv.cfg.GetWorkDir()
+	serverRulePath := filepath.Join(serverWorkDir, ".vibe", "rule.md")
+	if err := os.MkdirAll(filepath.Dir(serverRulePath), 0755); err != nil {
+		t.Fatalf("mkdir server rule dir: %v", err)
+	}
+	if err := os.WriteFile(serverRulePath, []byte("server-only rule"), 0644); err != nil {
+		t.Fatalf("write server rule file: %v", err)
+	}
+	workDir := t.TempDir()
+
+	body := fmt.Sprintf(`{"messages":[{"role":"user","content":"hi"}],"stream":false,"x_session_id":"no-rule-sess","x_working_dir":%q}`, workDir)
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if len(p.calls) != 1 {
+		t.Fatalf("provider call count = %d, want 1", len(p.calls))
+	}
+	if strings.Contains(p.calls[0].SystemPrompt, "server-only rule") {
+		t.Fatalf("system prompt used another workDir rule:\n%s", p.calls[0].SystemPrompt)
 	}
 }
 

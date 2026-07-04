@@ -16,6 +16,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -158,7 +159,7 @@ func TestRenderExpandedEditToolResultDoesNotDuplicateDiffExcerpt(t *testing.T) {
 }
 
 func TestRenderFooterUsesBuiltinWhenStatusLineDisabled(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.width = 80
 	a.ready = true
 	a.statusLineOutput = "external footer"
@@ -173,7 +174,7 @@ func TestRenderFooterUsesBuiltinWhenStatusLineDisabled(t *testing.T) {
 }
 
 func TestRenderFooterUsesExternalStatusLineWhenEnabled(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.width = 80
 	a.ready = true
 	a.settings.StatusLine.Enabled = true
@@ -190,7 +191,7 @@ func TestRenderFooterUsesExternalStatusLineWhenEnabled(t *testing.T) {
 }
 
 func TestStatusLineCommandShowsOffState(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.handleCommand("/statusline")
 
@@ -204,7 +205,7 @@ func TestStatusLineCommandShowsOffState(t *testing.T) {
 }
 
 func TestStatusLineCommandShowsActiveStateAndError(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.settings.StatusLine.Enabled = true
 	a.settings.StatusLine.Command = "ccstatusline"
 	a.statusLineOutput = "ready"
@@ -234,7 +235,7 @@ func TestStatusLineCommandOnWritesProjectSettings(t *testing.T) {
 		t.Fatalf("chdir: %v", err)
 	}
 
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.handleCommand("/statusline on")
 
 	data, err := os.ReadFile(".vibe/settings.json")
@@ -263,7 +264,7 @@ func TestStatusLineCommandOffClearsRuntimeOutput(t *testing.T) {
 		t.Fatalf("chdir: %v", err)
 	}
 
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.settings.StatusLine.Enabled = true
 	a.settings.StatusLine.Command = "ccstatusline"
 	a.statusLineOutput = "external footer"
@@ -293,7 +294,7 @@ func TestStatusLineCommandCommandWritesProjectSettings(t *testing.T) {
 		t.Fatalf("chdir: %v", err)
 	}
 
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.handleCommand("/statusline command echo hello")
 
 	data, err := os.ReadFile(".vibe/settings.json")
@@ -319,7 +320,7 @@ func TestStatusLineCommandRefreshWritesProjectSettings(t *testing.T) {
 		t.Fatalf("chdir: %v", err)
 	}
 
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.handleCommand("/statusline refresh 7")
 
 	data, err := os.ReadFile(".vibe/settings.json")
@@ -812,7 +813,7 @@ func TestThinkMessageUsesPlainMixedCJKASCIIWrapping(t *testing.T) {
 }
 
 func TestViewKeepsTranscriptInMainOutputWhenNoProgram(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
@@ -845,7 +846,7 @@ func TestViewKeepsTranscriptInMainOutputWhenNoProgram(t *testing.T) {
 }
 
 func TestViewDoesNotForceOuterHeight(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 8
@@ -866,7 +867,7 @@ func TestViewDoesNotForceOuterHeight(t *testing.T) {
 }
 
 func TestMouseWheelDoesNotScrollTranscript(t *testing.T) {
-	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	app := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	app.ready = true
 	app.width = 80
 	app.height = 12
@@ -1241,7 +1242,7 @@ func TestHandleAgentEventCommitsStreamBeforeApproval(t *testing.T) {
 }
 
 func TestHandleAgentEventCommitsStreamBeforeError(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)
 
 	a.handleAgentEvent(agent.Event{Type: agent.EventTurnStart})
@@ -1319,7 +1320,7 @@ func TestRenderApprovalDialogShowsBashChoicesAndWrapsLongCommand(t *testing.T) {
 
 func TestApprovalPrefixSelectionPersistsProjectAllowRule(t *testing.T) {
 	withTempTUIAllowPaths(t)
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.waitingForApproval = true
 	a.pendingApprovalID = "approval-1"
 	a.currentApproval = pendingApproval{
@@ -1473,7 +1474,7 @@ func TestCompactCommandStartsImmediateCompaction(t *testing.T) {
 	model := mockProvider.Models()[0]
 	settings := config.DefaultSettings()
 	registry := tools.NewRegistry(t.TempDir(), nil)
-	app := NewApp(mockProvider, model, settings, nil, registry, "", "", nil, "agent", false, false, nil, nil, nil)
+	app := NewApp(mockProvider, model, settings, nil, registry, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	app.agent = agent.New(agent.Config{
 		Provider: mockProvider,
 		Model:    model,
@@ -1527,7 +1528,7 @@ func TestCompactCommandStartsImmediateCompaction(t *testing.T) {
 }
 
 func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.handleCommand("/help")
 
@@ -1543,7 +1544,7 @@ func TestHelpCommandRendersAsSingleCommandOutput(t *testing.T) {
 }
 
 func TestHelpCommandRendersCommandOutputWithoutProgram(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.width = 80
 	a.height = 10
 	for i := 0; i < 8; i++ {
@@ -1564,6 +1565,56 @@ func TestHelpCommandRendersCommandOutputWithoutProgram(t *testing.T) {
 	}
 	if plain := stripANSI(a.liveContent); !strings.Contains(plain, "Commands:") {
 		t.Fatalf("live transcript = %q, want command list", plain)
+	}
+}
+
+func TestRuleCommandCreatesRuleFileAndLoadsContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+	a.cwd = tmpDir
+
+	a.handleCommand("/rule")
+
+	rulePath := filepath.Join(tmpDir, ".vibe", "rule.md")
+	data, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read rule file: %v", err)
+	}
+	if string(data) != contextfiles.DefaultRuleContent {
+		t.Fatal("rule file content mismatch")
+	}
+	if a.ruleContent != contextfiles.DefaultRuleContent {
+		t.Fatal("app ruleContent was not updated")
+	}
+}
+
+func TestRuleCommandPreservesExistingUnlessForced(t *testing.T) {
+	tmpDir := t.TempDir()
+	rulePath := filepath.Join(tmpDir, ".vibe", "rule.md")
+	if err := os.MkdirAll(filepath.Dir(rulePath), 0755); err != nil {
+		t.Fatalf("mkdir rule dir: %v", err)
+	}
+	if err := os.WriteFile(rulePath, []byte("custom rule"), 0644); err != nil {
+		t.Fatalf("write rule file: %v", err)
+	}
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+	a.cwd = tmpDir
+
+	a.handleCommand("/rule")
+	if a.ruleContent != "custom rule" {
+		t.Fatalf("ruleContent = %q", a.ruleContent)
+	}
+
+	a.handleCommand("/rule force")
+	data, err := os.ReadFile(rulePath)
+	if err != nil {
+		t.Fatalf("read rule file: %v", err)
+	}
+	if string(data) != contextfiles.DefaultRuleContent {
+		t.Fatal("force did not overwrite with default rule")
+	}
+	if a.ruleContent != contextfiles.DefaultRuleContent {
+		t.Fatal("app ruleContent was not updated after force")
 	}
 }
 
@@ -1594,7 +1645,7 @@ func withTempTUIAllowPaths(t *testing.T) {
 }
 
 func TestInputHomeEndKeysReachTextInput(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input.SetValue("abc")
 
 	a.Update(teaSpecialKeyMsgForTest(tea.KeyHome))
@@ -1617,7 +1668,7 @@ func TestInputHomeEndKeysReachTextInput(t *testing.T) {
 }
 
 func TestInputHistoryNavigationPreservesDraft(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.recordInputHistory("first")
 	a.recordInputHistory("second")
 	a.input.SetValue("draft")
@@ -1643,7 +1694,7 @@ func TestInputHistoryNavigationPreservesDraft(t *testing.T) {
 }
 
 func TestInputHistoryNavigationFlushesQueuedDraft(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.recordInputHistory("previous")
 
 	a.Update(teaKeyMsgForTest("draft"))
@@ -1660,7 +1711,7 @@ func TestInputHistoryNavigationFlushesQueuedDraft(t *testing.T) {
 }
 
 func TestInputAltEnterAndCtrlJInsertNewlines(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.Update(teaKeyMsgForTest("one"))
 	a.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
@@ -1675,7 +1726,7 @@ func TestInputAltEnterAndCtrlJInsertNewlines(t *testing.T) {
 }
 
 func TestInputSmallMultilinePastePreservesNewlines(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("one\ntwo"), Paste: true})
 
@@ -1685,7 +1736,7 @@ func TestInputSmallMultilinePastePreservesNewlines(t *testing.T) {
 }
 
 func TestInputUpDownMovesWithinMultilineBeforeHistory(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.recordInputHistory("previous")
 	a.input.SetValue("one\ntwo")
 
@@ -1709,7 +1760,7 @@ func TestInputUpDownMovesWithinMultilineBeforeHistory(t *testing.T) {
 }
 
 func TestEscAbortClearsApprovalState(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.isThinking = true
 	a.waitingForApproval = true
 	a.pendingApprovalID = "approval-1"
@@ -1729,7 +1780,7 @@ func TestEscAbortClearsApprovalState(t *testing.T) {
 }
 
 func TestClearCommandResetsTranscriptState(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "base", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "base", "", nil, "agent", false, false, nil, nil, nil)
 	a.messages = []string{"old"}
 	a.toolResults = []toolResult{{toolCallID: "tool-1", msgIndex: 0}}
 	a.liveContent = "live"
@@ -1762,7 +1813,7 @@ func TestClearCommandResetsTranscriptState(t *testing.T) {
 }
 
 func TestOpenLatestToolModalRequiresContent(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	if a.openLatestToolModal() {
 		t.Fatal("openLatestToolModal on empty app = true, want false")
 	}
@@ -1773,7 +1824,7 @@ func TestOpenLatestToolModalRequiresContent(t *testing.T) {
 }
 
 func TestBackgroundAgentEventRecordsActivityOnly(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", true, false, nil, nil, nil)
 	a.messages = []string{"main"}
 
 	a.handleAgentEvent(agent.Event{
@@ -1795,7 +1846,7 @@ func TestBackgroundAgentEventRecordsActivityOnly(t *testing.T) {
 }
 
 func TestSubAgentApprovalStillShowsPrompt(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", true, false, nil, nil, nil)
 
 	a.handleAgentEvent(agent.Event{
 		Type:         agent.EventToolApprovalRequest,
@@ -1814,7 +1865,7 @@ func TestSubAgentApprovalStillShowsPrompt(t *testing.T) {
 }
 
 func TestQueuedApprovalShowsNextDetailsInLiveView(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)
 
 	a.handleAgentEvent(agent.Event{
@@ -1854,7 +1905,7 @@ func TestQueuedApprovalShowsNextDetailsInLiveView(t *testing.T) {
 }
 
 func TestDuplicateApprovalIDIsNotQueuedTwice(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	event := agent.Event{
 		Type:         agent.EventToolApprovalRequest,
 		ApprovalID:   "approval-1",
@@ -1878,7 +1929,7 @@ func TestDuplicateApprovalIDIsNotQueuedTwice(t *testing.T) {
 
 func TestAlwaysAllowApprovesQueuedMatchingBashApprovals(t *testing.T) {
 	withTempTUIAllowPaths(t)
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.waitingForApproval = true
 	a.pendingApprovalID = "approval-1"
 	a.currentApproval = pendingApproval{
@@ -1910,7 +1961,7 @@ func TestAlwaysAllowApprovesQueuedMatchingBashApprovals(t *testing.T) {
 }
 
 func TestToolModalDefaultsMainAndSwitchesToSubAgent(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", true, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", true, false, nil, nil, nil)
 	a.messages = []string{"main transcript"}
 	a.recordAgentActivity(agent.Event{
 		Type:          agent.EventToolCall,
@@ -1939,7 +1990,7 @@ func TestToolModalDefaultsMainAndSwitchesToSubAgent(t *testing.T) {
 }
 
 func TestToolCallShowsRunningMessageBeforeResult(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "yolo", false, false, nil, nil, nil)
 	a.messages = []string{"assistant start"}
 
 	a.handleAgentEvent(agent.Event{
@@ -1975,7 +2026,7 @@ func TestToolCallShowsRunningMessageBeforeResult(t *testing.T) {
 }
 
 func TestToolResultReprintsAfterRunningMessage(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "yolo", false, false, nil, nil, nil)
 	a.messages = []string{"assistant start"}
 
 	a.handleAgentEvent(agent.Event{
@@ -2006,7 +2057,7 @@ func TestToolResultReprintsAfterRunningMessage(t *testing.T) {
 }
 
 func TestToolExecutionStartAndEndPrintToTUIScrollback(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "yolo", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)
 	a.messages = []string{"assistant start"}
 
@@ -2037,7 +2088,7 @@ func TestToolExecutionStartAndEndPrintToTUIScrollback(t *testing.T) {
 }
 
 func TestToolCallExecutionEventsPrintOnce(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "yolo", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "yolo", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)
 	a.messages = []string{"assistant start"}
 
@@ -2076,7 +2127,7 @@ func TestToolCallExecutionEventsPrintOnce(t *testing.T) {
 }
 
 func TestToolModalHeightFitsTerminalWithoutCroppingTop(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.ready = true
 	a.width = 80
 	a.height = 24
@@ -2128,7 +2179,7 @@ func TestShowNextQuestionTracksCurrentQuestionAndClearResetsIt(t *testing.T) {
 }
 
 func TestRuneInputTabDoesNotCycleMode(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input.SetValue("prefix ")
 
 	a.Update(teaKeyMsgForTest("tab"))
@@ -2143,7 +2194,7 @@ func TestRuneInputTabDoesNotCycleMode(t *testing.T) {
 }
 
 func TestRuneInputEscDoesNotAbortOrClearInput(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.input.SetValue("prefix ")
 
 	a.Update(teaKeyMsgForTest("esc"))
@@ -2161,6 +2212,7 @@ func TestInitWithProgramDoesNotBlock(t *testing.T) {
 		config.DefaultSettings(),
 		nil,
 		tools.NewRegistry(t.TempDir(), nil),
+		"",
 		"",
 		"",
 		nil,
@@ -2189,7 +2241,7 @@ func TestInitWithProgramDoesNotBlock(t *testing.T) {
 }
 
 func TestInitAutoOpenAuthDialog(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.SetAutoOpenAuthDialog(true)
 
 	_ = a.Init()
@@ -2200,7 +2252,7 @@ func TestInitAutoOpenAuthDialog(t *testing.T) {
 }
 
 func TestPrintMessageOnceQueuesMoreThanInitialBuffer(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)
 
 	const count = 300
@@ -2227,7 +2279,7 @@ func TestPrintMessageOnceQueuesMoreThanInitialBuffer(t *testing.T) {
 }
 
 func TestProgramBackedTranscriptDoesNotMaintainFullLiveContent(t *testing.T) {
-	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", nil, "agent", false, false, nil, nil, nil)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.program = tea.NewProgram(a)
 
 	for i := 0; i < 20; i++ {
@@ -2449,6 +2501,7 @@ func TestContinueSessionPromptPayloadOrder(t *testing.T) {
 		tools.NewRegistry(cwd, nil),
 		"",
 		"",
+		"",
 		nil,
 		"agent",
 		false,
@@ -2524,6 +2577,7 @@ func TestInitThenProcessInputStillInjectsSessionHistory(t *testing.T) {
 		tools.NewRegistry(cwd, nil),
 		"",
 		"",
+		"",
 		nil,
 		"agent",
 		false,
@@ -2589,6 +2643,7 @@ func TestCycleModeReregistersManagedAgent(t *testing.T) {
 		tools.NewRegistry(cwd, nil),
 		"",
 		"",
+		"",
 		nil,
 		"agent",
 		true,
@@ -2639,6 +2694,7 @@ func TestModelCommandResetsManagedAgentWithoutLeavingOldTab(t *testing.T) {
 		settings,
 		session.New(cwd, filepath.Join(tmp, "sessions")),
 		tools.NewRegistry(cwd, nil),
+		"",
 		"",
 		"",
 		nil,
@@ -2707,6 +2763,7 @@ func TestTUIDoneKeepsManagedMainAgentForNextTurn(t *testing.T) {
 		tools.NewRegistry(cwd, nil),
 		"",
 		"",
+		"",
 		nil,
 		"agent",
 		true,
@@ -2744,6 +2801,7 @@ func TestDelegateToggleOffRemovesManagedMainAgent(t *testing.T) {
 		settings,
 		session.New(cwd, filepath.Join(tmp, "sessions")),
 		tools.NewRegistry(cwd, nil),
+		"",
 		"",
 		"",
 		nil,

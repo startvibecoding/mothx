@@ -1298,7 +1298,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 	}
 	toolGuidelines := []string{"Use read to examine files instead of cat or sed."}
 
-	prompt := BuildSystemPrompt("agent", toolNames, cwd, extraContext, toolSnippets, toolGuidelines, false, false, false)
+	prompt := BuildSystemPrompt("agent", toolNames, cwd, "", extraContext, toolSnippets, toolGuidelines, false, false, false)
 
 	if prompt == "" {
 		t.Fatal("expected non-empty prompt")
@@ -1324,7 +1324,7 @@ func TestBuildSystemPrompt(t *testing.T) {
 
 func TestBuildSystemPromptModes(t *testing.T) {
 	// Test plan mode
-	planPrompt := BuildSystemPrompt("plan", nil, "/tmp", "", nil, nil, false, false, false)
+	planPrompt := BuildSystemPrompt("plan", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if !contains(planPrompt, "PLAN") {
 		t.Error("expected plan prompt to contain 'PLAN'")
 	}
@@ -1334,31 +1334,31 @@ func TestBuildSystemPromptModes(t *testing.T) {
 	}
 
 	// Test agent mode
-	agentPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil, false, false, false)
+	agentPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if !contains(agentPrompt, "AGENT") {
 		t.Error("expected agent prompt to contain 'AGENT'")
 	}
 
 	// Test yolo mode
-	yoloPrompt := BuildSystemPrompt("yolo", nil, "/tmp", "", nil, nil, false, false, false)
+	yoloPrompt := BuildSystemPrompt("yolo", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if !contains(yoloPrompt, "YOLO") {
 		t.Error("expected yolo prompt to contain 'YOLO'")
 	}
 
 	// Test unknown mode
-	unknownPrompt := BuildSystemPrompt("custom", nil, "/tmp", "", nil, nil, false, false, false)
+	unknownPrompt := BuildSystemPrompt("custom", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if !contains(unknownPrompt, "CUSTOM") {
 		t.Error("expected unknown prompt to contain mode name")
 	}
 }
 
 func TestBuildSystemPromptMultiAgentGated(t *testing.T) {
-	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil, false, false, false)
+	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if contains(defaultPrompt, "Sub-Agent Tools") {
 		t.Error("expected default prompt to omit sub-agent instructions")
 	}
 
-	multiPrompt := BuildSystemPrompt("agent", []string{"subagent_spawn"}, "/tmp", "", nil, nil, true, false, false)
+	multiPrompt := BuildSystemPrompt("agent", []string{"subagent_spawn"}, "/tmp", "", "", nil, nil, true, false, false)
 	if !contains(multiPrompt, "Sub-Agent Tools") {
 		t.Error("expected multi-agent prompt to include sub-agent instructions")
 	}
@@ -1368,12 +1368,12 @@ func TestBuildSystemPromptMultiAgentGated(t *testing.T) {
 }
 
 func TestBuildSystemPromptDelegateModeGated(t *testing.T) {
-	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil, false, false, false)
+	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if contains(defaultPrompt, "Delegation Mode") {
 		t.Error("expected default prompt to omit delegation instructions")
 	}
 
-	delegatePrompt := BuildSystemPrompt("agent", []string{"delegate_subagent"}, "/tmp", "", nil, nil, false, true, false)
+	delegatePrompt := BuildSystemPrompt("agent", []string{"delegate_subagent"}, "/tmp", "", "", nil, nil, false, true, false)
 	if !contains(delegatePrompt, "Delegation Mode") {
 		t.Error("expected delegate prompt to include delegation instructions")
 	}
@@ -1383,7 +1383,7 @@ func TestBuildSystemPromptDelegateModeGated(t *testing.T) {
 }
 
 func TestBuildSystemPromptWorkflowGated(t *testing.T) {
-	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", nil, nil, false, false, false)
+	defaultPrompt := BuildSystemPrompt("agent", nil, "/tmp", "", "", nil, nil, false, false, false)
 	if contains(defaultPrompt, "Workflow Tools") {
 		t.Error("expected default prompt to omit workflow instructions")
 	}
@@ -1394,7 +1394,7 @@ func TestBuildSystemPromptWorkflowGated(t *testing.T) {
 		t.Error("expected default prompt to omit workflow Elisp DSL reference")
 	}
 
-	workflowPrompt := BuildSystemPrompt("agent", []string{"workflow_run"}, "/tmp", "", nil, nil, false, false, true)
+	workflowPrompt := BuildSystemPrompt("agent", []string{"workflow_run"}, "/tmp", "", "", nil, nil, false, false, true)
 	if !contains(workflowPrompt, "Workflow Tools") {
 		t.Error("expected workflow prompt to include workflow instructions")
 	}

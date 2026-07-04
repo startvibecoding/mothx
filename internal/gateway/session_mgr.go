@@ -19,6 +19,7 @@ type GatewaySession struct {
 	AgentMgr     *agent.AgentManager // nil unless sub-agents/delegate/workflows enabled
 	SkillsMgr    *skills.Manager
 	ExtraContext string
+	RuleContent  string
 	Mode         string // session-level mode override
 	DelegateMode bool   // session-level delegation mode
 	Workflows    bool   // session-level workflow mode

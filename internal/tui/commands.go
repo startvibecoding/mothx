@@ -12,6 +12,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/agent"
 	browserfeature "github.com/startvibecoding/mothx/internal/browser"
 	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/systeminit"
@@ -571,6 +572,51 @@ func (a *App) handleSystemInitCommand(cmd string) tea.Cmd {
 	return a.submitAgentPrompt(systeminit.Prompt(interactive, extra))
 }
 
+func (a *App) handleRuleCommand(parts []string) {
+	if a.isThinking {
+		a.addCommandError("Cannot change /rule while the agent is running.")
+		return
+	}
+	overwrite, ok := parseRuleForce(parts)
+	if !ok {
+		a.addCommandError("Usage: /rule [force|--force]")
+		return
+	}
+
+	path, content, written, err := contextfiles.EnsureRuleFile(a.currentCwd(), overwrite)
+	if err != nil {
+		a.addCommandError(fmt.Sprintf("Failed to write rule file: %v", err))
+		return
+	}
+	a.ruleContent = content
+	a.resetAgent(fmt.Errorf("rule changed"))
+
+	if written {
+		action := "Created"
+		if overwrite {
+			action = "Overwrote"
+		}
+		a.addCommandStatus(fmt.Sprintf("%s rule file: %s", action, path), "Loaded into the current session.")
+		return
+	}
+	a.addCommandStatus(fmt.Sprintf("Rule file already exists: %s", path), "Not overwritten. Use /rule force to replace it with the default template.", "Loaded existing rule into the current session.")
+}
+
+func parseRuleForce(parts []string) (bool, bool) {
+	if len(parts) == 1 {
+		return false, true
+	}
+	if len(parts) != 2 {
+		return false, false
+	}
+	switch parts[1] {
+	case "force", "--force":
+		return true, true
+	default:
+		return false, false
+	}
+}
+
 // handleReloadCommand starts a brand-new session and re-execs the process so
 // the next run behaves exactly like a freshly started program (config, context
 // files, skills, and MCP are all reloaded).
@@ -755,6 +801,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		return a.handleBtwCommand(cmd)
 	case "/systeminit":
 		return a.handleSystemInitCommand(cmd)
+	case "/rule":
+		a.handleRuleCommand(parts)
 	case "/reload":
 		return a.handleReloadCommand()
 	case "/cron":

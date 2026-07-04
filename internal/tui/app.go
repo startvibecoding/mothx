@@ -116,6 +116,7 @@ type App struct {
 	cwd          string
 	mode         string
 	extraContext string
+	ruleContent  string
 	skillsMgr    *skills.Manager
 
 	// Skills state: base extraContext (without skills) and active skill names
@@ -349,18 +350,18 @@ type statusLineRequest struct {
 }
 
 // NewApp creates a new TUI application.
-func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
-	return NewAppWithWorkflows(p, model, settings, sess, registry, sandboxInfo, extraContext, skillsMgr, initialMode, multiAgent, delegateMode, false, agentMgr, cronStore, scheduler)
+func NewApp(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, ruleContent string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
+	return NewAppWithWorkflows(p, model, settings, sess, registry, sandboxInfo, extraContext, ruleContent, skillsMgr, initialMode, multiAgent, delegateMode, false, agentMgr, cronStore, scheduler)
 }
 
-func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
-	return NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sandboxInfo, extraContext, skillsMgr, initialMode, multiAgent, delegateMode, workflows, agentMgr, cronStore, scheduler, "", config.LoadAllow())
+func NewAppWithWorkflows(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, ruleContent string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler) *App {
+	return NewAppWithWorkflowsAndAllow(p, model, settings, sess, registry, sandboxInfo, extraContext, ruleContent, skillsMgr, initialMode, multiAgent, delegateMode, workflows, agentMgr, cronStore, scheduler, "", config.LoadAllow())
 }
 
 // NewAppWithWorkflowsAndAllow creates a new TUI application. providerKey is the
 // user-configured settings.json provider key (e.g. "xiaomi", "doubao"); when
 // empty the resolved vendor name from p.Name() is used as a fallback.
-func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler, providerKey string, allow *config.AllowConfig) *App {
+func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, settings *config.Settings, sess *session.Manager, registry *tools.Registry, sandboxInfo string, extraContext string, ruleContent string, skillsMgr *skills.Manager, initialMode string, multiAgent bool, delegateMode bool, workflows bool, agentMgr *agent.AgentManager, cronStore cron.CronStore, scheduler *cron.Scheduler, providerKey string, allow *config.AllowConfig) *App {
 	input := editor.New(80).SetPlaceholder("Type a message...").SetMaxLines(5)
 
 	// Determine initial mode: use provided mode, fall back to settings default
@@ -392,6 +393,7 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 		cwd:                 currentWorkingDir(sess),
 		mode:                mode,
 		extraContext:        extraContext,
+		ruleContent:         ruleContent,
 		baseExtraContext:    extraContext,
 		activeSkills:        make(map[string]string),
 		skillsMgr:           skillsMgr,

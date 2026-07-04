@@ -8,6 +8,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
+	"github.com/startvibecoding/mothx/internal/contextfiles"
 	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
@@ -63,6 +64,8 @@ func (s *Server) handleCommand(sess *GatewaySession, input string) *CommandResul
 		return s.cmdSkill(sess, parts)
 	case "/skills":
 		return s.cmdSkills(sess)
+	case "/rule":
+		return s.cmdRule(sess, parts)
 	case "/help":
 		return s.cmdHelp()
 	default:
@@ -340,7 +343,7 @@ func (s *Server) cmdDelegate(sess *GatewaySession, parts []string) *CommandResul
 			if skillsMgr == nil {
 				skillsMgr = s.skillsMgr
 			}
-			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 				MultiAgentEnabled: true,
 				DelegateEnabled:   true,
 				Allow:             s.getAllow(),
@@ -492,6 +495,78 @@ func (s *Server) cmdCompact(sess *GatewaySession) *CommandResult {
 	return &CommandResult{Message: "✅ Context compaction will be triggered on the next request."}
 }
 
+func (s *Server) cmdRule(sess *GatewaySession, parts []string) *CommandResult {
+	if sess == nil {
+		return &CommandResult{Message: "No active session.", Error: true}
+	}
+	if sess.AgentMgr != nil && sess.AgentMgr.Count() > 0 {
+		return &CommandResult{Message: "Cannot change rule while agents are running.", Error: true}
+	}
+	overwrite, ok := parseGatewayRuleForce(parts)
+	if !ok {
+		return &CommandResult{Message: "Usage: /rule [force|--force]", Error: true}
+	}
+
+	path, content, written, err := contextfiles.EnsureRuleFile(sess.WorkDir, overwrite)
+	if err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Failed to write rule file: %v", err), Error: true}
+	}
+	sess.RuleContent = content
+	if sess.AgentMgr != nil {
+		sess.AgentMgr = s.newAgentManagerForSession(sess)
+	}
+
+	if written {
+		action := "Created"
+		if overwrite {
+			action = "Overwrote"
+		}
+		return &CommandResult{Message: fmt.Sprintf("%s rule file: %s\nLoaded into the current session.", action, path)}
+	}
+	return &CommandResult{Message: fmt.Sprintf("Rule file already exists: %s\nNot overwritten. Use /rule force to replace it with the default template.\nLoaded existing rule into the current session.", path)}
+}
+
+func parseGatewayRuleForce(parts []string) (bool, bool) {
+	if len(parts) == 1 {
+		return false, true
+	}
+	if len(parts) != 2 {
+		return false, false
+	}
+	switch parts[1] {
+	case "force", "--force":
+		return true, true
+	default:
+		return false, false
+	}
+}
+
+func (s *Server) newAgentManagerForSession(sess *GatewaySession) *agent.AgentManager {
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:          s.settings.Compaction.Enabled,
+		ReserveTokens:    s.settings.Compaction.ReserveTokens,
+		KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        s.settings.Compaction.Tokenizer,
+		TokenizerModel:   s.settings.Compaction.TokenizerModel,
+		Template:         s.settings.Compaction.Template,
+	}
+	extraContext := sess.ExtraContext
+	if extraContext == "" {
+		extraContext = s.extraContext
+	}
+	skillsMgr := sess.SkillsMgr
+	if skillsMgr == nil {
+		skillsMgr = s.skillsMgr
+	}
+	factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+		MultiAgentEnabled: true,
+		DelegateEnabled:   sess.DelegateMode || s.cfg.EnableDelegate,
+		WorkflowsEnabled:  sess.Workflows,
+		Allow:             s.getAllow(),
+	})
+	return agent.NewAgentManager(factory)
+}
+
 func (s *Server) cmdSkill(sess *GatewaySession, parts []string) *CommandResult {
 	skillsMgr := s.sessionSkills(sess)
 	if skillsMgr == nil {
@@ -607,6 +682,7 @@ func (s *Server) cmdHelp() *CommandResult {
   /status                 - Show session status
   /skill <name>           - Activate a skill
   /skills                 - List available skills
+  /rule [force]           - Create .vibe/rule.md with safe default project rules
   /help                   - Show this help`
 	return &CommandResult{Message: help}
 }

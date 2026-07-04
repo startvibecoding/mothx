@@ -9,7 +9,9 @@ import (
 )
 
 // BuildSystemPrompt constructs the system prompt based on mode and context.
-func BuildSystemPrompt(mode string, toolNames []string, cwd string, extraContext string, toolSnippets map[string]string, toolGuidelines []string, multiAgent bool, delegateMode bool, workflows bool) string {
+// ruleContent is the content of .vibe/rule.md (project rules), inserted after
+// the built-in sections but before extraContext (skills + context files like AGENTS.md).
+func BuildSystemPrompt(mode string, toolNames []string, cwd string, ruleContent string, extraContext string, toolSnippets map[string]string, toolGuidelines []string, multiAgent bool, delegateMode bool, workflows bool) string {
 	var sb strings.Builder
 
 	// Get platform-specific shell
@@ -241,6 +243,15 @@ Workflow rules:
 - Before calling workflow_run, validate that every opening parenthesis, double quote, and quoted list is closed
 - Treat worker results as evidence to reconcile and verify, not as final truth
 `)
+	}
+
+	// Append rule.md content (project rules) after built-in sections, before extraContext
+	if ruleContent != "" {
+		sb.WriteString("\n## Project Rules\n\n")
+		sb.WriteString(ruleContent)
+		if !strings.HasSuffix(ruleContent, "\n") {
+			sb.WriteString("\n")
+		}
 	}
 
 	// Append extra context from files and skills

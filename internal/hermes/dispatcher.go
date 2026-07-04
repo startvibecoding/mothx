@@ -139,7 +139,7 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 		}
 
 		// Extra context will be loaded per-session in resolveSession; use empty here
-		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sandbox.NewManager("."), "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
+		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sandbox.NewManager("."), "", "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
 			MultiAgentEnabled: true,
 			Allow:             d.allow,
 		})
@@ -402,6 +402,7 @@ func (d *Dispatcher) RemoveSession(key string) {
 func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approvalHandler agentApprovalHandler) (*agent.Agent, func(error)) {
 	workDir := sess.WorkDir
 	extraContext := d.buildExtraContext(workDir)
+	ruleContent := contextfiles.LoadRuleFile(workDir)
 	compactionSettings := ctxpkg.NormalizeCompactionSettings(ctxpkg.CompactionSettings{
 		Enabled:          d.settings.Compaction.Enabled,
 		ReserveTokens:    d.settings.Compaction.ReserveTokens,
@@ -422,6 +423,7 @@ func (d *Dispatcher) buildAgent(ctx context.Context, sess *HermesSession, approv
 		Allow:              d.allow,
 		Session:            sess.Manager,
 		ExtraContext:       extraContext,
+		RuleContent:        ruleContent,
 		CompactionSettings: compactionSettings,
 		MultiAgent:         d.multiAgent,
 		ApprovalHandler:    approvalHandler,

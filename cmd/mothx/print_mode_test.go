@@ -32,6 +32,7 @@ func TestRunPrintFailsWhenApprovalWouldBeRequired(t *testing.T) {
 		registry,
 		(*session.Manager)(nil),
 		"",
+		"",
 		false,
 		false,
 		false,
