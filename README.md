@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/mothx"><img src="https://img.shields.io/npm/dm/mothx.svg" alt="npm downloads"></a>
+  <a href="https://www.npmjs.com/package/mothx-installer"><img src="https://img.shields.io/npm/dm/mothx-installer.svg" alt="npm downloads"></a>
   <a href="https://pypi.org/project/vibecoding-installer/"><img src="https://img.shields.io/pypi/v/vibecoding-installer.svg" alt="PyPI version"></a>
   <a href="https://github.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/github/release/startvibecoding/mothx.svg" alt="GitHub release"></a>
   <a href="https://gitee.com/startvibecoding/mothx/releases/latest"><img src="https://img.shields.io/badge/Gitee-release-blue" alt="Gitee release"></a>
@@ -43,9 +43,9 @@
 | Feature | What It Means for You |
 |---------|----------------------|
 | **⚙️ Workflow Mode** | Dynamic Elisp workflows with phases, parallel execution, and multi-worker coordination — automate complex development pipelines |
-| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, and 20+ vendor adapters — switch models instantly |
+| **🤖 Multi-Provider** | DeepSeek, OpenAI, Anthropic, Volcengine/Doubao, LongCat, Mistral, GitHub Copilot, Cloudflare, Amazon Bedrock, and 20+ vendor adapters — switch models instantly |
 | **⚡ Lightning Fast** | SSE streaming, real-time token delivery, cache hit optimization |
-| **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude) |
+| **🧠 Think Mode** | Extended reasoning for complex problems (DeepSeek, o1, Claude, inline `<think>` parsing) |
 | **🛡️ Sandboxed** | bwrap process isolation — safe file ops, network control, approval gates |
 | **📝 Sessions** | Persistent SQLite-backed history with branching, compaction, and tree structure |
 | **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
@@ -53,8 +53,12 @@
 | **🌐 Gateway** | OpenAI-compatible HTTP API — use MothX as a backend service |
 | **📱 Messaging** | WeChat, Feishu, WebSocket — deploy as a chatbot |
 | **🤝 Multi-Agent** | Async sub-agents with `--multi-agent`, blocking delegation with `--delegate`, and A2A master mode |
-| **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals |
+| **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals, multiline input |
+| **📊 Stats Dashboard** | Web-based usage analytics with charts, filtering by time/vendor/protocol, and CLI fallback |
+| **🖼️ Multimodal** | Image preprocessing, crop support, browser screenshots, and vision model integration |
 | **🔒 Security** | bashBlacklist > whitelist, YOLO mode safety, `--print` fails fast |
+| **📦 Pure Go** | No external binary dependencies — uses pure-Go `grep`/`find` SDKs, supports FreeBSD |
+| **⚡ Approval V2** | Interactive approval dialog, project-level bash auto-approval rules, and auto-edit whitelists |
 
 ---
 
@@ -64,8 +68,8 @@
 # Install (pick one)
 npm install -g mothx-installer               # npm (recommended)
 pipx install vibecoding-installer           # PyPI
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS (GitHub)
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS (Gitee 国内镜像)
+curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS/FreeBSD (GitHub)
+curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS/FreeBSD (Gitee 国内镜像)
 
 # Set your API key
 export DEEPSEEK_API_KEY=sk-...
@@ -75,6 +79,8 @@ mothx
 ```
 
 That's it. You're coding with AI.
+
+**Supported Platforms:** Linux (x86_64, arm64), macOS (x86_64, arm64), Windows (x86_64), FreeBSD (x86_64, arm64)
 
 **Uninstall:**
 
@@ -125,7 +131,10 @@ mothx/
 │   ├── gateway/           # OpenAI-compatible HTTP gateway
 │   ├── hermes/            # Messaging gateway (WeChat/Feishu/WebSocket)
 │   ├── a2a/               # A2A protocol server & master mode
-│   └── acp/               # ACP / MCP integration
+│   ├── acp/               # ACP / MCP integration
+│   ├── stats/             # Usage statistics web dashboard
+│   ├── workflow/          # Elisp workflow runtime
+│   └── memory/            # Persistent memory (memory.md)
 └── pkg/sdk/               # Public SDK interface
 ```
 
@@ -139,12 +148,14 @@ mothx/
 
 ### ⚙️ Configuration
 - [Configuration Guide](docs/en/configuration.md) — Settings, env vars, authentication
+- [Provider Guide](docs/en/provider-guide.md) — Provider/vendor configuration
 
 ### 🏗️ Architecture
 - [System Architecture](docs/en/architecture.md) — Core components, data flow
 - [Tool System](docs/en/tools.md) — Built-in tools guide
 - [Skills System](docs/en/skills.md) — Reusable prompt snippets
 - [Online Skill Marketplace](docs/en/skillhub.md) — SkillHub / ClawHub integration
+- [Dynamic Workflows](docs/en/workflows.md) — Elisp workflow automation
 
 ### 🔒 Security
 - [Security & Sandbox](docs/en/security.md) — Sandbox modes, permissions, approval
@@ -156,6 +167,9 @@ mothx/
 - [Gateway Mode](docs/en/gateway.md) — OpenAI-compatible HTTP API
 - [Hermes Mode](docs/en/hermes.md) — WeChat/Feishu/WebSocket chatbot
 - [A2A Protocol](docs/en/a2a.md) — Agent-to-Agent protocol
+
+### 📊 Analytics
+- [Stats Dashboard](docs/en/stats.md) — Usage statistics and monitoring
 
 ### 📖 Tutorials
 - [Scenarios & Walkthroughs](docs/en/scenarios.md) — Practical examples
@@ -195,6 +209,24 @@ mothx gateway  # Start OpenAI-compatible HTTP server
 mothx hermes   # Deploy as WeChat/Feishu bot
 ```
 
+### 📊 Usage Analytics
+```bash
+mothx stats    # Start web dashboard on 127.0.0.1:7878
+mothx stats --cli  # Print stats in terminal
+```
+
+### 🔄 Dynamic Workflows
+```bash
+mothx --workflows  # Enable Elisp workflow automation
+# Use workflow_run, workflow_status, workflow_cancel tools
+```
+
+### 🖼️ Image Analysis
+```bash
+mothx -P "Describe this screenshot" --image screenshot.png
+mothx -P "Extract text from this image" --image document.jpg
+```
+
 ---
 
 ## 🛠️ Built-in Tools
@@ -205,13 +237,19 @@ mothx hermes   # Deploy as WeChat/Feishu bot
 | `write` | Create/overwrite files |
 | `edit` | Precise text replacement |
 | `bash` | Execute shell commands |
-| `grep` | Search file contents (powered by ripgrep) |
-| `find` | Find files by pattern (powered by fd) |
+| `grep` | Search file contents (powered by pure-Go ripgrep) |
+| `find` | Find files by pattern (powered by pure-Go fd) |
 | `ls` | List directory contents |
 | `plan` | Publish task plans |
 | `jobs` | Manage background jobs |
 | `kill` | Stop background jobs |
 | `skill_ref` | Load skill references |
+| `workflow_run` | Execute Elisp workflow DSL |
+| `workflow_status` | Check workflow run status |
+| `workflow_cancel` | Cancel running workflows |
+| `delegate_subagent` | Blocking single sub-agent delegation |
+| `subagent_spawn` | Async sub-agent execution |
+| `question` | Interactive user prompts (plan/agent modes) |
 
 ---
 
@@ -221,7 +259,7 @@ mothx hermes   # Deploy as WeChat/Feishu bot
 
 | Location | Platform | Scope |
 |----------|----------|-------|
-| `~/.vibecoding/settings.json` | Linux/macOS | Global |
+| `~/.vibecoding/settings.json` | Linux/macOS/FreeBSD | Global |
 | `%APPDATA%\vibecoding\settings.json` | Windows | Global |
 | `.vibe/settings.json` | All | Project (overrides global) |
 
@@ -237,6 +275,16 @@ The `.vibecoding` config directory and `VIBECODING_*` environment variables are 
 | `VIBECODING_MODEL` | Override default model |
 | `VIBECODING_MODE` | Override default mode |
 | `VIBECODING_DEBUG` | Enable debug output |
+| `VIBECODING_NO_UPDATE_CHECK` | Disable update notifications |
+| `VIBECODING_NPM_REGISTRY` | Override npm registry URL |
+
+### Gateway Configuration
+
+Gateway-specific config lives in `gateway.json` (global `~/.config/vibecoding/gateway.json`, project `.vibe/gateway.json`). See [Gateway Mode](docs/en/gateway.md) for details.
+
+### Hermes Configuration
+
+Hermes-specific config lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.vibe/hermes.json`). See [Hermes Mode](docs/en/hermes.md) for details.
 
 ---
 
