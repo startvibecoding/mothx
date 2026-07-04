@@ -13,15 +13,16 @@ const BOLD   = '\x1b[1m';
 const DIM    = '\x1b[2m';
 const CYAN   = '\x1b[36m';
 const BRIGHT_CYAN = '\x1b[96m';
+const BRIGHT_GREEN = '\x1b[92m';
 const WHITE  = '\x1b[97m';
 const YELLOW = '\x1b[33m';
 
 const logo = [
-  ' _    ___ __       ',
-  '| |  / (_) /_  ___ ',
-  '| | / / / __ \\/ _ \\',
-  '| |/ / / /_/ /  __/',
-  '|___/_/_.___/\\___/ ',
+  '██   ██  ███  ████ █  █ █  █',
+  '███ ███ █   █  ██  █  █  ██ ',
+  '█ ███ █ █   █  ██  ████  ██ ',
+  '█  █  █ █   █  ██  █  █ █  █',
+  '█     █  ███   ██  █  █ █  █',
 ].join('\n');
 
 function configPath() {
@@ -55,7 +56,7 @@ const legacy = name === 'vibecoding-installer';
 const command = legacy ? 'vibecoding' : 'mothx';
 
 console.log();
-console.log(`${BRIGHT_CYAN}${BOLD}${logo}${RESET}${verStr}`);
+console.log(`${BRIGHT_GREEN}${BOLD}${logo}${RESET}${verStr}`);
 console.log();
 if (legacy) {
   console.log(`  ${YELLOW}${BOLD}vibecoding-installer is a compatibility package.${RESET}`);

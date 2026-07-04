@@ -4,7 +4,7 @@
 
 This package is kept for a smooth transition to **MothX**.
 
-> `vibecoding-installer` is a compatibility package for this release. Future updates should use `mothx`.
+> `vibecoding-installer` is a compatibility package for this release. Future updates should use `mothx-installer`.
 
 A terminal-based AI coding assistant. One binary, multiple providers, sandbox, sessions, skills, and more.
 

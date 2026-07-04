@@ -341,7 +341,7 @@ npm-pack: npm-version npm-packages
 			mv "$$d"/*.tgz npm/ 2>/dev/null || true; \
 		fi; \
 	done
-	@echo "Packing mothx package..."
+	@echo "Packing mothx-installer package..."
 	cd npm/mothx && npm pack
 	mv npm/mothx/*.tgz npm/ 2>/dev/null || true
 	@echo "Packing compatibility package..."
@@ -357,7 +357,7 @@ npm-publish-all: npm-version npm-packages
 			cd "$$d" && npm publish --tag latest && cd - > /dev/null; \
 		fi; \
 	done
-	@echo "Publishing mothx package..."
+	@echo "Publishing mothx-installer package..."
 	cd npm/mothx && npm publish --tag latest
 	@echo "Publishing compatibility package..."
 	cd npm && npm publish --tag latest
@@ -374,7 +374,7 @@ npm-publish-pre:
 			cd "$$d" && npm publish --tag next && cd - > /dev/null; \
 		fi; \
 	done
-	@echo "Publishing mothx package (pre-release)..."
+	@echo "Publishing mothx-installer package (pre-release)..."
 	cd npm/mothx && npm publish --tag next
 	@echo "Publishing compatibility package (pre-release)..."
 	cd npm && npm publish --tag next

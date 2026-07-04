@@ -1,16 +1,10 @@
 {
   "name": "mothx-freebsd-arm64",
-  "version": "1.1.56",
+  "version": "1.1.57",
   "description": "MothX native binary for freebsd-arm64",
-  "os": [
-    "freebsd"
-  ],
-  "cpu": [
-    "arm64"
-  ],
-  "files": [
-    "bin/"
-  ],
+  "os": ["freebsd"],
+  "cpu": ["arm64"],
+  "files": ["bin/"],
   "license": "MIT",
   "repository": {
     "type": "git",

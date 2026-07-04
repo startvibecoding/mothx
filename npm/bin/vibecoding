@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Wrapper script that resolves and executes the platform-specific binary.
-// When installed via `npm i -g mothx`, this script finds the
+// When installed via `npm i -g mothx-installer`, this script finds the
 // correct binary from the platform-specific optional dependency package.
 
 const { execFileSync } = require('child_process');
@@ -48,7 +48,7 @@ function maybeWarnLegacyPackage() {
     return;
   }
   console.error('[mothx] vibecoding-installer is a compatibility package for this release.');
-  console.error('[mothx] Please update with: npm install -g mothx@latest');
+  console.error('[mothx] Please update with: npm install -g mothx-installer@latest');
   console.error('');
 }
 
@@ -150,7 +150,7 @@ function findBinary() {
   console.error(`Searched in: ${searchDirs.join(', ')}`);
   console.error('');
   console.error('If you installed globally, try reinstalling:');
-  console.error('  npm install -g mothx');
+  console.error('  npm install -g mothx-installer');
   console.error('');
   console.error('If the problem persists, install via one-line script instead:');
   console.error('  curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash');

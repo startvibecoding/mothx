@@ -44,6 +44,24 @@ for PACKAGE_JSON in "${PACKAGE_JSONS[@]}"; do
   fi
 done
 
+# Keep mothx-installer aligned with the compatibility package's platform
+# optionalDependencies. The compatibility package has been the stable source of
+# truth for automatic platform package selection during the rename transition.
+node -e "
+const fs = require('fs');
+const legacyPath = '$NPM_DIR/package.json';
+const mothxPath = '$NPM_DIR/mothx/package.json';
+if (fs.existsSync(legacyPath) && fs.existsSync(mothxPath)) {
+  const legacyPkg = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
+  const mothxPkg = JSON.parse(fs.readFileSync(mothxPath, 'utf8'));
+  if (legacyPkg.optionalDependencies) {
+    mothxPkg.optionalDependencies = { ...legacyPkg.optionalDependencies };
+    fs.writeFileSync(mothxPath, JSON.stringify(mothxPkg, null, 2) + '\n');
+    console.log('Synced optionalDependencies from vibecoding-installer to mothx-installer');
+  }
+}
+"
+
 # Update all platform package.json files
 PACKAGES_DIR="$NPM_DIR/packages"
 if [ -d "$PACKAGES_DIR" ]; then

@@ -2,8 +2,8 @@
 
 # Build platform-specific npm packages with optionalDependencies architecture.
 # Each platform gets its own package containing only its binary.
-# Main packages (mothx and the transitional vibecoding-installer) declare all
-# platforms as optionalDependencies.
+# Main packages (mothx-installer and the transitional vibecoding-installer)
+# declare all platforms as optionalDependencies.
 
 set -e
 

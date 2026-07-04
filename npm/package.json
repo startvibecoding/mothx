@@ -1,6 +1,6 @@
 {
   "name": "vibecoding-installer",
-  "version": "1.1.57-pre",
+  "version": "1.1.57",
   "description": "Compatibility installer for MothX. Use the mothx-installer package for future updates.",
   "scripts": {
     "postinstall": "node scripts/postinstall.js"
@@ -31,23 +31,23 @@
     "node": ">=14"
   },
   "optionalDependencies": {
-    "mothx-darwin-arm64": "1.1.57-pre",
-    "mothx-darwin-x64": "1.1.57-pre",
-    "mothx-freebsd-arm64": "1.1.57-pre",
-    "mothx-freebsd-x64": "1.1.57-pre",
-    "mothx-linux-arm64": "1.1.57-pre",
-    "mothx-linux-loong64": "1.1.57-pre",
-    "mothx-linux-musl-arm64": "1.1.57-pre",
-    "mothx-linux-musl-x64": "1.1.57-pre",
-    "mothx-linux-ppc64le": "1.1.57-pre",
-    "mothx-linux-riscv64": "1.1.57-pre",
-    "mothx-linux-s390x": "1.1.57-pre",
-    "mothx-linux-x64": "1.1.57-pre",
-    "mothx-netbsd-x64": "1.1.57-pre",
-    "mothx-openbsd-arm64": "1.1.57-pre",
-    "mothx-openbsd-x64": "1.1.57-pre",
-    "mothx-win32-arm64": "1.1.57-pre",
-    "mothx-win32-x64": "1.1.57-pre"
+    "mothx-darwin-arm64": "1.1.57",
+    "mothx-darwin-x64": "1.1.57",
+    "mothx-freebsd-arm64": "1.1.57",
+    "mothx-freebsd-x64": "1.1.57",
+    "mothx-linux-arm64": "1.1.57",
+    "mothx-linux-loong64": "1.1.57",
+    "mothx-linux-musl-arm64": "1.1.57",
+    "mothx-linux-musl-x64": "1.1.57",
+    "mothx-linux-ppc64le": "1.1.57",
+    "mothx-linux-riscv64": "1.1.57",
+    "mothx-linux-s390x": "1.1.57",
+    "mothx-linux-x64": "1.1.57",
+    "mothx-netbsd-x64": "1.1.57",
+    "mothx-openbsd-arm64": "1.1.57",
+    "mothx-openbsd-x64": "1.1.57",
+    "mothx-win32-arm64": "1.1.57",
+    "mothx-win32-x64": "1.1.57"
   },
   "bin": {
     "vibecoding": "bin/vibecoding"
