@@ -1,0 +1,284 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #202124;
+  background: #f6f7f5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #c7cbc4;
+  background: #ffffff;
+  color: #202124;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #f0f2ee;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.primary {
+  background: #1f6f5b;
+  border-color: #1f6f5b;
+  color: white;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.rail {
+  border-right: 1px solid #d8dbd3;
+  background: #ecefe8;
+  padding: 18px 14px;
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #1f6f5b;
+  color: white;
+  font-weight: 700;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 14px;
+}
+
+.brand p,
+.panelHead span,
+.topbar span,
+.empty {
+  color: #6b7168;
+  font-size: 12px;
+}
+
+nav {
+  display: grid;
+  gap: 4px;
+}
+
+nav a {
+  color: #343832;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+nav a:hover {
+  background: #dde2d8;
+}
+
+.workspace {
+  min-width: 0;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.topbar,
+.panel {
+  background: #ffffff;
+  border: 1px solid #d8dbd3;
+  border-radius: 8px;
+}
+
+.topbar {
+  min-height: 48px;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.topbar div {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.banner {
+  border: 1px solid #c7cbc4;
+  background: #eef8f1;
+  color: #245238;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.banner.error {
+  background: #fff0ec;
+  color: #913b25;
+  border-color: #e4b7a9;
+}
+
+.panel {
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.panelHead {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 128px;
+  resize: vertical;
+  border: 1px solid #cfd3ca;
+  border-radius: 6px;
+  padding: 10px;
+  color: #202124;
+  background: #fbfcfa;
+}
+
+textarea:focus {
+  outline: 2px solid #9fc8ba;
+  outline-offset: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.response,
+.code,
+code {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+.response {
+  margin: 0;
+  white-space: pre-wrap;
+  border: 1px solid #d8dbd3;
+  border-radius: 6px;
+  background: #f7f8f5;
+  padding: 12px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.editor .code {
+  min-height: 420px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.channelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.channel {
+  border: 1px solid #d8dbd3;
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.channel span {
+  color: #8a4a2d;
+  font-size: 12px;
+}
+
+.channel span.online {
+  color: #1f6f5b;
+}
+
+.endpoint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+code {
+  border: 1px solid #d8dbd3;
+  background: #f7f8f5;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+@media (max-width: 820px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    border-right: 0;
+    border-bottom: 1px solid #d8dbd3;
+  }
+
+  nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  nav a {
+    text-align: center;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+

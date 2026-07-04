@@ -26,6 +26,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/platform"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/serve"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/systeminit"
@@ -55,6 +56,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 
 	rootCmd := newCLICommand(flags, runFn)
 	rootCmd.AddCommand(newACPCommand(flags, acpRunFn))
+	rootCmd.AddCommand(newServeCommand(flags))
 	rootCmd.AddCommand(newGatewayCommand(flags))
 	rootCmd.AddCommand(newHermesCommand())
 	rootCmd.AddCommand(newA2ACommand())
@@ -83,12 +85,16 @@ type cliFlags struct {
 	webSearch       bool
 	browser         bool
 	initGateway     bool
+	initServe       bool
 	force           bool
 	enableA2AMaster bool
 	initA2AMaster   bool
 	gatewayPort     string
 	gatewayConfig   string
 	gatewayWorkDir  string
+	serveConfig     string
+	servePort       string
+	lobsterMode     bool
 }
 
 func newCLICommand(flags *cliFlags, runFn func([]string, runOptions) error) *cobra.Command {
@@ -135,6 +141,14 @@ func runCLICommand(args []string, flags *cliFlags, runFn func([]string, runOptio
 		fmt.Fprintf(os.Stderr, "Created gateway config: %s\n", path)
 		return nil
 	}
+	if flags.initServe {
+		path, err := serve.InitConfig(flags.force)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "Created serve config: %s\n", path)
+		return nil
+	}
 	return runFn(args, flags.runOptions())
 }
 
@@ -172,6 +186,7 @@ func registerRootFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	fs.BoolVarP(&flags.print, "print", "P", false, "Print response and exit (non-interactive)")
 	registerSharedExecutionFlags(fs, flags, "Enable configured web search provider for this run")
 	fs.BoolVar(&flags.initGateway, "init-gateway", false, "Create gateway.json config template")
+	fs.BoolVar(&flags.initServe, "init-serve", false, "Create serve.json config template")
 	fs.BoolVar(&flags.force, "force", false, "Force overwrite existing files (used with --init-*)")
 	fs.BoolVar(&flags.enableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
 	fs.BoolVar(&flags.initA2AMaster, "init-a2a-master-config", false, "Create a2a-list.json config template")

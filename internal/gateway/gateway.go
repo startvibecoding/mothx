@@ -24,17 +24,18 @@ import (
 
 // RunOptions holds the CLI flags for the gateway command.
 type RunOptions struct {
-	ConfigPath string
-	Port       string
-	Provider   string
-	Model      string
-	WorkDir    string
-	Sandbox    bool
-	MultiAgent bool
-	Delegate   bool
-	Workflows  bool
-	Verbose    bool
-	Debug      bool
+	ConfigPath  string
+	Port        string
+	Provider    string
+	Model       string
+	WorkDir     string
+	Sandbox     bool
+	MultiAgent  bool
+	Delegate    bool
+	Workflows   bool
+	Verbose     bool
+	Debug       bool
+	ExtraRoutes func(*Server, *http.ServeMux)
 }
 
 // Server is the gateway HTTP server.
@@ -190,6 +191,9 @@ func Run(opts RunOptions, version string) error {
 	mux.HandleFunc("/v1/chat/completions", srv.handleChatCompletions)
 	mux.HandleFunc("/v1/models", srv.handleModels)
 	mux.HandleFunc("/health", srv.handleHealth)
+	if opts.ExtraRoutes != nil {
+		opts.ExtraRoutes(srv, mux)
+	}
 
 	// Apply middleware stack (inside-out)
 	var handler http.Handler = mux
