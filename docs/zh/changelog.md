@@ -1,6 +1,12 @@
 # 更新日志
 
 
+## v1.1.58
+
+### 🔧 改进
+
+- npm 平台二进制包从 `mothx-*` 改名为 `mothx-installer-*`，与根包 `mothx-installer` 命名保持一致。
+
 ## v1.1.57
 
 ### ✨ 新功能

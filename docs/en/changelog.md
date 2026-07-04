@@ -1,6 +1,12 @@
 # Changelog
 
 
+## v1.1.58
+
+### 🔧 Improvements
+
+- Renamed npm platform binary packages from `mothx-*` to `mothx-installer-*` for consistent naming with the root `mothx-installer` package.
+
 ## v1.1.57
 
 ### ✨ Features
