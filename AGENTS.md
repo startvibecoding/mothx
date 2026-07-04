@@ -157,6 +157,12 @@ When changing code, prefer the least risky approach that satisfies the request.
 - Show a visible tool "running" line before the final result line, rather than overwriting a single tool entry in place.
 - In auth/settings dialogs, clear stale `ParamField` / `ParamFieldKey` when changing views. Menu navigation and toggle fields must not leave input mode active for the next view.
 
+## Provider and Model Reference
+
+- Full provider/model list with context windows, max tokens, thinking format, API type, and pricing is documented in `docs/provider-model-list.md`.
+- When adding or updating a provider or model, update both `internal/config/settings.go` (`defaultProviderConfigs`) and `docs/provider-model-list.md`.
+- Vendor adapters live in `internal/provider/vendor_*.go`; run `go test ./internal/provider/...` after adding or changing vendor detection.
+
 ## Docs and Release Notes
 
 - Put changelog updates only in:

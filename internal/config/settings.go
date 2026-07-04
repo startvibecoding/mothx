@@ -189,6 +189,18 @@ func configFieldWasSet(fields map[string]bool, name string) bool {
 	return fields != nil && fields[name]
 }
 
+func markConfigField(fields map[string]bool, name string) map[string]bool {
+	if fields == nil {
+		fields = make(map[string]bool, 1)
+	}
+	fields[name] = true
+	return fields
+}
+
+func (mc ModelConfig) MaxTokensWasSet() bool {
+	return configFieldWasSet(mc.fieldSet, "maxTokens")
+}
+
 // ModelCompat defines per-model compatibility flags (Decision 14).
 // Reference: pi/packages/ai/src/models.generated.ts compat field
 type ModelCompat struct {
@@ -612,6 +624,9 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "@cf/moonshotai/kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Cost: &CostConfig{Input: 0.95, Output: 4, CacheRead: 0.19}, Input: []string{"text", "image"}},
 		{ID: "@cf/zai-org/glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Cost: &CostConfig{Input: 1.4, Output: 4.4, CacheRead: 0.26}, Input: []string{"text", "image"}},
 	}},
+	"tencent-hy-plan":          {Vendor: "tencent-hy-plan", BaseURL: "https://api.lkeap.cloud.tencent.com/plan/v3", APIKey: "${TENCENT_HY_PLAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "hy3-preview", Name: "Hunyuan 3 Preview", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Input: []string{"text"}}}},
+	"tencent-hy-plan-anthropic": {Vendor: "tencent-hy-plan", BaseURL: "https://api.lkeap.cloud.tencent.com/plan/anthropic", APIKey: "${TENCENT_HY_PLAN_ANTHROPIC_API_KEY}", API: "anthropic-messages", Models: []ModelConfig{{ID: "hy3-preview", Name: "Hunyuan 3 Preview", Reasoning: true, ContextWindow: 262144, MaxTokens: 65536, Input: []string{"text"}}}},
+	"qianfan":                  {BaseURL: "https://qianfan.baidubce.com/v2", APIKey: "${QIANFAN_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "qianfan-code-latest", Name: "Qianfan Code Latest", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text"}}, {ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Input: []string{"text", "image"}}, {ID: "glm-5.1", Name: "GLM 5.1", Reasoning: true, ContextWindow: 200000, MaxTokens: 131072, Input: []string{"text", "image"}}, {ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Input: []string{"text", "image"}}}},
 	"amazon-bedrock": {Vendor: "amazon-bedrock", BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1", APIKey: "${AWS_BEARER_TOKEN_BEDROCK}", API: "openai-chat", Models: []ModelConfig{
 		{ID: "anthropic.claude-sonnet-4-6-v1", Name: "Claude Sonnet 4.6", Reasoning: true, ContextWindow: 1000000, MaxTokens: 64000, Input: []string{"text", "image"}},
 		{ID: "anthropic.claude-opus-4-8", Name: "Claude Opus 4.8", Reasoning: true, ContextWindow: 1000000, MaxTokens: 128000, Input: []string{"text", "image"}},
@@ -1393,6 +1408,7 @@ func mergeModelConfig(base, overlay ModelConfig) ModelConfig {
 	}
 	if configFieldWasSet(overlay.fieldSet, "maxTokens") || (overlay.fieldSet == nil && overlay.MaxTokens > 0) {
 		result.MaxTokens = overlay.MaxTokens
+		result.fieldSet = markConfigField(result.fieldSet, "maxTokens")
 	}
 	if configFieldWasSet(overlay.fieldSet, "reasoning") || (overlay.fieldSet == nil && overlay.Reasoning) {
 		result.Reasoning = overlay.Reasoning
