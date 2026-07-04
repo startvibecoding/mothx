@@ -244,6 +244,84 @@ func TestSettingsFieldPatchSavesGlobalTopLevelOnly(t *testing.T) {
 	}
 }
 
+func TestAuthTextInputsTrimOuterWhitespace(t *testing.T) {
+	a := &App{settings: config.DefaultSettings(), width: 80}
+
+	a.auth = authDialogState{
+		Open: true,
+		View: authViewCustomID,
+	}
+	a.authInput = editor.New(80).SetValue("  openrouter  ")
+	a.submitAuthInput()
+	if a.auth.ProviderID != "openrouter" {
+		t.Fatalf("ProviderID = %q, want trimmed openrouter", a.auth.ProviderID)
+	}
+
+	a.auth = authDialogState{
+		Open:       true,
+		View:       authViewProviderCredentials,
+		ParamField: "apiKey",
+	}
+	a.authInput = editor.New(80).SetValue("  sk-test with middle  space  ")
+	if err := a.authProviderSubmitInput(); err != nil {
+		t.Fatalf("submit api key: %v", err)
+	}
+	if got := a.auth.Provider.APIKey; got != "sk-test with middle  space" {
+		t.Fatalf("APIKey = %q, want trimmed value with middle spaces preserved", got)
+	}
+
+	a.auth = authDialogState{
+		Open:       true,
+		View:       authViewHeadersEdit,
+		ParamField: "headerKey",
+		Provider:   providerEditState{},
+	}
+	a.authInput = editor.New(80).SetValue("  X-Test Header  ")
+	if err := a.authProviderSubmitInput(); err != errStayInInput {
+		t.Fatalf("submit header key err = %v, want errStayInInput", err)
+	}
+	if a.auth.ParamFieldKey != "X-Test Header" {
+		t.Fatalf("ParamFieldKey = %q, want trimmed header key", a.auth.ParamFieldKey)
+	}
+	a.authInput = editor.New(80).SetValue("  Bearer abc  def  ")
+	if err := a.authProviderSubmitInput(); err != nil {
+		t.Fatalf("submit header value: %v", err)
+	}
+	if got := a.auth.Provider.Headers["X-Test Header"]; got != "Bearer abc  def" {
+		t.Fatalf("header value = %q, want trimmed value with middle spaces preserved", got)
+	}
+
+	a.auth = authDialogState{
+		Open:           true,
+		View:           authViewModelBasics,
+		ParamField:     "name",
+		CurrentModelID: "m1",
+		Models: map[string]*modelEditState{
+			"m1": {ID: "m1", Name: "m1", Input: []string{"text"}},
+		},
+	}
+	a.authInput = editor.New(80).SetValue("  Claude Sonnet  4  ")
+	if err := a.authModelSubmitInput(); err != nil {
+		t.Fatalf("submit model name: %v", err)
+	}
+	if got := a.auth.Models["m1"].Name; got != "Claude Sonnet  4" {
+		t.Fatalf("model name = %q, want trimmed value with middle spaces preserved", got)
+	}
+}
+
+func TestParseApprovalPrefixesTrimsLineBoundaries(t *testing.T) {
+	got := parseApprovalPrefixes("  go test  \n\t echo hello  world \t\n\n  go test  \n")
+	want := []string{"go test", "echo hello  world"}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("item %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestAuthSparsePatchPreservesExistingProviders(t *testing.T) {
 	global := &config.Settings{Providers: map[string]*config.ProviderConfig{
 		"xiaomi":   {API: "openai-chat", BaseURL: "https://old.xiaomi", APIKey: "old", Models: []config.ModelConfig{{ID: "mimo", Name: "MiMo"}}},

@@ -642,11 +642,12 @@ func parseApprovalPrefixes(s string) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "" || seen[line] {
+		value := strings.TrimSpace(line)
+		if value == "" || seen[value] {
 			continue
 		}
-		seen[line] = true
-		out = append(out, line)
+		seen[value] = true
+		out = append(out, value)
 	}
 	return out
 }
