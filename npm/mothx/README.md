@@ -1,3 +1,5 @@
+> **Rename notice:** VibeCoding is now **MothX**. Install name: `mothx` (`npm install -g mothx`).
+
 # MothX
 
 🚀 一个二进制文件搞定一切 — 你的终端 AI 编程助手

@@ -1,3 +1,5 @@
+> **Rename notice:** VibeCoding is now **MothX**. This legacy npm install name is `vibecoding-installer`; use `mothx` (`npm install -g mothx`) for new installs and future updates.
+
 # vibecoding-installer compatibility package
 
 This package is kept for a smooth transition to **MothX**.

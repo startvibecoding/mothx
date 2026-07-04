@@ -1,3 +1,5 @@
+> **Rename notice:** VibeCoding is now **MothX**. PyPI install name: `vibecoding-installer` (`pipx install vibecoding-installer` or `pip install vibecoding-installer`).
+
 # MothX
 
 MothX was formerly known as VibeCoding. This PyPI package is kept as a legacy compatibility distribution: each wheel includes a platform-native `vibecoding` binary, while new installs and future updates should prefer `npm install -g mothx`.
