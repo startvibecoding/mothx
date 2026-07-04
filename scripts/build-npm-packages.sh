@@ -17,6 +17,8 @@ PACKAGES_DIR="$NPM_DIR/packages"
 ensure_wrapper() {
   mkdir -p "$NPM_DIR/bin"
   mkdir -p "$MOTHX_NPM_DIR/bin"
+  find "$NPM_DIR/bin" -mindepth 1 -maxdepth 1 -type f ! -name vibecoding -delete
+  find "$MOTHX_NPM_DIR/bin" -mindepth 1 -maxdepth 1 -type f ! -name mothx -delete
   if ! cmp -s "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"; then
     cp "$SCRIPT_DIR/npm-installer-wrapper.js" "$NPM_DIR/bin/vibecoding"
   fi
@@ -42,7 +44,7 @@ fi
 VERSION=$(node -e "console.log(require('$NPM_DIR/package.json').version)")
 
 # Platform definitions. Values are current Go build artifact names; npm package
-# names are generated with the new mothx-* prefix below.
+# names are generated with the mothx-installer-* prefix below.
 declare -A PLATFORMS=(
   ["linux-x64"]="mothx-linux-amd64"
   ["linux-arm64"]="mothx-linux-arm64"
@@ -108,7 +110,7 @@ for PLATFORM_KEY in "${!PLATFORMS[@]}"; do
   BINARY_NAME="${PLATFORMS[$PLATFORM_KEY]}"
   OS="${OS_MAP[$PLATFORM_KEY]}"
   CPU="${CPU_MAP[$PLATFORM_KEY]}"
-  PKG_NAME="mothx-${PLATFORM_KEY}"
+  PKG_NAME="mothx-installer-${PLATFORM_KEY}"
   PKG_DIR="$PACKAGES_DIR/$PKG_NAME"
 
   # Check binary exists

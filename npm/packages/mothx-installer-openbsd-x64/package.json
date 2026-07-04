@@ -1,0 +1,20 @@
+{
+  "name": "mothx-installer-openbsd-x64",
+  "version": "1.1.57",
+  "description": "MothX native binary for openbsd-x64",
+  "os": [
+    "openbsd"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin/"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/startvibecoding/mothx.git",
+    "directory": "npm"
+  }
+}

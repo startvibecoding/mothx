@@ -20,9 +20,9 @@
   - The auth dialog now opens automatically on first run when no provider is configured.
 
 - **MothX npm rename transition**
-  - Added the new `mothx` npm package as the forward-looking installer.
-  - Kept `vibecoding-installer` as a compatibility package for this release, with migration notices pointing users to `npm install -g mothx@latest`.
-  - Renamed npm platform binary packages from `vibecoding-installer-*` to `mothx-*`.
+  - Added the new `mothx-installer` npm package as the forward-looking installer.
+  - Kept `vibecoding-installer` as a compatibility package for this release, with migration notices pointing users to `npm install -g mothx-installer@latest`.
+  - Renamed npm platform binary packages from `vibecoding-installer-*` to `mothx-installer-*`.
 
 ### 🔧 Improvements
 

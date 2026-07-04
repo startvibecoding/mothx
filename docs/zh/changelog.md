@@ -20,9 +20,9 @@
   - 未配置任何 provider 时，首次运行自动弹出认证对话框。
 
 - **MothX npm 改名过渡**
-  - 新增面向后续更新的 npm 包 `mothx`。
-  - 本版本保留 `vibecoding-installer` 作为兼容包，并提示用户后续使用 `npm install -g mothx@latest` 更新。
-  - npm 平台二进制包从 `vibecoding-installer-*` 改名为 `mothx-*`。
+  - 新增面向后续更新的 npm 包 `mothx-installer`。
+  - 本版本保留 `vibecoding-installer` 作为兼容包，并提示用户后续使用 `npm install -g mothx-installer@latest` 更新。
+  - npm 平台二进制包从 `vibecoding-installer-*` 改名为 `mothx-installer-*`。
 
 ### 🔧 改进
 

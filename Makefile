@@ -6,7 +6,7 @@
 .PHONY: dist-linux-loong64
 .PHONY: dist-deb dist-tarball dist-zip
 .PHONY: clean-all checksums
-.PHONY: npm-version npm-binaries npm-packages npm-pack npm-publish-all npm-publish-pre npm-publish
+.PHONY: npm-version npm-binaries npm-packages npm-pack npm-verify-platforms npm-publish-all npm-publish-pre npm-publish
 .PHONY: pypi-version pypi-packages pypi-pack pypi-publish pypi-publish-pre
 
 # Variables
@@ -81,8 +81,9 @@ help:
 	@echo "NPM targets:"
 	@echo "  npm-version       Sync version to npm package"
 	@echo "  npm-packages      Build platform-specific npm packages"
-	@echo "  npm-pack          Pack mothx, compatibility package, and all platform packages"
-	@echo "  npm-publish-all   Publish mothx, compatibility package, and all platform packages"
+	@echo "  npm-verify-platforms Verify published platform packages exist"
+	@echo "  npm-pack          Pack mothx-installer, compatibility package, and all platform packages"
+	@echo "  npm-publish-all   Publish mothx-installer, compatibility package, and all platform packages"
 	@echo "  npm-publish-pre   Publish pre-release packages"
 	@echo "  npm-binaries      [Legacy] Build all binaries into single package"
 	@echo "  npm-publish       [Legacy] Publish main package only"
@@ -334,7 +335,7 @@ npm-packages: build-all
 # Pack main packages + platform packages
 npm-pack: npm-version npm-packages
 	@echo "Packing platform packages..."
-	@for d in npm/packages/*/; do \
+	@set -e; for d in npm/packages/*/; do \
 		if [ -f "$$d/package.json" ]; then \
 			echo "  Packing $$(basename $$d)..."; \
 			cd "$$d" && npm pack && cd - > /dev/null; \
@@ -349,14 +350,18 @@ npm-pack: npm-version npm-packages
 	@echo "Done. Tarballs in npm/"
 
 # Publish platform packages first, then main packages
+npm-verify-platforms:
+	node scripts/verify-npm-platform-packages.js npm/mothx/package.json
+
 npm-publish-all: npm-version npm-packages
 	@echo "Publishing platform packages..."
-	@for d in npm/packages/*/; do \
+	@set -e; for d in npm/packages/*/; do \
 		if [ -f "$$d/package.json" ]; then \
 			echo "  Publishing $$(basename $$d)..."; \
 			cd "$$d" && npm publish --tag latest && cd - > /dev/null; \
 		fi; \
 	done
+	$(MAKE) npm-verify-platforms
 	@echo "Publishing mothx-installer package..."
 	cd npm/mothx && npm publish --tag latest
 	@echo "Publishing compatibility package..."
@@ -368,12 +373,13 @@ npm-publish-pre:
 	./scripts/sync-npm-version.sh $(PRE_VERSION)
 	$(MAKE) npm-packages VERSION=$(PRE_VERSION)
 	@echo "Publishing platform packages (pre-release)..."
-	@for d in npm/packages/*/; do \
+	@set -e; for d in npm/packages/*/; do \
 		if [ -f "$$d/package.json" ]; then \
 			echo "  Publishing $$(basename $$d)..."; \
 			cd "$$d" && npm publish --tag next && cd - > /dev/null; \
 		fi; \
 	done
+	$(MAKE) npm-verify-platforms
 	@echo "Publishing mothx-installer package (pre-release)..."
 	cd npm/mothx && npm publish --tag next
 	@echo "Publishing compatibility package (pre-release)..."
