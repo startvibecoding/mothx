@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/stats"
 )
 
@@ -126,7 +126,11 @@ func runStatsCLI(w io.Writer, flags *statsFlags) error {
 func openStatsDB(flags *statsFlags) (*stats.DB, error) {
 	dbPath := flags.dbPath
 	if dbPath == "" {
-		dbPath = filepath.Join(platform.SessionDir(), "sessions.db")
+		settings, err := config.LoadSettings()
+		if err != nil {
+			return nil, fmt.Errorf("load settings: %w", err)
+		}
+		dbPath = filepath.Join(settings.GetSessionDir(), "sessions.db")
 	}
 
 	db, err := stats.Open(dbPath)

@@ -172,6 +172,9 @@ func ConfigDir() string {
 		return dir
 	}
 	if dir := os.Getenv("VIBECODING_DIR"); dir != "" {
+		if samePathString(dir, LegacyConfigDir()) {
+			return configDirForOS(runtime.GOOS, HomeDir(), os.Getenv("APPDATA"))
+		}
 		return dir
 	}
 
@@ -192,7 +195,13 @@ func configDirForOS(goos, home, appData string) string {
 
 // ConfigDirOverridden reports whether the user selected a custom config dir.
 func ConfigDirOverridden() bool {
-	return os.Getenv("MOTHX_DIR") != "" || os.Getenv("VIBECODING_DIR") != ""
+	if os.Getenv("MOTHX_DIR") != "" {
+		return true
+	}
+	if dir := os.Getenv("VIBECODING_DIR"); dir != "" {
+		return !samePathString(dir, LegacyConfigDir())
+	}
+	return false
 }
 
 // LegacyConfigDir returns the pre-MothX default global configuration directory.
@@ -210,6 +219,15 @@ func legacyConfigDirForOS(goos, home, appData string) string {
 	default:
 		return filepath.Join(home, "."+legacyAppDirName)
 	}
+}
+
+func samePathString(a, b string) bool {
+	a = filepath.Clean(a)
+	b = filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 // DataDir returns the platform-specific data directory.

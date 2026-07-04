@@ -217,6 +217,36 @@ func TestConfigDir(t *testing.T) {
 	}
 }
 
+func TestConfigDirIgnoresLegacyDefaultEnvDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", filepath.Join(home, ".vibecoding"))
+
+	want := filepath.Join(home, ".mothx")
+	if got := ConfigDir(); got != want {
+		t.Fatalf("ConfigDir() = %q, want %q", got, want)
+	}
+	if ConfigDirOverridden() {
+		t.Fatal("default legacy VIBECODING_DIR should not count as a custom override")
+	}
+}
+
+func TestConfigDirHonorsCustomLegacyEnvDir(t *testing.T) {
+	home := t.TempDir()
+	custom := filepath.Join(home, "custom-vibecoding")
+	t.Setenv("HOME", home)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", custom)
+
+	if got := ConfigDir(); got != custom {
+		t.Fatalf("ConfigDir() = %q, want %q", got, custom)
+	}
+	if !ConfigDirOverridden() {
+		t.Fatal("custom VIBECODING_DIR should count as a config override")
+	}
+}
+
 func TestConfigDirForOS(t *testing.T) {
 	home := filepath.Join(string(os.PathSeparator), "home", "tester")
 	appData := filepath.Join(string(os.PathSeparator), "Users", "tester", "AppData", "Roaming")

@@ -3,13 +3,16 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/session"
 )
 
@@ -60,4 +63,40 @@ func TestStatsCLIPrintsUsageSummary(t *testing.T) {
 			t.Fatalf("output missing %q:\n%s", want, got)
 		}
 	}
+}
+
+func TestOpenStatsDBUsesConfiguredSessionDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, "config")
+	sessionDir := filepath.Join(tmpDir, "custom-sessions")
+	t.Setenv("MOTHX_DIR", configDir)
+	t.Setenv("VIBECODING_DIR", "")
+
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(sessionDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.GlobalSettingsPath(), []byte(`{"sessionDir":`+strconv.Quote(sessionDir)+`}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+	raw, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := session.ApplyMigrations(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := openStatsDB(&statsFlags{})
+	if err != nil {
+		t.Fatalf("openStatsDB: %v", err)
+	}
+	defer db.Close()
 }
