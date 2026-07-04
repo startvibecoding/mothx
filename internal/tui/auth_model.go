@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 // --- Model group constants ---
@@ -46,7 +44,7 @@ func (a *App) currentModelEdit() *modelEditState {
 func (a *App) prepareModelInput() {
 	prompt := a.authModelInputPrompt()
 	value := a.authModelInputValue()
-	a.authInput = editor.New(max(20, a.width-8)).SetPlaceholder(prompt).SetMaxLines(3).Focus()
+	a.authInput = a.newAuthInput(prompt)
 	if value != "" {
 		a.authInput = a.authInput.SetValue(value)
 	}

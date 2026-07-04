@@ -364,6 +364,38 @@ func TestConfigDir(t *testing.T) {
 	}
 }
 
+func TestLoadSettingsCreatesMothXConfigDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore wd: %v", err)
+		}
+	})
+
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("APPDATA", "")
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "")
+
+	if _, _, err := LoadSettingsWithMeta(); err != nil {
+		t.Fatalf("load settings: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(tmpDir, ".mothx", "settings.json")); err != nil {
+		t.Fatalf("expected .mothx settings file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, ".vibecoding")); !os.IsNotExist(err) {
+		t.Fatalf("expected no .vibecoding directory, stat err=%v", err)
+	}
+}
+
 func TestGlobalSettingsPath(t *testing.T) {
 	path := GlobalSettingsPath()
 	if path == "" {

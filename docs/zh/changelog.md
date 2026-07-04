@@ -1,6 +1,31 @@
 # 更新日志
 
 
+## v1.1.59
+
+### ✨ 新功能
+
+- **系统提示新增工具选择规则**
+  - 在 agent 系统提示中新增"工具选择规则"章节，指导模型优先使用专用工具（`read`、`ls`、`grep`、`find`）进行文件检查与发现，而非 `bash`。
+  - 明确不鼓励通过 `bash` 运行 `cat`、`sed`、`awk`、`grep`、`find`、`ls`、`pwd` 等命令（当存在等效专用工具时）。
+
+- **目录迁移到 `.mothx/`**
+  - 安装脚本（`install.sh`、`install.ps1`）默认目录改为 `~/.mothx/`（原为 `~/.vibecoding/`）。
+  - 新增 `MOTHX_INSTALL_DIR` 环境变量，`VIBECODING_INSTALL_DIR` 作为旧版兼容保留。
+  - 卸载时同时检查旧目录（`~/.vibecoding/`、`./.vibe`）与新目录（`~/.mothx/`、`./.mothx`），确保向后兼容。
+  - npm postinstall 脚本与 README 更新为引用 `~/.mothx/settings.json`。
+
+### 🔧 改进
+
+- **TUI 认证对话框重构**
+  - 认证输入字段（API key、provider ID、模型名等）从 `SetMaxLines(3)` 改为 `SetMaxLines(1)`，强制单行输入。
+  - 新增 `newAuthInput()` 辅助函数，统一编辑器创建逻辑，减少 `auth_dialog.go`、`auth_model.go`、`auth_provider.go`、`auth_settings_top.go` 中的重复代码。
+  - 移除不再直接使用 `editor` 包的冗余导入。
+
+- **测试**
+  - 新增 `TestAuthAPIKeyInputStaysSingleLine`，验证认证输入不会换行成多行。
+  - 新增 `TestLoadSettingsCreatesMothXConfigDir`，验证设置创建使用 `.mothx/` 而非 `.vibecoding/`。
+
 ## v1.1.58
 
 ### 🔧 改进

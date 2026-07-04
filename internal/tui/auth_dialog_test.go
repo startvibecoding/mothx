@@ -127,6 +127,24 @@ func TestAuthBuildSettingsFromUsesProvidedBase(t *testing.T) {
 	}
 }
 
+func TestAuthAPIKeyInputStaysSingleLine(t *testing.T) {
+	a := &App{width: 48}
+	a.auth = authDialogState{
+		Open: true,
+		View: authViewProviderCredentials,
+		Provider: providerEditState{
+			APIKey: "sk-" + strings.Repeat("very-long-token-segment", 8),
+		},
+		ParamField: "apiKey",
+	}
+	a.prepareAuthProviderInput()
+
+	view := stripANSI(a.authInput.View())
+	if strings.Count(view, "\n") != 0 {
+		t.Fatalf("auth API key input wrapped into multiple lines:\n%s", view)
+	}
+}
+
 func TestAuthExistingCustomProvidersRemainVisible(t *testing.T) {
 	s := &config.Settings{Providers: map[string]*config.ProviderConfig{
 		"xiaomi":   {},

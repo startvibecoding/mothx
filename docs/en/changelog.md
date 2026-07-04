@@ -1,6 +1,31 @@
 # Changelog
 
 
+## v1.1.59
+
+### ✨ Features
+
+- **Tool Selection Rules in System Prompt**
+  - Added a "Tool Selection Rules" section to the agent system prompt, instructing the model to prefer dedicated tools (`read`, `ls`, `grep`, `find`) over `bash` for file inspection and discovery.
+  - Explicitly discourages running `cat`, `sed`, `awk`, `grep`, `find`, `ls`, `pwd` via `bash` when equivalent dedicated tools exist.
+
+- **Directory Migration to `.mothx/`**
+  - Install scripts (`install.sh`, `install.ps1`) now default to `~/.mothx/` (was `~/.vibecoding/`).
+  - Added `MOTHX_INSTALL_DIR` env var; `VIBECODING_INSTALL_DIR` remains as a legacy fallback.
+  - Uninstall checks both old (`~/.vibecoding/`, `./.vibe`) and new (`~/.mothx/`, `./.mothx`) directories for backward compatibility.
+  - npm postinstall scripts and README updated to reference `~/.mothx/settings.json`.
+
+### 🔧 Improvements
+
+- **TUI Auth Dialog Refactor**
+  - Auth input fields (API key, provider ID, model name, etc.) now use `SetMaxLines(1)` instead of `SetMaxLines(3)`, enforcing single-line input for credential and identifier fields.
+  - Introduced `newAuthInput()` helper to centralize editor creation, reducing duplication across `auth_dialog.go`, `auth_model.go`, `auth_provider.go`, and `auth_settings_top.go`.
+  - Removed redundant `editor` imports from files that now use the helper.
+
+- **Tests**
+  - Added `TestAuthAPIKeyInputStaysSingleLine` to verify auth input does not wrap into multiple lines.
+  - Added `TestLoadSettingsCreatesMothXConfigDir` to verify settings creation uses `.mothx/` and does not create `.vibecoding/`.
+
 ## v1.1.58
 
 ### 🔧 Improvements

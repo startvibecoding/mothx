@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 // --- Provider group constants ---
@@ -362,7 +360,7 @@ var errStayInInput = fmt.Errorf("stay in input")
 func (a *App) prepareAuthProviderInput() {
 	prompt := a.authProviderInputPrompt()
 	value := a.authProviderInputValue()
-	a.authInput = editor.New(max(20, a.width-8)).SetPlaceholder(prompt).SetMaxLines(3).Focus()
+	a.authInput = a.newAuthInput(prompt)
 	if value != "" {
 		a.authInput = a.authInput.SetValue(value)
 	}

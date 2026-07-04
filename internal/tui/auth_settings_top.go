@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/startvibecoding/mothx/internal/config"
-	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
 
 func (a *App) authSettingsRootOptions() []authOption {
@@ -209,7 +208,7 @@ func (a *App) selectSettingsFieldValue(value string) {
 func (a *App) prepareAuthSettingsInput() {
 	prompt := a.authSettingsInputPrompt()
 	value := a.authSettingsInputValue()
-	a.authInput = editor.New(max(20, a.width-8)).SetPlaceholder(prompt).SetMaxLines(3).Focus()
+	a.authInput = a.newAuthInput(prompt)
 	if value != "" {
 		a.authInput = a.authInput.SetValue(value)
 	}

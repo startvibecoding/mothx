@@ -11,7 +11,7 @@
 #   irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
 #
 #   # Install to custom directory
-#   $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
+#   $env:MOTHX_INSTALL_DIR="C:\Tools\mothx"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
 #
 #   # Uninstall
 #   irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
@@ -20,7 +20,7 @@ $ErrorActionPreference = "Stop"
 
 $REPO = "startvibecoding/mothx"
 $BINARY_NAME = "mothx.exe"
-$DEFAULT_INSTALL_DIR = "$env:LOCALAPPDATA\vibecoding"
+$DEFAULT_INSTALL_DIR = "$env:LOCALAPPDATA\mothx"
 
 # Colors
 function Write-Info { Write-Host "[INFO] $args" -ForegroundColor Cyan }
@@ -44,14 +44,15 @@ function Show-Help {
     Write-Host "  -Uninstall      Uninstall MothX"
     Write-Host ""
     Write-Host "Environment variables:"
-    Write-Host "  VIBECODING_INSTALL_DIR   Install directory (default: $env:LOCALAPPDATA\vibecoding)"
+    Write-Host "  MOTHX_INSTALL_DIR        Install directory (default: $env:LOCALAPPDATA\mothx)"
+    Write-Host "  VIBECODING_INSTALL_DIR   Legacy install directory override"
     Write-Host ""
     Write-Host "Examples:"
     Write-Host "  # Install"
     Write-Host "  irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex"
     Write-Host ""
     Write-Host "  # Install to custom directory"
-    Write-Host "  `$env:VIBECODING_INSTALL_DIR=`"C:\Tools\vibecoding`"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex"
+    Write-Host "  `$env:MOTHX_INSTALL_DIR=`"C:\Tools\mothx`"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex"
     Write-Host ""
     Write-Host "  # Uninstall"
     Write-Host "  irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX"
@@ -70,6 +71,8 @@ function Uninstall-MothX {
 
     # Check common install locations
     $checkDirs = @(
+        "$env:LOCALAPPDATA\mothx",
+        "$env:USERPROFILE\.mothx\bin",
         "$env:LOCALAPPDATA\vibecoding",
         "$env:USERPROFILE\.vibecoding\bin",
         "$env:ProgramFiles\vibecoding"
@@ -83,9 +86,9 @@ function Uninstall-MothX {
     }
 
     # Also check PATH
-    $vibecodingInPath = Get-Command vibecoding -ErrorAction SilentlyContinue
-    if ($vibecodingInPath) {
-        $whichPath = $vibecodingInPath.Source
+    $mothxInPath = Get-Command mothx -ErrorAction SilentlyContinue
+    if ($mothxInPath) {
+        $whichPath = $mothxInPath.Source
         if ($foundPaths -notcontains $whichPath) {
             $foundPaths += $whichPath
         }
@@ -134,8 +137,15 @@ function Uninstall-MothX {
 
     # Ask about config directory
     Write-Host ""
-    $configDir = Join-Path $env:APPDATA "vibecoding"
-    if (Test-Path $configDir) {
+    $configDirs = @(
+        (Join-Path $env:APPDATA "mothx"),
+        (Join-Path $env:APPDATA "vibecoding")
+    )
+    foreach ($configDir in $configDirs) {
+        if (-not (Test-Path $configDir)) {
+            continue
+        }
+
         Write-Info "Config directory: $configDir"
         Write-Host ""
         $answer = Read-Host "Remove config directory ($configDir)? [y/N]"
@@ -157,7 +167,7 @@ function Uninstall-MothX {
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $pathEntries = if ($currentPath) { $currentPath -split ';' | Where-Object { $_ -ne '' } } else { @() }
     
-    $vibecodingEntries = $pathEntries | Where-Object { $_ -like '*vibecoding*' }
+    $vibecodingEntries = $pathEntries | Where-Object { $_ -like '*mothx*' -or $_ -like '*vibecoding*' }
     
     if ($vibecodingEntries.Count -gt 0) {
         Write-Info "Found MothX PATH entries:"
@@ -167,7 +177,7 @@ function Uninstall-MothX {
         Write-Host ""
         $answer = Read-Host "Remove MothX from PATH? [y/N]"
         if ($answer -eq 'y' -or $answer -eq 'Y') {
-            $newEntries = $pathEntries | Where-Object { $_ -notlike '*vibecoding*' }
+            $newEntries = $pathEntries | Where-Object { $_ -notlike '*mothx*' -and $_ -notlike '*vibecoding*' }
             $newPath = $newEntries -join ';'
             [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
             $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + $newPath
@@ -240,7 +250,7 @@ $arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { Write-Erro
 Write-Info "Detected architecture: windows/$arch"
 
 # Get install directory
-$installDir = if ($env:VIBECODING_INSTALL_DIR) { $env:VIBECODING_INSTALL_DIR } else { $DEFAULT_INSTALL_DIR }
+$installDir = if ($env:MOTHX_INSTALL_DIR) { $env:MOTHX_INSTALL_DIR } elseif ($env:VIBECODING_INSTALL_DIR) { $env:VIBECODING_INSTALL_DIR } else { $DEFAULT_INSTALL_DIR }
 Write-Info "Install directory: $installDir"
 
 # Get latest version from GitHub
@@ -268,7 +278,7 @@ $downloadUrl = $asset.browser_download_url
 Write-Info "Download URL: $downloadUrl"
 
 # Create temp directory
-$tempDir = Join-Path $env:TEMP "vibecoding-install-$(Get-Random)"
+$tempDir = Join-Path $env:TEMP "mothx-install-$(Get-Random)"
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 try {
@@ -325,7 +335,7 @@ try {
     }
 
     # Show config directory info
-    $configDir = Join-Path $env:APPDATA "vibecoding"
+    $configDir = Join-Path $env:APPDATA "mothx"
     $settingsPath = Join-Path $configDir "settings.json"
 
     Write-Host ""

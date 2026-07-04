@@ -64,7 +64,7 @@ export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Or configure in `~/.vibecoding/settings.json`:
+Or configure in `~/.mothx/settings.json`:
 
 ```json
 {

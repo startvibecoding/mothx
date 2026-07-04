@@ -1320,6 +1320,14 @@ func TestBuildSystemPrompt(t *testing.T) {
 	if !contains(prompt, "Extra") {
 		t.Error("expected prompt to contain extra context")
 	}
+
+	if !contains(prompt, ".skills/<name>/SKILL.md") {
+		t.Error("expected prompt to direct project skill creation to .skills")
+	}
+
+	if !contains(prompt, "Do not create legacy .vibe directories for skills") {
+		t.Error("expected prompt to forbid legacy .vibe skill directories")
+	}
 }
 
 func TestBuildSystemPromptModes(t *testing.T) {

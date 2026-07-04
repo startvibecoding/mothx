@@ -28,9 +28,9 @@ const logo = [
 function configPath() {
   if (process.platform === 'win32') {
     const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    return path.join(appData, 'vibecoding', 'settings.json');
+    return path.join(appData, 'mothx', 'settings.json');
   }
-  return path.join(os.homedir(), '.vibecoding', 'settings.json');
+  return path.join(os.homedir(), '.mothx', 'settings.json');
 }
 
 function pkgVersion() {

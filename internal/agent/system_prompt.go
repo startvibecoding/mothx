@@ -138,7 +138,14 @@ Focus on getting the task done quickly and correctly.
 ## Available Tools
 %s
 
-`, toolsList))
+## Tool Selection Rules
+- For file inspection and discovery, use dedicated tools first: read for file contents, ls for directory listings, grep for content search, and find for filename/path search.
+- Avoid using bash for basic file inspection when an equivalent dedicated tool is available.
+- Bash commands already run in the working directory shown above. Do not prefix bash commands with cd %s && unless you intentionally need a different directory.
+- Use bash for builds, tests, package managers, generated-code commands, git commands, and other shell operations that dedicated tools cannot express.
+- When creating project-local skills, use .skills/<name>/SKILL.md. Do not create legacy .vibe directories for skills.
+
+`, toolsList, cwd))
 
 	// Guidelines section
 	guidelines := buildGuidelines(toolGuidelines)

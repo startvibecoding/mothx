@@ -12,7 +12,7 @@ trap 'error "Installation failed at line $LINENO."' ERR
 #
 # Downloads and installs the latest release from GitHub
 #
-# Supports non-root installation to ~/.vibecoding/bin
+# Supports non-root installation to ~/.mothx/bin
 #
 # Repository: https://github.com/startvibecoding/mothx
 # Gitee:      https://gitee.com/startvibecoding/mothx
@@ -23,10 +23,11 @@ REPO="startvibecoding/mothx"
 BINARY_NAME="mothx"
 
 # User-level install directory (no root required)
-USER_INSTALL_DIR="${HOME}/.vibecoding/bin"
+USER_INSTALL_DIR="${HOME}/.mothx/bin"
+LEGACY_USER_INSTALL_DIR="${HOME}/.vibecoding/bin"
 
 # Default install directory: auto-detect based on write permission
-# Priority: INSTALL_DIR env > writable /usr/local/bin > ~/.vibecoding/bin
+# Priority: INSTALL_DIR env > writable /usr/local/bin > ~/.mothx/bin
 if [ -n "${INSTALL_DIR:-}" ]; then
     : # User explicitly set INSTALL_DIR
 elif [ -w "/usr/local/bin" ] || [ -w "/usr/local" ]; then
@@ -107,7 +108,7 @@ uninstall() {
     local found_paths=()
 
     # Check common install locations
-    for dir in "/usr/local/bin" "$USER_INSTALL_DIR" "$HOME/.local/bin"; do
+    for dir in "/usr/local/bin" "$USER_INSTALL_DIR" "$LEGACY_USER_INSTALL_DIR" "$HOME/.local/bin"; do
         if [ -f "$dir/$BINARY_NAME" ]; then
             found_paths+=("$dir/$BINARY_NAME")
         fi
@@ -170,8 +171,12 @@ uninstall() {
 
     # Ask about config and sessions
     echo ""
-    local config_dir="${HOME}/.vibecoding"
-    if [ -d "$config_dir" ]; then
+    local config_dirs=("${HOME}/.mothx" "${HOME}/.vibecoding")
+    for config_dir in "${config_dirs[@]}"; do
+        if [ ! -d "$config_dir" ]; then
+            continue
+        fi
+
         info "Config directory: $config_dir"
         echo ""
         read -rp "Remove config directory ($config_dir)? [y/N] " answer
@@ -183,23 +188,27 @@ uninstall() {
         else
             info "Kept: $config_dir"
         fi
-    fi
+    done
 
     # Ask about project .vibe directory
     echo ""
-    local project_vibe="./.vibe"
-    if [ -d "$project_vibe" ]; then
-        info "Project config found: $project_vibe"
-        read -rp "Remove project config ($project_vibe)? [y/N] " answer
+    local project_dirs=("./.mothx" "./.vibe")
+    for project_dir in "${project_dirs[@]}"; do
+        if [ ! -d "$project_dir" ]; then
+            continue
+        fi
+
+        info "Project config found: $project_dir"
+        read -rp "Remove project config ($project_dir)? [y/N] " answer
         answer="${answer:-N}"
 
         if [[ "$answer" =~ ^[Yy]$ ]]; then
-            rm -rf "$project_vibe"
-            success "Removed: $project_vibe"
+            rm -rf "$project_dir"
+            success "Removed: $project_dir"
         else
-            info "Kept: $project_vibe"
+            info "Kept: $project_dir"
         fi
-    fi
+    done
 
     # Clean PATH entries
     echo ""
@@ -207,7 +216,7 @@ uninstall() {
     local config_file
     config_file=$(detect_shell_config)
 
-    if [ -f "$config_file" ] && grep -q "\.vibecoding/bin" "$config_file" 2>/dev/null; then
+    if [ -f "$config_file" ] && grep -Eq "\.(mothx|vibecoding)/bin" "$config_file" 2>/dev/null; then
         info "Found PATH entry in: $config_file"
         read -rp "Remove PATH entry from $config_file? [y/N] " answer
         answer="${answer:-N}"
@@ -411,7 +420,7 @@ add_to_path() {
     fi
     
     # Check if already in PATH config
-    if grep -q "\.vibecoding/bin" "$config_file" 2>/dev/null; then
+    if grep -Fq "$INSTALL_DIR" "$config_file" 2>/dev/null; then
         info "PATH already configured in ${config_file}"
         return 0
     fi
@@ -443,7 +452,7 @@ check_path() {
     config_file=$(detect_shell_config)
 
     # First check if already configured in shell config file
-    if [ -f "$config_file" ] && grep -q "\.vibecoding/bin" "$config_file" 2>/dev/null; then
+    if [ -f "$config_file" ] && grep -Fq "$INSTALL_DIR" "$config_file" 2>/dev/null; then
         # Already in config, but check if it's in current session too
         if echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
             return 0
@@ -599,10 +608,10 @@ main_install() {
     local config_dir
     case "$(uname -s)" in
         Darwin*|Linux*)
-            config_dir="${HOME}/.vibecoding"
+            config_dir="${HOME}/.mothx"
             ;;
         *)
-            config_dir="${HOME}/.vibecoding"
+            config_dir="${HOME}/.mothx"
             ;;
     esac
 

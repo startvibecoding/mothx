@@ -99,9 +99,8 @@ var authDialogStyle = lipgloss.NewStyle().
 
 func (a *App) openAuthDialog() {
 	a.auth = authDialogState{Open: true, View: authViewMain, SetDefault: true}
-	a.authInput = editor.New(max(20, a.width-8)).SetMaxLines(3)
+	a.authInput = a.newAuthInput("")
 	a.input = a.input.Blur()
-	a.authInput = a.authInput.Focus()
 	a.scheduleRender()
 }
 
@@ -145,11 +144,11 @@ func (a *App) popAuthView() {
 func (a *App) prepareAuthInput() {
 	switch a.auth.View {
 	case authViewCustomID:
-		a.authInput = editor.New(max(20, a.width-8)).SetPlaceholder("provider-id (e.g. openrouter)").SetMaxLines(3).SetValue(a.auth.ProviderID).Focus()
+		a.authInput = a.newAuthInput("provider-id (e.g. openrouter)").SetValue(a.auth.ProviderID)
 	case authViewAddModelID:
-		a.authInput = editor.New(max(20, a.width-8)).SetPlaceholder("model-id").SetMaxLines(3).Focus()
+		a.authInput = a.newAuthInput("model-id")
 	case authViewAddModelName:
-		a.authInput = editor.New(max(20, a.width-8)).SetPlaceholder(a.auth.CurrentModelID).SetMaxLines(3).Focus()
+		a.authInput = a.newAuthInput(a.auth.CurrentModelID)
 	case authViewModelBasics, authViewModelCapabilities,
 		authViewModelSampling, authViewModelCost, authViewModelCompat:
 		a.prepareModelInput()
@@ -161,6 +160,10 @@ func (a *App) prepareAuthInput() {
 	default:
 		a.prepareAuthProviderInput()
 	}
+}
+
+func (a *App) newAuthInput(placeholder string) editor.Model {
+	return editor.New(max(20, a.width-8)).SetPlaceholder(placeholder).SetMaxLines(1).Focus()
 }
 
 func (a *App) handleAuthKey(msg tea.KeyMsg) (bool, tea.Cmd) {
