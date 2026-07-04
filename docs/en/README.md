@@ -105,7 +105,7 @@ Welcome to the MothX Documentation Center!
 
 ```bash
 # npm (recommended)
-npm install -g mothx
+npm install -g mothx-installer
 
 # Compatibility package for this transition release
 npm install -g vibecoding-installer
@@ -124,7 +124,7 @@ go install github.com/startvibecoding/mothx/cmd/mothx@latest
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # Compatibility package, if installed before the rename
 npm uninstall -g vibecoding-installer

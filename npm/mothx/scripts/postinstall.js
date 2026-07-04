@@ -59,7 +59,7 @@ console.log(`${BRIGHT_CYAN}${BOLD}${logo}${RESET}${verStr}`);
 console.log();
 if (legacy) {
   console.log(`  ${YELLOW}${BOLD}vibecoding-installer is a compatibility package.${RESET}`);
-  console.log(`  ${YELLOW}Future updates move to: npm install -g mothx@latest${RESET}`);
+  console.log(`  ${YELLOW}Future updates move to: npm install -g mothx-installer@latest${RESET}`);
   console.log();
 }
 console.log(`  ${BOLD}${WHITE}Your AI pair programmer, right in the terminal.${RESET}`);

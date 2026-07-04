@@ -2,7 +2,7 @@
 
 # MothX
 
-MothX was formerly known as VibeCoding. This PyPI package is kept as a legacy compatibility distribution: each wheel includes a platform-native `vibecoding` binary, while new installs and future updates should prefer `npm install -g mothx`.
+MothX was formerly known as VibeCoding. This PyPI package is kept as a legacy compatibility distribution: each wheel includes a platform-native `vibecoding` binary, while new installs and future updates should prefer `npm install -g mothx-installer`.
 
 ## Installation
 
@@ -217,7 +217,7 @@ Config in `~/.vibecoding/hermes.json`. Each user gets an independent, persistent
 - macOS x86_64, arm64
 - Windows x64, arm64
 
-Other platforms (LoongArch64, RISC-V64, *BSD) are available via `npm install -g mothx` or the one-line installer.
+Other platforms (LoongArch64, RISC-V64, *BSD) are available via `npm install -g mothx-installer` or the one-line installer.
 
 ## Diagnostics
 

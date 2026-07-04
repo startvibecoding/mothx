@@ -62,7 +62,7 @@
 
 ```bash
 # Install (pick one)
-npm install -g mothx                         # npm (recommended)
+npm install -g mothx-installer               # npm (recommended)
 pipx install vibecoding-installer           # PyPI
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS (GitHub)
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS (Gitee 国内镜像)
@@ -80,7 +80,7 @@ That's it. You're coding with AI.
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # Compatibility package, if installed before the rename
 npm uninstall -g vibecoding-installer

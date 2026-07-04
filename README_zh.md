@@ -53,10 +53,10 @@
 **选项 1：npm（推荐）**
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
-旧 npm 包 `vibecoding-installer` 本版本仍保留兼容，但后续更新请切换到 `mothx`。
+旧 npm 包 `vibecoding-installer` 本版本仍保留兼容，但后续更新请切换到 `mothx-installer`。
 
 **选项 2：PyPI**
 

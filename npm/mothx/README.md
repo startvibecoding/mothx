@@ -1,4 +1,4 @@
-> **Rename notice:** VibeCoding is now **MothX**. Install name: `mothx` (`npm install -g mothx`).
+> **Rename notice:** VibeCoding is now **MothX**. Install name: `mothx-installer` (`npm install -g mothx-installer`).
 
 # MothX
 
@@ -9,7 +9,7 @@ A terminal-based AI coding assistant. One binary, multiple providers, sandbox, s
 ## Installation
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ## Quick Start
@@ -79,7 +79,7 @@ Or configure in `~/.vibecoding/settings.json`:
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # Linux/macOS (one-line install)
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall

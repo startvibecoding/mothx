@@ -1,4 +1,4 @@
-> **Rename notice:** VibeCoding is now **MothX**. This legacy npm install name is `vibecoding-installer`; use `mothx` (`npm install -g mothx`) for new installs and future updates.
+> **Rename notice:** VibeCoding is now **MothX**. This legacy npm install name is `vibecoding-installer`; use `mothx-installer` (`npm install -g mothx-installer`) for new installs and future updates.
 
 # vibecoding-installer compatibility package
 
@@ -13,7 +13,7 @@ A terminal-based AI coding assistant. One binary, multiple providers, sandbox, s
 ```bash
 npm install -g vibecoding-installer
 # Future updates:
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ## Quick Start
