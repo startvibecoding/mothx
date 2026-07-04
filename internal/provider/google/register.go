@@ -77,6 +77,7 @@ func convertModels(providerName string, models []config.ModelConfig) []*provider
 			Input:         input,
 			ContextWindow: m.ContextWindow,
 			MaxTokens:     m.MaxTokens,
+			MaxTokensSet:  m.MaxTokensWasSet(),
 			Temperature:   m.Temperature,
 			TopP:          m.TopP,
 			Compat:        toCompat(m.Compat),

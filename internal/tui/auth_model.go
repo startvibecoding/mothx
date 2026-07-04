@@ -497,6 +497,7 @@ func (a *App) authModelSubmitInput() error {
 				return fmt.Errorf("max tokens must be a positive integer")
 			}
 			me.MaxTokens = v
+			me.MaxTokensEdited = true
 		}
 	case "input":
 		ids := normalizeAuthModelIDs(value)

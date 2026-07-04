@@ -411,15 +411,13 @@ func vertexAPIKeyBaseURL(base string) string {
 }
 
 func (p *Provider) generationConfig(params provider.ChatParams, model *provider.Model) *googleGenerationConf {
-	maxTokens := params.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = 16384
-	}
 	cfg := &googleGenerationConf{
-		MaxOutputTokens: maxTokens,
 		Temperature:     params.Temperature,
 		TopP:            params.TopP,
 		MediaResolution: googleMediaResolution(params.Messages),
+	}
+	if params.MaxTokens > 0 {
+		cfg.MaxOutputTokens = params.MaxTokens
 	}
 	if params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {
 		cfg.ThinkingConfig = &googleThinkingConfig{ThinkingBudget: googleThinkingBudget(params.ThinkingLevel), IncludeThoughts: true}

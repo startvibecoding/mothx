@@ -82,7 +82,7 @@ func TestTimeSeries(t *testing.T) {
 	}
 }
 
-func TestTimeSeriesTwoPointFiveHours(t *testing.T) {
+func TestTimeSeriesOneHour(t *testing.T) {
 	db := createTestDB(t)
 	defer db.Close()
 
@@ -104,18 +104,21 @@ func TestTimeSeriesTwoPointFiveHours(t *testing.T) {
 		}
 	}
 
-	data, err := db.TimeSeries(Query{GroupBy: "2.5h"})
+	data, err := db.TimeSeries(Query{GroupBy: "1h"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(data) != 2 {
-		t.Fatalf("expected 2 data points, got %d", len(data))
+	if len(data) != 3 {
+		t.Fatalf("expected 3 data points, got %d", len(data))
 	}
-	if data[0].Label != "2026-06-28 12:30" || data[0].TotalTokens != 300 {
-		t.Errorf("expected first bucket 2026-06-28 12:30 with 300 tokens, got %s with %d", data[0].Label, data[0].TotalTokens)
+	if data[0].Label != "2026-06-28 12:00" || data[0].TotalTokens != 100 {
+		t.Errorf("expected first bucket 2026-06-28 12:00 with 100 tokens, got %s with %d", data[0].Label, data[0].TotalTokens)
 	}
-	if data[1].Label != "2026-06-28 15:00" || data[1].TotalTokens != 300 {
-		t.Errorf("expected second bucket 2026-06-28 15:00 with 300 tokens, got %s with %d", data[1].Label, data[1].TotalTokens)
+	if data[1].Label != "2026-06-28 14:00" || data[1].TotalTokens != 200 {
+		t.Errorf("expected second bucket 2026-06-28 14:00 with 200 tokens, got %s with %d", data[1].Label, data[1].TotalTokens)
+	}
+	if data[2].Label != "2026-06-28 15:00" || data[2].TotalTokens != 300 {
+		t.Errorf("expected third bucket 2026-06-28 15:00 with 300 tokens, got %s with %d", data[2].Label, data[2].TotalTokens)
 	}
 }
 

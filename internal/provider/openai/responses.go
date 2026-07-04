@@ -124,21 +124,19 @@ func (p *Provider) chatResponses(ctx context.Context, params provider.ChatParams
 			}
 		}
 
-		maxTokens := params.MaxTokens
-		if maxTokens == 0 {
-			maxTokens = 16384
-		}
 		model := p.GetModel(modelID)
 
 		reqBody := responsesRequest{
-			Model:           modelID,
-			Instructions:    params.SystemPrompt,
-			Input:           p.convertResponsesInput(params),
-			Tools:           p.convertResponsesTools(params.Tools),
-			MaxOutputTokens: maxTokens,
-			Temperature:     params.Temperature,
-			TopP:            params.TopP,
-			Stream:          true,
+			Model:        modelID,
+			Instructions: params.SystemPrompt,
+			Input:        p.convertResponsesInput(params),
+			Tools:        p.convertResponsesTools(params.Tools),
+			Temperature:  params.Temperature,
+			TopP:         params.TopP,
+			Stream:       true,
+		}
+		if params.MaxTokens > 0 {
+			reqBody.MaxOutputTokens = params.MaxTokens
 		}
 
 		if p.responsesConfig != nil && p.responsesConfig.promptCacheEnabled && supportsPromptCacheKey(model) {

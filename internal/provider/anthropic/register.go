@@ -31,6 +31,7 @@ func resolveAnthropicModels(cfg *config.ProviderConfig) []*provider.Model {
 				Cost:          cost,
 				ContextWindow: m.ContextWindow,
 				MaxTokens:     m.MaxTokens,
+				MaxTokensSet:  m.MaxTokensWasSet(),
 				Temperature:   m.Temperature,
 				TopP:          m.TopP,
 				Compat:        convertCompat(m.Compat),

@@ -733,6 +733,35 @@ func TestResolveKeyValueShellCommandRequiresOptIn(t *testing.T) {
 	}
 }
 
+func TestResolveModelConfigTracksUserSetMaxTokens(t *testing.T) {
+	settings := DefaultSettings()
+	settings.Providers["openai"] = &ProviderConfig{
+		Models: []ModelConfig{{
+			ID:        "gpt-4o",
+			MaxTokens: 12345,
+		}},
+	}
+
+	model := ResolveModelConfig("openai", "gpt-4o", settings)
+	if model == nil {
+		t.Fatal("ResolveModelConfig returned nil")
+	}
+	if !model.MaxTokensWasSet() {
+		t.Fatal("MaxTokensWasSet = false, want true for runtime override")
+	}
+	if model.MaxTokens != 12345 {
+		t.Fatalf("MaxTokens = %d, want 12345", model.MaxTokens)
+	}
+
+	builtin := DefaultModelConfig("openai", "gpt-4o")
+	if builtin == nil {
+		t.Fatal("DefaultModelConfig returned nil")
+	}
+	if builtin.MaxTokensWasSet() {
+		t.Fatal("builtin MaxTokensWasSet = true, want false")
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
 }

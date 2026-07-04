@@ -310,6 +310,32 @@ func TestChatRequestPreservesCacheControlOnSingleTextBlock(t *testing.T) {
 	}
 }
 
+func TestChatRequestUsesExplicitMaxTokens(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "claude-test"}}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
+	params := provider.ChatParams{
+		ModelID:   "claude-test",
+		Messages:  []provider.Message{provider.NewUserMessage("hi")},
+		MaxTokens: 4096,
+		Abort:     make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var req anthropicRequest
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if req.MaxTokens != 4096 {
+		t.Fatalf("MaxTokens = %d, want 4096", req.MaxTokens)
+	}
+}
+
 func TestChatRequestHostedWebSearchTool(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "claude-test"}}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)

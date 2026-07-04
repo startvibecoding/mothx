@@ -60,10 +60,11 @@ type modelEditState struct {
 	ID   string
 	Name string
 
-	ContextWindow int
-	MaxTokens     int
-	Reasoning     bool
-	Input         []string
+	ContextWindow   int
+	MaxTokens       int
+	MaxTokensEdited bool
+	Reasoning       bool
+	Input           []string
 
 	Temperature *float64
 	TopP        *float64
@@ -144,14 +145,15 @@ func modelEditStateFromMC(mc *config.ModelConfig) *modelEditState {
 		return nil
 	}
 	me := &modelEditState{
-		ID:            mc.ID,
-		Name:          mc.Name,
-		ContextWindow: mc.ContextWindow,
-		MaxTokens:     mc.MaxTokens,
-		Reasoning:     mc.Reasoning,
-		Input:         config.CloneStringSlice(mc.Input),
-		Temperature:   config.CloneFloat64Ptr(mc.Temperature),
-		TopP:          config.CloneFloat64Ptr(mc.TopP),
+		ID:              mc.ID,
+		Name:            mc.Name,
+		ContextWindow:   mc.ContextWindow,
+		MaxTokens:       mc.MaxTokens,
+		MaxTokensEdited: mc.MaxTokensWasSet(),
+		Reasoning:       mc.Reasoning,
+		Input:           config.CloneStringSlice(mc.Input),
+		Temperature:     config.CloneFloat64Ptr(mc.Temperature),
+		TopP:            config.CloneFloat64Ptr(mc.TopP),
 	}
 	if mc.Cost != nil {
 		me.CostEnabled = true
@@ -228,11 +230,13 @@ func (me *modelEditState) toConfig() config.ModelConfig {
 		ID:            me.ID,
 		Name:          me.Name,
 		ContextWindow: me.ContextWindow,
-		MaxTokens:     me.MaxTokens,
 		Reasoning:     me.Reasoning,
 		Input:         config.CloneStringSlice(me.Input),
 		Temperature:   config.CloneFloat64Ptr(me.Temperature),
 		TopP:          config.CloneFloat64Ptr(me.TopP),
+	}
+	if me.MaxTokensEdited {
+		mc.MaxTokens = me.MaxTokens
 	}
 	if me.Name == "" {
 		mc.Name = me.ID

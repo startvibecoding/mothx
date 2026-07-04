@@ -394,6 +394,34 @@ func TestOpenAIThinkingFormatFromModelCompat(t *testing.T) {
 	}
 }
 
+func TestOpenAIOmitsMaxTokensByDefault(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockOpenAIProvider(t, []*provider.Model{{ID: "gpt-test", MaxTokens: 64000}}, "data: [DONE]\n", bodyCh, nil)
+	params := provider.ChatParams{
+		ModelID:  "gpt-test",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var raw map[string]any
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &raw); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if _, ok := raw["max_tokens"]; ok {
+		t.Fatalf("max_tokens = %#v, want omitted by default", raw["max_tokens"])
+	}
+	if _, ok := raw["max_completion_tokens"]; ok {
+		t.Fatalf("max_completion_tokens = %#v, want omitted by default", raw["max_completion_tokens"])
+	}
+}
+
 func TestOpenAIModelCompatRequestFields(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	supportsReasoningEffort := false
@@ -525,8 +553,8 @@ func TestOpenAIResponsesAPIRequest(t *testing.T) {
 	if raw["stream"] != true {
 		t.Fatalf("stream = %#v, want true", raw["stream"])
 	}
-	if _, ok := raw["max_output_tokens"]; !ok {
-		t.Fatalf("max_output_tokens missing: %#v", raw)
+	if _, ok := raw["max_output_tokens"]; ok {
+		t.Fatalf("max_output_tokens = %#v, want omitted by default", raw["max_output_tokens"])
 	}
 	if _, ok := raw["input"].([]any); !ok {
 		t.Fatalf("input = %#v, want array", raw["input"])
@@ -561,6 +589,7 @@ func TestOpenAIResponsesAPIConfigOverrides(t *testing.T) {
 	params := provider.ChatParams{
 		ModelID:       "responses-test",
 		Messages:      []provider.Message{provider.NewUserMessage("hi")},
+		MaxTokens:     1234,
 		ThinkingLevel: provider.ThinkingMinimal,
 		Abort:         make(chan struct{}),
 	}
@@ -591,6 +620,9 @@ func TestOpenAIResponsesAPIConfigOverrides(t *testing.T) {
 	}
 	if raw["prompt_cache_retention"] != "24h" {
 		t.Fatalf("prompt_cache_retention = %#v, want 24h", raw["prompt_cache_retention"])
+	}
+	if raw["max_output_tokens"] != float64(1234) {
+		t.Fatalf("max_output_tokens = %#v, want 1234", raw["max_output_tokens"])
 	}
 }
 

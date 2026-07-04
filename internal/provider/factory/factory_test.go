@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/startvibecoding/mothx/internal/config"
@@ -246,6 +247,35 @@ func TestCreateAppliesMaxContextTokensOverride(t *testing.T) {
 	}
 	if model.ContextWindow != 12345 {
 		t.Fatalf("ContextWindow = %d, want 12345", model.ContextWindow)
+	}
+}
+
+func TestCreatePreservesUserSetModelMaxTokensMarker(t *testing.T) {
+	settings := config.DefaultSettings()
+	if err := json.Unmarshal([]byte(`{
+		"providers": {
+			"custom-provider": {
+				"apiKey": "fake-key",
+				"baseUrl": "https://api.openai.com/v1",
+				"api": "openai-chat",
+				"models": [
+					{"id": "model-one", "name": "Model One", "contextWindow": 100000, "maxTokens": 4096}
+				]
+			}
+		}
+	}`), settings); err != nil {
+		t.Fatalf("unmarshal settings: %v", err)
+	}
+
+	_, model, err := Create(settings, "custom-provider", "model-one")
+	if err != nil {
+		t.Fatalf("create provider: %v", err)
+	}
+	if model.MaxTokens != 4096 {
+		t.Fatalf("MaxTokens = %d, want 4096", model.MaxTokens)
+	}
+	if !model.MaxTokensSet {
+		t.Fatal("MaxTokensSet = false, want true")
 	}
 }
 

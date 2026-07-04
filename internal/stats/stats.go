@@ -53,7 +53,7 @@ type Query struct {
 	Vendor   string
 	Protocol string
 	Model    string
-	GroupBy  string // "day", "2.5h", "week", "month", "provider", "model"
+	GroupBy  string // "day", "1h", "week", "month", "provider", "model"
 }
 
 // DB wraps a SQLite connection for stats queries.
@@ -112,8 +112,8 @@ func (s *DB) TimeSeries(q Query) ([]Aggregate, error) {
 	where, args := buildWhereClause(q)
 	var bucketSQL string
 	switch q.GroupBy {
-	case "2.5h":
-		bucketSQL = twoAndHalfHourBucketSQL()
+	case "1h":
+		bucketSQL = oneHourBucketSQL()
 	case "week":
 		bucketSQL = "substr(timestamp, 1, 4) || '-W' || substr(timestamp, 6, 2) || '-' || substr(timestamp, 9, 2)"
 	case "month":
@@ -143,14 +143,8 @@ func (s *DB) TimeSeries(q Query) ([]Aggregate, error) {
 	return results, rows.Err()
 }
 
-func twoAndHalfHourBucketSQL() string {
-	secondsSQL := "(CAST(substr(timestamp, 12, 2) AS INTEGER) * 3600 + CAST(substr(timestamp, 15, 2) AS INTEGER) * 60 + CAST(substr(timestamp, 18, 2) AS INTEGER))"
-	bucketSecondsSQL := fmt.Sprintf("((%s / 9000) * 9000)", secondsSQL)
-	return fmt.Sprintf(
-		"substr(timestamp, 1, 10) || ' ' || printf('%%02d:%%02d', (%s / 3600), ((%s %% 3600) / 60))",
-		bucketSecondsSQL,
-		bucketSecondsSQL,
-	)
+func oneHourBucketSQL() string {
+	return "substr(timestamp, 1, 10) || ' ' || substr(timestamp, 12, 2) || ':00'"
 }
 
 // ByProvider returns stats grouped by vendor and protocol.

@@ -29,24 +29,26 @@ func TestAuthBuildSettingsPreservesExistingModelConfig(t *testing.T) {
 			},
 			Models: map[string]*modelEditState{
 				"deepseek-v4-pro": {
-					ID:            "deepseek-v4-pro",
-					Name:          "DeepSeek V4 Pro",
-					ContextWindow: 200000,
-					MaxTokens:     10000,
-					Reasoning:     true,
-					Input:         []string{"text", "image"},
-					Temperature:   &temp,
-					TopP:          &topP,
+					ID:              "deepseek-v4-pro",
+					Name:            "DeepSeek V4 Pro",
+					ContextWindow:   200000,
+					MaxTokens:       10000,
+					MaxTokensEdited: true,
+					Reasoning:       true,
+					Input:           []string{"text", "image"},
+					Temperature:     &temp,
+					TopP:            &topP,
 				},
 				"custom-model": {
-					ID:            "custom-model",
-					Name:          "custom-model",
-					ContextWindow: 200000,
-					MaxTokens:     10000,
-					Reasoning:     true,
-					Input:         []string{"text", "image"},
-					Temperature:   &temp,
-					TopP:          &topP,
+					ID:              "custom-model",
+					Name:            "custom-model",
+					ContextWindow:   200000,
+					MaxTokens:       10000,
+					MaxTokensEdited: true,
+					Reasoning:       true,
+					Input:           []string{"text", "image"},
+					Temperature:     &temp,
+					TopP:            &topP,
 				},
 			},
 			ModelOrder: []string{"deepseek-v4-pro", "custom-model"},
@@ -99,11 +101,12 @@ func TestAuthBuildSettingsFromUsesProvidedBase(t *testing.T) {
 		},
 		Models: map[string]*modelEditState{
 			"z-ai/glm-4.5-air:free": {
-				ID:            "z-ai/glm-4.5-air:free",
-				Name:          "z-ai/glm-4.5-air:free",
-				ContextWindow: 128000,
-				MaxTokens:     8192,
-				Input:         []string{"text"},
+				ID:              "z-ai/glm-4.5-air:free",
+				Name:            "z-ai/glm-4.5-air:free",
+				ContextWindow:   128000,
+				MaxTokens:       8192,
+				MaxTokensEdited: true,
+				Input:           []string{"text"},
 			},
 		},
 		ModelOrder: []string{"z-ai/glm-4.5-air:free"},
@@ -338,7 +341,7 @@ func TestAuthSparsePatchPreservesExistingProviders(t *testing.T) {
 			APIKey:  "new",
 		},
 		Models: map[string]*modelEditState{
-			"mimo": {ID: "mimo", Name: "MiMo", ContextWindow: 128000, MaxTokens: 8192, Input: []string{"text"}},
+			"mimo": {ID: "mimo", Name: "MiMo", ContextWindow: 128000, MaxTokens: 8192, MaxTokensEdited: true, Input: []string{"text"}},
 		},
 		ModelOrder: []string{"mimo"},
 	}}
@@ -623,24 +626,20 @@ func TestProviderEditStateRoundTrip(t *testing.T) {
 }
 
 func TestModelEditStateRoundTrip(t *testing.T) {
-	temp := 0.7
-	topP := 0.9
-	original := config.ModelConfig{
-		ID:            "test-model",
-		Name:          "Test Model",
-		ContextWindow: 200000,
-		MaxTokens:     16000,
-		Reasoning:     true,
-		Input:         []string{"text", "image"},
-		Temperature:   &temp,
-		TopP:          &topP,
-		Cost: &config.CostConfig{
-			Input:  0.5,
-			Output: 1.0,
-		},
-		Compat: &config.ModelCompat{
-			ThinkingFormat: "deepseek",
-		},
+	var original config.ModelConfig
+	if err := json.Unmarshal([]byte(`{
+		"id": "test-model",
+		"name": "Test Model",
+		"contextWindow": 200000,
+		"maxTokens": 16000,
+		"reasoning": true,
+		"input": ["text", "image"],
+		"temperature": 0.7,
+		"top_p": 0.9,
+		"cost": {"input": 0.5, "output": 1.0},
+		"compat": {"thinkingFormat": "deepseek"}
+	}`), &original); err != nil {
+		t.Fatalf("unmarshal model: %v", err)
 	}
 
 	me := modelEditStateFromMC(&original)
@@ -799,6 +798,32 @@ func TestInitModelFromDefaultRuntimeOverridesBuiltin(t *testing.T) {
 	}
 }
 
+func TestAuthSaveOmitsBuiltinModelMaxTokens(t *testing.T) {
+	s := config.DefaultSettings()
+	a := &App{settings: s}
+	a.auth = authDialogState{}
+	a.initAuthForProvider("alibaba-token-plan")
+
+	next, _ := a.buildAuthSettingsFrom(s)
+	pc := next.Providers["alibaba-token-plan"]
+	if pc == nil {
+		t.Fatal("alibaba-token-plan provider missing")
+	}
+	var kimi *config.ModelConfig
+	for i := range pc.Models {
+		if pc.Models[i].ID == "kimi-k2.6" {
+			kimi = &pc.Models[i]
+			break
+		}
+	}
+	if kimi == nil {
+		t.Fatal("kimi-k2.6 model missing")
+	}
+	if kimi.MaxTokens != 0 {
+		t.Fatalf("kimi-k2.6 MaxTokens = %d, want 0/omitted for builtin default", kimi.MaxTokens)
+	}
+}
+
 func TestSelectAPIChoicePreservesCustomBaseURL(t *testing.T) {
 	a := &App{}
 	a.auth = authDialogState{
@@ -877,7 +902,7 @@ func TestSaveAuthProviderReloadsEffectiveProjectOverride(t *testing.T) {
 			BaseURL: "https://global.test/v1",
 		},
 		Models: map[string]*modelEditState{
-			"m1": {ID: "m1", Name: "Global Model", ContextWindow: 999, MaxTokens: 888, Input: []string{"text"}},
+			"m1": {ID: "m1", Name: "Global Model", ContextWindow: 999, MaxTokens: 888, MaxTokensEdited: true, Input: []string{"text"}},
 		},
 		ModelOrder: []string{"m1"},
 	}
@@ -974,15 +999,16 @@ func TestBuildAuthSettingsFromStructuredState(t *testing.T) {
 		},
 		Models: map[string]*modelEditState{
 			"deepseek-v4-flash": {
-				ID:            "deepseek-v4-flash",
-				Name:          "DeepSeek V4 Flash",
-				ContextWindow: 1000000,
-				MaxTokens:     384000,
-				Reasoning:     true,
-				Input:         []string{"text"},
-				CostEnabled:   true,
-				CostInput:     0.14,
-				CostOutput:    0.28,
+				ID:              "deepseek-v4-flash",
+				Name:            "DeepSeek V4 Flash",
+				ContextWindow:   1000000,
+				MaxTokens:       384000,
+				MaxTokensEdited: true,
+				Reasoning:       true,
+				Input:           []string{"text"},
+				CostEnabled:     true,
+				CostInput:       0.14,
+				CostOutput:      0.28,
 			},
 		},
 		ModelOrder: []string{"deepseek-v4-flash"},

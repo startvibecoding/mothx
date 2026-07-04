@@ -106,9 +106,6 @@ func (a *Agent) buildSessionContextMessage() provider.Message {
 
 func (a *Agent) outputReserveTokens() int {
 	reserve := a.config.MaxTokens
-	if reserve <= 0 && a.config.Model != nil {
-		reserve = a.config.Model.MaxTokens
-	}
 	if reserve <= 0 {
 		reserve = 16384
 	}

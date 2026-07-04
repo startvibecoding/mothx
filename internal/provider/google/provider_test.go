@@ -337,6 +337,40 @@ func TestGoogleGeminiRequest(t *testing.T) {
 	}
 }
 
+func TestGoogleGeminiOmitsMaxOutputTokensByDefault(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockGoogleProvider(t,
+		NewGeminiProviderWithModels("fake-key", "https://generativelanguage.googleapis.com/v1beta/models", []*provider.Model{{ID: "gemini-test", MaxTokens: 65536}}),
+		"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}]}\n",
+		bodyCh,
+		nil)
+
+	params := provider.ChatParams{
+		ModelID:  "gemini-test",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var raw map[string]any
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &raw); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	generationConfig, ok := raw["generationConfig"].(map[string]any)
+	if !ok {
+		t.Fatalf("generationConfig = %#v, want object", raw["generationConfig"])
+	}
+	if _, ok := generationConfig["maxOutputTokens"]; ok {
+		t.Fatalf("maxOutputTokens = %#v, want omitted by default", generationConfig["maxOutputTokens"])
+	}
+}
+
 func TestGoogleImageMediaResolution(t *testing.T) {
 	tests := []struct {
 		name   string

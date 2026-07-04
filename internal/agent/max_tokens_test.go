@@ -17,13 +17,33 @@ func TestResolveMaxTokensPrefersSettingsOverride(t *testing.T) {
 	}
 }
 
-func TestResolveMaxTokensFallsBackToModel(t *testing.T) {
+func TestResolveMaxTokensLeavesUnsetWhenOnlyModelHasMaxTokens(t *testing.T) {
 	settings := config.DefaultSettings()
 	settings.MaxOutputTokens = 0
-	model := &provider.Model{ID: "m", MaxTokens: 64000}
+	model := &provider.Model{ID: "m", ContextWindow: 128000, MaxTokens: 64000}
+
+	if got := ResolveMaxTokens(settings, model); got != 0 {
+		t.Fatalf("ResolveMaxTokens = %d, want 0", got)
+	}
+}
+
+func TestResolveMaxTokensUsesUserSetModelMaxTokens(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.MaxOutputTokens = 0
+	model := &provider.Model{ID: "m", ContextWindow: 128000, MaxTokens: 64000, MaxTokensSet: true}
 
 	if got := ResolveMaxTokens(settings, model); got != 64000 {
 		t.Fatalf("ResolveMaxTokens = %d, want 64000", got)
+	}
+}
+
+func TestResolveMaxTokensKeepsSettingsOverrideEvenWhenLarge(t *testing.T) {
+	settings := config.DefaultSettings()
+	settings.MaxOutputTokens = 262144
+	model := &provider.Model{ID: "m", ContextWindow: 262144, MaxTokens: 262144}
+
+	if got := ResolveMaxTokens(settings, model); got != 262144 {
+		t.Fatalf("ResolveMaxTokens = %d, want 262144", got)
 	}
 }
 

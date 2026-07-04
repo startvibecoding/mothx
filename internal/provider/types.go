@@ -234,6 +234,7 @@ type Model struct {
 	Cost          ModelPricing `json:"cost"`
 	ContextWindow int          `json:"contextWindow"`         // max context tokens
 	MaxTokens     int          `json:"maxTokens"`             // max output tokens
+	MaxTokensSet  bool         `json:"-"`                     // true when maxTokens came from user/runtime config
 	Temperature   *float64     `json:"temperature,omitempty"` // nil = use API default
 	TopP          *float64     `json:"topP,omitempty"`        // nil = use API default
 	Compat        *ModelCompat `json:"compat,omitempty"`

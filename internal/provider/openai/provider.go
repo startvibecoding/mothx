@@ -298,10 +298,6 @@ func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatPara
 			}
 		}
 
-		maxTokens := params.MaxTokens
-		if maxTokens == 0 {
-			maxTokens = 16384
-		}
 		model := p.GetModel(modelID)
 		messages := p.convertMessages(params, p.requiresReasoningContentOnAssistant(model))
 		tools := p.convertTools(params.Tools)
@@ -315,10 +311,12 @@ func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatPara
 			Temperature:   params.Temperature,
 			TopP:          params.TopP,
 		}
-		if maxTokensField(model) == "max_completion_tokens" {
-			reqBody.MaxCompletionTokens = maxTokens
-		} else {
-			reqBody.MaxTokens = maxTokens
+		if params.MaxTokens > 0 {
+			if maxTokensField(model) == "max_completion_tokens" {
+				reqBody.MaxCompletionTokens = params.MaxTokens
+			} else {
+				reqBody.MaxTokens = params.MaxTokens
+			}
 		}
 
 		if !p.disableReasoning && params.ThinkingLevel != provider.ThinkingOff && model != nil && model.Reasoning {

@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VibeCoding Stats</title>
+<title>MothX Stats</title>
+<link rel="icon" type="image/png" href="/mothx.png">
 <style>
 :root {
 	--bg: #f6f7f9;
@@ -200,6 +201,19 @@ button { color: inherit; }
 	align-items: flex-end;
 	gap: 12px;
 	min-width: min(650px, 100%);
+}
+
+.brand-title {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.brand-logo {
+	width: 38px;
+	height: 38px;
+	border-radius: 9px;
+	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
 }
 
 .title-block h1 {
@@ -631,7 +645,7 @@ td.model-cell {
 <div class="share-modal" id="shareModal">
 	<div class="share-modal-content">
 		<div class="share-modal-header">
-			<h3 class="share-modal-title">Share Your Stats</h3>
+			<h3 class="share-modal-title">Share MothX Stats</h3>
 			<button class="share-modal-close" id="shareModalClose" type="button" aria-label="Close">×</button>
 		</div>
 		<div class="share-canvas-wrapper" id="shareCanvasWrapper">
@@ -647,9 +661,12 @@ td.model-cell {
 <main class="shell">
 	<header class="topbar">
 		<div class="title-block">
-			<h1>VibeCoding Stats</h1>
-			<button class="filter-toggle" id="filterToggle" type="button" aria-controls="filters" aria-expanded="false">Filters</button>
-			<div class="subtitle">Usage, token volume, and recent model requests.</div>
+			<div class="brand-title">
+				<img class="brand-logo" src="/mothx.png" alt="" width="38" height="38">
+				<h1>MothX Stats</h1>
+				<button class="filter-toggle" id="filterToggle" type="button" aria-controls="filters" aria-expanded="false">Filters</button>
+			</div>
+			<div class="subtitle">LLM request volume, token usage, and recent model activity.</div>
 		</div>
 		<div class="topbar-actions">
 			<button class="share-btn" id="shareBtn" type="button" aria-haspopup="dialog">Share</button>
@@ -688,17 +705,17 @@ td.model-cell {
 		<div class="stat-card accent-green">
 			<p class="stat-label">Input Tokens</p>
 			<div class="stat-value" id="stat-input">-</div>
-			<div class="stat-note">Prompt and context</div>
+			<div class="stat-note">Request input tokens</div>
 		</div>
 		<div class="stat-card accent-amber">
 			<p class="stat-label">Output Tokens</p>
 			<div class="stat-value" id="stat-output">-</div>
-			<div class="stat-note">Model responses</div>
+			<div class="stat-note">Generated response tokens</div>
 		</div>
 		<div class="stat-card accent-violet">
 			<p class="stat-label">Total Tokens</p>
 			<div class="stat-value" id="stat-total">-</div>
-			<div class="stat-note">Input plus output</div>
+			<div class="stat-note">Input plus generated output</div>
 		</div>
 	</section>
 
@@ -720,7 +737,7 @@ td.model-cell {
 	<section class="panel" id="trendPanel">
 		<div class="panel-header">
 			<h2 class="panel-title">Total Tokens Trend</h2>
-			<div class="panel-meta">2.5-hour tokens</div>
+			<div class="panel-meta">1-hour tokens</div>
 		</div>
 		<div class="panel-body">
 			<div class="chart-container"><canvas id="chartTrend"></canvas></div>
@@ -1090,8 +1107,21 @@ function drawBarChart(canvas, labels, values) {
 	}
 }
 
+let mothxLogoPromise;
+function loadMothXLogo() {
+	if (!mothxLogoPromise) {
+		mothxLogoPromise = new Promise((resolve, reject) => {
+			const img = new Image();
+			img.onload = () => resolve(img);
+			img.onerror = reject;
+			img.src = '/mothx.png';
+		});
+	}
+	return mothxLogoPromise;
+}
+
 async function loadTokensTrend() {
-	const data = await fetchAPI('/api/timeseries', { groupBy: '2.5h' });
+	const data = await fetchAPI('/api/timeseries', { groupBy: '1h' });
 	const labels = data.map(d => d.label);
 	const values = data.map(d => d.totalTokens);
 	drawBarChart($('chartTrend'), labels, values);
@@ -1332,6 +1362,12 @@ loadFilters().then(data => refresh(data));
 async function generateShareImage() {
 	const canvas = $('shareCanvas');
 	const ctx = canvas.getContext('2d');
+	let logo = null;
+	try {
+		logo = await loadMothXLogo();
+	} catch (_) {
+		logo = null;
+	}
 
 	const W = 1080;
 	const H = 1440;
@@ -1435,12 +1471,15 @@ async function generateShareImage() {
 	ctx.fill();
 
 	pill(padding + 34, padding + 12, filterLabel());
+	if (logo) {
+		ctx.drawImage(logo, padding + 34, padding + 76, 68, 68);
+	}
 	ctx.fillStyle = '#ffffff';
 	ctx.font = '800 58px ' + font;
-	ctx.fillText('VibeCoding Stats', padding + 34, padding + 120);
+	ctx.fillText('MothX Stats', padding + (logo ? 120 : 34), padding + 120);
 	ctx.fillStyle = '#cbd5e1';
 	ctx.font = '24px ' + font;
-	ctx.fillText('Usage, tokens, and model activity snapshot', padding + 36, padding + 162);
+	ctx.fillText('LLM request volume and token usage snapshot', padding + 36, padding + 162);
 	ctx.fillStyle = '#94a3b8';
 	ctx.font = '19px ' + font;
 	ctx.fillText(new Date().toLocaleString(), padding + 36, padding + 204);
@@ -1449,12 +1488,12 @@ async function generateShareImage() {
 	const cardGap = 20;
 	const cardW = (contentW - cardGap) / 2;
 	statCard(padding, y, cardW, 160, 'REQUESTS', fmt(summary.totalRequests), 'Completed LLM calls', '#2563eb');
-	statCard(padding + cardW + cardGap, y, cardW, 160, 'TOTAL TOKENS', fmt(summary.totalTokens), 'Input plus output tokens', '#7c3aed');
+	statCard(padding + cardW + cardGap, y, cardW, 160, 'TOTAL TOKENS', fmt(summary.totalTokens), 'Input plus generated output', '#7c3aed');
 	y += 184;
 
 	const splitW = (contentW - cardGap) / 2;
-	statCard(padding, y, splitW, 140, 'INPUT', fmt(summary.inputTokens), 'Prompt tokens', '#059669');
-	statCard(padding + splitW + cardGap, y, splitW, 140, 'OUTPUT', fmt(summary.outputTokens), 'Generated tokens', '#d97706');
+	statCard(padding, y, splitW, 140, 'INPUT', fmt(summary.inputTokens), 'Request input tokens', '#059669');
+	statCard(padding + splitW + cardGap, y, splitW, 140, 'OUTPUT', fmt(summary.outputTokens), 'Generated response tokens', '#d97706');
 	y += 164;
 
 	const trendH = 238;
@@ -1598,7 +1637,7 @@ async function generateShareImage() {
 	ctx.fillStyle = '#6b7280';
 	ctx.font = '18px ' + font;
 	ctx.textAlign = 'center';
-	ctx.fillText('Generated by VibeCoding Stats', W / 2, H - 40);
+	ctx.fillText('Generated by MothX Stats', W / 2, H - 40);
 	ctx.textAlign = 'left';
 }
 
@@ -1623,7 +1662,7 @@ $('shareModal').addEventListener('click', (e) => {
 $('btnSaveImage').addEventListener('click', () => {
 	const canvas = $('shareCanvas');
 	const link = document.createElement('a');
-	link.download = 'vibecoding-stats.png';
+	link.download = 'mothx-stats.png';
 	link.href = canvas.toDataURL('image/png');
 	link.click();
 });
