@@ -449,18 +449,21 @@
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
-| glm-5.1 | 200K | 128K | **是** | text |
-| qwen3.6-max | 1M | 64K | **是** | text,image |
-| qwen3.6-plus | 64K | 64K | **是** | text,image |
-| deepseek-v4-pro | 1M | 384K | **是** | text |
-| qwen3.7-max | 1M | 64K | **是** | text |
-| glm-5.2 | 1M | 128K | **是** | text,image |
-| kimi-k2.7-code | 262K | 262K | **是** | text,image |
 | glm-5 | 200K | 32K | **是** | text |
+| glm-5.1 | 200K | 128K | **是** | text |
+| glm-5.2 | 1M | 128K | **是** | text,image |
+| qwen3.5-flash | 1M | 64K | **是** | text,image |
+| qwen3.6-flash | 1M | 64K | **是** | text,image |
+| qwen3.6-plus | 64K | 64K | **是** | text,image |
+| qwen3.6-max | 1M | 64K | **是** | text,image |
 | qwen3.7-plus | 1M | 64K | **是** | text,image |
+| qwen3.7-max | 1M | 64K | **是** | text |
+| deepseek-v4-flash | 1M | 384K | **是** | text |
+| deepseek-v4-pro | 1M | 384K | **是** | text |
+| kimi-k2.7-code | 262K | 262K | **是** | text,image |
 | minimax-m2.7 | 262K | 128K | **是** | text |
 | minimax-m3 | 1M | 128K | **是** | text,image |
-| deepseek-v4-flash | 1M | 384K | 否 | text |
+| gemma-4-26b-a4b-it | 128K | 32K | **是** | text,image |
 
 ---
 
@@ -921,7 +924,7 @@
 | ModelScope | - | openai-chat | - | 3 |
 | 阿里云百炼 | `bailian`×3 | openai-chat | - | 6~10 |
 | 华为云 | `huawei`/`huawei-plan` | openai-chat | - | 8/5 |
-| Gitee/Moark | `gitee` | openai-chat | - | 10~12 |
+| Gitee/Moark | `gitee` | openai-chat | - | 15 |
 | 摩尔线程 | `mthreads-plan` | openai-chat | - | 1 |
 | 天翼云 | `ctyun-plan` | openai-chat | - | 3 |
 | 京东智联云 | `jd-plan` | openai-chat | - | 6 |
