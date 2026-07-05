@@ -1,10 +1,12 @@
 package gateway
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -261,7 +263,7 @@ func applyRunOverrides(cfg *GatewayConfig, opts RunOptions) {
 		return
 	}
 	if opts.Port != "" {
-		cfg.Listen = ":" + opts.Port
+		cfg.Listen = listenFromPortOverride(opts.Port)
 	}
 	if opts.MultiAgent {
 		cfg.EnableSubAgents = true
@@ -278,6 +280,17 @@ func applyRunOverrides(cfg *GatewayConfig, opts RunOptions) {
 	if opts.WorkDir != "" {
 		cfg.WorkingDir = opts.WorkDir
 	}
+}
+
+func listenFromPortOverride(port string) string {
+	port = strings.TrimSpace(port)
+	if port == "" {
+		return ""
+	}
+	if strings.HasPrefix(port, ":") || strings.Contains(port, ":") {
+		return port
+	}
+	return ":" + port
 }
 
 func registerRoutes(mux *http.ServeMux, srv *Server, opts RunOptions) {
@@ -334,11 +347,13 @@ func (lw *loggingResponseWriter) WriteHeader(code int) {
 	lw.ResponseWriter.WriteHeader(code)
 }
 
+func (lw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return http.NewResponseController(lw.ResponseWriter).Hijack()
+}
+
 // Ensure loggingResponseWriter also satisfies http.Flusher for SSE.
 func (lw *loggingResponseWriter) Flush() {
-	if f, ok := lw.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
+	_ = http.NewResponseController(lw.ResponseWriter).Flush()
 }
 
 func gatewaySecurityWarning(cfg *GatewayConfig) string {

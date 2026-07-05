@@ -142,6 +142,11 @@ func (gw *Gateway) GetMux() *http.ServeMux {
 	return gw.mux
 }
 
+// WebSocketHandler returns the websocket endpoint handler without starting a server.
+func (gw *Gateway) WebSocketHandler() http.Handler {
+	return http.HandlerFunc(gw.handleWebSocket)
+}
+
 // Start starts the HTTP server. Blocks until stopped.
 func (gw *Gateway) Start() error {
 	log.Printf("Hermes gateway listening on %s", gw.httpServer.Addr)

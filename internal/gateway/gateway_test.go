@@ -1,9 +1,12 @@
 package gateway
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -31,7 +34,7 @@ type recordingGatewayProvider struct {
 
 func newRecordingGatewayProvider() *recordingGatewayProvider {
 	return &recordingGatewayProvider{
-		models: []*provider.Model{{ID: "m1", Name: "Model 1", ContextWindow: 4096, MaxTokens: 1024}},
+		models: []*provider.Model{{ID: "m1", Name: "Model 1", ContextWindow: 32768, MaxTokens: 2048}},
 	}
 }
 
@@ -263,6 +266,28 @@ func TestApplyRunOverrides(t *testing.T) {
 	}
 }
 
+func TestApplyRunOverrides_PortForms(t *testing.T) {
+	tests := []struct {
+		name string
+		port string
+		want string
+	}{
+		{name: "port only", port: "9090", want: ":9090"},
+		{name: "colon port", port: ":9090", want: ":9090"},
+		{name: "host port", port: "127.0.0.1:9090", want: "127.0.0.1:9090"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultGatewayConfig()
+			applyRunOverrides(cfg, RunOptions{Port: tt.port})
+			if cfg.Listen != tt.want {
+				t.Fatalf("listen = %q, want %q", cfg.Listen, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 	allowed := []string{"/home/test"}
 	original := &GatewayConfig{
@@ -340,6 +365,45 @@ func TestRegisterRoutes_DisableAPI(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("/v1/models status = %d, want 404", w.Code)
+	}
+}
+
+type hijackableResponseWriter struct {
+	header http.Header
+	conn   net.Conn
+	peer   net.Conn
+}
+
+func (w *hijackableResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *hijackableResponseWriter) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (w *hijackableResponseWriter) WriteHeader(statusCode int) {}
+
+func (w *hijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.conn, w.peer = net.Pipe()
+	rw := bufio.NewReadWriter(bufio.NewReader(w.conn), bufio.NewWriter(w.conn))
+	return w.conn, rw, nil
+}
+
+func TestLoggingResponseWriterSupportsHijack(t *testing.T) {
+	base := &hijackableResponseWriter{}
+	lw := &loggingResponseWriter{ResponseWriter: base, statusCode: http.StatusOK}
+
+	conn, _, err := lw.Hijack()
+	if err != nil {
+		t.Fatalf("Hijack: %v", err)
+	}
+	defer conn.Close()
+	if base.peer != nil {
+		defer base.peer.Close()
 	}
 }
 
@@ -514,6 +578,99 @@ func TestSessionPool_List(t *testing.T) {
 	ids := pool.List()
 	if len(ids) != 2 {
 		t.Errorf("list len = %d, want 2", len(ids))
+	}
+}
+
+func TestListActiveSessions(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	mgr := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("s1"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	if _, err := mgr.AppendMessage(provider.NewUserMessage("hello")); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+	older := time.Now().Add(-time.Minute)
+	newer := time.Now()
+	if err := srv.pool.Put(&GatewaySession{ID: "s1", WorkDir: srv.cfg.GetWorkDir(), Manager: mgr, Mode: "agent", LastUsed: older}); err != nil {
+		t.Fatalf("put s1: %v", err)
+	}
+	if err := srv.pool.Put(&GatewaySession{ID: "s2", WorkDir: "/tmp/other", LastUsed: newer}); err != nil {
+		t.Fatalf("put s2: %v", err)
+	}
+
+	sessions := srv.ListActiveSessions()
+	if len(sessions) != 2 {
+		t.Fatalf("sessions = %d, want 2", len(sessions))
+	}
+	if sessions[0].ID != "s2" || sessions[1].ID != "s1" {
+		t.Fatalf("sessions order = %#v", sessions)
+	}
+	if sessions[1].Mode != "agent" || sessions[1].MessageCount != 1 {
+		t.Fatalf("session details = %#v", sessions[1])
+	}
+}
+
+func TestDeleteActiveSession(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	mgr := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("delete-me"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	if _, err := mgr.AppendMessage(provider.NewUserMessage("hello")); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+	if err := srv.pool.Put(&GatewaySession{ID: "delete-me", WorkDir: srv.cfg.GetWorkDir(), Manager: mgr, LastUsed: time.Now()}); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
+	srv.defaultSessionIDs = map[string]string{srv.cfg.GetWorkDir(): "delete-me"}
+
+	deleted, err := srv.DeleteActiveSession("delete-me")
+	if err != nil {
+		t.Fatalf("DeleteActiveSession: %v", err)
+	}
+	if !deleted {
+		t.Fatal("session should be deleted")
+	}
+	if srv.pool.Get("delete-me") != nil {
+		t.Fatal("session should be removed from pool")
+	}
+	if srv.defaultSessionIDs[srv.cfg.GetWorkDir()] != "" {
+		t.Fatalf("default session ID was not cleared: %#v", srv.defaultSessionIDs)
+	}
+	sessions, err := session.ListForDir(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err != nil {
+		t.Fatalf("ListForDir: %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("persisted sessions = %d, want 0", len(sessions))
+	}
+}
+
+func TestDeleteActiveSessionAmbiguousID(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	if err := srv.pool.Put(&GatewaySession{ID: "same", WorkDir: "/tmp/a", LastUsed: time.Now()}); err != nil {
+		t.Fatalf("put a: %v", err)
+	}
+	if err := srv.pool.Put(&GatewaySession{ID: "same", WorkDir: "/tmp/b", LastUsed: time.Now()}); err != nil {
+		t.Fatalf("put b: %v", err)
+	}
+
+	deleted, err := srv.DeleteActiveSession("same")
+	if !errors.Is(err, ErrActiveSessionIDAmbiguous) {
+		t.Fatalf("err = %v, want ErrActiveSessionIDAmbiguous", err)
+	}
+	if deleted {
+		t.Fatal("ambiguous session should not be deleted")
+	}
+	if srv.pool.Count() != 2 {
+		t.Fatalf("pool count = %d, want 2", srv.pool.Count())
 	}
 }
 

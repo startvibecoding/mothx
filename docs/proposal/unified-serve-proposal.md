@@ -120,6 +120,7 @@
 ```bash
 mothx serve                  # 默认启动
 mothx serve --port 9090      # 指定端口
+mothx serve --web-ui-dir ./ui/dist
 mothx serve --provider deepseek --model deepseek-v4
 mothx serve --sandbox
 mothx serve --lobster        # yolo + 无 sandbox + 子代理
@@ -162,7 +163,7 @@ Chat 页面核心：
 - Markdown 渲染
 - `Enter` 发送、`Shift+Enter` 换行
 
-技术方向：Svelte 5 + Vite，输出到 `ui/dist/`，由 `mothx serve` 提供静态资源。
+技术方向：Svelte 5 + Vite，输出到 `ui/dist/`，由 `mothx serve` 提供静态资源；开发者可用 `make ui-install` 安装依赖、`make ui-build` 生成静态产物。
 
 实现约束：
 
@@ -185,15 +186,27 @@ Chat 页面核心：
 当前 `serve` 不是统一运行时，而是已有模块的编排层：
 
 - `internal/serve/run.go` 负责加载 `serve.json`
-- `serve` 会先构造 Hermes dispatcher 和消息平台
-- `serve` 会把 `cfg.Gateway` 写入临时文件，再调用 `gateway.Run(...)`
-- Web UI、`/api/serve/config`、`/api/settings`、`/api/channels` 已通过 `gateway.ExtraRoutes` 方式挂载
+- `serve.json` 已支持扁平 schema，并保留旧嵌套 schema 的兼容映射层
+- `serve` 会先构造 Hermes dispatcher，并按 `features.wechat` / `features.feishu` 启动消息平台
+- `serve` 不再写临时 `gateway.json`，而是通过 `gateway.RunOptions.Config` 把内存中的 gateway 配置直接传入 `gateway.Run(...)`
+- `features.openaiAPI=false` 时，`serve` 会通过 `gateway.RunOptions.DisableAPI` 禁用 `/v1/chat/completions` 和 `/v1/models`，但保留 `/health` 与管理 API
+- Web UI、`/api/status`、`/api/serve/config`、`/api/settings`、`/api/memory`、`/api/cron`、`/api/channels`、`/api/sessions`、`/ws/logs` 已通过 `gateway.ExtraRoutes` 方式挂载
+- `features.websocket=true` 时，serve 会把 Hermes 兼容的 agent WebSocket 挂到同一个 HTTP server 的 `/ws`，不再为该通道启动第二个监听端口
+- `ui/` 已接入 Chat SSE 流式输出、session 选择/删除、status、channels、cron、logs、memory.md 编辑，以及 serve/settings JSON 编辑；本地开发通过 Vite proxy 转发 `/api`、`/v1`、`/health`、`/ws`
+- `mothx serve --web-ui-dir <dir>` 可在启动时覆盖 `webUI.dir`，并自动启用 Web UI；相对路径会优先按当前工作目录解析，找不到时再尝试二进制所在目录及 `../share/mothx/`
 
 这意味着：
 
-- 当前 `serve.json` 仍然是旧配置模型的组合，不是最终扁平 schema 的原生运行时
+- 当前 `serve.json` 已经是推荐入口，但运行时字段仍映射到现有 gateway/hermes config
 - `gateway` 仍同时承担 HTTP server、OpenAI API、provider/model 构建、sandbox、session pool、skills/context 初始化
 - `hermes` 的 dispatcher 仍同时承担消息分发、session 生命周期、security、hooks、cron、MCP、agent 构建
+- `/api/sessions` 在 Phase 1 只暴露当前 gateway session pool 中的 active sessions，不扫描完整历史 `sessions.db`
+- `/ws/logs` 在 Phase 1 提供 WebSocket 协议入口，发送 connected/status 快照、最近标准 logger 历史、实时 logger 事件和 heartbeat；更完整的结构化日志广播可在 Phase 2 扩展
+- `/ws` 在 Phase 1 复用 Hermes WebSocket 事件协议和 dispatcher，作为可选 channel 暴露；session 仍走 Hermes 的 `hermes/ws/<connection>` 会话路径
+- `/api/cron` 在 Phase 1 复用现有 `internal/cron` file store，支持列表、创建、启停和删除；当 `features.cron=true` 且 multi-agent 可用时，serve 会启动 cron scheduler
+- Chat UI 已通过 POST 方式消费 `/v1/chat/completions` SSE，支持模型选择、停止请求、轻量 Markdown 渲染，并在 `toolVisibility.mode=sse_event` 时折叠展示基础工具状态；当 `features.openaiAPI=false` 时会禁用发送；完整 GFM、语法高亮和更完整的工具详情仍可在后续阶段增强
+- `/api/serve/config` 保存后会同步当前内存 runtime 中的 Web UI、cron store/scheduler、WebSocket gateway；WeChat/Feishu 平台连接仍建议重启 serve 生效
+- Web UI 根路由会读取当前内存配置动态决定是否服务静态资源；若 `webUI.dir` 指向的构建目录缺少 `index.html`，serve 会返回明确的 503，而不是静默返回缺失文件
 
 ### 6.3 目标态模块拆分
 
@@ -377,12 +390,17 @@ internal/stats/        使用统计
 | 端点 | 说明 |
 |------|------|
 | `GET /health` | 健康检查 |
+| `GET /api/status` | Serve 运行时摘要（features、通道状态、active session 数） |
 | `GET/PUT /api/serve/config` | 读写 serve.json |
 | `GET /api/sessions` | 会话列表 |
 | `DELETE /api/sessions/:id` | 删除会话 |
 | `GET /api/channels` | 通道连接状态 |
 | `GET/PUT /api/settings` | 读写 settings.json |
-| `WS /ws/logs` | 实时日志流 |
+| `GET/PUT /api/memory` | 读写 memory.md（受 `features.memory` 控制） |
+| `GET/POST /api/cron` | 列表和创建 cron jobs（受 `features.cron` 控制） |
+| `PATCH/DELETE /api/cron/:id` | 启停/更新和删除 cron job |
+| `WS /ws` | Hermes 兼容 agent WebSocket（仅 `features.websocket=true` 时挂载） |
+| `WS /ws/logs` | 实时日志流（connected/status、最近标准 log 历史、heartbeat） |
 
 备注：
 

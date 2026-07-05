@@ -149,6 +149,22 @@ func NewDispatcher(cfg *HermesConfig, settings *config.Settings, version string,
 	return d, nil
 }
 
+// AgentManager returns the dispatcher agent manager when multi-agent mode is enabled.
+func (d *Dispatcher) AgentManager() *agent.AgentManager {
+	if d == nil {
+		return nil
+	}
+	return d.agentMgr
+}
+
+// SetCronScheduler updates the scheduler used by cron tools created for sessions.
+func (d *Dispatcher) SetCronScheduler(s *cron.Scheduler) {
+	if d == nil {
+		return
+	}
+	d.scheduler = s
+}
+
 // HandleMessage processes an inbound message from any platform.
 func (d *Dispatcher) HandleMessage(ctx context.Context, msg messaging.InboundMessage) (string, error) {
 	log.Printf("[hermes] HandleMessage: platform=%s userID=%s text=%q", msg.Platform, msg.UserID, truncate(msg.Text, 80))
@@ -902,6 +918,21 @@ func (d *Dispatcher) ResolveApproval(approvalID string, approved bool) bool {
 		return true
 	}
 	return false
+}
+
+// ResolveQuestion sends an answer to a currently running agent question.
+func (d *Dispatcher) ResolveQuestion(questionID, answer string) bool {
+	var found bool
+	activeAgents.Range(func(_, value any) bool {
+		ag, ok := value.(*agent.Agent)
+		if !ok {
+			return true
+		}
+		ag.HandleQuestionResponse(questionID, answer)
+		found = true
+		return false
+	})
+	return found
 }
 
 // activeAgents tracks running agents by ID for question resolution.

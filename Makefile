@@ -1,4 +1,5 @@
 .PHONY: help build build-all install test lint fmt clean run
+.PHONY: ui-install ui-build ui-dev ui-preview
 .PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows
 .PHONY: build-freebsd build-openbsd build-netbsd
 .PHONY: dist dist-linux dist-darwin dist-windows
@@ -18,6 +19,7 @@ GOBUILD_FLAGS=-trimpath
 DIST_DIR=dist
 CHECKSUM_FILE=$(DIST_DIR)/checksums.txt
 PYTHON ?= python3
+NPM ?= npm
 
 # Python venv for PyPI builds (isolated from system Python)
 PYPI_VENV := $(CURDIR)/pypi/.venv-build
@@ -87,6 +89,12 @@ help:
 	@echo "  npm-publish-pre   Publish pre-release packages"
 	@echo "  npm-binaries      [Legacy] Build all binaries into single package"
 	@echo "  npm-publish       [Legacy] Publish main package only"
+	@echo ""
+	@echo "Serve UI targets:"
+	@echo "  ui-install        Install Serve Web UI dependencies"
+	@echo "  ui-build          Build Serve Web UI into ui/dist"
+	@echo "  ui-dev            Run Serve Web UI dev server"
+	@echo "  ui-preview        Preview built Serve Web UI"
 	@echo ""
 	@echo "PyPI targets:"
 	@echo "  pypi-version      Sync version to PyPI package"
@@ -181,6 +189,19 @@ install:
 # Test
 test:
 	go test -v -race ./...
+
+# Serve Web UI
+ui-install:
+	cd ui && $(NPM) ci
+
+ui-build:
+	cd ui && $(NPM) run build
+
+ui-dev:
+	cd ui && $(NPM) run dev
+
+ui-preview:
+	cd ui && $(NPM) run preview
 
 # Lint
 lint:

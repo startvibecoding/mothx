@@ -126,18 +126,23 @@ func TestGetModelConfig(t *testing.T) {
 func TestMoarkModelMaxTokens(t *testing.T) {
 	s := DefaultSettings()
 	want := map[string]int{
-		"glm-5.1":           131072,
-		"qwen3.6-max":       65536,
-		"qwen3.6-plus":      65536,
-		"deepseek-v4-pro":   384000,
-		"qwen3.7-max":       65536,
-		"glm-5.2":           131072,
-		"kimi-k2.7-code":    262144,
-		"glm-5":             32768,
-		"qwen3.7-plus":      65536,
-		"minimax-m2.7":      131072,
-		"minimax-m3":        128000,
-		"deepseek-v4-flash": 384000,
+		"glm-5.1":            131072,
+		"qwen3.5-flash":      65536,
+		"qwen3.6-flash":      65536,
+		"qwen3.6-max":        65536,
+		"qwen3.6-plus":       65536,
+		"deepseek-v4-pro":    384000,
+		"qwen3.7-max":        65536,
+		"glm-5.2":            131072,
+		"kimi-k2.5":          262144,
+		"kimi-k2.7-code":     262144,
+		"glm-5":              32768,
+		"qwen3.7-plus":       65536,
+		"minimax-m2.7":       131072,
+		"minimax-m3":         128000,
+		"mimo-v2.5-pro":      131072,
+		"gemma-4-26b-a4b-it": 32768,
+		"deepseek-v4-flash":  384000,
 	}
 
 	moark := s.Providers["moark"]

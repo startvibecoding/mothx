@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -29,6 +31,20 @@ type GatewaySession struct {
 	// ForceCompact is set by /compact command and consumed by the next agent run.
 	ForceCompact bool
 }
+
+// ActiveSessionInfo is the management API view of an active gateway session.
+type ActiveSessionInfo struct {
+	ID           string    `json:"id"`
+	WorkDir      string    `json:"workDir"`
+	Mode         string    `json:"mode,omitempty"`
+	DelegateMode bool      `json:"delegateMode,omitempty"`
+	Workflows    bool      `json:"workflows,omitempty"`
+	LastUsed     time.Time `json:"lastUsed"`
+	MessageCount int       `json:"messageCount"`
+}
+
+// ErrActiveSessionIDAmbiguous is returned when a session ID matches multiple active workdirs.
+var ErrActiveSessionIDAmbiguous = errors.New("active session ID is ambiguous")
 
 // Lock acquires the session lock (one request at a time per session).
 func (s *GatewaySession) Lock() { s.mu.Lock() }
@@ -205,6 +221,52 @@ func (p *SessionPool) ListForWorkDir(workDir string) []string {
 	return ids
 }
 
+func (p *SessionPool) listDetails() []ActiveSessionInfo {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	sessions := make([]ActiveSessionInfo, 0, len(p.sessions))
+	for _, s := range p.sessions {
+		messageCount := 0
+		if s.Manager != nil {
+			messageCount = len(s.Manager.GetMessages())
+		}
+		sessions = append(sessions, ActiveSessionInfo{
+			ID:           s.ID,
+			WorkDir:      s.WorkDir,
+			Mode:         s.Mode,
+			DelegateMode: s.DelegateMode,
+			Workflows:    s.Workflows,
+			LastUsed:     s.LastUsed,
+			MessageCount: messageCount,
+		})
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].LastUsed.Equal(sessions[j].LastUsed) {
+			return sessions[i].ID < sessions[j].ID
+		}
+		return sessions[i].LastUsed.After(sessions[j].LastUsed)
+	})
+	return sessions
+}
+
+func (p *SessionPool) getExact(id string) (*GatewaySession, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	var found *GatewaySession
+	for _, s := range p.sessions {
+		if s.ID != id {
+			continue
+		}
+		if found != nil {
+			return nil, ErrActiveSessionIDAmbiguous
+		}
+		found = s
+	}
+	return found, nil
+}
+
 // Stop shuts down the cleanup goroutine.
 func (p *SessionPool) Stop() {
 	close(p.stopCh)
@@ -245,4 +307,44 @@ type PoolFullError struct {
 
 func (e *PoolFullError) Error() string {
 	return "session pool is at capacity"
+}
+
+// ListActiveSessions returns the currently active gateway sessions.
+func (s *Server) ListActiveSessions() []ActiveSessionInfo {
+	if s == nil || s.pool == nil {
+		return nil
+	}
+	return s.pool.listDetails()
+}
+
+// DeleteActiveSession deletes one active session from persistence and the runtime pool.
+func (s *Server) DeleteActiveSession(id string) (bool, error) {
+	if s == nil || s.pool == nil {
+		return false, nil
+	}
+	sess, err := s.pool.getExact(id)
+	if err != nil {
+		return false, err
+	}
+	if sess == nil {
+		return false, nil
+	}
+	if sess.Manager != nil && sess.Manager.GetFile() != "" && s.settings != nil {
+		if err := session.DeleteSession(sess.Manager.GetFile(), s.settings.GetSessionDir()); err != nil {
+			return false, err
+		}
+	}
+	s.pool.RemoveByWorkDir(sess.WorkDir, sess.ID)
+
+	s.mu.Lock()
+	if s.defaultSessionIDs != nil {
+		for workDir, defaultID := range s.defaultSessionIDs {
+			if defaultID == sess.ID {
+				delete(s.defaultSessionIDs, workDir)
+			}
+		}
+	}
+	s.mu.Unlock()
+
+	return true, nil
 }

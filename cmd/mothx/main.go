@@ -94,6 +94,7 @@ type cliFlags struct {
 	gatewayWorkDir  string
 	serveConfig     string
 	servePort       string
+	serveWebUIDir   string
 	lobsterMode     bool
 }
 

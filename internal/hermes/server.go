@@ -160,6 +160,7 @@ func Run(opts RunOptions, version string) error {
 			interval = 30 * time.Second
 		}
 		cronScheduler = cron.NewScheduler(cronStore, dispatcher.agentMgr, interval)
+		dispatcher.SetCronScheduler(cronScheduler)
 		cronScheduler.Start()
 	}
 
@@ -612,14 +613,5 @@ func (a *wsDispatcherAdapter) ResolveApproval(approvalID string, approved bool) 
 }
 
 func (a *wsDispatcherAdapter) ResolveQuestion(questionID, answer string) bool {
-	// Try to find the agent that has this question pending
-	var found bool
-	activeAgents.Range(func(key, value any) bool {
-		ag := value.(*agent.Agent)
-		// Try to resolve — HandleQuestionResponse is safe to call even if ID doesn't match
-		ag.HandleQuestionResponse(questionID, answer)
-		found = true
-		return false // stop iterating
-	})
-	return found
+	return a.d.ResolveQuestion(questionID, answer)
 }
