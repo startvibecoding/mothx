@@ -404,7 +404,44 @@
 
 ---
 
-### 13. Gitee AI / Moark
+### 13. 华为云（Huawei ModelArts）
+
+#### 13a. 标准版
+
+- **Vendor**: `huawei`
+- **BaseURL**: `https://api.modelarts-maas.com/openai/v1`
+- **API**: `openai-chat`
+- **API Key**: `${HUAWEI_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| openpangu-2.0-flash | 512K | 128K | **是** | text,image |
+| glm-5.2 | 198K | 128K | **是** | text,image |
+| glm-5.1 | 198K | 128K | **是** | text,image |
+| kimi-k2.6 | 256K | 96K | **是** | text,image |
+| glm-5 | 198K | 64K | **是** | text,image |
+| deepseek-v4-pro | 1M | 128K | **是** | text |
+| deepseek-v4-flash | 1M | 128K | **是** | text |
+| qwen3-235b-a22b | 128K | 32K | **是** | text,image |
+
+#### 13b. Plan 模式
+
+- **Vendor**: `huawei-plan`
+- **BaseURL**: `https://api.modelarts-maas.com/plan/v2`
+- **API**: `openai-chat`
+- **API Key**: `${HUAWEI_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| glm-5 | 198K | 64K | **是** | text,image |
+| glm-5.1 | 198K | 128K | **是** | text,image |
+| kimi-k2.6 | 256K | 96K | **是** | text,image |
+| deepseek-v3.2 | 128K | 64K | **是** | text |
+| deepseek-v4-flash | 1M | 128K | **是** | text |
+
+---
+
+### 14. Gitee AI / Moark
 
 - **Vendor**: `gitee`
 - **BaseURL**: `https://ai.gitee.com/v1` / `https://api.moark.com/v1`
@@ -427,14 +464,14 @@
 
 ---
 
-### 14. 月之暗面（Moonshot / Kimi）
+### 15. 月之暗面（Moonshot / Kimi）
 
-#### 14a. 国际版
+#### 15a. 国际版
 
 - **BaseURL**: `https://api.moonshot.ai/v1`
 - **API**: `openai-chat`
 
-#### 14b. 国内版
+#### 15b. 国内版
 
 - **BaseURL**: `https://api.moonshot.cn/v1`
 - **API**: `openai-chat`
@@ -451,7 +488,7 @@
 
 ---
 
-### 15. Kimi Coding
+### 16. Kimi Coding
 
 - **BaseURL**: `https://api.kimi.com/coding`
 - **API**: `anthropic-messages`
@@ -465,7 +502,7 @@
 
 ---
 
-### 16. xAI（Grok）
+### 17. xAI（Grok）
 
 - **Vendor**: `xai`
 - **BaseURL**: `https://api.x.ai/v1`
@@ -483,7 +520,7 @@
 
 ---
 
-### 17. Fireworks AI
+### 18. Fireworks AI
 
 - **Vendor**: `fireworks`
 - **BaseURL**: `https://api.fireworks.ai/inference`
@@ -501,7 +538,7 @@
 
 ---
 
-### 18. Together AI
+### 19. Together AI
 
 - **Vendor**: `together`
 - **BaseURL**: `https://api.together.ai/v1`
@@ -517,7 +554,7 @@
 
 ---
 
-### 19. Nvidia NIM
+### 20. Nvidia NIM
 
 - **Vendor**: `nvidia`
 - **BaseURL**: `https://integrate.api.nvidia.com/v1`
@@ -533,7 +570,7 @@
 
 ---
 
-### 20. Mistral
+### 21. Mistral
 
 - **Vendor**: `mistral`
 - **BaseURL**: `https://api.mistral.ai/v1`
@@ -569,7 +606,7 @@
 
 ---
 
-### 21. HuggingFace
+### 22. HuggingFace
 
 - **Vendor**: `huggingface`
 - **BaseURL**: `https://router.huggingface.co/v1`
@@ -585,7 +622,7 @@
 
 ---
 
-### 22. Groq
+### 23. Groq
 
 - **Vendor**: `groq`
 - **BaseURL**: `https://api.groq.com/openai/v1`
@@ -603,7 +640,7 @@
 
 ---
 
-### 23. Cerebras
+### 24. Cerebras
 
 - **Vendor**: `cerebras`
 - **BaseURL**: `https://api.cerebras.ai/v1`
@@ -616,7 +653,7 @@
 
 ---
 
-### 24. Cerebras（蚂蚁 Ling）
+### 25. Cerebras（蚂蚁 Ling）
 
 - **BaseURL**: `https://api.ant-ling.com/v1`
 - **API**: `openai-chat`
@@ -629,9 +666,9 @@
 
 ---
 
-### 25. CodePlayz（Opencode）
+### 26. CodePlayz（Opencode）
 
-#### 25a. Claude 代理
+#### 26a. Claude 代理
 
 - **Vendor**: `opencode`
 - **BaseURL**: `https://opencode.ai/zen/v1`
@@ -645,7 +682,7 @@
 | claude-opus-4-5 | 200K | 64K | **是** | text,image |
 | claude-opus-4-6 | 1M | 128K | **是** | text,image |
 
-#### 25b. OpenAI 代理
+#### 26b. OpenAI 代理
 
 - **BaseURL**: `https://opencode.ai/zen/go/v1`
 - **API**: `openai-chat`
@@ -661,7 +698,7 @@
 
 ---
 
-### 26. Vercel AI Gateway
+### 27. Vercel AI Gateway
 
 - **Vendor**: `vercel-ai-gateway`
 - **BaseURL**: `https://ai-gateway.vercel.sh`
@@ -684,7 +721,7 @@
 
 ---
 
-### 27. Mistral（GitHub Copilot 代理）
+### 28. Mistral（GitHub Copilot 代理）
 
 - **Vendor**: `github-copilot`
 - **BaseURL**: `https://api.individual.githubcopilot.com`
@@ -705,7 +742,7 @@
 
 ---
 
-### 28. Cloudflare AI Gateway
+### 29. Cloudflare AI Gateway
 
 - **Vendor**: `cloudflare-ai-gateway`
 - **BaseURL**: `https://gateway.ai.cloudflare.com/v1/{ACCOUNT_ID}/{GATEWAY_ID}`
@@ -723,7 +760,7 @@
 
 ---
 
-### 29. Cloudflare Workers AI
+### 30. Cloudflare Workers AI
 
 - **Vendor**: `cloudflare-workers-ai`
 - **BaseURL**: `https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1`
@@ -742,7 +779,7 @@
 
 ---
 
-### 30. Amazon Bedrock
+### 31. Amazon Bedrock
 
 - **Vendor**: `amazon-bedrock`
 - **BaseURL**: `https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1`
@@ -763,15 +800,15 @@
 
 ---
 
-### 31. LongCat（龙猫/长毛象）
+### 32. LongCat（龙猫/长毛象）
 
-#### 31a. OpenAI 模式
+#### 32a. OpenAI 模式
 
 - **Vendor**: `longcat`
 - **BaseURL**: `https://api.longcat.chat/openai`
 - **API**: `openai-chat`
 
-#### 31b. Anthropic 模式
+#### 32b. Anthropic 模式
 
 - **Vendor**: `longcat`
 - **BaseURL**: `https://api.longcat.chat/anthropic`
@@ -783,7 +820,7 @@
 
 ---
 
-### 32. 百度千帆（Qianfan）
+### 33. 百度千帆（Qianfan）
 
 - **Vendor**: `qianfan`
 - **BaseURL**: `https://qianfan.baidubce.com/v2`
@@ -799,16 +836,62 @@
 
 ---
 
-### 33. 腾讯混元（Tencent Hunyuan）
+### 34. 摩尔线程（Mthreads Coding Plan）
 
-#### 33a. OpenAI 模式
+- **Vendor**: `mthreads-plan`
+- **BaseURL**: `https://coding-plan-endpoint.kuaecloud.net/v1`
+- **API**: `openai-chat`
+- **API Key**: `${MTHREADS_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| glm-4.7 | 200K | 128K | **是** | text,image |
+
+---
+
+### 35. 天翼云（Ctyun Coding Plan）
+
+- **Vendor**: `ctyun-plan`
+- **BaseURL**: `https://wishub-x6.ctyun.cn/coding/v1`
+- **API**: `openai-chat`
+- **API Key**: `${CTYUN_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| glm-5-turbo | 200K | 128K | **是** | text,image |
+| glm-5-pro | 200K | 128K | **是** | text,image |
+| deepseek-v3.2-pro | 128K | 64K | **是** | text |
+
+---
+
+### 36. 京东智联云（JD Plan）
+
+- **Vendor**: `jd-plan`
+- **BaseURL**: `https://agentrs.jd.com/api/saas/openai-u/v1`
+- **API**: `openai-chat`
+- **API Key**: `${JD_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| glm-5.1 | 200K | 128K | **是** | text,image |
+| glm-5.2 | 1M | 128K | **是** | text,image |
+| deepseek-v4-pro | 1M | 384K | **是** | text |
+| deepseek-v4-flash | 1M | 384K | **是** | text |
+| minimax-m2.7 | 200K | 128K | **是** | text |
+| joyai-llm-flash | 128K | 32K | 否 | text |
+
+---
+
+### 37. 腾讯混元（Tencent Hunyuan）
+
+#### 37a. OpenAI 模式
 
 - **Vendor**: `tencent-hy-plan`
 - **BaseURL**: `https://api.lkeap.cloud.tencent.com/plan/v3`
 - **API**: `openai-chat`
 - **API Key**: `${TENCENT_HY_PLAN_API_KEY}`
 
-#### 33b. Anthropic 模式
+#### 37b. Anthropic 模式
 
 - **Vendor**: `tencent-hy-plan`
 - **BaseURL**: `https://api.lkeap.cloud.tencent.com/plan/anthropic`
@@ -837,7 +920,11 @@
 | 智谱 AI | `zai` | openai-chat | zai | 6 |
 | ModelScope | - | openai-chat | - | 3 |
 | 阿里云百炼 | `bailian`×3 | openai-chat | - | 6~10 |
+| 华为云 | `huawei`/`huawei-plan` | openai-chat | - | 8/5 |
 | Gitee/Moark | `gitee` | openai-chat | - | 10~12 |
+| 摩尔线程 | `mthreads-plan` | openai-chat | - | 1 |
+| 天翼云 | `ctyun-plan` | openai-chat | - | 3 |
+| 京东智联云 | `jd-plan` | openai-chat | - | 6 |
 | Moonshot/Kimi | `moonshotai`/`kimi` | openai-chat/anthropic | - | 7~8 |
 | xAI Grok | `xai` | openai-chat | - | 7 |
 | Fireworks | `fireworks` | anthropic-messages | - | 7 |
