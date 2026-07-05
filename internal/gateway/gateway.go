@@ -25,6 +25,8 @@ import (
 // RunOptions holds the CLI flags for the gateway command.
 type RunOptions struct {
 	ConfigPath  string
+	Config      *GatewayConfig
+	DisableAPI  bool
 	Port        string
 	Provider    string
 	Model       string
@@ -72,35 +74,9 @@ func Run(opts RunOptions, version string) error {
 		return fmt.Errorf("load settings: %w", err)
 	}
 
-	// Load gateway.json
-	var gCfg *GatewayConfig
-	if opts.ConfigPath != "" {
-		gCfg, err = LoadGatewayConfigFrom(opts.ConfigPath)
-	} else {
-		gCfg, err = LoadGatewayConfig()
-	}
+	gCfg, err := loadRunConfig(opts)
 	if err != nil {
 		return fmt.Errorf("load gateway config: %w", err)
-	}
-
-	// CLI flag overrides
-	if opts.Port != "" {
-		gCfg.Listen = ":" + opts.Port
-	}
-	if opts.MultiAgent {
-		gCfg.EnableSubAgents = true
-	}
-	if opts.Delegate {
-		gCfg.EnableDelegate = true
-	}
-	if opts.Workflows {
-		gCfg.EnableWorkflows = true
-	}
-	if opts.Sandbox {
-		gCfg.Sandbox.Enabled = true
-	}
-	if opts.WorkDir != "" {
-		gCfg.WorkingDir = opts.WorkDir
 	}
 
 	// Resolve provider/model
@@ -188,12 +164,7 @@ func Run(opts RunOptions, version string) error {
 
 	// Build routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/chat/completions", srv.handleChatCompletions)
-	mux.HandleFunc("/v1/models", srv.handleModels)
-	mux.HandleFunc("/health", srv.handleHealth)
-	if opts.ExtraRoutes != nil {
-		opts.ExtraRoutes(srv, mux)
-	}
+	registerRoutes(mux, srv, opts)
 
 	// Apply middleware stack (inside-out)
 	var handler http.Handler = mux
@@ -265,6 +236,59 @@ func Run(opts RunOptions, version string) error {
 	}
 
 	return nil
+}
+
+func loadRunConfig(opts RunOptions) (*GatewayConfig, error) {
+	var cfg *GatewayConfig
+	var err error
+	if opts.Config != nil {
+		cfg = cloneGatewayConfig(opts.Config)
+		normalizeConfig(cfg)
+	} else if opts.ConfigPath != "" {
+		cfg, err = LoadGatewayConfigFrom(opts.ConfigPath)
+	} else {
+		cfg, err = LoadGatewayConfig()
+	}
+	if err != nil {
+		return nil, err
+	}
+	applyRunOverrides(cfg, opts)
+	return cfg, nil
+}
+
+func applyRunOverrides(cfg *GatewayConfig, opts RunOptions) {
+	if cfg == nil {
+		return
+	}
+	if opts.Port != "" {
+		cfg.Listen = ":" + opts.Port
+	}
+	if opts.MultiAgent {
+		cfg.EnableSubAgents = true
+	}
+	if opts.Delegate {
+		cfg.EnableDelegate = true
+	}
+	if opts.Workflows {
+		cfg.EnableWorkflows = true
+	}
+	if opts.Sandbox {
+		cfg.Sandbox.Enabled = true
+	}
+	if opts.WorkDir != "" {
+		cfg.WorkingDir = opts.WorkDir
+	}
+}
+
+func registerRoutes(mux *http.ServeMux, srv *Server, opts RunOptions) {
+	if !opts.DisableAPI {
+		mux.HandleFunc("/v1/chat/completions", srv.handleChatCompletions)
+		mux.HandleFunc("/v1/models", srv.handleModels)
+	}
+	mux.HandleFunc("/health", srv.handleHealth)
+	if opts.ExtraRoutes != nil {
+		opts.ExtraRoutes(srv, mux)
+	}
 }
 
 func buildWorkDirContext(settings *config.Settings, workDir string, workflows bool) (*skills.Manager, string, error) {

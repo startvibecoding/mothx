@@ -3,6 +3,16 @@
 
 ## v1.1.60
 
+### ✨ Features
+
+- **Unified Serve Mode with Web UI**
+  - Added `mothx serve` CLI command to start a unified server exposing OpenAI-compatible APIs, a Web UI management panel, and messaging channels (WeChat/Feishu) simultaneously.
+  - Added `internal/serve/` package to unify Gateway, Hermes channel, and Web UI configuration and runtime management.
+  - Configuration via `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`), supporting Gateway, channels, Web UI, Cron, Memory, Security, Hooks, and Agent settings.
+  - Built-in Svelte Web UI panel with health check, channel status, config editor, settings editor, and chat interface.
+  - Added Lobster mode (`--lobster`) that auto-enables yolo mode, disables sandbox, and turns on sub-agents.
+  - Gateway now supports an `ExtraRoutes` hook for Serve mode to inject custom API routes (`/api/serve/config`, `/api/settings`, `/api/channels`).
+
 ### 🐛 Bug Fixes
 
 - **Legacy `VIBECODING_DIR` Handling**
@@ -31,6 +41,11 @@
   - npm postinstall scripts and README updated to reference `~/.mothx/settings.json`.
 
 ### 🔧 Improvements
+
+- **Bash Non-Interactive Subprocess & Process Group Kill**
+  - Bash tool subprocesses now run in non-interactive mode: stdin is set to empty (`read` sees EOF instead of blocking), and non-interactive env defaults are injected (`GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=true`, `SSH_ASKPASS=true`, `SSH_ASKPASS_REQUIRE=never`, `SUDO_ASKPASS=true`) unless the user has explicitly set them.
+  - On Unix, `Setsid` gives the shell its own session; cancellation kills the entire process group via `kill(-pid)` so auth helpers and grandchildren do not linger.
+  - Added `killCommandProcess` helper shared by `BashTool` and `JobManager` for unified process termination.
 
 - **TUI Auth Dialog Refactor**
   - Auth input fields (API key, provider ID, model name, etc.) now use `SetMaxLines(1)` instead of `SetMaxLines(3)`, enforcing single-line input for credential and identifier fields.

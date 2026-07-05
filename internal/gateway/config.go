@@ -140,6 +140,20 @@ func LoadGatewayConfigFrom(path string) (*GatewayConfig, error) {
 	return cfg, nil
 }
 
+func cloneGatewayConfig(cfg *GatewayConfig) *GatewayConfig {
+	if cfg == nil {
+		return nil
+	}
+	clone := *cfg
+	clone.Auth.Tokens = append([]string(nil), cfg.Auth.Tokens...)
+	clone.CORS.AllowOrigins = append([]string(nil), cfg.CORS.AllowOrigins...)
+	if cfg.AllowedWorkDirs != nil {
+		allowed := append([]string(nil), (*cfg.AllowedWorkDirs)...)
+		clone.AllowedWorkDirs = &allowed
+	}
+	return &clone
+}
+
 // normalizeConfig fills in defaults for empty fields.
 func normalizeConfig(cfg *GatewayConfig) {
 	if cfg.Listen == "" {

@@ -13,6 +13,7 @@ import (
 
 type Config struct {
 	Gateway     gateway.GatewayConfig `json:"gateway"`
+	Features    FeatureConfig         `json:"features"`
 	Channels    ChannelConfig         `json:"channels"`
 	WebUI       WebUIConfig           `json:"webUI"`
 	LobsterMode bool                  `json:"lobsterMode,omitempty"`
@@ -21,6 +22,17 @@ type Config struct {
 	Security    hermes.SecurityConfig `json:"security"`
 	Hooks       hermes.HooksConfig    `json:"hooks"`
 	Agent       hermes.AgentConfig    `json:"agent"`
+}
+
+type FeatureConfig struct {
+	WebUI      bool `json:"webUI,omitempty"`
+	OpenAIAPI  bool `json:"openaiAPI,omitempty"`
+	Wechat     bool `json:"wechat,omitempty"`
+	Feishu     bool `json:"feishu,omitempty"`
+	WebSocket  bool `json:"websocket,omitempty"`
+	MultiAgent bool `json:"multiAgent,omitempty"`
+	Cron       bool `json:"cron,omitempty"`
+	Memory     bool `json:"memory,omitempty"`
 }
 
 type ChannelConfig struct {
@@ -39,7 +51,17 @@ func DefaultConfig() *Config {
 	gw.DefaultMode = "yolo"
 	h := hermes.DefaultHermesConfig()
 	return &Config{
-		Gateway:  *gw,
+		Gateway: *gw,
+		Features: FeatureConfig{
+			WebUI:      true,
+			OpenAIAPI:  true,
+			Wechat:     false,
+			Feishu:     false,
+			WebSocket:  false,
+			MultiAgent: gw.EnableSubAgents,
+			Cron:       h.Cron.Enabled,
+			Memory:     h.Memory.Enabled,
+		},
 		WebUI:    WebUIConfig{Enabled: true, Dir: "ui/dist"},
 		Cron:     h.Cron,
 		Memory:   h.Memory,
@@ -63,7 +85,7 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 	if data, err := os.ReadFile(ProjectConfigPath()); err == nil {
-		if err := json.Unmarshal(data, cfg); err != nil {
+		if err := DecodeConfigBytesInto(cfg, data); err != nil {
 			return nil, fmt.Errorf("parse project serve config %s: %w", ProjectConfigPath(), err)
 		}
 	} else if !os.IsNotExist(err) {
@@ -82,7 +104,7 @@ func LoadConfigFrom(path string) (*Config, error) {
 		}
 		return nil, fmt.Errorf("read serve config %s: %w", path, err)
 	}
-	if err := json.Unmarshal(data, cfg); err != nil {
+	if err := DecodeConfigBytesInto(cfg, data); err != nil {
 		return nil, fmt.Errorf("parse serve config %s: %w", path, err)
 	}
 	normalize(cfg)
@@ -105,6 +127,9 @@ func normalize(cfg *Config) {
 	if cfg.Gateway.SystemPromptMode == "" {
 		cfg.Gateway.SystemPromptMode = "append"
 	}
+	if cfg.Gateway.DefaultThinkingLevel == "" {
+		cfg.Gateway.DefaultThinkingLevel = "medium"
+	}
 	if cfg.Gateway.RequestTimeoutSecs <= 0 {
 		cfg.Gateway.RequestTimeoutSecs = 1800
 	}
@@ -119,6 +144,12 @@ func normalize(cfg *Config) {
 		cfg.Gateway.Sandbox.Enabled = false
 		cfg.Gateway.EnableSubAgents = true
 	}
+	cfg.Features.WebUI = cfg.WebUI.Enabled
+	cfg.Features.Wechat = cfg.Channels.Wechat.Enabled
+	cfg.Features.Feishu = cfg.Channels.Feishu.Enabled
+	cfg.Features.MultiAgent = cfg.Gateway.EnableSubAgents
+	cfg.Features.Cron = cfg.Cron.Enabled
+	cfg.Features.Memory = cfg.Memory.Enabled
 }
 
 func SaveConfig(path string, cfg *Config) error {

@@ -186,6 +186,163 @@ func TestSaveAndLoadGatewayConfig(t *testing.T) {
 	}
 }
 
+func TestCloneGatewayConfig(t *testing.T) {
+	allowed := []string{"/home/test", "/opt/repos"}
+	cfg := &GatewayConfig{
+		Listen: ":8080",
+		Auth: AuthConfig{
+			Enabled: true,
+			Tokens:  []string{"sk-a", "sk-b"},
+		},
+		CORS: CORSConfig{
+			Enabled:      true,
+			AllowOrigins: []string{"http://localhost:3000"},
+		},
+		AllowedWorkDirs: &allowed,
+	}
+
+	clone := cloneGatewayConfig(cfg)
+	if clone == cfg {
+		t.Fatal("cloneGatewayConfig returned the original pointer")
+	}
+
+	clone.Listen = ":9090"
+	clone.Auth.Tokens[0] = "sk-mutated"
+	clone.CORS.AllowOrigins[0] = "http://mutated"
+	(*clone.AllowedWorkDirs)[0] = "/tmp/mutated"
+
+	if cfg.Listen != ":8080" {
+		t.Fatalf("original listen mutated: %q", cfg.Listen)
+	}
+	if got := cfg.Auth.Tokens[0]; got != "sk-a" {
+		t.Fatalf("original auth tokens mutated: %q", got)
+	}
+	if got := cfg.CORS.AllowOrigins[0]; got != "http://localhost:3000" {
+		t.Fatalf("original CORS origins mutated: %q", got)
+	}
+	if got := (*cfg.AllowedWorkDirs)[0]; got != "/home/test" {
+		t.Fatalf("original allowedWorkDirs mutated: %q", got)
+	}
+}
+
+func TestApplyRunOverrides(t *testing.T) {
+	cfg := DefaultGatewayConfig()
+	cfg.Listen = ":8080"
+	cfg.EnableSubAgents = false
+	cfg.EnableDelegate = false
+	cfg.EnableWorkflows = false
+	cfg.Sandbox.Enabled = false
+	cfg.WorkingDir = "/tmp/original"
+
+	applyRunOverrides(cfg, RunOptions{
+		Port:       "9090",
+		WorkDir:    "/tmp/override",
+		Sandbox:    true,
+		MultiAgent: true,
+		Delegate:   true,
+		Workflows:  true,
+	})
+
+	if cfg.Listen != ":9090" {
+		t.Fatalf("listen = %q, want :9090", cfg.Listen)
+	}
+	if cfg.WorkingDir != "/tmp/override" {
+		t.Fatalf("workDir = %q, want /tmp/override", cfg.WorkingDir)
+	}
+	if !cfg.Sandbox.Enabled {
+		t.Fatal("sandbox should be enabled")
+	}
+	if !cfg.EnableSubAgents {
+		t.Fatal("multi-agent should be enabled")
+	}
+	if !cfg.EnableDelegate {
+		t.Fatal("delegate should be enabled")
+	}
+	if !cfg.EnableWorkflows {
+		t.Fatal("workflows should be enabled")
+	}
+}
+
+func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
+	allowed := []string{"/home/test"}
+	original := &GatewayConfig{
+		Listen: ":8080",
+		Auth: AuthConfig{
+			Enabled: true,
+			Tokens:  []string{"sk-a"},
+		},
+		CORS: CORSConfig{
+			Enabled:      true,
+			AllowOrigins: []string{"http://localhost:3000"},
+		},
+		AllowedWorkDirs: &allowed,
+	}
+
+	cfg, err := loadRunConfig(RunOptions{
+		Config:     original,
+		Port:       "9090",
+		WorkDir:    "/tmp/work",
+		Sandbox:    true,
+		MultiAgent: true,
+		Delegate:   true,
+		Workflows:  true,
+	})
+	if err != nil {
+		t.Fatalf("loadRunConfig: %v", err)
+	}
+
+	if cfg == original {
+		t.Fatal("loadRunConfig returned original config pointer")
+	}
+	if cfg.Listen != ":9090" {
+		t.Fatalf("listen = %q, want :9090", cfg.Listen)
+	}
+	if cfg.WorkingDir != "/tmp/work" {
+		t.Fatalf("workDir = %q, want /tmp/work", cfg.WorkingDir)
+	}
+	if !cfg.Sandbox.Enabled || !cfg.EnableSubAgents || !cfg.EnableDelegate || !cfg.EnableWorkflows {
+		t.Fatal("expected overrides to be applied")
+	}
+
+	if original.Listen != ":8080" {
+		t.Fatalf("original listen mutated: %q", original.Listen)
+	}
+	if original.WorkingDir != "" {
+		t.Fatalf("original workDir mutated: %q", original.WorkingDir)
+	}
+	if original.Sandbox.Enabled || original.EnableSubAgents || original.EnableDelegate || original.EnableWorkflows {
+		t.Fatal("original config booleans mutated")
+	}
+}
+
+func TestRegisterRoutes_DisableAPI(t *testing.T) {
+	srv := newTestServer(t)
+	mux := http.NewServeMux()
+
+	registerRoutes(mux, srv, RunOptions{DisableAPI: true})
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("/health status = %d, want 200", w.Code)
+	}
+
+	req = httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{}`))
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("/v1/chat/completions status = %d, want 404", w.Code)
+	}
+
+	req = httptest.NewRequest("GET", "/v1/models", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("/v1/models status = %d, want 404", w.Code)
+	}
+}
+
 // --- Auth middleware tests ---
 
 func TestAuthMiddleware_Disabled(t *testing.T) {

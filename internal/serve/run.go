@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -40,12 +41,26 @@ type channelRuntime struct {
 	platforms  []messaging.Platform
 }
 
+type channelStatus struct {
+	Name      string `json:"name"`
+	Enabled   bool   `json:"enabled"`
+	Connected bool   `json:"connected"`
+}
+
+func registerServeRoutes(mux *http.ServeMux, rt *channelRuntime, configPath string) {
+	if rt == nil {
+		return
+	}
+	rt.routes(configPath)(nil, mux)
+}
+
 func Run(opts RunOptions, version string) error {
 	cfg, path, err := loadRunConfig(opts.ConfigPath)
 	if err != nil {
 		return err
 	}
 	applyOverrides(cfg, opts)
+	applyRuntimeFeatures(cfg)
 
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -58,17 +73,17 @@ func Run(opts RunOptions, version string) error {
 	}
 	defer rt.stop()
 
-	gatewayCfgPath, cleanup, err := writeGatewayConfig(cfg)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
-
 	fmt.Fprintf(os.Stderr, "MothX Serve v%s starting\n", version)
 	displayAddr := displayListenAddr(cfg.Gateway.GetListenAddr())
-	fmt.Fprintf(os.Stderr, "  OpenAI API: http://%s/v1/chat/completions\n", displayAddr)
+	if cfg.Features.OpenAIAPI {
+		fmt.Fprintf(os.Stderr, "  OpenAI API: http://%s/v1/chat/completions\n", displayAddr)
+	} else {
+		fmt.Fprintf(os.Stderr, "  OpenAI API: disabled\n")
+	}
 	if cfg.WebUI.Enabled {
 		fmt.Fprintf(os.Stderr, "  Web UI: http://%s/\n", displayAddr)
+	} else {
+		fmt.Fprintf(os.Stderr, "  Web UI: disabled\n")
 	}
 	if cfg.LobsterMode {
 		fmt.Fprintf(os.Stderr, "  Lobster mode: enabled (yolo, no sandbox, sub-agents on)\n")
@@ -76,7 +91,8 @@ func Run(opts RunOptions, version string) error {
 	fmt.Fprintf(os.Stderr, "  Config: %s\n", path)
 
 	return gateway.Run(gateway.RunOptions{
-		ConfigPath:  gatewayCfgPath,
+		Config:      &cfg.Gateway,
+		DisableAPI:  !cfg.Features.OpenAIAPI,
 		Provider:    opts.Provider,
 		Model:       opts.Model,
 		WorkDir:     opts.WorkDir,
@@ -127,6 +143,7 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 	}
 	if opts.MultiAgent {
 		cfg.Gateway.EnableSubAgents = true
+		cfg.Features.MultiAgent = true
 	}
 	if opts.Delegate {
 		cfg.Gateway.EnableDelegate = true
@@ -140,26 +157,39 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 	normalize(cfg)
 }
 
-func writeGatewayConfig(cfg *Config) (string, func(), error) {
-	f, err := os.CreateTemp("", "mothx-serve-gateway-*.json")
-	if err != nil {
-		return "", func() {}, fmt.Errorf("create temporary gateway config: %w", err)
+func applyRuntimeFeatures(cfg *Config) {
+	if cfg == nil {
+		return
 	}
-	path := f.Name()
-	if err := json.NewEncoder(f).Encode(cfg.Gateway); err != nil {
-		f.Close()
-		os.Remove(path)
-		return "", func() {}, fmt.Errorf("write temporary gateway config: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		os.Remove(path)
-		return "", func() {}, err
-	}
-	return path, func() { os.Remove(path) }, nil
+	cfg.WebUI.Enabled = cfg.Features.WebUI
+	cfg.Gateway.EnableSubAgents = cfg.Features.MultiAgent
+	cfg.Channels.Wechat.Enabled = cfg.Features.Wechat
+	cfg.Channels.Feishu.Enabled = cfg.Features.Feishu
+	cfg.Cron.Enabled = cfg.Features.Cron
+	cfg.Memory.Enabled = cfg.Features.Memory
 }
 
 func startChannels(cfg *Config, settings *config.Settings, version string) (*channelRuntime, error) {
+	applyRuntimeFeatures(cfg)
+
+	hCfg := buildHermesConfigFromServeConfig(cfg)
+	cronStore := buildCronStore(hCfg)
+
+	dispatcher, err := hermes.NewDispatcher(hCfg, settings, version, cronStore, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create channel dispatcher: %w", err)
+	}
+	rt := &channelRuntime{cfg: cfg, dispatcher: dispatcher}
+	rt.startPlatforms()
+	return rt, nil
+}
+
+func buildHermesConfigFromServeConfig(cfg *Config) *hermes.HermesConfig {
 	hCfg := hermes.DefaultHermesConfig()
+	if cfg == nil {
+		return hCfg
+	}
+	applyRuntimeFeatures(cfg)
 	hCfg.Server.Host = "127.0.0.1"
 	hCfg.Server.Port = 0
 	hCfg.DefaultProvider = cfg.Gateway.Provider
@@ -174,23 +204,19 @@ func startChannels(cfg *Config, settings *config.Settings, version string) (*cha
 	hCfg.Security = cfg.Security
 	hCfg.Hooks = cfg.Hooks
 	hCfg.Agent = cfg.Agent
+	return hCfg
+}
 
+func buildCronStore(hCfg *hermes.HermesConfig) cron.CronStore {
 	var cronStore cron.CronStore
-	if hCfg.Cron.Enabled {
+	if hCfg != nil && hCfg.Cron.Enabled {
 		storePath := hCfg.Cron.StorePath
 		if storePath == "" {
 			storePath = filepath.Join(config.ConfigDir(), "serve-cron.json")
 		}
 		cronStore = cron.NewFileCronStore(storePath)
 	}
-
-	dispatcher, err := hermes.NewDispatcher(hCfg, settings, version, cronStore, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create channel dispatcher: %w", err)
-	}
-	rt := &channelRuntime{cfg: cfg, dispatcher: dispatcher}
-	rt.startPlatforms()
-	return rt, nil
+	return cronStore
 }
 
 func (rt *channelRuntime) startPlatforms() {
@@ -257,16 +283,21 @@ func (rt *channelRuntime) handleServeConfig(path string) http.HandlerFunc {
 		case http.MethodGet:
 			writeJSON(w, http.StatusOK, rt.cfg)
 		case http.MethodPut:
-			var next Config
-			if err := json.NewDecoder(r.Body).Decode(&next); err != nil {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}
-			if err := SaveConfig(path, &next); err != nil {
+			next, err := DecodeConfigBytes(body)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+			if err := SaveConfig(path, next); err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return
 			}
-			rt.cfg = &next
+			rt.cfg = next
 			writeJSON(w, http.StatusOK, rt.cfg)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -279,9 +310,20 @@ func (rt *channelRuntime) handleChannels(w http.ResponseWriter, r *http.Request)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	statuses := make([]map[string]any, 0, len(rt.platforms)+2)
+	statuses := []channelStatus{
+		{Name: "wechat", Enabled: rt.cfg.Channels.Wechat.Enabled, Connected: false},
+		{Name: "feishu", Enabled: rt.cfg.Channels.Feishu.Enabled, Connected: false},
+	}
+	byName := map[string]int{
+		"wechat": 0,
+		"feishu": 1,
+	}
 	for _, p := range rt.platforms {
-		statuses = append(statuses, map[string]any{"name": p.Name(), "connected": p.IsConnected()})
+		if idx, ok := byName[p.Name()]; ok {
+			statuses[idx].Connected = p.IsConnected()
+			continue
+		}
+		statuses = append(statuses, channelStatus{Name: p.Name(), Enabled: true, Connected: p.IsConnected()})
 	}
 	writeJSON(w, http.StatusOK, statuses)
 }

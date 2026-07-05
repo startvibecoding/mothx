@@ -3,6 +3,16 @@
 
 ## v1.1.60
 
+### ✨ 新功能
+
+- **统一 Serve 模式与 Web UI**
+  - 新增 `mothx serve` CLI 命令，启动统一服务器，同时提供 OpenAI 兼容 API、Web UI 管理面板和消息通道（微信/飞书）。
+  - 新增 `internal/serve/` 包，统一管理 Gateway、Hermes 通道和 Web UI 的配置与运行时。
+  - 配置文件 `serve.json`（全局 `~/.mothx/serve.json`，项目 `.mothx/serve.json`），支持 Gateway、通道、Web UI、Cron、Memory、Security、Hooks 和 Agent 配置。
+  - 内置 Svelte Web UI 面板，提供健康检查、通道状态、配置编辑、设置编辑和聊天界面。
+  - 新增 Lobster 模式（`--lobster`），自动启用 yolo 模式、禁用沙箱、开启子 Agent。
+  - Gateway 新增 `ExtraRoutes` 钩子，支持 Serve 模式注入自定义 API 路由（`/api/serve/config`、`/api/settings`、`/api/channels`）。
+
 ### 🐛 Bug 修复
 
 - **旧版 `VIBECODING_DIR` 环境变量处理**
@@ -31,6 +41,11 @@
   - npm postinstall 脚本与 README 更新为引用 `~/.mothx/settings.json`。
 
 ### 🔧 改进
+
+- **Bash 子进程非交互式与进程组终止**
+  - bash 工具的子进程现在以非交互模式运行：stdin 设为空（`read` 看到 EOF 而非阻塞），并注入非交互环境变量默认值（`GIT_TERMINAL_PROMPT=0`、`GIT_ASKPASS=true`、`SSH_ASKPASS=true`、`SSH_ASKPASS_REQUIRE=never`、`SUDO_ASKPASS=true`），除非用户已显式设置。
+  - Unix 平台使用 `Setsid` 让 shell 拥有独立会话；取消时通过 `kill(-pid)` 终止整个进程组，确保认证助手和孙进程不会残留。
+  - 新增 `killCommandProcess` 辅助函数，`BashTool` 和 `JobManager` 共享统一的进程终止逻辑。
 
 - **TUI 认证对话框重构**
   - 认证输入字段（API key、provider ID、模型名等）从 `SetMaxLines(3)` 改为 `SetMaxLines(1)`，强制单行输入。

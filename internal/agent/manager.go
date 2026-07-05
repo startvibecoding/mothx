@@ -76,6 +76,8 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	factory := m.factory
+
 	// Generate ID if not provided
 	if opts.ID == "" {
 		opts.ID = agentpkg.AgentID(fmt.Sprintf("agent-%d", atomic.AddInt64(&m.counter, 1)))
@@ -85,6 +87,9 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 		parent, ok := m.agents[opts.ParentID]
 		if !ok {
 			return nil, fmt.Errorf("parent agent %s not found", opts.ParentID)
+		}
+		if parentCfg, ok := runtimeConfigOfManagedAgent(parent); ok {
+			factory = m.factory.withParentRuntimeConfig(parentCfg)
 		}
 		if opts.Mode == "" {
 			opts.Mode = modeOfManagedAgent(parent)
@@ -105,7 +110,7 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 		opts.Mode = "agent"
 	}
 
-	a := m.factory.Create(opts)
+	a := factory.Create(opts)
 	m.agents[opts.ID] = a
 	if opts.ParentID != "" {
 		m.parentOf[opts.ID] = opts.ParentID
@@ -124,10 +129,17 @@ func (m *AgentManager) Create(opts AgentOptions) (agentpkg.Agent, error) {
 }
 
 func modeOfManagedAgent(a agentpkg.Agent) string {
-	if adapter, ok := a.(*AgentAdapter); ok && adapter != nil && adapter.inner != nil {
-		return adapter.inner.config.Mode
+	if cfg, ok := runtimeConfigOfManagedAgent(a); ok {
+		return cfg.Mode
 	}
 	return ""
+}
+
+func runtimeConfigOfManagedAgent(a agentpkg.Agent) (AgentLoopConfig, bool) {
+	if adapter, ok := a.(*AgentAdapter); ok && adapter != nil && adapter.inner != nil {
+		return adapter.inner.config, true
+	}
+	return AgentLoopConfig{}, false
 }
 
 // SetCancel records the active run cancel function for an agent.

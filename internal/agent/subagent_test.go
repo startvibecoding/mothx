@@ -185,6 +185,64 @@ func TestSubAgentSpawnInheritsYoloMode(t *testing.T) {
 	}
 }
 
+func TestSubAgentInheritsRegisteredParentProvider(t *testing.T) {
+	oldProvider := provider.NewMockProvider("old", []*provider.Model{
+		{ID: "old-model", Name: "Old Model"},
+	}, nil)
+	newProvider := provider.NewMockProvider("new", []*provider.Model{
+		{ID: "new-model", Name: "New Model"},
+	}, nil)
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
+	factory := NewAgentFactory(
+		oldProvider,
+		oldProvider.Models()[0],
+		settings,
+		sandboxMgr,
+		"old context",
+		"",
+		nil,
+		ctxpkg.CompactionSettings{},
+		nil,
+	)
+	mgr := NewAgentManager(factory)
+
+	parentRegistry := tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox())
+	parent := New(Config{
+		ID:           "main",
+		Provider:     newProvider,
+		Model:        newProvider.Models()[0],
+		Mode:         "agent",
+		Settings:     settings,
+		ExtraContext: "new context",
+	}, parentRegistry)
+	mgr.Register(NewAgentAdapter(parent))
+
+	child, err := mgr.Create(AgentOptions{ID: "sub-1", ParentID: "main"})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	childAdapter := child.(*AgentAdapter)
+	gotProvider := childAdapter.inner.config.Provider
+	if gotProvider != newProvider {
+		gotName := "<nil>"
+		if gotProvider != nil {
+			gotName = gotProvider.Name()
+		}
+		t.Fatalf("child provider = %s, want registered parent provider %s", gotName, newProvider.Name())
+	}
+	if childAdapter.inner.config.Model == nil || childAdapter.inner.config.Model.ID != "new-model" {
+		t.Fatalf("child model = %#v, want new-model", childAdapter.inner.config.Model)
+	}
+	if !contains(childAdapter.inner.config.ExtraContext, "new context") {
+		t.Fatalf("child extra context = %q, want parent context", childAdapter.inner.config.ExtraContext)
+	}
+	if contains(childAdapter.inner.config.ExtraContext, "old context") {
+		t.Fatalf("child extra context kept stale factory context: %q", childAdapter.inner.config.ExtraContext)
+	}
+}
+
 func TestSubAgentSpawnToolInheritsParentYoloMode(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	parent, err := mgr.Create(AgentOptions{ID: "main", Mode: "yolo"})

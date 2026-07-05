@@ -1,0 +1,321 @@
+package serve
+
+import "encoding/json"
+
+func DecodeConfigBytes(data []byte) (*Config, error) {
+	cfg := DefaultConfig()
+	if err := DecodeConfigBytesInto(cfg, data); err != nil {
+		return nil, err
+	}
+	normalize(cfg)
+	return cfg, nil
+}
+
+func DecodeConfigBytesInto(cfg *Config, data []byte) error {
+	if err := json.Unmarshal(data, cfg); err != nil {
+		return err
+	}
+	var raw rawConfig
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	applyRawConfig(cfg, &raw)
+	return nil
+}
+
+func applyRawConfig(cfg *Config, raw *rawConfig) {
+	if cfg == nil || raw == nil {
+		return
+	}
+
+	if raw.Listen != "" {
+		cfg.Gateway.Listen = raw.Listen
+	}
+	if raw.Provider != "" {
+		cfg.Gateway.Provider = raw.Provider
+	}
+	if raw.Model != "" {
+		cfg.Gateway.Model = raw.Model
+	}
+	if raw.Mode != "" {
+		cfg.Gateway.DefaultMode = raw.Mode
+	}
+	if raw.WorkDir != "" {
+		cfg.Gateway.WorkingDir = raw.WorkDir
+	}
+	if raw.Auth != nil {
+		if raw.Auth.Enabled != nil {
+			cfg.Gateway.Auth.Enabled = *raw.Auth.Enabled
+		}
+		if raw.Auth.Tokens != nil {
+			cfg.Gateway.Auth.Tokens = append([]string(nil), raw.Auth.Tokens...)
+		}
+	}
+	if raw.Sandbox != nil {
+		if raw.Sandbox.Enabled != nil {
+			cfg.Gateway.Sandbox.Enabled = *raw.Sandbox.Enabled
+		}
+		if raw.Sandbox.Level != "" {
+			cfg.Gateway.Sandbox.Level = raw.Sandbox.Level
+		}
+	}
+	if raw.AllowedWorkDirs != nil {
+		allowed := append([]string(nil), (*raw.AllowedWorkDirs)...)
+		cfg.Gateway.AllowedWorkDirs = &allowed
+	}
+	if raw.Session != nil {
+		if raw.Session.IdleTimeoutSeconds != nil {
+			cfg.Gateway.Session.IdleTimeoutSeconds = *raw.Session.IdleTimeoutSeconds
+		}
+		if raw.Session.MaxSessions != nil {
+			cfg.Gateway.Session.MaxSessions = *raw.Session.MaxSessions
+		}
+	}
+	if raw.ToolVisibility != nil {
+		if raw.ToolVisibility.Mode != "" {
+			cfg.Gateway.ToolVisibility.Mode = raw.ToolVisibility.Mode
+		}
+		if raw.ToolVisibility.Detail != "" {
+			cfg.Gateway.ToolVisibility.Detail = raw.ToolVisibility.Detail
+		}
+	}
+	if raw.Thinking != "" {
+		cfg.Gateway.DefaultThinkingLevel = raw.Thinking
+	}
+	if raw.SystemPromptMode != "" {
+		cfg.Gateway.SystemPromptMode = raw.SystemPromptMode
+	}
+	if raw.RequestTimeoutSecs != nil {
+		cfg.Gateway.RequestTimeoutSecs = *raw.RequestTimeoutSecs
+	}
+	if raw.MaxConcurrentReqs != nil {
+		cfg.Gateway.MaxConcurrentReqs = *raw.MaxConcurrentReqs
+	}
+	if raw.Agent != nil {
+		if raw.Agent.MaxTurns != nil {
+			cfg.Agent.MaxTurns = *raw.Agent.MaxTurns
+		}
+		if raw.Agent.BudgetPressure != nil {
+			cfg.Agent.BudgetPressure = *raw.Agent.BudgetPressure
+		}
+		if raw.Agent.ContextPressure != nil {
+			cfg.Agent.ContextPressure = *raw.Agent.ContextPressure
+		}
+		if raw.Agent.BudgetPressureThreshold != nil {
+			cfg.Agent.BudgetPressureThreshold = *raw.Agent.BudgetPressureThreshold
+		}
+		if raw.Agent.ContextPressureThreshold != nil {
+			cfg.Agent.ContextPressureThreshold = *raw.Agent.ContextPressureThreshold
+		}
+	}
+	if raw.WebUI != nil {
+		if raw.WebUI.Enabled != nil {
+			cfg.WebUI.Enabled = *raw.WebUI.Enabled
+		}
+		if raw.WebUI.Dir != "" {
+			cfg.WebUI.Dir = raw.WebUI.Dir
+		}
+	}
+	if raw.Cron != nil {
+		if raw.Cron.Enabled != nil {
+			cfg.Cron.Enabled = *raw.Cron.Enabled
+		}
+		if raw.Cron.StorePath != "" {
+			cfg.Cron.StorePath = raw.Cron.StorePath
+		}
+		if raw.Cron.Interval != nil {
+			cfg.Cron.Interval = *raw.Cron.Interval
+		}
+	}
+	if raw.Memory != nil {
+		if raw.Memory.Enabled != nil {
+			cfg.Memory.Enabled = *raw.Memory.Enabled
+		}
+		if raw.Memory.Path != "" {
+			cfg.Memory.Path = raw.Memory.Path
+		}
+	}
+	if raw.Security != nil {
+		if raw.Security.SmartApprovals != nil {
+			cfg.Security.SmartApprovals = *raw.Security.SmartApprovals
+		}
+		if raw.Security.AllowedWorkDirs != nil {
+			cfg.Security.AllowedWorkDirs = append([]string(nil), (*raw.Security.AllowedWorkDirs)...)
+		}
+	}
+	if raw.Hooks != nil {
+		if raw.Hooks.PreToolCall != "" {
+			cfg.Hooks.PreToolCall = raw.Hooks.PreToolCall
+		}
+		if raw.Hooks.PostToolCall != "" {
+			cfg.Hooks.PostToolCall = raw.Hooks.PostToolCall
+		}
+	}
+	if raw.Channels != nil {
+		applyRawChannels(&cfg.Channels, raw.Channels)
+	}
+
+	if raw.Features != nil {
+		if raw.Features.WebUI != nil {
+			cfg.Features.WebUI = *raw.Features.WebUI
+			cfg.WebUI.Enabled = *raw.Features.WebUI
+		}
+		if raw.Features.OpenAIAPI != nil {
+			cfg.Features.OpenAIAPI = *raw.Features.OpenAIAPI
+		}
+		if raw.Features.MultiAgent != nil {
+			cfg.Features.MultiAgent = *raw.Features.MultiAgent
+			cfg.Gateway.EnableSubAgents = *raw.Features.MultiAgent
+		}
+		if raw.Features.Wechat != nil {
+			cfg.Features.Wechat = *raw.Features.Wechat
+			cfg.Channels.Wechat.Enabled = *raw.Features.Wechat
+		}
+		if raw.Features.Feishu != nil {
+			cfg.Features.Feishu = *raw.Features.Feishu
+			cfg.Channels.Feishu.Enabled = *raw.Features.Feishu
+		}
+		if raw.Features.Cron != nil {
+			cfg.Features.Cron = *raw.Features.Cron
+			cfg.Cron.Enabled = *raw.Features.Cron
+		}
+		if raw.Features.Memory != nil {
+			cfg.Features.Memory = *raw.Features.Memory
+			cfg.Memory.Enabled = *raw.Features.Memory
+		}
+		if raw.Features.WebSocket != nil {
+			cfg.Features.WebSocket = *raw.Features.WebSocket
+		}
+	}
+
+	if raw.LobsterMode {
+		cfg.LobsterMode = true
+	}
+}
+
+func applyRawChannels(cfg *ChannelConfig, raw *rawChannelConfig) {
+	if cfg == nil || raw == nil {
+		return
+	}
+	if raw.Wechat != nil {
+		if raw.Wechat.Enabled != nil {
+			cfg.Wechat.Enabled = *raw.Wechat.Enabled
+		}
+		if raw.Wechat.AutoTyping != nil {
+			cfg.Wechat.AutoTyping = *raw.Wechat.AutoTyping
+		}
+		if raw.Wechat.CredPath != "" {
+			cfg.Wechat.CredPath = raw.Wechat.CredPath
+		}
+		if raw.Wechat.WorkDir != "" {
+			cfg.Wechat.WorkDir = raw.Wechat.WorkDir
+		}
+		if raw.Wechat.AllowedUsers != nil {
+			cfg.Wechat.AllowedUsers = append([]string(nil), raw.Wechat.AllowedUsers...)
+		}
+	}
+	if raw.Feishu != nil {
+		if raw.Feishu.Enabled != nil {
+			cfg.Feishu.Enabled = *raw.Feishu.Enabled
+		}
+		if raw.Feishu.AppID != "" {
+			cfg.Feishu.AppID = raw.Feishu.AppID
+		}
+		if raw.Feishu.AppSecret != "" {
+			cfg.Feishu.AppSecret = raw.Feishu.AppSecret
+		}
+		if raw.Feishu.WorkDir != "" {
+			cfg.Feishu.WorkDir = raw.Feishu.WorkDir
+		}
+		if raw.Feishu.AllowedUsers != nil {
+			cfg.Feishu.AllowedUsers = append([]string(nil), raw.Feishu.AllowedUsers...)
+		}
+	}
+}
+
+func (c *Config) MarshalJSON() ([]byte, error) {
+	normalize(c)
+
+	features := rawFeaturesConfig{}
+	wechatEnabled := c.Channels.Wechat.Enabled
+	wechatAutoTyping := c.Channels.Wechat.AutoTyping
+	feishuEnabled := c.Channels.Feishu.Enabled
+	authEnabled := c.Gateway.Auth.Enabled
+	sandboxEnabled := c.Gateway.Sandbox.Enabled
+	webUIEnabled := c.WebUI.Enabled
+	openAIAPIEnabled := c.Features.OpenAIAPI
+	webSocketEnabled := c.Features.WebSocket
+	multiAgentEnabled := c.Gateway.EnableSubAgents
+	cronEnabled := c.Cron.Enabled
+	memoryEnabled := c.Memory.Enabled
+	idleTimeoutSeconds := c.Gateway.Session.IdleTimeoutSeconds
+	maxSessions := c.Gateway.Session.MaxSessions
+	requestTimeoutSeconds := c.Gateway.RequestTimeoutSecs
+	maxConcurrentRequests := c.Gateway.MaxConcurrentReqs
+	agentMaxTurns := c.Agent.MaxTurns
+	agentBudgetPressure := c.Agent.BudgetPressure
+	agentContextPressure := c.Agent.ContextPressure
+	agentBudgetPressureThreshold := c.Agent.BudgetPressureThreshold
+	agentContextPressureThreshold := c.Agent.ContextPressureThreshold
+	cronInterval := c.Cron.Interval
+	memoryStoreEnabled := c.Memory.Enabled
+	securitySmartApprovals := c.Security.SmartApprovals
+
+	features.WebUI = &webUIEnabled
+	features.OpenAIAPI = &openAIAPIEnabled
+	features.Wechat = &wechatEnabled
+	features.Feishu = &feishuEnabled
+	features.WebSocket = &webSocketEnabled
+	features.MultiAgent = &multiAgentEnabled
+	features.Cron = &cronEnabled
+	features.Memory = &memoryEnabled
+
+	raw := rawConfig{
+		Listen:             c.Gateway.Listen,
+		Provider:           c.Gateway.Provider,
+		Model:              c.Gateway.Model,
+		Mode:               c.Gateway.DefaultMode,
+		WorkDir:            c.Gateway.WorkingDir,
+		Auth:               &rawAuthConfig{Enabled: &authEnabled, Tokens: append([]string(nil), c.Gateway.Auth.Tokens...)},
+		Features:           &features,
+		Sandbox:            &rawSandboxConfig{Enabled: &sandboxEnabled, Level: c.Gateway.Sandbox.Level},
+		AllowedWorkDirs:    c.Gateway.AllowedWorkDirs,
+		Session:            &rawSessionConfig{IdleTimeoutSeconds: &idleTimeoutSeconds, MaxSessions: &maxSessions},
+		ToolVisibility:     &rawToolVisibilityConfig{Mode: c.Gateway.ToolVisibility.Mode, Detail: c.Gateway.ToolVisibility.Detail},
+		Thinking:           c.Gateway.DefaultThinkingLevel,
+		SystemPromptMode:   c.Gateway.SystemPromptMode,
+		RequestTimeoutSecs: &requestTimeoutSeconds,
+		MaxConcurrentReqs:  &maxConcurrentRequests,
+		Agent: &rawAgentConfig{
+			MaxTurns:                 &agentMaxTurns,
+			BudgetPressure:           &agentBudgetPressure,
+			ContextPressure:          &agentContextPressure,
+			BudgetPressureThreshold:  &agentBudgetPressureThreshold,
+			ContextPressureThreshold: &agentContextPressureThreshold,
+		},
+		WebUI:       &rawWebUIConfig{Enabled: &webUIEnabled, Dir: c.WebUI.Dir},
+		LobsterMode: c.LobsterMode,
+		Cron:        &rawCronConfig{Enabled: &cronEnabled, StorePath: c.Cron.StorePath, Interval: &cronInterval},
+		Memory:      &rawMemoryConfig{Enabled: &memoryStoreEnabled, Path: c.Memory.Path},
+		Security:    &rawSecurityConfig{SmartApprovals: &securitySmartApprovals, AllowedWorkDirs: &c.Security.AllowedWorkDirs},
+		Hooks:       &rawHooksConfig{PreToolCall: c.Hooks.PreToolCall, PostToolCall: c.Hooks.PostToolCall},
+		Channels: &rawChannelConfig{
+			Wechat: &rawWechatConfig{
+				Enabled:      &wechatEnabled,
+				CredPath:     c.Channels.Wechat.CredPath,
+				WorkDir:      c.Channels.Wechat.WorkDir,
+				AllowedUsers: append([]string(nil), c.Channels.Wechat.AllowedUsers...),
+				AutoTyping:   &wechatAutoTyping,
+			},
+			Feishu: &rawFeishuConfig{
+				Enabled:      &feishuEnabled,
+				AppID:        c.Channels.Feishu.AppID,
+				AppSecret:    c.Channels.Feishu.AppSecret,
+				WorkDir:      c.Channels.Feishu.WorkDir,
+				AllowedUsers: append([]string(nil), c.Channels.Feishu.AllowedUsers...),
+			},
+		},
+	}
+
+	return json.Marshal(raw)
+}

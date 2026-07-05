@@ -231,6 +231,22 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 	return NewAgentAdapter(a)
 }
 
+func (f *AgentFactory) withParentRuntimeConfig(cfg AgentLoopConfig) *AgentFactory {
+	if f == nil {
+		return nil
+	}
+	clone := *f
+	clone.provider = cfg.Provider
+	clone.model = cfg.Model
+	clone.settings = cfg.Settings
+	clone.allow = cfg.Allow
+	clone.extraContext = cfg.ExtraContext
+	clone.ruleContent = cfg.RuleContent
+	clone.compactionSettings = cfg.CompactionSettings
+	clone.approvalHandler = cfg.ApprovalHandler
+	return &clone
+}
+
 // CreateFromPublicOptions creates an agent from public Builder options.
 func (f *AgentFactory) CreateFromPublicOptions(b *agentpkg.Builder) agentpkg.Agent {
 	if b == nil {
