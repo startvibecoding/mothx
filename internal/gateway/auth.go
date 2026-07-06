@@ -8,7 +8,7 @@ import (
 // AuthMiddleware returns an HTTP middleware that validates Bearer tokens.
 // If auth is disabled, the handler is called directly.
 func AuthMiddleware(cfg AuthConfig, next http.Handler) http.Handler {
-	if !cfg.Enabled || len(cfg.Tokens) == 0 {
+	if !cfg.Enabled {
 		return next
 	}
 	tokenSet := make(map[string]struct{}, len(cfg.Tokens))
@@ -17,6 +17,10 @@ func AuthMiddleware(cfg AuthConfig, next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
+		if len(tokenSet) == 0 {
+			writeError(w, http.StatusUnauthorized, "authentication is enabled but no API tokens are configured", "authentication_error")
+			return
+		}
 		if token == "" {
 			writeError(w, http.StatusUnauthorized, "missing or invalid Authorization header", "authentication_error")
 			return

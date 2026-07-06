@@ -731,15 +731,11 @@ func (rt *channelRuntime) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	}
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		home, _ := os.UserHomeDir()
-		if home == "" {
-			home = "/"
-		}
-		path = home
+		path = rt.browseDefaultDir()
 	}
-	abs, err := filepath.Abs(path)
+	abs, parent, err := rt.resolveBrowseDir(path)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path: " + err.Error()})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 		return
 	}
 	entries, err := os.ReadDir(abs)
@@ -765,9 +761,95 @@ func (rt *channelRuntime) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"path":    abs,
-		"parent":  filepath.Dir(abs),
+		"parent":  parent,
 		"entries": dirs,
 	})
+}
+
+func (rt *channelRuntime) browseDefaultDir() string {
+	if rt != nil && rt.cfg != nil {
+		return rt.cfg.Gateway.GetWorkDir()
+	}
+	cwd, err := os.Getwd()
+	if err == nil && cwd != "" {
+		return cwd
+	}
+	return "."
+}
+
+func (rt *channelRuntime) resolveBrowseDir(path string) (string, string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid path: %w", err)
+	}
+	abs = filepath.Clean(abs)
+	realAbs, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid path: %w", err)
+	}
+	realAbs = filepath.Clean(realAbs)
+	roots, err := rt.browseAllowedRoots()
+	if err != nil {
+		return "", "", err
+	}
+	if !pathWithinAnyRoot(realAbs, roots) {
+		return "", "", fmt.Errorf("directory %q is not in allowed browse roots", path)
+	}
+	parent := filepath.Dir(realAbs)
+	if parent == realAbs || !pathWithinAnyRoot(parent, roots) {
+		parent = realAbs
+	}
+	return realAbs, parent, nil
+}
+
+func (rt *channelRuntime) browseAllowedRoots() ([]string, error) {
+	if rt == nil || rt.cfg == nil {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("resolve working directory: %w", err)
+		}
+		return []string{filepath.Clean(cwd)}, nil
+	}
+	var configured []string
+	if rt.cfg.Gateway.AllowedWorkDirs != nil {
+		configured = append(configured, (*rt.cfg.Gateway.AllowedWorkDirs)...)
+	} else if len(rt.cfg.Security.AllowedWorkDirs) > 0 {
+		configured = append(configured, rt.cfg.Security.AllowedWorkDirs...)
+	} else {
+		configured = []string{rt.cfg.Gateway.GetWorkDir()}
+	}
+	if len(configured) == 0 {
+		return nil, fmt.Errorf("directory browsing is disabled")
+	}
+	roots := make([]string, 0, len(configured))
+	for _, root := range configured {
+		if root == "" {
+			continue
+		}
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return nil, fmt.Errorf("invalid browse root %q: %w", root, err)
+		}
+		abs = filepath.Clean(abs)
+		if realRoot, err := filepath.EvalSymlinks(abs); err == nil {
+			abs = filepath.Clean(realRoot)
+		}
+		roots = append(roots, abs)
+	}
+	if len(roots) == 0 {
+		return nil, fmt.Errorf("directory browsing is disabled")
+	}
+	return roots, nil
+}
+
+func pathWithinAnyRoot(path string, roots []string) bool {
+	for _, root := range roots {
+		rel, err := filepath.Rel(root, path)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 func uiHandler(dir string) http.Handler {

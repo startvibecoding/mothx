@@ -357,7 +357,7 @@ func (lw *loggingResponseWriter) Flush() {
 }
 
 func gatewaySecurityWarning(cfg *GatewayConfig) string {
-	if cfg.Auth.Enabled || cfg.DefaultMode != "yolo" {
+	if cfg.DefaultMode != "yolo" || (cfg.Auth.Enabled && len(cfg.Auth.Tokens) > 0) {
 		return ""
 	}
 	listen := cfg.Listen

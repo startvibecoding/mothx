@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 
 type fakeActiveSessionManager struct {
 	sessions  []gateway.ActiveSessionInfo
+	messages  []gateway.SessionMessageEntry
 	deletedID string
 	deleted   bool
 	err       error
@@ -30,6 +32,10 @@ func (f *fakeActiveSessionManager) ListActiveSessions() []gateway.ActiveSessionI
 func (f *fakeActiveSessionManager) DeleteActiveSession(id string) (bool, error) {
 	f.deletedID = id
 	return f.deleted, f.err
+}
+
+func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]gateway.SessionMessageEntry, error) {
+	return append([]gateway.SessionMessageEntry(nil), f.messages...), f.err
 }
 
 type fakeWebSocketRuntime struct {
@@ -821,6 +827,79 @@ func TestHandleWebUIReflectsCurrentConfig(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "<main>ok</main>") {
 		t.Fatalf("body = %q", w.Body.String())
+	}
+}
+
+func TestHandleBrowseRestrictsToWorkingDirByDefault(t *testing.T) {
+	workDir := t.TempDir()
+	outside := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workDir, "child"), 0700); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	cfg := DefaultConfig()
+	cfg.Gateway.WorkingDir = workDir
+	rt := &channelRuntime{cfg: cfg}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/browse", nil)
+	w := httptest.NewRecorder()
+	rt.handleBrowse(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("default status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Path    string `json:"path"`
+		Parent  string `json:"parent"`
+		Entries []struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		} `json:"entries"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode browse response: %v", err)
+	}
+	if got.Path != workDir || got.Parent != workDir {
+		t.Fatalf("browse root path=%q parent=%q, want both %q", got.Path, got.Parent, workDir)
+	}
+	if len(got.Entries) != 1 || got.Entries[0].Name != "child" {
+		t.Fatalf("entries = %#v", got.Entries)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(outside), nil)
+	w = httptest.NewRecorder()
+	rt.handleBrowse(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("outside status = %d, want 403; body = %s", w.Code, w.Body.String())
+	}
+
+	linkPath := filepath.Join(workDir, "outside-link")
+	if err := os.Symlink(outside, linkPath); err != nil {
+		t.Logf("skip symlink browse assertion: %v", err)
+	} else {
+		req = httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(linkPath), nil)
+		w = httptest.NewRecorder()
+		rt.handleBrowse(w, req)
+		if w.Code != http.StatusForbidden {
+			t.Fatalf("symlink outside status = %d, want 403; body = %s", w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestHandleBrowseUsesAllowedWorkDirs(t *testing.T) {
+	allowedRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(allowedRoot, "repo"), 0700); err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+	cfg := DefaultConfig()
+	cfg.Gateway.WorkingDir = t.TempDir()
+	allowed := []string{allowedRoot}
+	cfg.Gateway.AllowedWorkDirs = &allowed
+	rt := &channelRuntime{cfg: cfg}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(filepath.Join(allowedRoot, "repo")), nil)
+	w := httptest.NewRecorder()
+	rt.handleBrowse(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("allowed status = %d, body = %s", w.Code, w.Body.String())
 	}
 }
 

@@ -459,6 +459,19 @@ func TestAuthMiddleware_MissingHeader(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_EnabledWithoutTokensRejects(t *testing.T) {
+	handler := AuthMiddleware(AuthConfig{Enabled: true}, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer anything")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", w.Code)
+	}
+}
+
 // --- CORS middleware tests ---
 
 func TestCORSMiddleware_Enabled(t *testing.T) {
@@ -1738,6 +1751,11 @@ func TestGatewaySecurityWarning(t *testing.T) {
 
 	cfg.Listen = ":8080"
 	cfg.Auth.Enabled = true
+	if got := gatewaySecurityWarning(cfg); got == "" {
+		t.Fatal("expected warning when auth is enabled without tokens")
+	}
+
+	cfg.Auth.Tokens = []string{"sk-test"}
 	if got := gatewaySecurityWarning(cfg); got != "" {
 		t.Fatalf("warning with auth = %q, want empty", got)
 	}
