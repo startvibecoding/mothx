@@ -9,11 +9,28 @@
   - Added `mothx serve` CLI command to start a unified server exposing OpenAI-compatible APIs, a Web UI management panel, and messaging channels (WeChat/Feishu) simultaneously.
   - Added `internal/serve/` package to unify Gateway, Hermes channel, and Web UI configuration and runtime management.
   - Configuration via `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`), supporting Gateway, channels, Web UI, Cron, Memory, Security, Hooks, and Agent settings.
-  - Built-in Svelte Web UI panel with health check, channel status, config editor, settings editor, and chat interface.
+  - Built-in Svelte Web UI panel with Dark theme, health check, channel status, config editor, settings editor, and chat interface with SSE streaming.
+  - Web UI now includes full management APIs: `/api/status`, `/api/sessions`, `/api/cron`, `/api/memory`, and `/ws/logs` for real-time log streaming.
+  - WebSocket gateway mounted at `/ws`, reusing Hermes event protocol for real-time communication.
+  - Cron API supports CRUD operations with scheduler integration.
+  - Gateway SessionPool now has List/Delete management interfaces.
+  - Added `--web-ui-dir` CLI flag to override the Web UI static assets directory.
   - Added Lobster mode (`--lobster`) that auto-enables yolo mode, disables sandbox, and turns on sub-agents.
   - Gateway now supports an `ExtraRoutes` hook for Serve mode to inject custom API routes (`/api/serve/config`, `/api/settings`, `/api/channels`).
 
+- **New Vendor Support**
+  - Added Huawei Cloud vendor (`huawei`, `huawei-plan`) with 13 models total, including standard and Plan reasoning modes.
+  - Added Moore Threads vendor (`mthreads-plan`) with GLM-4.7 model (1M context).
+  - Added Tianyi Cloud vendor (`ctyun-plan`) with 3 models including GLM-5-Turbo.
+  - Added JD Cloud vendor (`jd-plan`) with 10 models including JoyAI-LLM-Flash.
+  - Added Kimi-K2.5 and MiMo-V2.5-Pro to Gitee/Moark providers; fixed JD Plan config with missing models.
+
 ### 🐛 Bug Fixes
+
+- **TUI Split Paste Event Coalescing**
+  - Some terminals split pasted text into separate key events. Added idle detection to wait for a quiet period before flushing the input queue.
+  - Split paste events are now coalesced into a single paste when Enter appears within the stream followed by more text.
+  - Extracted `handleInputSubmit()` for cleaner Enter key handling.
 
 - **Legacy `VIBECODING_DIR` Handling**
   - `ConfigDir()` now falls back to the default `.mothx/` path when `VIBECODING_DIR` is set to the legacy default `~/.vibecoding`, avoiding an unintended override of the new config directory.

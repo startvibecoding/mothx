@@ -9,11 +9,28 @@
   - 新增 `mothx serve` CLI 命令，启动统一服务器，同时提供 OpenAI 兼容 API、Web UI 管理面板和消息通道（微信/飞书）。
   - 新增 `internal/serve/` 包，统一管理 Gateway、Hermes 通道和 Web UI 的配置与运行时。
   - 配置文件 `serve.json`（全局 `~/.mothx/serve.json`，项目 `.mothx/serve.json`），支持 Gateway、通道、Web UI、Cron、Memory、Security、Hooks 和 Agent 配置。
-  - 内置 Svelte Web UI 面板，提供健康检查、通道状态、配置编辑、设置编辑和聊天界面。
+  - 内置 Svelte Web UI 面板，采用 Dark 主题，提供健康检查、通道状态、配置编辑、设置编辑和聊天界面（支持 SSE 流式输出）。
+  - Web UI 新增完整管理 API：`/api/status`、`/api/sessions`、`/api/cron`、`/api/memory` 和 `/ws/logs` 实时日志流。
+  - WebSocket 网关挂载到 `/ws`，复用 Hermes 事件协议实现实时通信。
+  - Cron API 支持 CRUD 操作并与调度器联动。
+  - Gateway SessionPool 新增 List/Delete 管理接口。
+  - 新增 `--web-ui-dir` CLI 标志，可覆盖 Web UI 静态资源目录。
   - 新增 Lobster 模式（`--lobster`），自动启用 yolo 模式、禁用沙箱、开启子 Agent。
   - Gateway 新增 `ExtraRoutes` 钩子，支持 Serve 模式注入自定义 API 路由（`/api/serve/config`、`/api/settings`、`/api/channels`）。
 
+- **新增厂商支持**
+  - 新增华为云厂商（`huawei`、`huawei-plan`），共 13 个模型，包含标准版和 Plan 推理模式。
+  - 新增摩尔线程厂商（`mthreads-plan`），提供 GLM-4.7 模型（1M 上下文）。
+  - 新增天翼云厂商（`ctyun-plan`），3 个模型含 GLM-5-Turbo。
+  - 新增京东智联云厂商（`jd-plan`），10 个模型含 JoyAI-LLM-Flash。
+  - Gitee/Moark 新增 Kimi-K2.5 和 MiMo-V2.5-Pro；修复 JD Plan 配置，补充缺失模型。
+
 ### 🐛 Bug 修复
+
+- **TUI 分割粘贴事件合并**
+  - 部分终端会将粘贴文本拆分为多个独立按键事件。新增空闲检测，在输入队列刷新前等待静默期。
+  - 当流中出现 Enter 且后跟更多文本时，分割的粘贴事件现在会被合并为单次粘贴。
+  - 提取 `handleInputSubmit()` 辅助函数，使 Enter 键处理更清晰。
 
 - **旧版 `VIBECODING_DIR` 环境变量处理**
   - `ConfigDir()` 当 `VIBECODING_DIR` 设为旧版默认值 `~/.vibecoding` 时，现在会回退到默认的 `.mothx/` 路径，避免意外覆盖新配置目录。
