@@ -1735,6 +1735,81 @@ func TestInputSmallMultilinePastePreservesNewlines(t *testing.T) {
 	}
 }
 
+func TestInputSplitMultilinePastePreservesNewlines(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("one"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.Update(teaKeyMsgForTest("two"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "one\ntwo" {
+		t.Fatalf("split pasted input = %q, want newlines preserved", got)
+	}
+	if len(a.messages) != 0 {
+		t.Fatalf("split paste submitted messages = %#v, want none", a.messages)
+	}
+}
+
+func TestInputSplitPasteCtrlJPreservesNewline(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("one"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyCtrlJ))
+	a.Update(teaKeyMsgForTest("two"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "one\ntwo" {
+		t.Fatalf("split pasted input = %q, want Ctrl+J preserved as newline", got)
+	}
+	if len(a.messages) != 0 {
+		t.Fatalf("split paste submitted messages = %#v, want none", a.messages)
+	}
+}
+
+func TestInputSplitLargePasteCreatesMarker(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("one"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.Update(teaKeyMsgForTest("two"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.Update(teaKeyMsgForTest("three"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.Update(teaKeyMsgForTest("four"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.Update(teaKeyMsgForTest("five"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.Update(teaKeyMsgForTest("six"))
+	a.flushInputQueue()
+
+	const wantPaste = "one\ntwo\nthree\nfour\nfive\nsix"
+	if got := a.input.Value(); got != "[paste #1 +6 lines]" {
+		t.Fatalf("split large pasted input = %q, want marker", got)
+	}
+	if got := a.pastes[1]; got != wantPaste {
+		t.Fatalf("stored paste = %q, want %q", got, wantPaste)
+	}
+	if got := a.expandPasteMarkers(a.input.Value()); got != wantPaste {
+		t.Fatalf("expanded paste = %q, want %q", got, wantPaste)
+	}
+}
+
+func TestInputQueuedTextEnterSubmits(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("/clear"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "" {
+		t.Fatalf("input after submit = %q, want empty", got)
+	}
+	if len(a.messages) == 0 || !strings.Contains(stripANSI(a.messages[len(a.messages)-1]), "Conversation cleared") {
+		t.Fatalf("expected /clear to execute, messages = %#v", a.messages)
+	}
+}
+
 func TestInputUpDownMovesWithinMultilineBeforeHistory(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.recordInputHistory("previous")

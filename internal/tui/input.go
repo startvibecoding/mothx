@@ -304,6 +304,67 @@ func (a *App) resetInputHistoryNavigation() {
 	a.inputHistoryDraft = ""
 }
 
+func (a *App) handleInputSubmit() tea.Cmd {
+	if a.commandSuggestionsVisible() && a.commandNameInputActive() && a.applySelectedCommandSuggestion() {
+		return nil
+	}
+
+	input := strings.TrimSpace(a.input.Value())
+
+	// Check if waiting for a question
+	if a.waitingForQuestion {
+		if a.agent != nil {
+			answer := strings.TrimSpace(input)
+			if answer == "" {
+				// Empty input — re-prompt
+				a.input.Reset()
+				a.resetInputHistoryNavigation()
+				a.scheduleRender()
+				return nil
+			}
+
+			// Resolve numbered selections to the actual option text so the
+			// question tool result is meaningful to the model.
+			var num int
+			if _, err := fmt.Sscanf(answer, "%d", &num); err == nil && num > 0 && num <= len(a.currentQuestion.options) {
+				answer = a.currentQuestion.options[num-1]
+				a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
+				a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Selected: %s", answer)))
+			} else {
+				// Custom text input, including out-of-range numbers.
+				a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
+				a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Answer: %s", answer)))
+			}
+		}
+		// Show next queued question or clear waiting state
+		if len(a.questionQueue) > 0 {
+			a.showNextQuestion()
+		} else {
+			a.waitingForQuestion = false
+			a.pendingQuestionID = ""
+			a.currentQuestion = pendingQuestion{}
+		}
+		a.input.Reset()
+		a.resetInputHistoryNavigation()
+		a.scheduleRender()
+		return nil
+	}
+
+	if input != "" {
+		if a.manualCompactionActive {
+			a.addCommandError("Cannot send input while context compaction is running.")
+			return nil
+		}
+		a.input.Reset()
+		a.suggest = a.suggest.SetItems(commandSuggestionItems())
+		a.suggest = a.suggest.Update("")
+		a.recordInputHistory(input)
+		expandedInput := a.expandPasteMarkers(input)
+		return a.processInput(expandedInput)
+	}
+	return nil
+}
+
 func (a *App) processInput(input string) tea.Cmd {
 	if a.manualCompactionActive {
 		a.addCommandError("Cannot send input while context compaction is running.")

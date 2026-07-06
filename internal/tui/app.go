@@ -667,9 +667,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(cmds...)
 
 	case inputQueueTickMsg:
-		// Process queued input events
-		cmd := a.flushInputQueue()
-		cmds = append(cmds, cmd)
+		// Process queued input events after a short quiet period so
+		// terminals that split paste into key events can be coalesced.
+		if a.inputQueueIdle() {
+			cmd := a.flushInputQueue()
+			cmds = append(cmds, cmd)
+		}
 		// Schedule next tick
 		cmds = append(cmds, a.processInputQueue())
 		return a, tea.Batch(cmds...)
@@ -820,70 +823,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return a, nil
 		case tea.KeyEnter:
-			flushCmd := a.flushInputQueue()
-			if a.commandSuggestionsVisible() && a.commandNameInputActive() && a.applySelectedCommandSuggestion() {
-				return a, flushCmd
-			}
 			if msg.Alt {
+				flushCmd := a.flushInputQueue()
 				a.input, _ = a.input.Update(msg)
 				a.scheduleRender()
 				return a, flushCmd
 			}
-
-			input := strings.TrimSpace(a.input.Value())
-
-			// Check if waiting for a question
-			if a.waitingForQuestion {
-				if a.agent != nil {
-					answer := strings.TrimSpace(input)
-					if answer == "" {
-						// Empty input — re-prompt
-						a.input.Reset()
-						a.resetInputHistoryNavigation()
-						a.scheduleRender()
-						return a, nil
-					}
-
-					// Resolve numbered selections to the actual option text so the
-					// question tool result is meaningful to the model.
-					var num int
-					if _, err := fmt.Sscanf(answer, "%d", &num); err == nil && num > 0 && num <= len(a.currentQuestion.options) {
-						answer = a.currentQuestion.options[num-1]
-						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
-						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Selected: %s", answer)))
-					} else {
-						// Custom text input, including out-of-range numbers.
-						a.agent.HandleQuestionResponse(a.pendingQuestionID, answer)
-						a.addMessage(statusStyle.Render(fmt.Sprintf("✅ Answer: %s", answer)))
-					}
-				}
-				// Show next queued question or clear waiting state
-				if len(a.questionQueue) > 0 {
-					a.showNextQuestion()
-				} else {
-					a.waitingForQuestion = false
-					a.pendingQuestionID = ""
-					a.currentQuestion = pendingQuestion{}
-				}
-				a.input.Reset()
+			if a.hasQueuedInput() && !a.commandSuggestionsVisible() {
+				a.queueInput(msg)
 				a.resetInputHistoryNavigation()
-				a.scheduleRender()
 				return a, nil
 			}
 
-			if input != "" {
-				if a.manualCompactionActive {
-					a.addCommandError("Cannot send input while context compaction is running.")
-					return a, nil
-				}
-				a.input.Reset()
-				a.suggest = a.suggest.SetItems(commandSuggestionItems())
-				a.suggest = a.suggest.Update("")
-				a.recordInputHistory(input)
-				expandedInput := a.expandPasteMarkers(input)
-				return a, a.processInput(expandedInput)
-			}
-			return a, nil
+			flushCmd := a.flushInputQueue()
+			submitCmd := a.handleInputSubmit()
+			return a, tea.Batch(flushCmd, submitCmd)
 		case tea.KeyTab:
 			flushCmd := a.flushInputQueue()
 			if a.commandSuggestionsVisible() && a.applySelectedCommandSuggestion() {
@@ -1035,11 +989,24 @@ func (a *App) queueInput(msg tea.Msg) {
 	a.inputQueueMu.Lock()
 	defer a.inputQueueMu.Unlock()
 
+	now := time.Now()
 	a.inputQueue = append(a.inputQueue, InputEvent{
 		msg:     msg,
-		arrived: time.Now(),
+		arrived: now,
 	})
-	a.lastInputTime = time.Now()
+	a.lastInputTime = now
+}
+
+func (a *App) hasQueuedInput() bool {
+	a.inputQueueMu.Lock()
+	defer a.inputQueueMu.Unlock()
+	return len(a.inputQueue) > 0
+}
+
+func (a *App) inputQueueIdle() bool {
+	a.inputQueueMu.Lock()
+	defer a.inputQueueMu.Unlock()
+	return len(a.inputQueue) == 0 || a.lastInputTime.IsZero() || time.Since(a.lastInputTime) >= a.inputDelay
 }
 
 // flushInputQueue processes all queued input events
@@ -1048,9 +1015,16 @@ func (a *App) flushInputQueue() tea.Cmd {
 	events := make([]InputEvent, len(a.inputQueue))
 	copy(events, a.inputQueue)
 	a.inputQueue = a.inputQueue[:0]
+	a.lastInputTime = time.Time{}
 	a.inputQueueMu.Unlock()
 
 	if len(events) == 0 {
+		return nil
+	}
+
+	if text, ok := coalescedSplitPaste(events); ok {
+		a.handlePaste(text)
+		a.updateCommandSuggestions()
 		return nil
 	}
 
@@ -1059,6 +1033,13 @@ func (a *App) flushInputQueue() tea.Cmd {
 	for _, event := range events {
 		// Update input component
 		if keyMsg, ok := event.msg.(tea.KeyMsg); ok {
+			if keyMsg.Type == tea.KeyEnter && !keyMsg.Alt {
+				a.updateCommandSuggestions()
+				if cmd := a.handleInputSubmit(); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+				continue
+			}
 			var cmd tea.Cmd
 			a.input, cmd = a.input.Update(keyMsg)
 			if cmd != nil {
@@ -1075,6 +1056,57 @@ func (a *App) flushInputQueue() tea.Cmd {
 		return tea.Batch(cmds...)
 	}
 	return nil
+}
+
+func coalescedSplitPaste(events []InputEvent) (string, bool) {
+	var b strings.Builder
+	enterCount := 0
+	sawEnter := false
+	textAfterEnter := false
+
+	for _, event := range events {
+		msg, ok := event.msg.(tea.KeyMsg)
+		if !ok {
+			return "", false
+		}
+		switch msg.Type {
+		case tea.KeyRunes:
+			text := string(msg.Runes)
+			if text == "" {
+				continue
+			}
+			text = strings.ReplaceAll(text, "\r\n", "\n")
+			text = strings.ReplaceAll(text, "\r", "\n")
+			if sawEnter {
+				textAfterEnter = true
+			}
+			enterCount += strings.Count(text, "\n")
+			if strings.Contains(text, "\n") {
+				sawEnter = true
+				textAfterEnter = true
+			}
+			b.WriteString(text)
+		case tea.KeySpace:
+			if sawEnter {
+				textAfterEnter = true
+			}
+			b.WriteRune(' ')
+		case tea.KeyEnter, tea.KeyCtrlJ:
+			if msg.Type == tea.KeyEnter && msg.Alt {
+				return "", false
+			}
+			enterCount++
+			sawEnter = true
+			b.WriteRune('\n')
+		default:
+			return "", false
+		}
+	}
+
+	if enterCount == 0 || !textAfterEnter {
+		return "", false
+	}
+	return b.String(), true
 }
 
 // scheduleRender schedules a render update with throttling.
