@@ -232,6 +232,21 @@ func TestConfigDirIgnoresLegacyDefaultEnvDir(t *testing.T) {
 	}
 }
 
+func TestConfigDirIgnoresTildeLegacyDefaultEnvDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "~/.vibecoding")
+
+	want := filepath.Join(home, ".mothx")
+	if got := ConfigDir(); got != want {
+		t.Fatalf("ConfigDir() = %q, want %q", got, want)
+	}
+	if ConfigDirOverridden() {
+		t.Fatal("tilde legacy VIBECODING_DIR should not count as a custom override")
+	}
+}
+
 func TestConfigDirHonorsCustomLegacyEnvDir(t *testing.T) {
 	home := t.TempDir()
 	custom := filepath.Join(home, "custom-vibecoding")

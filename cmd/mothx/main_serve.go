@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -17,6 +20,39 @@ func newServeCommand(flags *cliFlags) *cobra.Command {
 		},
 	}
 	registerServeFlags(cmd.Flags(), flags)
+	cmd.AddCommand(newServeInitConfigCommand())
+	return cmd
+}
+
+func newServeInitConfigCommand() *cobra.Command {
+	var force bool
+	cmd := &cobra.Command{
+		Use:   "init-config [global|project]",
+		Short: "Create serve.json config template",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			scope := "global"
+			if len(args) > 0 {
+				scope = args[0]
+			}
+			var project bool
+			switch scope {
+			case "global":
+				project = false
+			case "project":
+				project = true
+			default:
+				return fmt.Errorf("invalid scope %q: expected global or project", scope)
+			}
+			path, err := serve.InitConfigForProject(project, force)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Created serve config: %s\n", path)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing file")
 	return cmd
 }
 

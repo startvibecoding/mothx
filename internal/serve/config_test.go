@@ -310,6 +310,43 @@ func TestInitConfig_WritesFlatTemplate(t *testing.T) {
 	}
 }
 
+func TestInitConfigForProject_WritesProjectTemplate(t *testing.T) {
+	tempHome := t.TempDir()
+	workDir := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore wd: %v", err)
+		}
+	})
+
+	t.Setenv("HOME", tempHome)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "")
+
+	path, err := InitConfigForProject(true, false)
+	if err != nil {
+		t.Fatalf("InitConfigForProject: %v", err)
+	}
+
+	want := filepath.Join(".mothx", "serve.json")
+	if path != want {
+		t.Fatalf("path = %q, want %q", path, want)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected project config: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(tempHome, ".mothx", "serve.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected no global serve config, stat err=%v", err)
+	}
+}
+
 func TestHandleChannels_ReturnsStableEntries(t *testing.T) {
 	rt := &channelRuntime{
 		cfg: &Config{

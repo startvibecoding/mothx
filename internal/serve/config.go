@@ -165,7 +165,14 @@ func SaveConfig(path string, cfg *Config) error {
 }
 
 func InitConfig(force bool) (string, error) {
+	return InitConfigForProject(false, force)
+}
+
+func InitConfigForProject(project bool, force bool) (string, error) {
 	path := ConfigPath()
+	if project {
+		path = ProjectConfigPath()
+	}
 	if !force {
 		if _, err := os.Stat(path); err == nil {
 			return path, fmt.Errorf("serve.json already exists: %s", path)

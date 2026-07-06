@@ -139,7 +139,6 @@ func (s *macSandbox) buildProfile(opts ExecOpts) string {
 			filepath.Join(homeDir, ".config"),
 			filepath.Join(homeDir, ".cache"),
 			filepath.Join(homeDir, ".mothx"),
-			filepath.Join(homeDir, ".vibecoding"),
 		)
 	}
 	for _, p := range opts.WritablePaths {

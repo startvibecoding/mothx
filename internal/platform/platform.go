@@ -222,12 +222,25 @@ func legacyConfigDirForOS(goos, home, appData string) string {
 }
 
 func samePathString(a, b string) bool {
-	a = filepath.Clean(a)
-	b = filepath.Clean(b)
+	a = cleanComparablePath(a)
+	b = cleanComparablePath(b)
 	if runtime.GOOS == "windows" {
 		return strings.EqualFold(a, b)
 	}
 	return a == b
+}
+
+func cleanComparablePath(path string) string {
+	if path == "~" {
+		if home := HomeDir(); home != "" {
+			path = home
+		}
+	} else if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, `~\`) {
+		if home := HomeDir(); home != "" {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+	return filepath.Clean(path)
 }
 
 // DataDir returns the platform-specific data directory.
