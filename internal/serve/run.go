@@ -60,6 +60,7 @@ type channelStatus struct {
 type activeSessionManager interface {
 	ListActiveSessions() []gateway.ActiveSessionInfo
 	DeleteActiveSession(id string) (bool, error)
+	GetSessionMessages(id string) ([]gateway.SessionMessageEntry, error)
 }
 
 type websocketRuntime interface {
@@ -442,6 +443,7 @@ func (rt *channelRuntime) routes(configPath string) func(*gateway.Server, *http.
 		mux.HandleFunc("/api/channels", rt.handleChannels)
 		mux.Handle("/ws/logs", rt.handleLogs(sessions))
 		mux.HandleFunc("/ws", rt.handleWebSocket)
+		mux.HandleFunc("/api/browse", rt.handleBrowse)
 		mux.HandleFunc("/", rt.handleWebUI)
 	}
 }
@@ -538,17 +540,36 @@ func (rt *channelRuntime) handleSessions(sessions activeSessionManager) http.Han
 
 func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/")
+		if id == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session ID required"})
+			return
+		}
+		// Check if the path ends with /messages
+		if strings.HasSuffix(id, "/messages") {
+			id = strings.TrimSuffix(id, "/messages")
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "gateway server not ready"})
+				return
+			}
+			msgs, err := sessions.GetSessionMessages(id)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+			return
+		}
 		if r.Method != http.MethodDelete {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		if sessions == nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "gateway server not ready"})
-			return
-		}
-		id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/")
-		if id == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session ID required"})
 			return
 		}
 		deleted, err := sessions.DeleteActiveSession(id)
@@ -701,6 +722,52 @@ func (rt *channelRuntime) handleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 	rt.wsGateway.WebSocketHandler().ServeHTTP(w, r)
+}
+
+func (rt *channelRuntime) handleBrowse(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		home, _ := os.UserHomeDir()
+		if home == "" {
+			home = "/"
+		}
+		path = home
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path: " + err.Error()})
+		return
+	}
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	type dirEntry struct {
+		Name  string `json:"name"`
+		Path  string `json:"path"`
+		IsDir bool   `json:"isDir"`
+	}
+	var dirs []dirEntry
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		dirs = append(dirs, dirEntry{Name: name, Path: filepath.Join(abs, name), IsDir: true})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"path":    abs,
+		"parent":  filepath.Dir(abs),
+		"entries": dirs,
+	})
 }
 
 func uiHandler(dir string) http.Handler {

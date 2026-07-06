@@ -43,6 +43,12 @@ type ActiveSessionInfo struct {
 	MessageCount int       `json:"messageCount"`
 }
 
+// SessionMessageEntry is a simplified message for the WebUI.
+type SessionMessageEntry struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // ErrActiveSessionIDAmbiguous is returned when a session ID matches multiple active workdirs.
 var ErrActiveSessionIDAmbiguous = errors.New("active session ID is ambiguous")
 
@@ -347,4 +353,55 @@ func (s *Server) DeleteActiveSession(id string) (bool, error) {
 	s.mu.Unlock()
 
 	return true, nil
+}
+
+// GetSessionMessages returns the message history for an active session.
+func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
+	if s == nil || s.pool == nil {
+		return nil, nil
+	}
+	if id == "" {
+		// Default session: find by workDir
+		workDir := s.cfg.GetWorkDir()
+		s.mu.RLock()
+		defaultID := s.defaultSessionIDs[workDir]
+		s.mu.RUnlock()
+		if defaultID == "" {
+			return nil, nil
+		}
+		id = defaultID
+	}
+	if id == "" {
+		return nil, nil
+	}
+	sess, err := s.pool.getExact(id)
+	if err != nil {
+		return nil, err
+	}
+	if sess == nil {
+		return nil, nil
+	}
+	msgs := sess.Manager.GetMessages()
+	var entries []SessionMessageEntry
+	for _, m := range msgs {
+		if m.SystemInjected {
+			continue
+		}
+		if m.Role != "user" && m.Role != "assistant" {
+			continue
+		}
+		content := m.Content
+		if content == "" && len(m.Contents) > 0 {
+			for _, b := range m.Contents {
+				if b.Type == "text" && b.Text != "" {
+					content += b.Text
+				}
+			}
+		}
+		if content == "" {
+			continue
+		}
+		entries = append(entries, SessionMessageEntry{Role: m.Role, Content: content})
+	}
+	return entries, nil
 }
