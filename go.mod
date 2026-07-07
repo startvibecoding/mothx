@@ -15,7 +15,7 @@ require (
 	github.com/startvibecoding/go-ripgrep v0.0.5
 	github.com/startvibecoding/vibe-browser v0.1.3
 	github.com/startvibecoding/vibeEmacsLispVm v0.0.2
-	golang.org/x/image v0.36.0
+	golang.org/x/image v0.41.0
 	golang.org/x/mod v0.36.0
 	golang.org/x/net v0.55.0
 	golang.org/x/sys v0.46.0
