@@ -87,12 +87,7 @@ func (s *SSEWriter) WriteToolResult(tc *toolCallInfo, detail string) {
 }
 
 // WriteToolStatusEvent sends a tool status as an SSE event (sse_event mode).
-func (s *SSEWriter) WriteToolStatusEvent(toolName, status string, args map[string]any) {
-	evt := ToolStatusEvent{
-		Tool:   toolName,
-		Status: status,
-		Args:   args,
-	}
+func (s *SSEWriter) WriteToolStatusEvent(evt ToolStatusEvent) {
 	data, _ := json.Marshal(evt)
 	fmt.Fprintf(s.w, "event: tool_status\ndata: %s\n\n", data)
 	if s.flusher != nil {

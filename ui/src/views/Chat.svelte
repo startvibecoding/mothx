@@ -39,22 +39,33 @@
     '生成一个安全的多 Agent 任务拆解方案'
   ];
 
-  // Reset state when session becomes empty (new chat)
+  // Reset or load state when the selected session changes.
   let prevSession = $currentSession;
-  $: if ($currentSession === '' && prevSession !== '') {
-    sessionCreated = false;
-    workDir = '';
-    messages = []; // new chat — no history
-    chatEvents = []; // reset tool events
-  } else if ($currentSession && prevSession !== $currentSession) {
-    // Switched to an existing session — load its messages
-    loadSessionMessages($currentSession);
+  $: {
+    const nextSession = $currentSession;
+    if (nextSession !== prevSession) {
+      if (nextSession === '') {
+        sessionCreated = false;
+        workDir = '';
+        messages = []; // new chat — no history
+        chatEvents = []; // reset tool events
+      } else if (busy) {
+        // The first streaming chunk can assign the newly-created session ID.
+        // Do not reload persisted history mid-stream; it can replace the local
+        // assistant placeholder and cause deltas to append to the user message.
+        sessionCreated = true;
+      } else {
+        // Switched to an existing session — load its messages
+        loadSessionMessages(nextSession);
+      }
+      prevSession = nextSession;
+    }
   }
-  prevSession = $currentSession;
 
   async function loadSessionMessages(id) {
     try {
       const msgs = await getSessionMessages(id);
+      if (id !== $currentSession) return;
       if (msgs && msgs.length > 0) {
         messages = msgs.map(normalizeSessionMessage).filter(Boolean);
       } else {
@@ -62,6 +73,7 @@
       }
       chatEvents = []; // reset tool events for new session view
     } catch {
+      if (id !== $currentSession) return;
       // Leave messages empty on error
     }
     sessionCreated = true; // existing session, not "new"
@@ -539,6 +551,90 @@
     return out;
   }
 
+  function handleToolStatusEvent(item) {
+    chatEvents = [...chatEvents.slice(-49), { type: 'tool', ...item }];
+    if (!item?.tool || !item?.status) return;
+    if (item.status === 'running') {
+      upsertStreamingToolCall(item);
+      return;
+    }
+    if (item.status === 'completed' || item.status === 'failed') {
+      upsertStreamingToolResult(item);
+    }
+  }
+
+  function upsertStreamingToolCall(item) {
+    const toolCallId = item.toolCallId || '';
+    const plan = normalizePlan(item.tool === 'plan' ? item.args : null);
+    const next = plan
+      ? {
+          role: 'plan',
+          toolCallId,
+          toolName: item.tool,
+          plan
+        }
+      : {
+          role: 'toolCall',
+          toolCallId,
+          toolName: item.tool,
+          arguments: item.args,
+          callView: buildToolCallView(item.tool, item.args)
+        };
+
+    const idx = toolCallId ? messages.findIndex((m) => m.toolCallId === toolCallId && (m.role === 'toolCall' || m.role === 'plan')) : -1;
+    if (idx >= 0) {
+      messages[idx] = { ...messages[idx], ...next };
+      messages = messages;
+      return;
+    }
+
+    const last = messages[messages.length - 1];
+    if (last?.role === 'assistant' && !last.content && !last.images?.length) {
+      messages = messages.slice(0, -1);
+    }
+    messages = [...messages, next];
+  }
+
+  function upsertStreamingToolResult(item) {
+    if (item.tool === 'plan' && item.status !== 'failed' && !item.isError) return;
+    const toolCallId = item.toolCallId || '';
+    const next = {
+      role: 'toolResult',
+      toolCallId,
+      toolName: item.tool,
+      summary: item.summary || (item.status === 'failed' ? '工具执行失败' : '工具执行完成'),
+      isError: item.isError || item.status === 'failed',
+      hasDetail: Boolean(item.hasDetail && toolCallId),
+      detailLoaded: false,
+      detailLoading: false,
+      detailError: '',
+      detail: null
+    };
+
+    const existing = toolCallId ? messages.findIndex((m) => m.role === 'toolResult' && m.toolCallId === toolCallId) : -1;
+    if (existing >= 0) {
+      messages[existing] = { ...messages[existing], ...next };
+      messages = messages;
+      return;
+    }
+
+    const callIdx = toolCallId ? messages.findIndex((m) => m.toolCallId === toolCallId && (m.role === 'toolCall' || m.role === 'plan')) : -1;
+    if (callIdx >= 0) {
+      messages = [
+        ...messages.slice(0, callIdx + 1),
+        next,
+        ...messages.slice(callIdx + 1)
+      ];
+      return;
+    }
+
+    const last = messages[messages.length - 1];
+    if (last?.role === 'assistant' && !last.content && !last.images?.length) {
+      messages = messages.slice(0, -1);
+    }
+    messages = [...messages, next];
+  }
+
   function textFromContents(contents = []) {
     return contents
       .filter((block) => block.type === 'text' && block.text)
@@ -551,7 +647,7 @@
     if (event.event === 'tool_status') {
       try {
         const item = JSON.parse(event.data);
-        chatEvents = [...chatEvents.slice(-49), { type: 'tool', ...item }];
+        handleToolStatusEvent(item);
       } catch {
         chatEvents = [...chatEvents.slice(-49), { type: 'tool', status: 'unknown', raw: event.data }];
       }
@@ -564,8 +660,13 @@
       }
       const delta = chunk?.choices?.[0]?.delta?.content;
       if (delta) {
-        messages[messages.length - 1].content += delta;
-        messages = messages;
+        const last = messages[messages.length - 1];
+        if (!last || last.role !== 'assistant') {
+          messages = [...messages, { role: 'assistant', content: delta }];
+        } else {
+          last.content += delta;
+          messages = messages;
+        }
       }
     } catch {
       // ignore malformed frames
@@ -874,12 +975,6 @@
               <option value={m.id}>{m.id}</option>
             {/each}
           {/if}
-        </select>
-        <select bind:value={$currentSession} aria-label="选择会话">
-          <option value="">默认会话</option>
-          {#each $sessions as s}
-            <option value={s.id}>{shortID(s.id)} · {s.workDir || '未知目录'}</option>
-          {/each}
         </select>
       </div>
       <div class="right">

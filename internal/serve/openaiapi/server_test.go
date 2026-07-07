@@ -914,13 +914,21 @@ func TestSSEWriter_ToolStatusContent(t *testing.T) {
 func TestSSEWriter_ToolStatusEvent(t *testing.T) {
 	w := httptest.NewRecorder()
 	sse := NewSSEWriter(w, "test-model", "")
-	sse.WriteToolStatusEvent("bash", "running", map[string]any{"command": "ls"})
+	sse.WriteToolStatusEvent(ToolStatusEvent{
+		Tool:       "bash",
+		ToolCallID: "call-1",
+		Status:     "running",
+		Args:       map[string]any{"command": "ls"},
+	})
 	body := w.Body.String()
 	if !strings.Contains(body, "event: tool_status") {
 		t.Errorf("missing tool_status event: %s", body)
 	}
 	if !strings.Contains(body, `"tool":"bash"`) {
 		t.Errorf("missing tool name: %s", body)
+	}
+	if !strings.Contains(body, `"toolCallId":"call-1"`) {
+		t.Errorf("missing tool call id: %s", body)
 	}
 }
 

@@ -294,7 +294,12 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			case "content":
 				sse.WriteContentDelta(formatToolRunning(name, ev.ToolArgs))
 			case "sse_event":
-				sse.WriteToolStatusEvent(name, "running", ev.ToolArgs)
+				sse.WriteToolStatusEvent(ToolStatusEvent{
+					Tool:       name,
+					ToolCallID: callID,
+					Status:     "running",
+					Args:       ev.ToolArgs,
+				})
 			}
 
 		case agent.EventToolExecutionEnd:
@@ -319,12 +324,24 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			tc.Diff = ev.ToolDiff
 			tc.Error = ev.ToolError
 			delete(pendingTools, ev.ToolCallID)
+			name := ev.ToolName
+			if name == "" {
+				name = tc.Name
+			}
 
 			switch toolMode {
 			case "content":
 				sse.WriteToolResult(tc, toolDetail)
 			case "sse_event":
-				sse.WriteToolStatusEvent(ev.ToolName, status, nil)
+				sse.WriteToolStatusEvent(ToolStatusEvent{
+					Tool:       name,
+					ToolCallID: ev.ToolCallID,
+					Status:     status,
+					Args:       tc.Args,
+					Summary:    summarizeToolStatusResult(ev.ToolResult),
+					IsError:    ev.ToolError != nil,
+					HasDetail:  ev.ToolCallID != "",
+				})
 			}
 
 		case agent.EventUsage:
@@ -431,6 +448,21 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 		XToolCalls: xToolCalls,
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func summarizeToolStatusResult(result string) string {
+	text := strings.TrimSpace(result)
+	if text == "" {
+		return "(empty result)"
+	}
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	if idx := strings.IndexByte(text, '\n'); idx >= 0 {
+		text = text[:idx]
+	}
+	if len(text) > 140 {
+		text = text[:140] + "..."
+	}
+	return text
 }
 
 func (s *Server) writeCommandResponse(w http.ResponseWriter, result *CommandResult, modelID, sessionID, cmd string) {

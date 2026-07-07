@@ -154,9 +154,13 @@ type ChatCompletionChunk struct {
 
 // ToolStatusEvent is sent via SSE event: tool_status.
 type ToolStatusEvent struct {
-	Tool   string         `json:"tool"`
-	Status string         `json:"status"` // "running", "completed", "failed"
-	Args   map[string]any `json:"args,omitempty"`
+	Tool       string         `json:"tool"`
+	ToolCallID string         `json:"toolCallId,omitempty"`
+	Status     string         `json:"status"` // "running", "completed", "failed"
+	Args       map[string]any `json:"args,omitempty"`
+	Summary    string         `json:"summary,omitempty"`
+	IsError    bool           `json:"isError,omitempty"`
+	HasDetail  bool           `json:"hasDetail,omitempty"`
 }
 
 // --- Model list types ---
