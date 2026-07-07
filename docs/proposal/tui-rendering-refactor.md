@@ -6,7 +6,7 @@
 ## Current Status
 
 - Phase 1 complete: transcript rendering is managed by `bubbles/viewport` in
-  both local TUI and Hermes remote TUI.
+  the local TUI.
 - Phase 2 complete: custom ANSI parser/tracker wrapping was replaced with
   `charmbracelet/x/ansi` for width measurement, ANSI-aware wrapping, hard
   wrapping, stripping, and truncation.
@@ -93,8 +93,7 @@ output into the viewport. The second phase replaced custom wrapping with
 ## Implementation Plan
 
 1. Add the proposal document.
-2. Add `viewport.Model` to `internal/tui.App` and
-   `internal/hermes/remotetui.App`.
+2. Add `viewport.Model` to `internal/tui.App`.
 3. Replace main transcript printing with managed viewport content.
 4. Keep `tea.Println` only for cases that intentionally print outside the TUI,
    or remove the drain path if no longer needed.

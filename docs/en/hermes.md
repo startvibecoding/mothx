@@ -25,9 +25,6 @@ mothx hermes status
 
 # Stop hermes
 mothx hermes stop
-
-# Connect as client
-mothx hermes client
 ```
 
 ## Architecture
@@ -80,25 +77,6 @@ Stop the running Hermes daemon via PID file + SIGTERM.
 ### `hermes status`
 
 Check Hermes daemon status (PID check + HTTP health query).
-
-### `hermes client`
-
-Connect to a running Hermes instance via WebSocket.
-
-| Flag | Description |
-|------|-------------|
-| `--url` | WebSocket URL (default: `ws://localhost:8090/ws`) |
-| `--session` | Session ID to resume |
-
-**Client Commands:**
-- `/help` — Show help
-- `/new` — Start a new session
-- `/clear` — Clear current session
-- `/status` — Show session status
-- `/sessions` — List active sessions
-- `/mode <mode>` — Set mode (plan/agent/yolo)
-- `/compact` — Trigger compaction
-- `/quit` — Exit
 
 ### `hermes config`
 

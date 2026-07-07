@@ -145,7 +145,7 @@ memory 工具查找记忆文件时遵循以下优先级：
 | 13 | **A2A 协议 (Server)** | ✅ **已完成** | `internal/a2a/` 独立顶层包，JSON-RPC 2.0 over HTTP + SSE 流式，独立模式 + hermes 集成模式 |
 | 14 | **WebSocket 流式推送** | ✅ **已完成** | `wsDispatcherAdapter` 逐事件转换 agent.Event → WSEvent，支持 text_delta/think_delta/tool_call/tool_result/usage/done |
 | 15 | **hermes stop/status** | ✅ **已完成** | PID 文件 + SIGTERM 信号 + HTTP health 查询 |
-| 16 | **hermes client** | ✅ **已完成** | `internal/hermes/client.go` WebSocket 客户端，支持流式输出 + 斜杠命令 |
+| 16 | **内置终端 WebSocket 客户端** | ❌ **已移除** | 交互入口已收敛到 `serve` / Web UI；保留 WebSocket API 供外部客户端接入 |
 | 17 | **webhook/memory/sessions CLI** | ✅ **已完成** | webhook list、memory show/clear、sessions list（查询运行实例）|
 | 18 | **/api/memory HTTP** | ✅ **已完成** | GET 读取 memory.md（含 source/path）、PUT 更新 memory.md，集成 MemoryStore |
 
@@ -594,10 +594,6 @@ mothx hermes
 ├── stop                  # ✅ PID 文件 + SIGTERM 停止守护进程
 ├── status                # ✅ PID 检查 + HTTP health 查询
 │
-├── client                # ✅ WebSocket 客户端（流式输出 + 斜杠命令）
-│   ├── --url <ws-url>    # ✅ 连接地址（默认 ws://localhost:8090/ws）
-│   └── --session <id>    # ✅ 指定/恢复 session
-│
 ├── config
 │   ├── init              # ✅ 创建 hermes.json 配置模板
 │   │   ├── --global      # ✅ 写入 <GLOBAL_DIR>/hermes.json（默认）
@@ -672,7 +668,7 @@ mothx hermes start
   └─ 5. 就绪 ✓  等待消息
 ```
 
-**关键设计**：WebSocket + HTTP 网关是 Hermes 的**核心服务**，始终启动。微信/飞书是**可选连接器**，只在配置启用且凭证就绪时才连接。即使不配置任何消息平台，Hermes 也可以通过 `hermes client` 或 WebSocket API 使用。
+**关键设计**：WebSocket + HTTP 网关是 Hermes 的**核心服务**，始终启动。微信/飞书是**可选连接器**，只在配置启用且凭证就绪时才连接。即使不配置任何消息平台，Hermes 也可以通过 WebSocket API 使用。
 
 ### 8.3 WebSocket + HTTP API 规范
 
@@ -682,7 +678,7 @@ Hermes 网关在单一端口（默认 `8090`）上提供所有服务，通过路
 
 | 路由 | 协议 | 认证 | 状态 | 说明 |
 |------|------|------|------|------|
-| `/ws` | WebSocket | 是 | ✅ | 交互式对话（`hermes client` 和第三方客户端） |
+| `/ws` | WebSocket | 是 | ✅ | 交互式对话（第三方客户端 / serve 兼容通道） |
 | `/api/health` | GET | 否 | ✅ | 健康检查 |
 | `/api/status` | GET | 是 | ✅ | 服务状态（平台连接、session 数、版本） |
 | `/api/sessions` | GET | 是 | ✅ | 列出所有活跃 session |
@@ -1067,40 +1063,9 @@ X-Hub-Signature-256: sha256=...
 | **S→C** | `error` | 错误 |
 | **S→C** | `pong` | 心跳响应 |
 
-### 8.4 `hermes client` — 终端接入模式
+### 8.4 WebSocket API 客户端
 
-> ✅ **已实现** — `internal/hermes/client.go` WebSocket 客户端，支持流式输出（text_delta/think_delta/tool_call/tool_result/done）和斜杠命令（/new /clear /status /sessions /mode /compact）。
-
-`mothx hermes client` 通过 WebSocket 连接正在运行的 Hermes 网关。
-
-```bash
-# 连接本地 hermes
-mothx hermes client
-
-# 连接远程 hermes
-mothx hermes client --url ws://192.168.1.100:8090/ws
-
-# 恢复已有 session
-mothx hermes client --session abc123
-```
-
-**与直接运行 `mothx` 的区别**：
-
-| 维度 | `mothx`（普通 CLI） | `mothx hermes client` |
-|------|--------------------------|----------------------------|
-| **Agent 进程** | 本地独立进程 | 连接 Hermes 守护进程 |
-| **通信方式** | 本地函数调用 | WebSocket 流式通信 |
-| **Session** | 本地管理 | 服务端管理（per-user，可跨终端恢复） |
-| **Memory** | 无 | 共享 Hermes 的 memory.md |
-| **工具执行** | 本地执行 | Hermes 服务端执行（受 security/hooks 约束） |
-| **工作目录** | 本地 cwd | Hermes 服务端工作目录 |
-| **Cron/Webhook** | 无 | 可查看 Hermes 的调度状态 |
-
-**典型使用场景**：
-- 开发者想在终端中与已部署的 Hermes 实例交互（而不是通过微信/飞书）
-- 调试 Hermes 的行为，实时观察 agent loop 输出
-- 远程连接服务器上运行的 Hermes 实例
-- 管理 Hermes 的 session、memory 等状态
+内置终端 WebSocket 客户端已移除。交互式管理入口收敛到 `serve` / Web UI；外部系统仍可按 8.3 的 WebSocket 事件协议接入。
 
 ### 8.5 `config init` — 初始化级别
 
@@ -1352,7 +1317,7 @@ internal/
 > 4. A2A 从 `internal/hermes/a2a/` 移至 `internal/a2a/`（独立顶层包）
 
 > **架构要点**：
-> - `hermes/ws/` 是新增的 **WebSocket + HTTP 网关层**，Hermes 启动后始终运行，是所有客户端（`hermes client`、第三方应用）的接入点。
+> - `hermes/ws/` 是新增的 **WebSocket + HTTP 网关层**，Hermes 启动后始终运行，是第三方应用和 serve 兼容通道的接入点。
 > - Webhook 和 A2A 复用同一个 HTTP 端口（`server.port`），通过路由区分：`/ws`、`/a2a`、`/webhook/*`、`/api/*`。
 > - `internal/messaging/` 是消息平台的**抽象 + 实现**层，纯粹关注"接收消息、发送消息"。每个子包是独立适配器，实现 `messaging.Platform` 接口。
 > - `internal/hermes/` 是 Hermes 模式的**编排层**，负责把 gateway、messaging、webhook、cron、agent loop 组装到一起运行。
@@ -1558,7 +1523,7 @@ hermes server (internal/hermes/)
 - [x] WebSocket 流式推送：`wsDispatcherAdapter` 改为监听 `chan agent.Event`，逐事件转换为 `WSEvent` 发送
 - [x] `hermes stop` — PID 文件 + SIGTERM 信号
 - [x] `hermes status` — PID 检查 + HTTP health 查询
-- [x] `hermes client` — WebSocket 客户端（流式输出 + 斜杠命令 + session 恢复）
+- [x] WebSocket API — 流式输出 + session 恢复协议
 - [x] `hermes webhook list` — webhook 路由查看
 - [x] `hermes memory show/clear` — memory 查看和清空
 - [x] `hermes sessions list` — 查询运行实例的活跃 session

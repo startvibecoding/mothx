@@ -25,9 +25,6 @@ mothx hermes status
 
 # 停止 hermes
 mothx hermes stop
-
-# 以客户端连接
-mothx hermes client
 ```
 
 ## 架构
@@ -80,25 +77,6 @@ mothx hermes client
 ### `hermes status`
 
 检查 Hermes 守护进程状态（PID 检查 + HTTP health 查询）。
-
-### `hermes client`
-
-通过 WebSocket 连接到运行中的 Hermes 实例。
-
-| 标志 | 说明 |
-|------|------|
-| `--url` | WebSocket URL（默认：`ws://localhost:8090/ws`） |
-| `--session` | 要恢复的 session ID |
-
-**客户端命令：**
-- `/help` — 显示帮助
-- `/new` — 开始新 session
-- `/clear` — 清空当前 session
-- `/status` — 显示 session 状态
-- `/sessions` — 列出活跃 session
-- `/mode <mode>` — 设置模式（plan/agent/yolo）
-- `/compact` — 触发压缩
-- `/quit` — 退出
 
 ### `hermes config`
 

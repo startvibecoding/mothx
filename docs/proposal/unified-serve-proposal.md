@@ -422,7 +422,7 @@ internal/stats/        使用统计
 
 - `mothx serve` 继续作为统一入口
 - `mothx gateway` 继续保留
-- `mothx hermes` 继续保留，包括 `start/stop/status/client/wechat/...` 子命令
+- `mothx hermes` 继续保留，包括 `start/stop/status/wechat/...` 子命令
 - `mothx --init-serve` 继续作为创建模板的已实现入口
 
 弃用策略：
