@@ -105,5 +105,3 @@ func (t *A2ADispatchTool) Execute(ctx context.Context, params map[string]any) (T
 
 	return NewTextToolResult(result), nil
 }
-
-

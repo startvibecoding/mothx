@@ -27,18 +27,18 @@ When `sandbox.enabled` is `true` in `settings.json`, MothX isolates commands run
 | Tool | Category | Action | Execution Security | Availability |
 |------|----------|--------|-------------------|--------------|
 | [`read`](#read---file-reading) | File System | Read file content (supports images and pagination) | Read-only access allowed | All modes |
-| [`write`](#write---file-writing) | File System | Create or overwrite files | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
-| [`edit`](#edit---precise-file-modification) | File System | Atomic text replacements | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`write`](#write---file-writing) | File System | Create or overwrite files | Requires Standard/Yolo | CLI, ACP, Serve, Channels |
+| [`edit`](#edit---precise-file-modification) | File System | Atomic text replacements | Requires Standard/Yolo | CLI, ACP, Serve, Channels |
 | [`ls`](#ls---directory-listing) | Exploration | List directory contents | Read-only access allowed | All modes |
 | [`find`](#find---file-search) | Exploration | Search for files by pattern | Read-only access allowed | All modes |
 | [`grep`](#grep---text-content-search) | Exploration | Regex search within files | Read-only access allowed | All modes |
-| [`bash`](#bash---command-execution) | Execution | Run shell commands (supports sync & async) | Subject to Sandbox Level | CLI, ACP, Gateway, Hermes |
+| [`bash`](#bash---command-execution) | Execution | Run shell commands (supports sync & async) | Subject to Sandbox Level | CLI, ACP, Serve, Channels |
 | [`jobs`](#jobs---background-job-management) | Execution | List or check status of background jobs | Read-only access allowed | All modes |
-| [`kill`](#kill---stop-background-job) | Execution | Stop a running background job | Requires Standard/Yolo | CLI, ACP, Gateway, Hermes |
+| [`kill`](#kill---stop-background-job) | Execution | Stop a running background job | Requires Standard/Yolo | CLI, ACP, Serve, Channels |
 | [`plan`](#plan---task-planning) | Session | Update a visible progress/task plan | Read-only access allowed | All modes |
 | [`question`](#question---user-clarification) | Session | Prompt user for multiple-choice input | Plan & Agent mode | TUI & ACP |
-| [`memory`](#memory---persistent-memory) | Workflow | Read/write to persistent `memory.md` | Session-scoped read/write | Hermes Mode |
-| [`cron`](#cron---scheduled-background-tasks) | Workflow | Schedule background tasks via sub-agents | Session-scoped scheduling | Hermes & Multi-Agent |
+| [`memory`](#memory---persistent-memory) | Workflow | Read/write to persistent `memory.md` | Session-scoped read/write | Serve Mode |
+| [`cron`](#cron---scheduled-background-tasks) | Workflow | Schedule background tasks via sub-agents | Session-scoped scheduling | Channels & Multi-Agent |
 | [`subagent_spawn`](#subagent_---delegated-work) | Multi-Agent | Spawn isolated sub-agents | Sub-agent scoped limits | Multi-Agent Mode |
 | [`subagent_status`](#subagent_---delegated-work) | Multi-Agent | Query sub-agent status | Read-only | Multi-Agent Mode |
 | [`subagent_send`](#subagent_---delegated-work) | Multi-Agent | Send commands to sub-agents | Send message | Multi-Agent Mode |
@@ -340,7 +340,7 @@ The assistant can halt execution and ask the user a multiple-choice question to 
 
 ### memory - Persistent Memory
 
-In Hermes messaging mode, the assistant can record user preferences, decisions, and system rules in `.vibe/memory.md`. This memory is loaded at the beginning of each session.
+In Channels messaging mode, the assistant can record user preferences, decisions, and system rules in `.vibe/memory.md`. This memory is loaded at the beginning of each session.
 
 #### Parameters:
 
@@ -445,7 +445,7 @@ Unlike `subagent_*` multi-agent tools, `delegate_subagent` runs synchronously: t
 Example payload:
 ```json
 {
-  "task": "Find all Go files in internal/gateway/ that import net/http but do not call http.Error. Return file paths with line numbers.",
+  "task": "Find all Go files in internal/serve/openaiapi/ that import net/http but do not call http.Error. Return file paths with line numbers.",
   "mode": "plan",
   "tools": ["grep", "read", "find"],
   "max_iterations": 20
@@ -481,7 +481,7 @@ Workflow scripts must use the supported Elisp subset. Do not describe workflow s
 Example payload:
 ```json
 {
-  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"gateway\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"Audit internal/gateway auth risks\") (agent \"hermes\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"Audit internal/hermes auth risks\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 80 :prompt (concat (results \"scan\") \"\\nReconcile the findings and list concrete risks.\"))))",
+  "source": "(workflow \"auth audit\" (concurrency 2) (phase \"scan\" (parallel (agent \"api\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"Audit internal/serve/openaiapi auth risks\") (agent \"channels\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 100 :prompt \"Audit internal/serve/channels auth risks\"))) (phase \"verify\" (agent \"cross-check\" :mode \"plan\" :tools '(\"read\" \"grep\") :max-iterations 80 :prompt (concat (results \"scan\") \"\\nReconcile the findings and list concrete risks.\"))))",
   "timeoutSeconds": 900
 }
 ```

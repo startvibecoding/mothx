@@ -13,20 +13,20 @@ import (
 	"time"
 
 	"github.com/startvibecoding/mothx/internal/cron"
-	"github.com/startvibecoding/mothx/internal/gateway"
-	"github.com/startvibecoding/mothx/internal/hermes"
+	channels "github.com/startvibecoding/mothx/internal/serve/channels"
+	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
 )
 
 type fakeActiveSessionManager struct {
-	sessions  []gateway.ActiveSessionInfo
-	messages  []gateway.SessionMessageEntry
+	sessions  []openaiapi.ActiveSessionInfo
+	messages  []openaiapi.SessionMessageEntry
 	deletedID string
 	deleted   bool
 	err       error
 }
 
-func (f *fakeActiveSessionManager) ListActiveSessions() []gateway.ActiveSessionInfo {
-	return append([]gateway.ActiveSessionInfo(nil), f.sessions...)
+func (f *fakeActiveSessionManager) ListActiveSessions() []openaiapi.ActiveSessionInfo {
+	return append([]openaiapi.ActiveSessionInfo(nil), f.sessions...)
 }
 
 func (f *fakeActiveSessionManager) DeleteActiveSession(id string) (bool, error) {
@@ -34,8 +34,8 @@ func (f *fakeActiveSessionManager) DeleteActiveSession(id string) (bool, error) 
 	return f.deleted, f.err
 }
 
-func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]gateway.SessionMessageEntry, error) {
-	return append([]gateway.SessionMessageEntry(nil), f.messages...), f.err
+func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error) {
+	return append([]openaiapi.SessionMessageEntry(nil), f.messages...), f.err
 }
 
 type fakeWebSocketRuntime struct {
@@ -74,7 +74,7 @@ func TestLoadConfigFrom_LegacyNestedSchema(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "serve.json")
 	data := `{
-		"gateway": {
+		"api": {
 			"listen": ":9090",
 			"provider": "deepseek",
 			"model": "deepseek-chat",
@@ -99,22 +99,22 @@ func TestLoadConfigFrom_LegacyNestedSchema(t *testing.T) {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
 
-	if cfg.Gateway.Listen != ":9090" {
-		t.Fatalf("listen = %q, want :9090", cfg.Gateway.Listen)
+	if cfg.API.Listen != ":9090" {
+		t.Fatalf("listen = %q, want :9090", cfg.API.Listen)
 	}
-	if cfg.Gateway.Provider != "deepseek" {
-		t.Fatalf("provider = %q, want deepseek", cfg.Gateway.Provider)
+	if cfg.API.Provider != "deepseek" {
+		t.Fatalf("provider = %q, want deepseek", cfg.API.Provider)
 	}
-	if cfg.Gateway.Model != "deepseek-chat" {
-		t.Fatalf("model = %q, want deepseek-chat", cfg.Gateway.Model)
+	if cfg.API.Model != "deepseek-chat" {
+		t.Fatalf("model = %q, want deepseek-chat", cfg.API.Model)
 	}
-	if cfg.Gateway.DefaultMode != "agent" {
-		t.Fatalf("mode = %q, want agent", cfg.Gateway.DefaultMode)
+	if cfg.API.DefaultMode != "agent" {
+		t.Fatalf("mode = %q, want agent", cfg.API.DefaultMode)
 	}
-	if !cfg.Gateway.Sandbox.Enabled || cfg.Gateway.Sandbox.Level != "strict" {
-		t.Fatalf("sandbox = %#v, want enabled strict", cfg.Gateway.Sandbox)
+	if !cfg.API.Sandbox.Enabled || cfg.API.Sandbox.Level != "strict" {
+		t.Fatalf("sandbox = %#v, want enabled strict", cfg.API.Sandbox)
 	}
-	if !cfg.Gateway.EnableSubAgents {
+	if !cfg.API.EnableSubAgents {
 		t.Fatal("enableSubAgents should be true")
 	}
 	if !cfg.Channels.Wechat.Enabled || cfg.Channels.Wechat.AutoTyping {
@@ -184,50 +184,50 @@ func TestLoadConfigFrom_FlatSchema(t *testing.T) {
 		t.Fatalf("LoadConfigFrom: %v", err)
 	}
 
-	if cfg.Gateway.Listen != ":7777" {
-		t.Fatalf("listen = %q, want :7777", cfg.Gateway.Listen)
+	if cfg.API.Listen != ":7777" {
+		t.Fatalf("listen = %q, want :7777", cfg.API.Listen)
 	}
-	if cfg.Gateway.Provider != "openai" {
-		t.Fatalf("provider = %q, want openai", cfg.Gateway.Provider)
+	if cfg.API.Provider != "openai" {
+		t.Fatalf("provider = %q, want openai", cfg.API.Provider)
 	}
-	if cfg.Gateway.Model != "gpt-4o" {
-		t.Fatalf("model = %q, want gpt-4o", cfg.Gateway.Model)
+	if cfg.API.Model != "gpt-4o" {
+		t.Fatalf("model = %q, want gpt-4o", cfg.API.Model)
 	}
-	if cfg.Gateway.DefaultMode != "agent" {
-		t.Fatalf("mode = %q, want agent", cfg.Gateway.DefaultMode)
+	if cfg.API.DefaultMode != "agent" {
+		t.Fatalf("mode = %q, want agent", cfg.API.DefaultMode)
 	}
-	if cfg.Gateway.WorkingDir != "/tmp/project" {
-		t.Fatalf("workDir = %q, want /tmp/project", cfg.Gateway.WorkingDir)
+	if cfg.API.WorkingDir != "/tmp/project" {
+		t.Fatalf("workDir = %q, want /tmp/project", cfg.API.WorkingDir)
 	}
-	if !cfg.Gateway.Auth.Enabled || len(cfg.Gateway.Auth.Tokens) != 1 || cfg.Gateway.Auth.Tokens[0] != "sk-test" {
-		t.Fatalf("auth = %#v", cfg.Gateway.Auth)
+	if !cfg.API.Auth.Enabled || len(cfg.API.Auth.Tokens) != 1 || cfg.API.Auth.Tokens[0] != "sk-test" {
+		t.Fatalf("auth = %#v", cfg.API.Auth)
 	}
-	if !cfg.Gateway.Sandbox.Enabled || cfg.Gateway.Sandbox.Level != "strict" {
-		t.Fatalf("sandbox = %#v", cfg.Gateway.Sandbox)
+	if !cfg.API.Sandbox.Enabled || cfg.API.Sandbox.Level != "strict" {
+		t.Fatalf("sandbox = %#v", cfg.API.Sandbox)
 	}
-	if cfg.Gateway.AllowedWorkDirs == nil || len(*cfg.Gateway.AllowedWorkDirs) != 1 || (*cfg.Gateway.AllowedWorkDirs)[0] != "/tmp/project" {
-		t.Fatalf("allowedWorkDirs = %#v", cfg.Gateway.AllowedWorkDirs)
+	if cfg.API.AllowedWorkDirs == nil || len(*cfg.API.AllowedWorkDirs) != 1 || (*cfg.API.AllowedWorkDirs)[0] != "/tmp/project" {
+		t.Fatalf("allowedWorkDirs = %#v", cfg.API.AllowedWorkDirs)
 	}
-	if !cfg.Gateway.EnableSubAgents {
+	if !cfg.API.EnableSubAgents {
 		t.Fatal("enableSubAgents should be true")
 	}
 	if !cfg.Features.OpenAIAPI {
 		t.Fatal("openaiAPI feature should be true")
 	}
-	if cfg.Gateway.Session.IdleTimeoutSeconds != 99 || cfg.Gateway.Session.MaxSessions != 7 {
-		t.Fatalf("session config = %#v", cfg.Gateway.Session)
+	if cfg.API.Session.IdleTimeoutSeconds != 99 || cfg.API.Session.MaxSessions != 7 {
+		t.Fatalf("session config = %#v", cfg.API.Session)
 	}
-	if cfg.Gateway.ToolVisibility.Mode != "content" || cfg.Gateway.ToolVisibility.Detail != "expanded" {
-		t.Fatalf("tool visibility = %#v", cfg.Gateway.ToolVisibility)
+	if cfg.API.ToolVisibility.Mode != "content" || cfg.API.ToolVisibility.Detail != "expanded" {
+		t.Fatalf("tool visibility = %#v", cfg.API.ToolVisibility)
 	}
-	if cfg.Gateway.SystemPromptMode != "ignore" {
-		t.Fatalf("system prompt mode = %q, want ignore", cfg.Gateway.SystemPromptMode)
+	if cfg.API.SystemPromptMode != "ignore" {
+		t.Fatalf("system prompt mode = %q, want ignore", cfg.API.SystemPromptMode)
 	}
-	if cfg.Gateway.RequestTimeoutSecs != 66 {
-		t.Fatalf("timeout = %d, want 66", cfg.Gateway.RequestTimeoutSecs)
+	if cfg.API.RequestTimeoutSecs != 66 {
+		t.Fatalf("timeout = %d, want 66", cfg.API.RequestTimeoutSecs)
 	}
-	if cfg.Gateway.MaxConcurrentReqs != 5 {
-		t.Fatalf("max concurrent = %d, want 5", cfg.Gateway.MaxConcurrentReqs)
+	if cfg.API.MaxConcurrentReqs != 5 {
+		t.Fatalf("max concurrent = %d, want 5", cfg.API.MaxConcurrentReqs)
 	}
 	if !cfg.Channels.Wechat.Enabled || cfg.Channels.Wechat.AutoTyping {
 		t.Fatalf("wechat config = %#v", cfg.Channels.Wechat)
@@ -262,8 +262,8 @@ func TestDecodeConfigBytes_FlatSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeConfigBytes: %v", err)
 	}
-	if cfg.Gateway.Listen != ":8081" {
-		t.Fatalf("listen = %q, want :8081", cfg.Gateway.Listen)
+	if cfg.API.Listen != ":8081" {
+		t.Fatalf("listen = %q, want :8081", cfg.API.Listen)
 	}
 	if cfg.Features.WebUI {
 		t.Fatal("webUI feature should be false")
@@ -305,8 +305,8 @@ func TestInitConfig_WritesFlatTemplate(t *testing.T) {
 	if !strings.Contains(text, `"auth": {`) {
 		t.Fatalf("generated config missing auth block:\n%s", text)
 	}
-	if strings.Contains(text, `"gateway": {`) {
-		t.Fatalf("generated config should prefer flat schema, got legacy gateway block:\n%s", text)
+	if strings.Contains(text, `"api": {`) {
+		t.Fatalf("generated config should prefer flat schema, got legacy api block:\n%s", text)
 	}
 }
 
@@ -352,11 +352,11 @@ func TestHandleChannels_ReturnsStableEntries(t *testing.T) {
 		cfg: &Config{
 			Features: FeatureConfig{WebSocket: true},
 			Channels: ChannelConfig{
-				Wechat: hermes.WechatConfig{Enabled: true},
-				Feishu: hermes.FeishuConfig{Enabled: false},
+				Wechat: channels.WechatConfig{Enabled: true},
+				Feishu: channels.FeishuConfig{Enabled: false},
 			},
 		},
-		wsGateway: &fakeWebSocketRuntime{connections: 2},
+		wsRuntime: &fakeWebSocketRuntime{connections: 2},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/channels", nil)
@@ -411,7 +411,7 @@ func TestRegisterServeRoutes_WebUIDisabledStillServesManageAPI(t *testing.T) {
 	}
 }
 
-func TestRegisterServeRoutes_SessionsRequireGatewayServer(t *testing.T) {
+func TestRegisterServeRoutes_SessionsRequireAPIServer(t *testing.T) {
 	rt := &channelRuntime{cfg: DefaultConfig()}
 	mux := http.NewServeMux()
 	registerServeRoutes(mux, rt, "/tmp/serve.json")
@@ -427,7 +427,7 @@ func TestRegisterServeRoutes_SessionsRequireGatewayServer(t *testing.T) {
 func TestRegisterServeRoutes_WebSocketMounted(t *testing.T) {
 	rt := &channelRuntime{
 		cfg:       &Config{Features: FeatureConfig{WebSocket: true}, WebUI: WebUIConfig{Enabled: false}},
-		wsGateway: &fakeWebSocketRuntime{status: http.StatusTeapot},
+		wsRuntime: &fakeWebSocketRuntime{status: http.StatusTeapot},
 	}
 	mux := http.NewServeMux()
 	registerServeRoutes(mux, rt, "/tmp/serve.json")
@@ -444,7 +444,7 @@ func TestRegisterServeRoutes_WebSocketMounted(t *testing.T) {
 func TestHandleWebSocketDisabledReturnsNotFound(t *testing.T) {
 	rt := &channelRuntime{
 		cfg:       &Config{Features: FeatureConfig{WebSocket: false}},
-		wsGateway: &fakeWebSocketRuntime{status: http.StatusTeapot},
+		wsRuntime: &fakeWebSocketRuntime{status: http.StatusTeapot},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
@@ -461,7 +461,7 @@ func TestHandleServeConfigPutSyncsWebSocketRuntime(t *testing.T) {
 	ws := &fakeWebSocketRuntime{}
 	cfg := DefaultConfig()
 	cfg.Features.WebSocket = true
-	rt := &channelRuntime{cfg: cfg, wsGateway: ws}
+	rt := &channelRuntime{cfg: cfg, wsRuntime: ws}
 
 	req := httptest.NewRequest(http.MethodPut, "/api/serve/config", strings.NewReader(`{"features":{"websocket":false}}`))
 	w := httptest.NewRecorder()
@@ -470,7 +470,7 @@ func TestHandleServeConfigPutSyncsWebSocketRuntime(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
-	if rt.wsGateway != nil {
+	if rt.wsRuntime != nil {
 		t.Fatal("websocket runtime should be cleared when disabled")
 	}
 	if !ws.stopped {
@@ -506,13 +506,13 @@ func TestHandleServeConfigPutSyncsCronStorePath(t *testing.T) {
 
 func TestHandleStatus_ReturnsRuntimeSummary(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Gateway.Listen = "127.0.0.1:9090"
+	cfg.API.Listen = "127.0.0.1:9090"
 	cfg.Features.OpenAIAPI = false
 	cfg.Features.Wechat = true
 	cfg.Channels.Wechat.Enabled = true
 	rt := &channelRuntime{cfg: cfg}
 	sessions := &fakeActiveSessionManager{
-		sessions: []gateway.ActiveSessionInfo{{ID: "s1"}, {ID: "s2"}},
+		sessions: []openaiapi.ActiveSessionInfo{{ID: "s1"}, {ID: "s2"}},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
@@ -547,7 +547,7 @@ func TestHandleStatus_ReturnsRuntimeSummary(t *testing.T) {
 func TestHandleSessions_ReturnsActiveSessions(t *testing.T) {
 	rt := &channelRuntime{cfg: DefaultConfig()}
 	sessions := &fakeActiveSessionManager{
-		sessions: []gateway.ActiveSessionInfo{{ID: "s1", WorkDir: "/tmp/a"}},
+		sessions: []openaiapi.ActiveSessionInfo{{ID: "s1", WorkDir: "/tmp/a"}},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
@@ -558,7 +558,7 @@ func TestHandleSessions_ReturnsActiveSessions(t *testing.T) {
 		t.Fatalf("status = %d, want 200", w.Code)
 	}
 	var got struct {
-		Sessions []gateway.ActiveSessionInfo `json:"sessions"`
+		Sessions []openaiapi.ActiveSessionInfo `json:"sessions"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -874,7 +874,7 @@ func TestHandleBrowseRestrictsToWorkingDirByDefault(t *testing.T) {
 		t.Fatalf("create child: %v", err)
 	}
 	cfg := DefaultConfig()
-	cfg.Gateway.WorkingDir = workDir
+	cfg.API.WorkingDir = workDir
 	rt := &channelRuntime{cfg: cfg}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/browse", nil)
@@ -927,9 +927,9 @@ func TestHandleBrowseUsesAllowedWorkDirs(t *testing.T) {
 		t.Fatalf("create repo: %v", err)
 	}
 	cfg := DefaultConfig()
-	cfg.Gateway.WorkingDir = t.TempDir()
+	cfg.API.WorkingDir = t.TempDir()
 	allowed := []string{allowedRoot}
-	cfg.Gateway.AllowedWorkDirs = &allowed
+	cfg.API.AllowedWorkDirs = &allowed
 	rt := &channelRuntime{cfg: cfg}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(filepath.Join(allowedRoot, "repo")), nil)
@@ -979,8 +979,8 @@ func TestHandleServeConfig_PutAcceptsFlatSchema(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
-	if rt.cfg.Gateway.Listen != ":9099" {
-		t.Fatalf("listen = %q, want :9099", rt.cfg.Gateway.Listen)
+	if rt.cfg.API.Listen != ":9099" {
+		t.Fatalf("listen = %q, want :9099", rt.cfg.API.Listen)
 	}
 	if rt.cfg.Features.WebUI {
 		t.Fatal("webUI feature should be false after PUT")
@@ -999,7 +999,7 @@ func TestHandleServeConfig_PutAcceptsFlatSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfigFrom(saved): %v", err)
 	}
-	if saved.Gateway.Listen != ":9099" || saved.Features.OpenAIAPI {
+	if saved.API.Listen != ":9099" || saved.Features.OpenAIAPI {
 		t.Fatalf("saved config = %#v", saved)
 	}
 }
@@ -1016,7 +1016,7 @@ func TestApplyRuntimeFeaturesOverridesLegacyRuntimeFields(t *testing.T) {
 	cfg.Channels.Feishu.Enabled = true
 	cfg.Cron.Enabled = true
 	cfg.Memory.Enabled = true
-	cfg.Gateway.EnableSubAgents = true
+	cfg.API.EnableSubAgents = true
 	cfg.WebUI.Enabled = true
 
 	applyRuntimeFeatures(cfg)
@@ -1033,7 +1033,7 @@ func TestApplyRuntimeFeaturesOverridesLegacyRuntimeFields(t *testing.T) {
 	if cfg.Memory.Enabled {
 		t.Fatal("memory should be disabled by features")
 	}
-	if cfg.Gateway.EnableSubAgents {
+	if cfg.API.EnableSubAgents {
 		t.Fatal("multi-agent should be disabled by features")
 	}
 	if cfg.WebUI.Enabled {
@@ -1044,7 +1044,7 @@ func TestApplyRuntimeFeaturesOverridesLegacyRuntimeFields(t *testing.T) {
 func TestApplyOverridesPreservesMultiAgentFlagThroughFeatureSync(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Features.MultiAgent = false
-	cfg.Gateway.EnableSubAgents = false
+	cfg.API.EnableSubAgents = false
 
 	applyOverrides(cfg, RunOptions{MultiAgent: true})
 	applyRuntimeFeatures(cfg)
@@ -1052,8 +1052,8 @@ func TestApplyOverridesPreservesMultiAgentFlagThroughFeatureSync(t *testing.T) {
 	if !cfg.Features.MultiAgent {
 		t.Fatal("multi-agent feature should be enabled by CLI override")
 	}
-	if !cfg.Gateway.EnableSubAgents {
-		t.Fatal("gateway subagents should remain enabled after feature sync")
+	if !cfg.API.EnableSubAgents {
+		t.Fatal("API subagents should remain enabled after feature sync")
 	}
 }
 
@@ -1088,19 +1088,19 @@ func TestApplyOverridesPortForms(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := DefaultConfig()
 			applyOverrides(cfg, RunOptions{Port: tt.port})
-			if cfg.Gateway.Listen != tt.want {
-				t.Fatalf("listen = %q, want %q", cfg.Gateway.Listen, tt.want)
+			if cfg.API.Listen != tt.want {
+				t.Fatalf("listen = %q, want %q", cfg.API.Listen, tt.want)
 			}
 		})
 	}
 }
 
-func TestBuildHermesConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
+func TestBuildConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Gateway.Provider = "openai"
-	cfg.Gateway.Model = "gpt-4o"
-	cfg.Gateway.WorkingDir = "/tmp/project"
-	cfg.Gateway.Sandbox.Enabled = true
+	cfg.API.Provider = "openai"
+	cfg.API.Model = "gpt-4o"
+	cfg.API.WorkingDir = "/tmp/project"
+	cfg.API.Sandbox.Enabled = true
 	cfg.Features.MultiAgent = true
 	cfg.Features.Wechat = false
 	cfg.Features.Feishu = true
@@ -1117,7 +1117,7 @@ func TestBuildHermesConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 	cfg.Memory.Path = "/tmp/memory.md"
 	cfg.Agent.MaxTurns = 33
 
-	hCfg := buildHermesConfigFromServeConfig(cfg)
+	hCfg := buildConfigFromServeConfig(cfg)
 
 	if hCfg.Server.Host != "127.0.0.1" || hCfg.Server.Port != 0 {
 		t.Fatalf("server = %#v", hCfg.Server)
@@ -1152,12 +1152,12 @@ func TestBuildHermesConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 }
 
 func TestBuildCronStoreHonorsCronFeature(t *testing.T) {
-	disabled := buildCronStore(&hermes.HermesConfig{Cron: hermes.CronConfig{Enabled: false}})
+	disabled := buildCronStore(&channels.Config{Cron: channels.CronConfig{Enabled: false}})
 	if disabled != nil {
 		t.Fatal("cron store should be nil when cron is disabled")
 	}
 
-	enabled := buildCronStore(&hermes.HermesConfig{Cron: hermes.CronConfig{Enabled: true, StorePath: filepath.Join(t.TempDir(), "cron.json")}})
+	enabled := buildCronStore(&channels.Config{Cron: channels.CronConfig{Enabled: true, StorePath: filepath.Join(t.TempDir(), "cron.json")}})
 	if enabled == nil {
 		t.Fatal("cron store should be created when cron is enabled")
 	}

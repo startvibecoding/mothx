@@ -151,10 +151,10 @@ mothx -p "从测试结果生成测试报告" > report.md
 ### 场景 1：团队共享
 
 ```bash
-# 启动网关
-mothx gateway
+# 启动 serve
+mothx serve
 
-# 配置文件 ~/.vibecoding/gateway.json
+# 配置文件 ~/.vibecoding/serve.json
 {
   "port": 8080,
   "auth": {
@@ -191,13 +191,13 @@ version: '3'
 services:
   vibecoding-1:
     image: mothx
-    command: gateway
+    command: serve
     ports:
       - "8081:8080"
   
   vibecoding-2:
     image: mothx
-    command: gateway
+    command: serve
     ports:
       - "8082:8080"
   
@@ -216,10 +216,10 @@ services:
 ### 场景 1：微信机器人
 
 ```bash
-# 启动消息网关
-mothx hermes
+# 启动消息通道
+mothx serve
 
-# 配置文件 ~/.vibecoding/hermes.json
+# 配置文件 ~/.vibecoding/serve.json
 {
   "platform": "wechat",
   "appId": "your-app-id",
@@ -232,7 +232,7 @@ mothx hermes
 ### 场景 2：飞书机器人
 
 ```bash
-# 配置文件 ~/.vibecoding/hermes.json
+# 配置文件 ~/.vibecoding/serve.json
 {
   "platform": "feishu",
   "appId": "your-app-id",
@@ -245,7 +245,7 @@ mothx hermes
 ### 场景 3：WebSocket
 
 ```bash
-# 配置文件 ~/.vibecoding/hermes.json
+# 配置文件 ~/.vibecoding/serve.json
 {
   "platform": "websocket",
   "port": 8080,
@@ -315,7 +315,7 @@ mothx --enable-a2a-master
 mothx --workflows
 
 # 让 AI 运行代码审计 workflow
-> "对 internal/gateway 和 internal/hermes 做一次安全审计，先并行扫描再交叉验证"
+> "对 internal/serve/openaiapi 和 internal/serve/channels 做一次安全审计，先并行扫描再交叉验证"
 
 # AI 会自动生成并执行类似这样的 Elisp workflow:
 # - phase 1: 并行扫描多个模块

@@ -650,8 +650,8 @@ func TestAssistantRendersAGENTSMarkdownFixture(t *testing.T) {
 	}
 	for _, want := range []string{
 		"VibeCoding Agent Guide",
-		"Gateway Mode",
-		"Hermes Mode",
+		"API Mode",
+		"Channels Mode",
 		"AGENTS.md",
 		"CLAUDE.md",
 		"make build",
@@ -1283,7 +1283,7 @@ func TestFormatApprovalArgsBashShowsCommandWithoutJSON(t *testing.T) {
 }
 
 func TestRenderApprovalDialogShowsBashChoicesAndWrapsLongCommand(t *testing.T) {
-	command := "go test ./internal/tui ./internal/config ./internal/agent ./internal/gateway -run TestVeryLongApprovalCommandName -count=1"
+	command := "go test ./internal/tui ./internal/config ./internal/agent ./internal/serve/openaiapi -run TestVeryLongApprovalCommandName -count=1"
 	a := &App{
 		waitingForApproval: true,
 		currentApproval: pendingApproval{

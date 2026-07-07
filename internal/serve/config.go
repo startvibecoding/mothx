@@ -7,21 +7,21 @@ import (
 	"path/filepath"
 
 	"github.com/startvibecoding/mothx/internal/config"
-	"github.com/startvibecoding/mothx/internal/gateway"
-	"github.com/startvibecoding/mothx/internal/hermes"
+	channels "github.com/startvibecoding/mothx/internal/serve/channels"
+	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
 )
 
 type Config struct {
-	Gateway     gateway.GatewayConfig `json:"gateway"`
-	Features    FeatureConfig         `json:"features"`
-	Channels    ChannelConfig         `json:"channels"`
-	WebUI       WebUIConfig           `json:"webUI"`
-	LobsterMode bool                  `json:"lobsterMode,omitempty"`
-	Cron        hermes.CronConfig     `json:"cron"`
-	Memory      hermes.MemoryConfig   `json:"memory"`
-	Security    hermes.SecurityConfig `json:"security"`
-	Hooks       hermes.HooksConfig    `json:"hooks"`
-	Agent       hermes.AgentConfig    `json:"agent"`
+	API         openaiapi.Config        `json:"api"`
+	Features    FeatureConfig           `json:"features"`
+	Channels    ChannelConfig           `json:"channels"`
+	WebUI       WebUIConfig             `json:"webUI"`
+	LobsterMode bool                    `json:"lobsterMode,omitempty"`
+	Cron        channels.CronConfig     `json:"cron"`
+	Memory      channels.MemoryConfig   `json:"memory"`
+	Security    channels.SecurityConfig `json:"security"`
+	Hooks       channels.HooksConfig    `json:"hooks"`
+	Agent       channels.AgentConfig    `json:"agent"`
 }
 
 type FeatureConfig struct {
@@ -36,8 +36,8 @@ type FeatureConfig struct {
 }
 
 type ChannelConfig struct {
-	Wechat hermes.WechatConfig `json:"wechat"`
-	Feishu hermes.FeishuConfig `json:"feishu"`
+	Wechat channels.WechatConfig `json:"wechat"`
+	Feishu channels.FeishuConfig `json:"feishu"`
 }
 
 type WebUIConfig struct {
@@ -46,12 +46,12 @@ type WebUIConfig struct {
 }
 
 func DefaultConfig() *Config {
-	gw := gateway.DefaultGatewayConfig()
+	gw := openaiapi.DefaultConfig()
 	gw.Listen = ":8080"
 	gw.DefaultMode = "yolo"
-	h := hermes.DefaultHermesConfig()
+	h := channels.DefaultConfig()
 	return &Config{
-		Gateway: *gw,
+		API: *gw,
 		Features: FeatureConfig{
 			WebUI:      true,
 			OpenAIAPI:  true,
@@ -112,42 +112,42 @@ func LoadConfigFrom(path string) (*Config, error) {
 }
 
 func normalize(cfg *Config) {
-	if cfg.Gateway.Listen == "" {
-		cfg.Gateway.Listen = ":8080"
+	if cfg.API.Listen == "" {
+		cfg.API.Listen = ":8080"
 	}
-	if cfg.Gateway.DefaultMode == "" {
-		cfg.Gateway.DefaultMode = "yolo"
+	if cfg.API.DefaultMode == "" {
+		cfg.API.DefaultMode = "yolo"
 	}
-	if cfg.Gateway.ToolVisibility.Mode == "" {
-		cfg.Gateway.ToolVisibility.Mode = "content"
+	if cfg.API.ToolVisibility.Mode == "" {
+		cfg.API.ToolVisibility.Mode = "content"
 	}
-	if cfg.Gateway.ToolVisibility.Detail == "" {
-		cfg.Gateway.ToolVisibility.Detail = "collapsed"
+	if cfg.API.ToolVisibility.Detail == "" {
+		cfg.API.ToolVisibility.Detail = "collapsed"
 	}
-	if cfg.Gateway.SystemPromptMode == "" {
-		cfg.Gateway.SystemPromptMode = "append"
+	if cfg.API.SystemPromptMode == "" {
+		cfg.API.SystemPromptMode = "append"
 	}
-	if cfg.Gateway.DefaultThinkingLevel == "" {
-		cfg.Gateway.DefaultThinkingLevel = "medium"
+	if cfg.API.DefaultThinkingLevel == "" {
+		cfg.API.DefaultThinkingLevel = "medium"
 	}
-	if cfg.Gateway.RequestTimeoutSecs <= 0 {
-		cfg.Gateway.RequestTimeoutSecs = 1800
+	if cfg.API.RequestTimeoutSecs <= 0 {
+		cfg.API.RequestTimeoutSecs = 1800
 	}
 	if cfg.WebUI.Dir == "" {
 		cfg.WebUI.Dir = "ui/dist"
 	}
 	if cfg.Agent.MaxTurns == 0 {
-		cfg.Agent = hermes.DefaultHermesConfig().Agent
+		cfg.Agent = channels.DefaultConfig().Agent
 	}
 	if cfg.LobsterMode {
-		cfg.Gateway.DefaultMode = "yolo"
-		cfg.Gateway.Sandbox.Enabled = false
-		cfg.Gateway.EnableSubAgents = true
+		cfg.API.DefaultMode = "yolo"
+		cfg.API.Sandbox.Enabled = false
+		cfg.API.EnableSubAgents = true
 	}
 	cfg.Features.WebUI = cfg.WebUI.Enabled
 	cfg.Features.Wechat = cfg.Channels.Wechat.Enabled
 	cfg.Features.Feishu = cfg.Channels.Feishu.Enabled
-	cfg.Features.MultiAgent = cfg.Gateway.EnableSubAgents
+	cfg.Features.MultiAgent = cfg.API.EnableSubAgents
 	cfg.Features.Cron = cfg.Cron.Enabled
 	cfg.Features.Memory = cfg.Memory.Enabled
 }
@@ -179,13 +179,13 @@ func InitConfigForProject(project bool, force bool) (string, error) {
 		}
 	}
 	cfg := DefaultConfig()
-	cfg.Gateway.Auth.Tokens = []string{"sk-change-me-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+	cfg.API.Auth.Tokens = []string{"sk-change-me-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
 	home, _ := os.UserHomeDir()
 	if home == "" {
 		home = "/home/user"
 	}
-	cfg.Gateway.WorkingDir = filepath.Join(home, "projects")
+	cfg.API.WorkingDir = filepath.Join(home, "projects")
 	allowed := []string{filepath.Join(home, "projects")}
-	cfg.Gateway.AllowedWorkDirs = &allowed
+	cfg.API.AllowedWorkDirs = &allowed
 	return path, SaveConfig(path, cfg)
 }

@@ -298,19 +298,19 @@ Navigate to `Settings → Tools → ACP Agents` and add:
 
 ---
 
-## 🌐 Gateway Mode
+## 🌐 Serve Mode
 
 ### OpenAI-Compatible HTTP API
 
 MothX can be used as an OpenAI-compatible HTTP server:
 
 ```bash
-# Start gateway
-mothx gateway
+# Start serve
+mothx serve
 
 # Configuration files
-~/.vibecoding/gateway.json
-.vibe/gateway.json
+~/.vibecoding/serve.json
+.vibe/serve.json
 ```
 
 ### Use Cases
@@ -328,12 +328,12 @@ mothx gateway
 MothX can be deployed as a chatbot:
 
 ```bash
-# Start messaging gateway
-mothx hermes
+# Start messaging channels
+mothx serve
 
 # Configuration files
-~/.vibecoding/hermes.json
-.vibe/hermes.json
+~/.vibecoding/serve.json
+.vibe/serve.json
 ```
 
 ### Features
@@ -366,7 +366,7 @@ subagent_destroy  # Destroy sub-agent
 # Enable one blocking delegated sub-agent
 mothx --delegate
 
-# Toggle in TUI or Gateway sessions
+# Toggle in TUI or Serve sessions
 /delegate on
 /delegate status
 /delegate off
@@ -544,7 +544,7 @@ mothx doctor
 
 ### Check Items
 
-- **Configuration files**: Check settings.json, gateway.json, hermes.json
+- **Configuration files**: Check settings.json, serve.json, serve.json
 - **Provider**: Check API keys and connections
 - **Sandbox**: Check bwrap installation and configuration
 - **MCP**: Check MCP server configuration

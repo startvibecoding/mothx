@@ -1,4 +1,4 @@
-// Package memory implements persistent memory storage for Hermes mode.
+// Package memory implements persistent memory storage for serve channels.
 // Memory is stored as a human-readable Markdown file (memory.md).
 package memory
 

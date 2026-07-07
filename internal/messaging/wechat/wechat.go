@@ -56,7 +56,7 @@ func (b *Bot) Start(ctx context.Context, handler messaging.MessageHandler) error
 	// Load credentials
 	creds, err := LoadCredentials(b.credPath)
 	if err != nil || creds == nil {
-		return fmt.Errorf("wechat: no credentials found at %s — run 'vibecoding hermes wechat login' first", b.credPath)
+		return fmt.Errorf("wechat: no credentials found at %s", b.credPath)
 	}
 
 	b.mu.Lock()

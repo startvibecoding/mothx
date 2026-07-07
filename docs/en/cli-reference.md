@@ -47,7 +47,7 @@ mothx [flags] [message...]
 
 | Parameter | Short | Description |
 |-----------|-------|-------------|
-| `--init-gateway` | - | Create `gateway.json` config template |
+| `--init-serve` | - | Create `serve.json` config template |
 | `--init-a2a-master-config` | - | Create `a2a-list.json` config template |
 | `--enable-a2a-master` | - | Enable A2A master mode (remote agent dispatch) |
 | `--force` | - | Force overwrite existing files (used with `--init-*`) |
@@ -83,7 +83,7 @@ See the [ACP Protocol](acp.md) documentation for IDE integration details.
 
 ### `a2a` - A2A Protocol Server
 
-Run the A2A (Agent-to-Agent) protocol server, supporting standalone and integrated modes.
+Run the standalone A2A (Agent-to-Agent) protocol server.
 
 ```
 mothx a2a [command]
@@ -102,18 +102,18 @@ mothx a2a [command]
 
 See [A2A Protocol](a2a.md) documentation for details.
 
-### `gateway` - OpenAI-Compatible HTTP Gateway
+### `serve` - Unified Server
 
-Start MothX as an HTTP server exposing a standard OpenAI Chat Completions API.
+Start MothX as a unified server exposing an OpenAI-compatible Chat Completions API, Web UI, and optional WeChat/Feishu/WebSocket messaging channels.
 
 ```
-mothx gateway [flags]
+mothx serve [flags]
 ```
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--port` | - | `8080` | Listen port (overrides gateway.json) |
-| `--config` | - | - | Path to gateway.json |
+| `--port` | - | `8080` | Listen port (overrides serve.json) |
+| `--config` | - | - | Path to serve.json |
 | `--work-dir` | - | Current directory | Default working directory |
 | `--provider` | `-p` | From config | LLM provider |
 | `--model` | `-m` | From config | Model ID |
@@ -121,27 +121,16 @@ mothx gateway [flags]
 | `--multi-agent` | - | false | Enable multi-agent tools |
 | `--delegate` | - | false | Enable delegation mode |
 | `--workflows` | - | false | Enable Elisp workflow tools |
+| `--lobster` | - | false | Enable yolo mode, disable sandbox, and enable sub-agents |
 | `--verbose` | - | false | Verbose output |
 | `--debug` | - | false | Debug logging and local pprof |
 
-See [Gateway Mode](gateway.md) documentation for details.
-
-### `hermes` - Messaging Gateway
-
-Run the Hermes messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
-
-```
-mothx hermes [command]
-```
-
 | Subcommand | Description |
 |------------|-------------|
-| `start` | Start Hermes server |
-| `client` | Connect as a remote TUI client via WebSocket |
-| `--init-hermes-config` | Create `hermes.json` config template |
+| `init-config [global|project]` | Create `serve.json` config template |
 | `--force` | Force overwrite existing config file |
 
-See [Hermes Mode](hermes.md) documentation for details.
+See [Serve Mode](serve.md) documentation for details.
 
 ### `stats` - Usage Statistics
 
@@ -199,7 +188,7 @@ mothx systeminit ask me in Chinese, write in English
 
 Checks performed:
 - **Environment**: OS/arch, Go version, shell, home/working directory
-- **Configuration Files**: Validates settings, gateway, and MCP config files with parse checks
+- **Configuration Files**: Validates settings, serve, and MCP config files with parse checks
 - **Providers & Models**: Lists configured providers with masked API keys, models with context window/max tokens/reasoning flags; verifies default provider initialization
 - **Sandbox**: Checks bubblewrap availability and version
 - **MCP Servers**: Lists configured MCP servers
@@ -300,13 +289,13 @@ mothx --delegate
 # ACP sessions can also opt in
 mothx acp --delegate
 
-# Gateway can opt in
-mothx gateway --delegate
+# Serve can opt in
+mothx serve --delegate
 ```
 
 Delegate mode registers the `delegate_subagent` tool for synchronous, blocking sub-agent delegation. Unlike multi-agent (which runs async sub-agents in parallel), delegate mode runs one sub-agent at a time and waits for completion. Use it for bounded investigation tasks where the parent only needs a summarized result.
 
-You can toggle delegation at runtime via `/delegate [on|off|status]` in TUI or gateway slash commands.
+You can toggle delegation at runtime via `/delegate [on|off|status]` in TUI or serve slash commands.
 
 ### Thinking Levels
 

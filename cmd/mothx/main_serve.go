@@ -60,7 +60,7 @@ func registerServeFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	fs.StringVar(&flags.servePort, "port", "", "Listen port (default: from serve.json or 8080)")
 	fs.StringVar(&flags.serveConfig, "config", "", "Path to serve.json")
 	fs.StringVar(&flags.serveWebUIDir, "web-ui-dir", "", "Directory containing built Serve Web UI assets")
-	fs.StringVar(&flags.gatewayWorkDir, "work-dir", "", "Default working directory")
+	fs.StringVar(&flags.workDir, "work-dir", "", "Default working directory")
 	fs.StringVarP(&flags.provider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
 	fs.StringVarP(&flags.model, "model", "m", "", "Model ID")
 	fs.BoolVar(&flags.sandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
@@ -79,7 +79,7 @@ func (f *cliFlags) serveOptions() serve.RunOptions {
 		WebUIDir:   f.serveWebUIDir,
 		Provider:   f.provider,
 		Model:      f.model,
-		WorkDir:    f.gatewayWorkDir,
+		WorkDir:    f.workDir,
 		Sandbox:    f.sandbox,
 		MultiAgent: f.multiAgent,
 		Delegate:   f.delegate,

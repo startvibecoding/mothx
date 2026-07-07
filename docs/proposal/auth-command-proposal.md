@@ -30,7 +30,7 @@
 - 第一阶段不实现 OAuth / 浏览器登录，只支持 API token 输入。
 - 不改变 provider factory 的字段含义和现有 provider 创建逻辑。
 - 不实现跨平台系统 keychain 存储；token 仍写入 `settings.json` 或以 `${ENV}` 引用形式保存。
-- 不强制 Gateway / Hermes / ACP 暴露 `/auth`。第一阶段仅 TUI。
+- 不强制 Serve / ACP 暴露 `/auth`。第一阶段仅 TUI。
 - 不自动联网拉取模型列表。推荐模型可以来自内置配置，用户也可手动输入。
 
 ## 4. 用户体验

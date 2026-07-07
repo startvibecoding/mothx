@@ -125,11 +125,11 @@ mothx -M yolo
 
 ## 网络服务加固
 
-Gateway、Hermes 和 A2A 都可能暴露 HTTP/WebSocket 入口。当工具运行在 `agent` 或 `yolo` 模式时，应将这些服务视为远程代码执行入口来保护。
+Serve、Channels 和 A2A 都可能暴露 HTTP/WebSocket 入口。当工具运行在 `agent` 或 `yolo` 模式时，应将这些服务视为远程代码执行入口来保护。
 
-- **Gateway**：对 loopback 以外地址暴露前应启用 `auth.enabled`；当 Gateway 在非 loopback 地址、`yolo` 模式且未认证时，启动会输出警告。
+- **Serve**：对 loopback 以外地址暴露前应启用 `auth.enabled`；当 Serve 在非 loopback 地址、`yolo` 模式且未认证时，启动会输出警告。
 - **A2A**：独立 A2A 默认绑定 `127.0.0.1`。只有明确需要对外暴露时才使用 `--host 0.0.0.0`，并配置 auth token。
-- **Hermes WebSocket**：WebSocket 握手时使用 `Authorization: Bearer <token>` 发送 token。Query-string token 仅作为兼容方式保留。
+- **Channels WebSocket**：WebSocket 握手时使用 `Authorization: Bearer <token>` 发送 token。Query-string token 仅作为兼容方式保留。
 - **工作目录**：使用 `allowedWorkDirs` / `allowed_work_dirs` 限制请求级或平台级工作目录。
 
 ## 可信配置中的 Shell 命令

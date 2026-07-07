@@ -167,7 +167,7 @@ TUI-only status line command configuration. When enabled, MothX sends the curren
 
 If it is disabled, not configured, still on its first run, times out, fails, or returns empty output, the TUI keeps the current built-in footer.
 
-Other modes ignore this setting entirely, including Gateway, Hermes, ACP, and print mode.
+Other modes ignore this setting entirely, including Serve, Channels, ACP, and print mode.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -718,7 +718,7 @@ Sandbox configuration for secure command execution. Uses [bubblewrap (bwrap)](ht
 
 Directory for SQLite session storage. Supports `~` expansion.
 
-MothX stores all session metadata and entries in a single, unified `sessions.db` database file under `sessionDir` (using virtual handles for CLI/TUI, and creating physical handles as needed for Hermes). See [Session Management](sessions.md) for the layout.
+MothX stores all session metadata and entries in a single, unified `sessions.db` database file under `sessionDir` (using virtual handles for CLI/TUI, and creating physical handles as needed for Channels). See [Session Management](sessions.md) for the layout.
 
 | Platform | Default |
 |----------|---------|

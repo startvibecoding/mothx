@@ -35,7 +35,7 @@ Claude Code 通过 `statusLine` 设置支持自定义底部状态行。它的核
 - 未配置或未启用外部 status line command 时，输入框下方继续显示当前默认 footer，行为和视觉都保持不变。
 - 复用 Claude `statusLine` 对象形态，让现有 `ccstatusline` 命令、配置文件、文档和示例尽量少改或无需修改。
 - 保持现有 TUI 行为：transcript scrollback、输入框、approval、question prompt、tool modal、`/btw`、multi-agent tab bar、compact mode、context/cache 显示都不应被破坏。
-- 功能范围严格限定为交互式 TUI。Gateway、Hermes、ACP、print mode、systeminit 等其他入口都不需要该功能，也不应加载、注册或执行 status line command。
+- 功能范围严格限定为交互式 TUI。Serve、ACP、print mode、systeminit 等其他入口都不需要该功能，也不应加载、注册或执行 status line command。
 
 ## 非目标
 
@@ -43,7 +43,7 @@ Claude Code 通过 `statusLine` 设置支持自定义底部状态行。它的核
 - 构建期不依赖 Node.js、Bun、`npx` 或 `ccstatusline`。
 - 不改变 provider/session 现有配置语义。
 - 首阶段不追求所有 Claude 专属 widgets 完全准确。Claude account、Claude rate limits、voice status、Claude hook 派生的 skills 可以为空或 best-effort。
-- 不在任何非 TUI 模式中暴露 status line command 执行能力，包括 Hermes/Gateway 这类无人值守入口，以及 ACP/print mode 这类非交互入口。
+- 不在任何非 TUI 模式中暴露 status line command 执行能力，包括 Serve 这类无人值守入口，以及 ACP/print mode 这类非交互入口。
 
 ## 当前项目适配点
 

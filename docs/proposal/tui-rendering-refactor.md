@@ -117,5 +117,3 @@ output into the viewport. The second phase replaced custom wrapping with
   content instead.
 - Transcript scroll behavior must preserve user offset while still pinning to
   bottom during normal streaming.
-- Remote TUI duplicates much of the local TUI code, so changes must stay in
-  sync until the duplicate code is consolidated.

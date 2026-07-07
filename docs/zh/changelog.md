@@ -7,16 +7,16 @@
 
 - **统一 Serve 模式与 Web UI**
   - 新增 `mothx serve` CLI 命令，启动统一服务器，同时提供 OpenAI 兼容 API、Web UI 管理面板和消息通道（微信/飞书）。
-  - 新增 `internal/serve/` 包，统一管理 Gateway、Hermes 通道和 Web UI 的配置与运行时。
-  - 配置文件 `serve.json`（全局 `~/.mothx/serve.json`，项目 `.mothx/serve.json`），支持 Gateway、通道、Web UI、Cron、Memory、Security、Hooks 和 Agent 配置。
+  - 新增 `internal/serve/` 包，统一管理 Serve、Channels 通道和 Web UI 的配置与运行时。
+  - 配置文件 `serve.json`（全局 `~/.mothx/serve.json`，项目 `.mothx/serve.json`），支持 Serve、通道、Web UI、Cron、Memory、Security、Hooks 和 Agent 配置。
   - 内置 Svelte Web UI 面板，采用 Dark 主题，提供健康检查、通道状态、配置编辑、设置编辑和聊天界面（支持 SSE 流式输出）。
   - Web UI 新增完整管理 API：`/api/status`、`/api/sessions`、`/api/cron`、`/api/memory` 和 `/ws/logs` 实时日志流。
-  - WebSocket 网关挂载到 `/ws`，复用 Hermes 事件协议实现实时通信。
+  - WebSocket 网关挂载到 `/ws`，复用 Channels 事件协议实现实时通信。
   - Cron API 支持 CRUD 操作并与调度器联动。
-  - Gateway SessionPool 新增 List/Delete 管理接口。
+  - Serve SessionPool 新增 List/Delete 管理接口。
   - 新增 `--web-ui-dir` CLI 标志，可覆盖 Web UI 静态资源目录。
   - 新增 Lobster 模式（`--lobster`），自动启用 yolo 模式、禁用沙箱、开启子 Agent。
-  - Gateway 新增 `ExtraRoutes` 钩子，支持 Serve 模式注入自定义 API 路由（`/api/serve/config`、`/api/settings`、`/api/channels`）。
+  - Serve 新增 `ExtraRoutes` 钩子，支持 Serve 模式注入自定义 API 路由（`/api/serve/config`、`/api/settings`、`/api/channels`）。
 
 - **新增厂商支持**
   - 新增华为云厂商（`huawei`、`huawei-plan`），共 13 个模型，包含标准版和 Plan 推理模式。
@@ -181,7 +181,7 @@
 
 ### ✨ 新功能
 
-- **Gateway 多工作区会话隔离**
+- **Serve 多工作区会话隔离**
   - HTTP 网关的默认会话（x_session_id 为空时）改为按工作目录（`workDir`）进行隔离，不再共享全局唯一的默认会话，从而防止不同工作区的客户端混用会话上下文。
   - 新增 `OpenByIDExact` 接口，支持忽略当前工作目录限制、直接通过精确会话 UUID 加载并重建会话元数据。
   - 网关内增加了并发会话创建序列化锁，防止客户端并发高频调用时创建出重复的会话。
@@ -293,11 +293,11 @@
 
 - **SQLite 会话存储**
   - 新增和恢复会话统一使用 SQLite（`modernc.org/sqlite`），提升查询性能和元数据管理能力。
-  - 对于 CLI 和 Gateway，所有会话的元数据和条目日志均存储在单个统一的 `sessions.db` 数据库文件中，列表/切换/删除时使用虚拟的 `.db` 路径句柄；只有 Hermes 会在用户目录下写入物理的会话句柄文件（如 `active.db` 与归档的 `*_corrupt.db`）。
+  - 对于 CLI 和 Serve，所有会话的元数据和条目日志均存储在单个统一的 `sessions.db` 数据库文件中，列表/切换/删除时使用虚拟的 `.db` 路径句柄；只有 Channels 会在用户目录下写入物理的会话句柄文件（如 `active.db` 与归档的 `*_corrupt.db`）。
   - `OpenByID` 和 `OpenByPathOrID` 新增快速精确/前缀匹配，支持歧义检测，并可直接基于统一 SQLite 数据库还原会话结构。
   - ACP 历史重放现在会在加载存储对话历史时流式传输工具执行事件（`toolCall`/`toolResult`）。
-  - `DeleteSession` 清理 SQLite 中的会话与条目记录，并在物理句柄文件存在时（如 Hermes）将其删除，同时拒绝将共享的 `sessions.db` 作为会话句柄删除。
-  - Hermes 现在使用 `active.db` 会话物理句柄，损坏会话归档为 `*_corrupt.db`，并移除旧版 `active.jsonl` fallback。
+  - `DeleteSession` 清理 SQLite 中的会话与条目记录，并在物理句柄文件存在时（如 Channels）将其删除，同时拒绝将共享的 `sessions.db` 作为会话句柄删除。
+  - Channels 现在使用 `active.db` 会话物理句柄，损坏会话归档为 `*_corrupt.db`，并移除旧版 `active.jsonl` fallback。
   - 移除旧版 JSONL 加载/写入路径，新增和恢复会话仅使用 SQLite。
 
 ### 🐛 Bug 修复
@@ -327,7 +327,7 @@
 
 ### 📚 文档
 
-- 更新会话文档、CLI 示例、FAQ 清理建议、架构图、Hermes 文档和 README 功能摘要，说明 SQLite 存储、`.db` 句柄文件和 Hermes `active.db` 会话。
+- 更新会话文档、CLI 示例、FAQ 清理建议、架构图、Channels 文档和 README 功能摘要，说明 SQLite 存储、`.db` 句柄文件和 Channels `active.db` 会话。
 - 新增内置火山引擎/豆包 provider 配置文档，并刷新 provider 适配器列表，加入火山引擎、Mistral、GitHub Copilot、Cloudflare 和 Amazon Bedrock。
 
 ### 💅 优化
@@ -434,7 +434,7 @@
   - 将 lint 工具与 workflow run/status/cancel 工具一起注册，并更新 workflow prompt 指引：非平凡的生成或修改后 workflow 应先 lint 再执行。
 
 - **可配置上下文压缩**
-  - 新增 `tokenizer`、`tokenizerModel` 和 `template` 压缩配置，并贯通 CLI、print 模式、ACP、Gateway、Hermes、TUI 模式切换和 delegate agent factory。
+  - 新增 `tokenizer`、`tokenizerModel` 和 `template` 压缩配置，并贯通 CLI、print 模式、ACP、Serve、Channels、TUI 模式切换和 delegate agent factory。
   - 新增内置压缩摘要模板：`default`、`code` 和 `conversation`，长会话可按任务类型保留更合适的 checkpoint。
   - 引入 token 估算器抽象，同时保持 `auto` 和 `generic` 使用现有 chars/4 通用估算器。
   - Compaction entry 现在记录 summary version、previous compaction ID 和 last summarized entry ID，便于 session replay 与调试。
@@ -472,7 +472,7 @@
 
 - 新增 workflow runner、lint、集成和 skill 覆盖，验证 keyed 重复 agent 和 keyed result 查询。
 - 新增 context compaction 测试，覆盖自定义 token estimator、模板解析、配置化摘要 prompt、compaction metadata、可压缩性检查，以及 session replay usage 清理。
-- 新增 Gateway 和 Hermes 测试覆盖 `/compact` 在只剩近期上下文可保留时的行为。
+- 新增 Serve 和 Channels 测试覆盖 `/compact` 在只剩近期上下文可保留时的行为。
 - 新增 workflow lint 测试，覆盖有效 source 收集和缺失 result 引用错误。
 - 新增 workflow 集成测试，验证 DSL agent 名称会反映到运行时 worker agent ID。
 - 新增文件锁测试，覆盖等待/取消行为、默认管理器共享，以及 `write`/`edit` 的 context 处理。
@@ -500,8 +500,8 @@
 
 ### 🔧 重构
 
-- **Gateway Session 级 Skills 支持**
-  - Gateway session 现在支持独立的 `SkillsMgr` 和 `ExtraContext`，使 delegate 子 Agent 继承 session 级状态。
+- **Serve Session 级 Skills 支持**
+  - Serve session 现在支持独立的 `SkillsMgr` 和 `ExtraContext`，使 delegate 子 Agent 继承 session 级状态。
   - `/skill` 和 `/skills` 命令改为操作 session 级 skills，而非全局 server 级。
 
 - **System Prompt 精简**
@@ -533,10 +533,10 @@
 ### ✨ 新功能
 
 - **Dynamic Workflows**
-  - 新增独立 `--workflows` 模式，支持 CLI、ACP 和 Gateway，不依赖 `--multi-agent`。
+  - 新增独立 `--workflows` 模式，支持 CLI、ACP 和 Serve，不依赖 `--multi-agent`。
   - 新增 Elisp workflow 工具：`workflow_run`、`workflow_status` 和 `workflow_cancel`。
   - Workflow runtime 支持 phase、series/parallel 执行、并发限制、worker agent 任务、结果汇总和运行日志。
-  - 新增 workflow run 状态持久化，并在 TUI 与 Gateway 中提供 `/workflows` 状态命令。
+  - 新增 workflow run 状态持久化，并在 TUI 与 Serve 中提供 `/workflows` 状态命令。
   - 新增进程内 active run 取消能力，`workflow_cancel` 和 `/workflows cancel <id>` 可中断运行中的 workflow。
 
 - **Z.AI 供应商适配器**
@@ -685,14 +685,14 @@
 ### ✨ 新功能
 
 - **GoStreamingMarkdown 渲染器**
-  - 将 print 模式、本地 TUI 和 Hermes 远程 TUI 的 Markdown 渲染从 Glamour 替换为 `github.com/startvibecoding/GoStreamingMarkdown`（`gsm`）。
+  - 将 print 模式、本地 TUI 和 Channels 远程 TUI 的 Markdown 渲染从 Glamour 替换为 `github.com/startvibecoding/GoStreamingMarkdown`（`gsm`）。
   - 移除本地模块替换，改为直接依赖远程 `github.com/startvibecoding/GoStreamingMarkdown` 模块。
 
 - **Delegate 模式（阻塞式单子 Agent 委托）**
   - 新增 `delegate_subagent` 工具：同步运行一个子 Agent，等待其完成并返回摘要结果，同时限制同一时间只能运行一个 delegate。
-  - Root、ACP、Gateway 命令新增 `--delegate` CLI 参数。
-  - TUI 与 Gateway 新增 `/delegate [on|off|status]` 斜杠命令。
-  - Gateway 配置（`gateway.json`）新增 `enableDelegate` 选项。
+  - Root、ACP、Serve 命令新增 `--delegate` CLI 参数。
+  - TUI 与 Serve 新增 `/delegate [on|off|status]` 斜杠命令。
+  - Serve 配置（`serve.json`）新增 `enableDelegate` 选项。
   - System prompt 新增专门的 **Delegation Mode** 章节，包含上下文成本启发式、正反示例和结果解读指南。
   - 新增 `AgentFactoryOptions.DelegateEnabled`，便于程序化启用。
   - 子 Agent system prompt 现在使用结构化汇报格式（`Result`、`Evidence`、`Changes`、`Risks`），并补充负向搜索结果、测试执行和简洁性的说明。
@@ -735,7 +735,7 @@
 - **会话压缩重放状态持久化**
   - 会话现在会持久化压缩重放状态（`ReplayState`），压缩后的会话可以在重启后正确恢复。
   - `LoadHistoryState` / `GetHistoryState` 跟踪每条消息的 Session Entry ID，使压缩边界（`firstKeptEntryID`）在会话重载后不会丢失。
-  - Gateway 和 Hermes 现在使用 `LoadHistoryState` 替代 `LoadHistoryMessages`，确保压缩后的会话重放准确。
+  - Serve 和 Channels 现在使用 `LoadHistoryState` 替代 `LoadHistoryMessages`，确保压缩后的会话重放准确。
   - TUI 在手动压缩期间阻塞用户输入，将 `agentStartMsg`/`compactionStartMsg` 合并为统一的 `agentStreamStartMsg`。
 
 
@@ -776,11 +776,11 @@
 ### ✨ 新功能
 
 - **自定义 Provider 模型自动回退（Fallback）**
-  - 当显式指定了自定义 Provider（通过 CLI、Gateway 或 Hermes）但没有指定 Model ID 时，Factory 现在会自动回退并使用该 Provider 下的**首个可用模型**，而不是错误地采用 `settings.DefaultModel`（默认模型通常属于默认 Provider）。
+  - 当显式指定了自定义 Provider（通过 CLI、Serve 或 Channels）但没有指定 Model ID 时，Factory 现在会自动回退并使用该 Provider 下的**首个可用模型**，而不是错误地采用 `settings.DefaultModel`（默认模型通常属于默认 Provider）。
   - 避免了在使用非默认 Provider 且未指定具体模型时，因加载了不匹配的全局默认模型而导致“未找到模型”的错误。
 
-- **Hermes 默认配置解析优化**
-  - 优化了 Hermes 的 `GetDefaultModel` 逻辑：当 `hermes.json` 中配置了 `DefaultProvider` 但 `DefaultModel` 留空时，系统现在能正确返回空字符串，从而触发上述自定义 Provider 首选模型的回退逻辑，不再强行透传 `settings.json` 中的全局默认模型。
+- **Channels 默认配置解析优化**
+  - 优化了 Channels 的 `GetDefaultModel` 逻辑：当 `serve.json` 中配置了 `DefaultProvider` 但 `DefaultModel` 留空时，系统现在能正确返回空字符串，从而触发上述自定义 Provider 首选模型的回退逻辑，不再强行透传 `settings.json` 中的全局默认模型。
 
 - **完善公开的 Agent SDK 包与示例代码**
   - 完整补全了公开 `agent` 包与底层实现之间的流事件字段桥接映射（支持 `Messages`、`TurnMessage`、`TurnToolResults`、`Message`、`ToolCall`、`ToolDiff`、`ToolError`、`PartialResult`、`Plan`、`Usage` 和 `ContextUsage`）。
@@ -791,7 +791,7 @@
 ### 🧪 测试
 
 - 在 `internal/provider/factory_test.go` 中新增 `TestCreateFallbackToFirstModel` 测试，覆盖当模型 ID 为空时，自定义 Provider 和内置 Provider 自动回退到其首选模型的行为。
-- 在 `internal/hermes/config_test.go` 中新增针对 `GetDefaultModel` 方法的测试用例，覆盖 Hermes 配置中仅指定 `DefaultProvider` 时的行为。
+- 在 `internal/serve/channels/config_test.go` 中新增针对 `GetDefaultModel` 方法的测试用例，覆盖 Channels 配置中仅指定 `DefaultProvider` 时的行为。
 
 ---
 
@@ -821,7 +821,7 @@
 - **Doctor 子命令** (`mothx doctor`)
   - 新增诊断命令，检查环境、配置、Provider、沙箱、MCP 服务器、Session、技能和上下文文件
   - 报告 OS/架构、Go 版本、Shell、Home/工作目录
-  - 校验 settings、gateway 和 MCP 配置文件，带解析检查
+  - 校验 settings、serve 和 MCP 配置文件，带解析检查
   - 列出已配置的 Provider（API key 脱敏显示）、模型及其上下文窗口/最大 token/推理标志
   - 检查 bwrap 沙箱可用性和版本
   - 展示 MCP 服务器、Session 数量、技能目录和已发现的上下文文件
@@ -846,7 +846,7 @@
 
 - **Context Pressure 阈值比较**
   - 修复 Context Pressure 阈值比较时单位不一致的 bug：`Percent`（0-100）与 `threshold`（0-1）直接比较，导致仅 ~0.5% 使用率就触发警告而非预期的 55%
-  - 修复 `InitHermesConfig` 项目模板，显式写入 `context_pressure_threshold` 和 `budget_pressure_threshold` 默认值，避免序列化为 0 导致禁用
+  - 修复 `InitChannelsConfig` 项目模板，显式写入 `context_pressure_threshold` 和 `budget_pressure_threshold` 默认值，避免序列化为 0 导致禁用
 
 - **实时消息渲染**
   - 实时助手消息会将 fenced code block 按 Markdown 渲染，同时普通文本保留 plain-text wrapping 路径，避免中英文被异常拆词换行
@@ -855,7 +855,7 @@
   - 在 `ChatParams` 中传递 `ModelID`，让 Provider 知晓当前活跃模型
   - 将模型信息透传到 compaction/summary 生成，避免静默回退到默认模型
   - 模型未找到时返回错误并列出可用模型列表，不再静默回退
-  - 统一 factory、gateway 和 TUI 的模型错误提示
+  - 统一 factory、serve 和 TUI 的模型错误提示
 
 - **Google/OpenAI 工具结果文本提取**
   - 修复 Google 和 OpenAI Provider 在工具结果使用富 `Contents` 块而非纯 `Content` 字符串时发送空内容的问题
@@ -892,14 +892,14 @@
 
 ### ✨ 新功能
 
-- **Hermes 远程 TUI 客户端**
-  - 将纯文本 WebSocket 客户端替换为完整的 Bubble Tea TUI（`hermes client`）
+- **Channels 远程 TUI 客户端**
+  - 将纯文本 WebSocket 客户端替换为 serve WebSocket 通道的 Bubble Tea TUI
   - 通过 Glamour 实现 Markdown 渲染与语法高亮
   - 可滚动的工具详情 Modal（Ctrl+O）、审批提示（Enter/Esc）和 question 工具支持
   - Plan 更新展示、Context 压力/预算警告和请求计时器
   - 已完成消息输出到终端原生 scrollback
   - 支持斜杠命令（`/clear`、`/mode`、`/model`、`/compact`、`/help` 等）
-  - 新增 `internal/hermes/remotetui` 包：`app.go`、`render.go`、`input.go`、`remote.go`、`agent_events.go`、`approval.go`、`commands.go`、`formatters.go`、`tool_modal.go`、`events.go`
+  - 新增 `internal/serve/channels/remotetui` 包：`app.go`、`render.go`、`input.go`、`remote.go`、`agent_events.go`、`approval.go`、`commands.go`、`formatters.go`、`tool_modal.go`、`events.go`
 
 - **WebSocket 协议增强**
   - 新增 `question_request` / `question_response` 事件，支持 Plan 模式下通过 WebSocket 使用 question 工具
@@ -917,7 +917,7 @@
 
 ### 🧪 测试
 
-- 新增 WebSocket Gateway 服务器测试，覆盖连接、认证、聊天、审批、提问和命令流程
+- 新增 WebSocket Serve 服务器测试，覆盖连接、认证、聊天、审批、提问和命令流程
 
 ## v0.1.33
 
@@ -928,7 +928,7 @@
   - 优先级顺序：`.skills/` > `skills/` > 全局技能目录
   - 新增 `NewManagerWithProjectDirs` 构造函数，接受按优先级排列的项目目录列表
   - 新增 `ProjectSkillDirs` 辅助函数，返回标准项目技能目录列表
-  - 更新所有调用点：CLI、ACP、Gateway、Hermes
+  - 更新所有调用点：CLI、ACP、Serve、Channels
   - 新增多目录优先级和普通 `skills/` 目录加载的测试
 
 ## v0.1.32
@@ -940,8 +940,8 @@
   - `jobs` 工具：列出并查看通过 `bash async=true` 启动的后台任务，支持清理已完成任务
   - `kill` 工具：通过 Job ID 终止正在运行的后台任务
   - `question` 工具：Plan 模式下 AI 可向用户提出多选问题以澄清需求
-  - `memory` 工具（Hermes）：通过 `memory.md` 实现跨会话持久记忆，支持 read/add/update/delete 操作
-  - `cron` 工具（Hermes/多 Agent）：通过子 Agent 执行定时后台任务，支持 `@daily`、`@weekly`、`@every N` 调度及单次执行
+  - `memory` 工具（Channels）：通过 `memory.md` 实现跨会话持久记忆，支持 read/add/update/delete 操作
+  - `cron` 工具（Channels/多 Agent）：通过子 Agent 执行定时后台任务，支持 `@daily`、`@weekly`、`@every N` 调度及单次执行
   - MCP 动态工具：来自 MCP 服务器的 tools/resources/prompts 在会话中自动发现和注册
 
 - **Plan 模式提问工具**
@@ -955,15 +955,15 @@
 - **Bash 工具输出安全**
   - 同步 bash 模式新增 1GB 输出限制，使用 `limitedBuffer` 防止无界 `bytes.Buffer` 导致 OOM
 
-- **Hermes `/compact` 命令**
-  - 实现 Hermes 消息模式下的 `/compact` 斜杠命令（之前是 TODO 桩）
+- **Channels `/compact` 命令**
+  - 实现 Channels 消息模式下的 `/compact` 斜杠命令（之前是 TODO 桩）
   - 在 session 上设置 `ForceCompact` 标志，下次 agent 运行时消费以触发上下文压缩
 
 - **Session 持久性**
   - `writeEntry` 写入后调用 `f.Sync()`，保证崩溃或断电后数据不丢失
   - 损坏的 session 行现在记录为 warning 并跳过，不再阻止 session 加载
 
-- **Hermes 审批竞态修复**
+- **Channels 审批竞态修复**
   - `ResolveApproval` 使用 `select` 发送，避免超时与审批竞态时写入已消费的 channel
 
 - **子代理 Panic 日志**
@@ -1015,12 +1015,12 @@
 - **路径与 Session 安全**
   - 路径包含校验改为使用路径边界，而不是字符串前缀匹配
   - 禁止 context `extraFiles` 逃逸工作目录
-  - 对 Hermes session 路径组件进行安全编码，并在创建 session 时强制校验 `allowed_work_dirs`
+  - 对 Channels session 路径组件进行安全编码，并在创建 session 时强制校验 `allowed_work_dirs`
   - 限制 session 删除只能删除配置 session 目录下的 `.db` 文件
 
 - **认证、审批与资源限制**
-  - Hermes HTTP/WebSocket token 校验改为常量时间比较
-  - Hermes WebSocket 客户端改为通过 `Authorization: Bearer ...` 发送认证信息，不再放入 query string
+  - Channels HTTP/WebSocket token 校验改为常量时间比较
+  - Channels WebSocket 客户端改为通过 `Authorization: Bearer ...` 发送认证信息，不再放入 query string
   - ACP 权限请求超时后清理 pending 状态，并向调用方传播写入错误
   - 为 ACP、read 工具图片文件、微信响应和 cron A2A 响应增加大小限制
   - 为 cron A2A HTTP 请求增加超时
@@ -1028,25 +1028,25 @@
 - **Memory、Context 与并发**
   - 为 memory store 操作增加锁
   - 修复 `memory.WriteAll()` 路径处理，并将 memory update/delete 限制在指定 section 内
-  - Gateway 在请求级 `temperature`/`top_p` 覆盖前克隆模型配置
+  - Serve 在请求级 `temperature`/`top_p` 覆盖前克隆模型配置
   - Agent callback 使用 context/message 快照，避免共享引用
   - Cron job 状态变更通过 job store 串行化
 
-- **配置与 Gateway 加固**
+- **配置与 Serve 加固**
   - `!command` API key 解析现在必须显式设置 `VIBECODING_ALLOW_SHELL_CONFIG=1`
-  - 修复 Gateway CORS，使其只回显被允许的请求 origin
-  - Gateway 在非 loopback 监听、`yolo` 模式且未开启认证时输出启动警告
+  - 修复 Serve CORS，使其只回显被允许的请求 origin
+  - Serve 在非 loopback 监听、`yolo` 模式且未开启认证时输出启动警告
   - 加固 platform home/shell fallback 行为
 
 ### 🧪 测试
 
 - 增加 A2A 认证、task ID 唯一性、task 快照隔离和 working task message 持久化回归测试
 - 增加路径逃逸、危险 session ID、memory section 操作、ACP 清理、CORS、UTF-8 截断和 shell-config opt-in 测试
-- 已运行聚焦包测试，以及 A2A、agent、gateway、cron 的 race 测试
+- 已运行聚焦包测试，以及 A2A、agent、serve、cron 的 race 测试
 
 ### 📝 文档
 
-- 更新 A2A、Hermes、Gateway、配置和安全文档，说明新的认证和加固行为
+- 更新 A2A、Channels、Serve、配置和安全文档，说明新的认证和加固行为
 
 ## v0.1.30
 
@@ -1107,7 +1107,7 @@
   - 为 `ModelConfig` 和 `Model` 新增 `temperature` 和 `top_p` 字段，支持逐模型参数调优
   - 在 OpenAI 和 Anthropic 提供商中打通，使用 `omitempty` — `nil` 表示使用 API 默认值
   - 在 provider factory、agent loop、ACP 模式中打通
-  - Gateway 模式支持请求级 `temperature`/`top_p` 覆盖（通过 `ChatParams`）
+  - Serve 模式支持请求级 `temperature`/`top_p` 覆盖（通过 `ChatParams`）
   - 未配置时完全省略参数（不会向 API 发送零值）
 
 - **OpenAI Responses API 支持**
@@ -1129,7 +1129,7 @@
 
 ### ✨ 新功能
 
-- **Hermes 模式** (`mothx hermes`)
+- **Serve 模式** (`mothx serve`)
   - 新增消息平台网关模式，支持微信、飞书和 WebSocket
   - 持久化 per-user session，`/new` 时自动归档
   - 默认 `yolo` 模式，适合无人值守场景
@@ -1140,7 +1140,6 @@
 - **A2A 协议** (`mothx a2a`)
   - 新增 Agent-to-Agent 协议服务器（JSON-RPC 2.0 over HTTP + SSE 流式）
   - 独立模式：`mothx a2a start`（端口 8093）
-  - 集成模式：`hermes.json` 中 `a2a.enabled: true`，共享 hermes HTTP 端口
   - Agent Card：`/.well-known/agent.json`
   - Task 生命周期：submitted → working → completed/failed/canceled
   - REST 端点：`/a2a/send`、`/a2a/task`、`/a2a/task/cancel`、`/a2a/events`
@@ -1157,20 +1156,20 @@
 
 - **A2A 配置初始化**
   - `mothx a2a --init-a2a-config` 生成 `a2a.json` 配置模板
-  - `mothx --init-gateway` 生成 `gateway.json` 配置模板（已有）
+  - `mothx --init-serve` 生成 `serve.json` 配置模板（已有）
   - `mothx --init-a2a-master-config` 生成 `a2a-list.json` 配置模板
   - 所有 `--init-*` 支持 `--force` 覆盖已存在的文件
 
 - **场景演示文档**
   - 新增 `docs/scenarios.md`（中英文），覆盖 9 种实际使用场景
   - 涵盖：日常编码、CI 集成、多 Agent、VS Code ACP、A2A 服务器、
-    A2A Master 跨机器调度、Gateway HTTP 网关、Hermes 消息平台、组合模式
+    A2A Master 跨机器调度、Serve HTTP 网关、Channels 消息平台、组合模式
 
 - **文档全面更新**
-  - `architecture.md`：补全全部模块（a2a/acp/gateway/hermes/mcp/memory/messaging/vendored）
+  - `architecture.md`：补全全部模块（a2a/acp/serve/mcp/memory/messaging/vendored）
   - `tools.md`：新增 `a2a_dispatch` 和 `skill_ref` 工具文档
   - `cli-reference.md`：新增 `--enable-a2a-master`、`--init-a2a-master-config`、
-    `--init-gateway`、`--force`、`a2a` 子命令文档
+    `--init-serve`、`--force`、`a2a` 子命令文档
   - `README.md`：架构图补全、新增运行模式总览
 
 - **压力系统**
@@ -1187,20 +1186,20 @@
   - 命令风险分类：基于 bash 命令模式的 low/medium/high 分级
 
 - **Provider/Model 配置**
-  - `hermes.json` 新增 `default_provider` / `default_model`（覆盖 `settings.json`）
-  - `hermes start` 新增 `-p`/`--provider` 和 `-m`/`--model` CLI 标志
-  - 优先级：CLI 标志 > `hermes.json` > `settings.json`
+  - `serve.json` 新增 `default_provider` / `default_model`（覆盖 `settings.json`）
+  - `mothx serve` 新增 `-p`/`--provider` 和 `-m`/`--model` CLI 标志
+  - 优先级：CLI 标志 > `serve.json` > `settings.json`
 
 - **多 Agent 模式** (`--multi-agent`)
   - 启用子 Agent 工具（spawn/status/send/destroy）
-  - 通过 `hermes.json` 的 `multi_agent` 字段或 `--multi-agent` CLI 标志配置
+  - 通过 `serve.json` 的 `multi_agent` 字段或 `--multi-agent` CLI 标志配置
 
 - **Sandbox 模式** (`--sandbox`)
   - 可选 bwrap 沙箱隔离（默认关闭）
-  - 通过 `hermes.json` 的 `sandbox` 字段或 `--sandbox` CLI 标志配置
+  - 通过 `serve.json` 的 `sandbox` 字段或 `--sandbox` CLI 标志配置
 
 - **MCP 工具继承**
-  - Hermes 自动加载全局/项目 `mcp.json` 中的 MCP 服务器
+  - Channels 自动加载全局/项目 `mcp.json` 中的 MCP 服务器
   - MCP 工具按 session 注册，session 移除时自动关闭连接
 
 - **消息平台进度事件推送**
@@ -1215,18 +1214,10 @@
   - 查找优先级：`memory.path` 配置 → `.vibe/memory.md` → `<GLOBAL_DIR>/memory.md`
   - `/api/memory` HTTP 端点（GET/PUT）用于 memory 访问
 
-- **Hermes CLI 命令**
-  - `hermes start` — 启动守护进程（支持所有 CLI 标志）
-  - `hermes stop` — 通过 PID 文件 + SIGTERM 停止守护进程
-  - `hermes status` — 通过 PID + HTTP health 检查守护进程状态
-  - `hermes client` — WebSocket 客户端（流式输出 + 斜杠命令）
-  - `hermes config init/show` — 配置管理
-  - `hermes wechat login/status` — 微信 iLink 管理
-  - `hermes feishu setup/status` — 飞书配置
-  - `hermes webhook list` — webhook 路由查看
-  - `hermes memory show/clear` — memory 管理
-  - `hermes sessions list` — 活跃 session 列表（查询运行实例）
-  - `hermes cron list/add/remove/enable/disable` — 定时任务管理
+- **Serve 通道管理**
+  - `mothx serve` — 启动统一 API、Web UI 和消息通道运行时
+  - `mothx serve init-config` — 生成 `serve.json`
+  - Web UI 和 serve API 管理通道状态、会话、memory、webhook 和 cron 任务
   - `a2a start/stop/status/card` — A2A 服务器管理
 
 ### 📝 变更
@@ -1236,7 +1227,7 @@
 - Shell Hooks 支持 pre/post tool call 外部脚本（JSON stdin/stdout）
 - Webhook 入站路由，支持 HMAC-SHA256 签名验证
 - WebSocket 使用 `golang.org/x/net/websocket`（标准库兼容）
-- 基于 PID 文件的守护进程管理（hermes stop/status）
+- Serve 运行时进程生命周期管理
 
 ### 🐛 问题修复
 
@@ -1246,7 +1237,7 @@
     与 `scripts/build-npm-packages.sh` 复用，避免实现分叉。
   - 调整 `npm/.npmignore` 与 `npm/bin` 的处理方式，避免误打包非发布文件，并通过 `files` 字段显式声明要发布内容。
 
-- **Hermes Webhook 投递与过滤**
+- **Channels Webhook 投递与过滤**
   - 当 webhook 路由无法识别事件类型时，除非显式允许 `*`，否则按不匹配处理。
   - 为 webhook 路由新增 `delivery_target`，让微信/飞书投递拥有明确接收者。
   - 路由列表和配置模板会在存在投递目标时一并展示。
@@ -1264,7 +1255,7 @@
 
 ### ✨ 新功能
 
-- **Gateway 模式** (`mothx gateway`)
+- **Serve 模式** (`mothx serve`)
   - 新增 HTTP 服务，对外暴露标准 OpenAI Chat Completions API (`/v1/chat/completions`、`/v1/models`、`/health`)
   - 任何兼容 OpenAI SDK 的客户端（Cursor、Continue、Open WebUI、Python SDK 等）可直接接入
   - 完整支持 Streaming (SSE) 和 Non-streaming 响应
@@ -1275,17 +1266,17 @@
   - 通过请求体中的 `x_session_id` 关联 session，未指定时自动创建
   - 可配置空闲超时 (`session.idleTimeoutSeconds`) 和最大 session 数 (`session.maxSessions`)
 
-- **Gateway Sub-Agent 支持**
-  - 可选 `enableSubAgents` 配置，在 gateway 模式下启用多 Agent 编排
+- **Serve Sub-Agent 支持**
+  - 可选 `enableSubAgents` 配置，在 serve 模式下启用多 Agent 编排
   - 复用现有 `AgentFactory` / `AgentManager` / 子Agent 工具，无需改动核心 agent 逻辑
 
 - **Bearer Token 认证**
-  - 通过 `gateway.json` 的 `auth.enabled` 和 `auth.tokens` 列表配置
+  - 通过 `serve.json` 的 `auth.enabled` 和 `auth.tokens` 列表配置
   - 默认关闭；`/health` 端点始终不需认证
 
 - **API 指令系统 (Slash Commands)**
   - `/clear`、`/mode`、`/model`、`/models`、`/sessions`、`/compact`、`/status`、`/skill`、`/skills`、`/help`
-  - 当最后一条用户消息以 `/` 开头时触发，在 gateway 层直接处理，不调用 LLM
+  - 当最后一条用户消息以 `/` 开头时触发，在 serve HTTP 层直接处理，不调用 LLM
   - 响应使用标准 OpenAI 格式，附加 `x_command` 扩展字段
 
 - **Tool 可见性配置** (`toolVisibility.mode`)
@@ -1301,14 +1292,14 @@
   - 请求级 `x_working_dir` 的目录白名单，支持路径分隔符感知的前缀匹配
   - 三层安全模型: L1 认证 + L2 目录管控 + L3 沙箱 (bwrap)
 
-- **Gateway Sandbox 支持**
-  - 通过 `gateway.json` 的 `sandbox.enabled` / `sandbox.level` 或 `--sandbox` flag 配置
+- **Serve Sandbox 支持**
+  - 通过 `serve.json` 的 `sandbox.enabled` / `sandbox.level` 或 `--sandbox` flag 配置
   - 细节配置（allowedRead、deniedPaths 等）继承 `settings.json`
 
-- **Gateway 配置文件** (`gateway.json`)
-  - 独立配置文件，位于 `~/.vibecoding/gateway.json`
+- **Serve 配置文件** (`serve.json`)
+  - 独立配置文件，位于 `~/.vibecoding/serve.json`
   - 覆盖: 监听地址、认证、模式、沙箱、工作目录、目录白名单、session 管理、CORS、tool 可见性、system prompt 策略、请求超时、并发限制、日志
-  - `mothx --init-gateway` 生成配置模板；`--force` 强制覆盖
+  - `mothx --init-serve` 生成配置模板；`--force` 强制覆盖
 
 - **请求超时与并发控制**
   - `requestTimeoutSeconds` (默认 1800s)；streaming 有数据流动不超时
@@ -1316,7 +1307,7 @@
 
 ### 📝 文档
 
-- 新增 `docs/gateway-proposal.md`，包含完整架构、API 设计、安全模型和实现计划
+- 新增 API 服务设计方案，包含完整架构、API 设计、安全模型和实现计划
 - 更新 `AGENTS.md` 版本标注
 
 ## v0.1.25

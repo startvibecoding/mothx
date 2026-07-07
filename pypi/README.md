@@ -162,15 +162,15 @@ Go to `Settings → Tools → ACP Agents` and add:
 - Command: `mothx`
 - Arguments: `acp --mode agent`
 
-## Gateway Mode
+## Serve Mode
 
-Run MothX as an OpenAI-compatible HTTP server:
+Run MothX as a unified OpenAI-compatible HTTP API, Web UI, and messaging server:
 
 ```bash
-mothx gateway
+mothx serve
 ```
 
-Config in `~/.mothx/gateway.json` or `.mothx/gateway.json`. Ideal for team sharing, CI/CD pipelines, and embedding into your own tools.
+Config in `~/.mothx/serve.json` or `.mothx/serve.json`. Ideal for team sharing, CI/CD pipelines, messaging channels, and embedding into your own tools.
 
 ## Multi-Agent Mode
 
@@ -188,15 +188,15 @@ For a single blocking investigation:
 mothx --delegate
 ```
 
-## Hermes / Messaging Mode
+## Messaging Channels
 
 Deploy MothX as a chatbot on WeChat, Feishu, or WebSocket:
 
 ```bash
-mothx hermes
+mothx serve
 ```
 
-Config in `~/.mothx/hermes.json`. Each user gets an independent, persistent session.
+Messaging channel config lives in `serve.json`. Each user gets an independent, persistent session.
 
 ## Keyboard Shortcuts
 

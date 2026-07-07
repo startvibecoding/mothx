@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  主打渐进式、敏捷开发体验的 MothX 工具，整体打包为单个文件，开箱即用，无需重复搭建部署 Claude Code 、 codex、Claw、Hermes 环境。
+  主打渐进式、敏捷开发体验的 MothX 工具，整体打包为单个文件，开箱即用，无需重复搭建部署 Claude Code 、 codex、Claw、Channels 环境。
 </p>
 
 <p align="center">
@@ -322,8 +322,7 @@ mothx/
 │   ├── context/           # 上下文管理和令牌估算
 │   ├── contextfiles/      # 上下文文件发现 (AGENTS.md, CLAUDE.md 等)
 │   ├── cron/              # 多 Agent 工作流的定时任务
-│   ├── gateway/           # OpenAI 兼容 HTTP 网关
-│   ├── hermes/            # 消息平台网关 (微信/飞书/WebSocket)
+│   ├── serve/             # 统一 OpenAI API、Web UI 和消息通道
 │   ├── mcp/               # MCP 服务器集成
 │   ├── memory/            # 持久化记忆 (memory.md)
 │   ├── messaging/         # 消息平台抽象
@@ -349,8 +348,8 @@ mothx/
 mothx                    # 交互式终端 (TUI)
 mothx -p "..."           # 非交互打印模式
 mothx acp                # ACP stdio 代理 (编辑器集成)
-mothx gateway            # OpenAI 兼容 HTTP 网关
-mothx hermes             # 消息平台网关 (微信/飞书/WebSocket)
+mothx serve            # OpenAI 兼容 HTTP 网关
+mothx serve             # 消息平台网关 (微信/飞书/WebSocket)
 mothx a2a start          # A2A 协议服务器 (独立模式)
 mothx --enable-a2a-master  # A2A Master 模式 (远程 agent 调度)
 ```

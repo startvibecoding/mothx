@@ -151,10 +151,10 @@ mothx -p "Generate test report from test results" > report.md
 ### Scenario 1: Team Sharing
 
 ```bash
-# Start gateway
-mothx gateway
+# Start serve
+mothx serve
 
-# Config file ~/.vibecoding/gateway.json
+# Config file ~/.vibecoding/serve.json
 {
   "port": 8080,
   "auth": {
@@ -191,13 +191,13 @@ version: '3'
 services:
   vibecoding-1:
     image: mothx
-    command: gateway
+    command: serve
     ports:
       - "8081:8080"
   
   vibecoding-2:
     image: mothx
-    command: gateway
+    command: serve
     ports:
       - "8082:8080"
   
@@ -216,10 +216,10 @@ services:
 ### Scenario 1: WeChat Bot
 
 ```bash
-# Start messaging gateway
-mothx hermes
+# Start messaging channels
+mothx serve
 
-# Config file ~/.vibecoding/hermes.json
+# Config file ~/.vibecoding/serve.json
 {
   "platform": "wechat",
   "appId": "your-app-id",
@@ -232,7 +232,7 @@ mothx hermes
 ### Scenario 2: Feishu Bot
 
 ```bash
-# Config file ~/.vibecoding/hermes.json
+# Config file ~/.vibecoding/serve.json
 {
   "platform": "feishu",
   "appId": "your-app-id",
@@ -245,7 +245,7 @@ mothx hermes
 ### Scenario 3: WebSocket
 
 ```bash
-# Config file ~/.vibecoding/hermes.json
+# Config file ~/.vibecoding/serve.json
 {
   "platform": "websocket",
   "port": 8080,
@@ -315,7 +315,7 @@ Use Workflow mode for structured multi-phase, verified complex task orchestratio
 mothx --workflows
 
 # Ask AI to run a security audit workflow
-> "Run a security audit on internal/gateway and internal/hermes, parallel scan then cross-verify"
+> "Run a security audit on internal/serve/openaiapi and internal/serve/channels, parallel scan then cross-verify"
 
 # AI automatically generates and executes an Elisp workflow like:
 # - phase 1: parallel scan of multiple modules

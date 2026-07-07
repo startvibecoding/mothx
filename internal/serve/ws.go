@@ -6,11 +6,11 @@ import (
 	"os"
 
 	"github.com/startvibecoding/mothx/internal/agent"
-	"github.com/startvibecoding/mothx/internal/hermes"
-	hermesws "github.com/startvibecoding/mothx/internal/hermes/ws"
+	channels "github.com/startvibecoding/mothx/internal/serve/channels"
+	wsruntime "github.com/startvibecoding/mothx/internal/serve/ws"
 )
 
-func (rt *channelRuntime) setupWebSocketGateway(version string) {
+func (rt *channelRuntime) setupWebSocketRuntime(version string) {
 	if rt == nil || rt.cfg == nil || !rt.cfg.Features.WebSocket {
 		fmt.Fprintf(os.Stderr, "  WebSocket: disabled\n")
 		return
@@ -20,20 +20,20 @@ func (rt *channelRuntime) setupWebSocketGateway(version string) {
 		return
 	}
 
-	gw := hermesws.NewGateway("", "", version)
+	gw := wsruntime.NewRuntime("", "", version)
 	gw.SetDispatcher(&serveWSDispatcherAdapter{dispatcher: rt.dispatcher})
-	gw.SetClientInfo(rt.cfg.Gateway.Model, rt.cfg.Gateway.GetWorkDir())
-	rt.wsGateway = gw
+	gw.SetClientInfo(rt.cfg.API.Model, rt.cfg.API.GetWorkDir())
+	rt.wsRuntime = gw
 	fmt.Fprintf(os.Stderr, "  WebSocket: enabled at /ws\n")
 }
 
 type serveWSDispatcherAdapter struct {
-	dispatcher *hermes.Dispatcher
+	dispatcher *channels.Dispatcher
 }
 
-func (a *serveWSDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, text string, eventCh chan<- hermesws.WSEvent) error {
+func (a *serveWSDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, text string, eventCh chan<- wsruntime.WSEvent) error {
 	if a == nil || a.dispatcher == nil {
-		eventCh <- hermesws.WSEvent{Type: "error", Message: "dispatcher not ready"}
+		eventCh <- wsruntime.WSEvent{Type: "error", Message: "dispatcher not ready"}
 		return nil
 	}
 
@@ -48,7 +48,7 @@ func (a *serveWSDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, 
 		case ev, ok := <-agentCh:
 			if !ok {
 				if err := <-errCh; err != nil {
-					eventCh <- hermesws.WSEvent{Type: "error", Message: err.Error()}
+					eventCh <- wsruntime.WSEvent{Type: "error", Message: err.Error()}
 				}
 				return nil
 			}
@@ -61,7 +61,7 @@ func (a *serveWSDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, 
 				case ev, ok := <-agentCh:
 					if !ok {
 						if err != nil {
-							eventCh <- hermesws.WSEvent{Type: "error", Message: err.Error()}
+							eventCh <- wsruntime.WSEvent{Type: "error", Message: err.Error()}
 						}
 						return nil
 					}
@@ -70,7 +70,7 @@ func (a *serveWSDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, 
 					}
 				default:
 					if err != nil {
-						eventCh <- hermesws.WSEvent{Type: "error", Message: err.Error()}
+						eventCh <- wsruntime.WSEvent{Type: "error", Message: err.Error()}
 					}
 					return nil
 				}
@@ -79,12 +79,12 @@ func (a *serveWSDispatcherAdapter) HandleWSMessage(ctx context.Context, connID, 
 	}
 }
 
-func (a *serveWSDispatcherAdapter) ListSessions() []hermesws.SessionInfo {
+func (a *serveWSDispatcherAdapter) ListSessions() []wsruntime.SessionInfo {
 	if a == nil || a.dispatcher == nil {
 		return nil
 	}
 	sessions := a.dispatcher.ListSessions()
-	result := make([]hermesws.SessionInfo, 0, len(sessions))
+	result := make([]wsruntime.SessionInfo, 0, len(sessions))
 	for _, s := range sessions {
 		msgs := s.Manager.GetMessages()
 		preview := ""
@@ -97,7 +97,7 @@ func (a *serveWSDispatcherAdapter) ListSessions() []hermesws.SessionInfo {
 				break
 			}
 		}
-		result = append(result, hermesws.SessionInfo{
+		result = append(result, wsruntime.SessionInfo{
 			ID:           s.ID,
 			Platform:     s.Platform,
 			UserID:       s.UserID,
@@ -131,14 +131,14 @@ func (a *serveWSDispatcherAdapter) ResolveQuestion(questionID, answer string) bo
 	return a.dispatcher.ResolveQuestion(questionID, answer)
 }
 
-func serveAgentEventToWSEvent(ev agent.Event) hermesws.WSEvent {
+func serveAgentEventToWSEvent(ev agent.Event) wsruntime.WSEvent {
 	switch ev.Type {
 	case agent.EventTextDelta:
-		return hermesws.WSEvent{Type: "text_delta", Content: ev.TextDelta}
+		return wsruntime.WSEvent{Type: "text_delta", Content: ev.TextDelta}
 	case agent.EventThinkDelta:
-		return hermesws.WSEvent{Type: "think_delta", Content: ev.ThinkDelta}
+		return wsruntime.WSEvent{Type: "think_delta", Content: ev.ThinkDelta}
 	case agent.EventToolCall:
-		out := hermesws.WSEvent{
+		out := wsruntime.WSEvent{
 			Type:   "tool_call",
 			Tool:   ev.ToolName,
 			CallID: ev.ToolCallID,
@@ -154,7 +154,7 @@ func serveAgentEventToWSEvent(ev agent.Event) hermesws.WSEvent {
 		if name == "" && ev.ToolCall != nil {
 			name = ev.ToolCall.Name
 		}
-		out := hermesws.WSEvent{
+		out := wsruntime.WSEvent{
 			Type:   "tool_result",
 			Tool:   name,
 			CallID: ev.ToolCallID,
@@ -171,16 +171,16 @@ func serveAgentEventToWSEvent(ev agent.Event) hermesws.WSEvent {
 		}
 		return out
 	case agent.EventContextPressure, agent.EventBudgetPressure:
-		return hermesws.WSEvent{Type: "status", StatusMessage: ev.PressureMessage}
+		return wsruntime.WSEvent{Type: "status", StatusMessage: ev.PressureMessage}
 	case agent.EventToolApprovalRequest:
-		return hermesws.WSEvent{
+		return wsruntime.WSEvent{
 			Type:         "approval_request",
 			ApprovalID:   ev.ApprovalID,
 			ApprovalTool: ev.ApprovalTool,
 			ApprovalArgs: ev.ApprovalArgs,
 		}
 	case agent.EventQuestionRequest:
-		return hermesws.WSEvent{
+		return wsruntime.WSEvent{
 			Type:            "question_request",
 			QuestionID:      ev.QuestionID,
 			Question:        ev.QuestionText,
@@ -188,21 +188,21 @@ func serveAgentEventToWSEvent(ev agent.Event) hermesws.WSEvent {
 			QuestionContext: ev.QuestionContext,
 		}
 	case agent.EventPlanUpdate:
-		var plan *hermesws.PlanData
+		var plan *wsruntime.PlanData
 		if ev.Plan != nil {
-			steps := make([]hermesws.PlanStep, len(ev.Plan.Steps))
+			steps := make([]wsruntime.PlanStep, len(ev.Plan.Steps))
 			for i, step := range ev.Plan.Steps {
-				steps[i] = hermesws.PlanStep{Title: step.Title, Status: step.Status}
+				steps[i] = wsruntime.PlanStep{Title: step.Title, Status: step.Status}
 			}
-			plan = &hermesws.PlanData{Title: ev.Plan.Title, Steps: steps}
+			plan = &wsruntime.PlanData{Title: ev.Plan.Title, Steps: steps}
 		}
-		return hermesws.WSEvent{Type: "plan_update", Plan: plan}
+		return wsruntime.WSEvent{Type: "plan_update", Plan: plan}
 	case agent.EventDone:
-		return hermesws.WSEvent{Type: "done", StopReason: ev.StopReason}
+		return wsruntime.WSEvent{Type: "done", StopReason: ev.StopReason}
 	case agent.EventStatus:
-		return hermesws.WSEvent{Type: "status", StatusMessage: ev.StatusMessage}
+		return wsruntime.WSEvent{Type: "status", StatusMessage: ev.StatusMessage}
 	case agent.EventCompactionStart:
-		return hermesws.WSEvent{Type: "compaction_start", StatusMessage: "Compacting context..."}
+		return wsruntime.WSEvent{Type: "compaction_start", StatusMessage: "Compacting context..."}
 	case agent.EventCompactionEnd:
 		msg := "Context compacted"
 		if ev.Error != nil {
@@ -210,15 +210,15 @@ func serveAgentEventToWSEvent(ev agent.Event) hermesws.WSEvent {
 		} else if ev.StatusMessage != "" {
 			msg = ev.StatusMessage
 		}
-		return hermesws.WSEvent{Type: "compaction_end", StatusMessage: msg}
+		return wsruntime.WSEvent{Type: "compaction_end", StatusMessage: msg}
 	case agent.EventError:
 		msg := ""
 		if ev.Error != nil {
 			msg = ev.Error.Error()
 		}
-		return hermesws.WSEvent{Type: "error", Message: msg, Code: ev.StopReason}
+		return wsruntime.WSEvent{Type: "error", Message: msg, Code: ev.StopReason}
 	case agent.EventUsage:
-		out := hermesws.WSEvent{Type: "usage"}
+		out := wsruntime.WSEvent{Type: "usage"}
 		if ev.Usage != nil {
 			out.PromptTokens = ev.Usage.PromptTokens()
 			out.CompletionTokens = ev.Usage.Output
@@ -229,8 +229,8 @@ func serveAgentEventToWSEvent(ev agent.Event) hermesws.WSEvent {
 		return out
 	case agent.EventMessageStart:
 		if ev.Message.Role == "user" && ev.Message.Content != "" {
-			return hermesws.WSEvent{Type: "message_start", Content: ev.Message.Content}
+			return wsruntime.WSEvent{Type: "message_start", Content: ev.Message.Content}
 		}
 	}
-	return hermesws.WSEvent{}
+	return wsruntime.WSEvent{}
 }

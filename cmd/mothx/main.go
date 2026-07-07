@@ -22,7 +22,6 @@ import (
 	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/debugpprof"
-	"github.com/startvibecoding/mothx/internal/gateway"
 	"github.com/startvibecoding/mothx/internal/mcp"
 	"github.com/startvibecoding/mothx/internal/platform"
 	"github.com/startvibecoding/mothx/internal/provider"
@@ -58,8 +57,6 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	rootCmd := newCLICommand(flags, runFn)
 	rootCmd.AddCommand(newACPCommand(flags, acpRunFn))
 	rootCmd.AddCommand(newServeCommand(flags))
-	rootCmd.AddCommand(newGatewayCommand(flags))
-	rootCmd.AddCommand(newHermesCommand())
 	rootCmd.AddCommand(newA2ACommand())
 	rootCmd.AddCommand(newDoctorCommand())
 	rootCmd.AddCommand(newSystemInitCommand(runFn, &flags.provider, &flags.model))
@@ -86,14 +83,11 @@ type cliFlags struct {
 	workflows       bool
 	webSearch       bool
 	browser         bool
-	initGateway     bool
 	initServe       bool
 	force           bool
 	enableA2AMaster bool
 	initA2AMaster   bool
-	gatewayPort     string
-	gatewayConfig   string
-	gatewayWorkDir  string
+	workDir         string
 	serveConfig     string
 	servePort       string
 	serveWebUIDir   string
@@ -136,14 +130,6 @@ func runCLICommand(args []string, flags *cliFlags, runFn func([]string, runOptio
 		fmt.Fprintf(os.Stderr, "Created a2a master config: %s\n", path)
 		return nil
 	}
-	if flags.initGateway {
-		path, err := gateway.InitGatewayConfig(flags.force)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(os.Stderr, "Created gateway config: %s\n", path)
-		return nil
-	}
 	if flags.initServe {
 		path, err := serve.InitConfig(flags.force)
 		if err != nil {
@@ -168,19 +154,6 @@ func newACPCommand(flags *cliFlags, acpRunFn func(acp.RunOptions) error) *cobra.
 	return cmd
 }
 
-func newGatewayCommand(flags *cliFlags) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "gateway",
-		Short: "Run the OpenAI-compatible HTTP gateway",
-		Long:  "Start VibeCoding as an HTTP server exposing a standard OpenAI Chat Completions API.",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return gateway.Run(flags.gatewayOptions(), version)
-		},
-	}
-	registerGatewayFlags(cmd.Flags(), flags)
-	return cmd
-}
-
 func registerRootFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	registerSharedProviderFlags(fs, flags)
 	fs.BoolVarP(&flags.continueSession, "continue", "c", false, "Continue most recent session")
@@ -188,7 +161,6 @@ func registerRootFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	fs.StringVar(&flags.session, "session", "", "Use specific session file or ID")
 	fs.BoolVarP(&flags.print, "print", "P", false, "Print response and exit (non-interactive)")
 	registerSharedExecutionFlags(fs, flags, "Enable configured web search provider for this run")
-	fs.BoolVar(&flags.initGateway, "init-gateway", false, "Create gateway.json config template")
 	fs.BoolVar(&flags.initServe, "init-serve", false, "Create serve.json config template")
 	fs.BoolVar(&flags.force, "force", false, "Force overwrite existing files (used with --init-*)")
 	fs.BoolVar(&flags.enableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
@@ -198,20 +170,6 @@ func registerRootFlags(fs *pflag.FlagSet, flags *cliFlags) {
 func registerACPFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	registerSharedProviderFlags(fs, flags)
 	registerSharedExecutionFlags(fs, flags, "Enable configured web search provider for this ACP run")
-}
-
-func registerGatewayFlags(fs *pflag.FlagSet, flags *cliFlags) {
-	fs.StringVar(&flags.gatewayPort, "port", "", "Listen port (default: from gateway.json or 8080)")
-	fs.StringVar(&flags.gatewayConfig, "config", "", "Path to gateway.json")
-	fs.StringVar(&flags.gatewayWorkDir, "work-dir", "", "Default working directory")
-	fs.StringVarP(&flags.provider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
-	fs.StringVarP(&flags.model, "model", "m", "", "Model ID")
-	fs.BoolVar(&flags.sandbox, "sandbox", false, "Enable sandbox (bwrap) for secure execution")
-	fs.BoolVar(&flags.multiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
-	fs.BoolVar(&flags.delegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
-	fs.BoolVar(&flags.workflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
-	fs.BoolVar(&flags.verbose, "verbose", false, "Verbose output")
-	fs.BoolVar(&flags.debug, "debug", false, "Enable debug logging")
 }
 
 func registerSharedProviderFlags(fs *pflag.FlagSet, flags *cliFlags) {
@@ -268,22 +226,6 @@ func (f *cliFlags) acpOptions() acp.RunOptions {
 		Workflows:  f.workflows,
 		WebSearch:  f.webSearch,
 		Browser:    f.browser,
-	}
-}
-
-func (f *cliFlags) gatewayOptions() gateway.RunOptions {
-	return gateway.RunOptions{
-		ConfigPath: f.gatewayConfig,
-		Port:       f.gatewayPort,
-		Provider:   f.provider,
-		Model:      f.model,
-		WorkDir:    f.gatewayWorkDir,
-		Sandbox:    f.sandbox,
-		MultiAgent: f.multiAgent,
-		Delegate:   f.delegate,
-		Workflows:  f.workflows,
-		Verbose:    f.verbose,
-		Debug:      f.debug,
 	}
 }
 

@@ -29,67 +29,67 @@ func applyRawConfig(cfg *Config, raw *rawConfig) {
 	}
 
 	if raw.Listen != "" {
-		cfg.Gateway.Listen = raw.Listen
+		cfg.API.Listen = raw.Listen
 	}
 	if raw.Provider != "" {
-		cfg.Gateway.Provider = raw.Provider
+		cfg.API.Provider = raw.Provider
 	}
 	if raw.Model != "" {
-		cfg.Gateway.Model = raw.Model
+		cfg.API.Model = raw.Model
 	}
 	if raw.Mode != "" {
-		cfg.Gateway.DefaultMode = raw.Mode
+		cfg.API.DefaultMode = raw.Mode
 	}
 	if raw.WorkDir != "" {
-		cfg.Gateway.WorkingDir = raw.WorkDir
+		cfg.API.WorkingDir = raw.WorkDir
 	}
 	if raw.Auth != nil {
 		if raw.Auth.Enabled != nil {
-			cfg.Gateway.Auth.Enabled = *raw.Auth.Enabled
+			cfg.API.Auth.Enabled = *raw.Auth.Enabled
 		}
 		if raw.Auth.Tokens != nil {
-			cfg.Gateway.Auth.Tokens = append([]string(nil), raw.Auth.Tokens...)
+			cfg.API.Auth.Tokens = append([]string(nil), raw.Auth.Tokens...)
 		}
 	}
 	if raw.Sandbox != nil {
 		if raw.Sandbox.Enabled != nil {
-			cfg.Gateway.Sandbox.Enabled = *raw.Sandbox.Enabled
+			cfg.API.Sandbox.Enabled = *raw.Sandbox.Enabled
 		}
 		if raw.Sandbox.Level != "" {
-			cfg.Gateway.Sandbox.Level = raw.Sandbox.Level
+			cfg.API.Sandbox.Level = raw.Sandbox.Level
 		}
 	}
 	if raw.AllowedWorkDirs != nil {
 		allowed := append([]string(nil), (*raw.AllowedWorkDirs)...)
-		cfg.Gateway.AllowedWorkDirs = &allowed
+		cfg.API.AllowedWorkDirs = &allowed
 	}
 	if raw.Session != nil {
 		if raw.Session.IdleTimeoutSeconds != nil {
-			cfg.Gateway.Session.IdleTimeoutSeconds = *raw.Session.IdleTimeoutSeconds
+			cfg.API.Session.IdleTimeoutSeconds = *raw.Session.IdleTimeoutSeconds
 		}
 		if raw.Session.MaxSessions != nil {
-			cfg.Gateway.Session.MaxSessions = *raw.Session.MaxSessions
+			cfg.API.Session.MaxSessions = *raw.Session.MaxSessions
 		}
 	}
 	if raw.ToolVisibility != nil {
 		if raw.ToolVisibility.Mode != "" {
-			cfg.Gateway.ToolVisibility.Mode = raw.ToolVisibility.Mode
+			cfg.API.ToolVisibility.Mode = raw.ToolVisibility.Mode
 		}
 		if raw.ToolVisibility.Detail != "" {
-			cfg.Gateway.ToolVisibility.Detail = raw.ToolVisibility.Detail
+			cfg.API.ToolVisibility.Detail = raw.ToolVisibility.Detail
 		}
 	}
 	if raw.Thinking != "" {
-		cfg.Gateway.DefaultThinkingLevel = raw.Thinking
+		cfg.API.DefaultThinkingLevel = raw.Thinking
 	}
 	if raw.SystemPromptMode != "" {
-		cfg.Gateway.SystemPromptMode = raw.SystemPromptMode
+		cfg.API.SystemPromptMode = raw.SystemPromptMode
 	}
 	if raw.RequestTimeoutSecs != nil {
-		cfg.Gateway.RequestTimeoutSecs = *raw.RequestTimeoutSecs
+		cfg.API.RequestTimeoutSecs = *raw.RequestTimeoutSecs
 	}
 	if raw.MaxConcurrentReqs != nil {
-		cfg.Gateway.MaxConcurrentReqs = *raw.MaxConcurrentReqs
+		cfg.API.MaxConcurrentReqs = *raw.MaxConcurrentReqs
 	}
 	if raw.Agent != nil {
 		if raw.Agent.MaxTurns != nil {
@@ -165,7 +165,7 @@ func applyRawConfig(cfg *Config, raw *rawConfig) {
 		}
 		if raw.Features.MultiAgent != nil {
 			cfg.Features.MultiAgent = *raw.Features.MultiAgent
-			cfg.Gateway.EnableSubAgents = *raw.Features.MultiAgent
+			cfg.API.EnableSubAgents = *raw.Features.MultiAgent
 		}
 		if raw.Features.Wechat != nil {
 			cfg.Features.Wechat = *raw.Features.Wechat
@@ -240,18 +240,18 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	wechatEnabled := c.Channels.Wechat.Enabled
 	wechatAutoTyping := c.Channels.Wechat.AutoTyping
 	feishuEnabled := c.Channels.Feishu.Enabled
-	authEnabled := c.Gateway.Auth.Enabled
-	sandboxEnabled := c.Gateway.Sandbox.Enabled
+	authEnabled := c.API.Auth.Enabled
+	sandboxEnabled := c.API.Sandbox.Enabled
 	webUIEnabled := c.WebUI.Enabled
 	openAIAPIEnabled := c.Features.OpenAIAPI
 	webSocketEnabled := c.Features.WebSocket
-	multiAgentEnabled := c.Gateway.EnableSubAgents
+	multiAgentEnabled := c.API.EnableSubAgents
 	cronEnabled := c.Cron.Enabled
 	memoryEnabled := c.Memory.Enabled
-	idleTimeoutSeconds := c.Gateway.Session.IdleTimeoutSeconds
-	maxSessions := c.Gateway.Session.MaxSessions
-	requestTimeoutSeconds := c.Gateway.RequestTimeoutSecs
-	maxConcurrentRequests := c.Gateway.MaxConcurrentReqs
+	idleTimeoutSeconds := c.API.Session.IdleTimeoutSeconds
+	maxSessions := c.API.Session.MaxSessions
+	requestTimeoutSeconds := c.API.RequestTimeoutSecs
+	maxConcurrentRequests := c.API.MaxConcurrentReqs
 	agentMaxTurns := c.Agent.MaxTurns
 	agentBudgetPressure := c.Agent.BudgetPressure
 	agentContextPressure := c.Agent.ContextPressure
@@ -271,19 +271,19 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	features.Memory = &memoryEnabled
 
 	raw := rawConfig{
-		Listen:             c.Gateway.Listen,
-		Provider:           c.Gateway.Provider,
-		Model:              c.Gateway.Model,
-		Mode:               c.Gateway.DefaultMode,
-		WorkDir:            c.Gateway.WorkingDir,
-		Auth:               &rawAuthConfig{Enabled: &authEnabled, Tokens: append([]string(nil), c.Gateway.Auth.Tokens...)},
+		Listen:             c.API.Listen,
+		Provider:           c.API.Provider,
+		Model:              c.API.Model,
+		Mode:               c.API.DefaultMode,
+		WorkDir:            c.API.WorkingDir,
+		Auth:               &rawAuthConfig{Enabled: &authEnabled, Tokens: append([]string(nil), c.API.Auth.Tokens...)},
 		Features:           &features,
-		Sandbox:            &rawSandboxConfig{Enabled: &sandboxEnabled, Level: c.Gateway.Sandbox.Level},
-		AllowedWorkDirs:    c.Gateway.AllowedWorkDirs,
+		Sandbox:            &rawSandboxConfig{Enabled: &sandboxEnabled, Level: c.API.Sandbox.Level},
+		AllowedWorkDirs:    c.API.AllowedWorkDirs,
 		Session:            &rawSessionConfig{IdleTimeoutSeconds: &idleTimeoutSeconds, MaxSessions: &maxSessions},
-		ToolVisibility:     &rawToolVisibilityConfig{Mode: c.Gateway.ToolVisibility.Mode, Detail: c.Gateway.ToolVisibility.Detail},
-		Thinking:           c.Gateway.DefaultThinkingLevel,
-		SystemPromptMode:   c.Gateway.SystemPromptMode,
+		ToolVisibility:     &rawToolVisibilityConfig{Mode: c.API.ToolVisibility.Mode, Detail: c.API.ToolVisibility.Detail},
+		Thinking:           c.API.DefaultThinkingLevel,
+		SystemPromptMode:   c.API.SystemPromptMode,
 		RequestTimeoutSecs: &requestTimeoutSeconds,
 		MaxConcurrentReqs:  &maxConcurrentRequests,
 		Agent: &rawAgentConfig{

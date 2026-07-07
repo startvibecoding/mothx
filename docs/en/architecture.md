@@ -32,8 +32,7 @@ mothx/
 │   ├── context/                 # Context management and token estimation
 │   ├── contextfiles/            # Context file loading
 │   ├── cron/                    # Scheduled task store and scheduler
-│   ├── gateway/                 # OpenAI-compatible HTTP gateway
-│   ├── hermes/                  # Messaging gateway (WeChat/Feishu/WebSocket)
+│   ├── serve/                   # Unified OpenAI API, Web UI, and messaging channels
 │   ├── mcp/                     # MCP server integration
 │   ├── memory/                  # Persistent memory (memory.md)
 │   ├── messaging/               # Messaging platform abstraction
@@ -66,7 +65,7 @@ mothx/
 
 ## Running Modes
 
-MothX supports 7 running modes, all sharing the same Agent, Provider, Tools,
+MothX supports 6 running modes, all sharing the same Agent, Provider, Tools,
 and Session infrastructure:
 
 ```
@@ -80,11 +79,11 @@ and Session infrastructure:
 │  │              │  │  -p "..."     │  │  acp          │                  │
 │  └──────────────┘  └──────────────┘  └──────────────┘                  │
 │                                                                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌────────────┐ │
-│  │ Gateway Mode  │  │  Hermes Mode  │  │ A2A Standalone│  │ A2A Master │ │
-│  │  mothx   │  │  mothx   │  │ mothx    │  │ --enable-  │ │
-│  │  gateway      │  │  hermes       │  │ a2a start     │  │ a2a-master │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └────────────┘ │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────┐                  │
+│  │ Serve Mode   │  │ A2A Standalone│  │ A2A Master │                  │
+│  │ mothx serve  │  │ mothx a2a     │  │ --enable-  │                  │
+│  │              │  │ start         │  │ a2a-master │                  │
+│  └──────────────┘  └──────────────┘  └────────────┘                  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -227,9 +226,7 @@ communicate, and collaborate with each other.
 │                                                                   │
 │  Task lifecycle: submitted → working → completed/failed/canceled   │
 │                                                                   │
-│  Two running modes:                                               │
-│  • Standalone: mothx a2a start (port 8093)                   │
-│  • Integrated: hermes.json a2a.enabled: true (shared port 8090)   │
+│  Run with: mothx a2a start (default port 8093)                    │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
 ```
@@ -276,21 +273,21 @@ to automatically dispatch tasks.
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### 5. Gateway Mode
+### 5. Serve Mode
 
-`internal/gateway/` implements an OpenAI-compatible HTTP gateway exposing the
-standard Chat Completions API.
+`internal/serve/openaiapi/` implements the OpenAI-compatible HTTP API used by
+serve mode.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Gateway Architecture                       │
+│                    Serve Architecture                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  OpenAI-compatible clients (curl, SDK, any tool)             │
 │       │                                                     │
 │       ▼                                                     │
 │  ┌──────────────────────────────────────────┐               │
-│  │  HTTP Gateway (net/http)                 │               │
+│  │  HTTP API (net/http)                   │               │
 │  │  POST /v1/chat/completions               │               │
 │  └──────────────────────────────────────────┘               │
 │       │                                                     │
@@ -300,20 +297,20 @@ standard Chat Completions API.
 │  │  + Tools + Session + Sandbox + Skills     │               │
 │  └──────────────────────────────────────────┘               │
 │                                                             │
-│  Config: gateway.json (global ~/.vibecoding/ or .vibe/)      │
+│  Config: serve.json (global ~/.mothx/ or project .mothx/)  │
 │  Security: Bearer token + allowedWorkDirs + sandbox          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 6. Hermes Messaging Gateway
+### 6. Channels Messaging Serve
 
-`internal/hermes/` implements a messaging gateway supporting WeChat, Feishu,
-and WebSocket.
+`internal/serve/channels/` implements the messaging channel runtime for WeChat,
+Feishu, and WebSocket.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Hermes Architecture                        │
+│                    Channels Architecture                        │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
@@ -323,7 +320,7 @@ and WebSocket.
 │        └─────────────┼─────────────┘                         │
 │                      ▼                                       │
 │  ┌──────────────────────────────────────────┐               │
-│  │  Hermes Dispatcher                       │               │
+│  │  Channels Dispatcher                       │               │
 │  │  (per-user session, yolo mode default)   │               │
 │  └──────────────────────────────────────────┘               │
 │       │                                                     │
@@ -333,8 +330,8 @@ and WebSocket.
 │  │  + Tools + Session + Sandbox + Skills     │               │
 │  └──────────────────────────────────────────┘               │
 │                                                             │
-│  Config: hermes.json                                         │
-│  Session: <sessionDir>/hermes/<platform>/<user_id>/          │
+│  Config: serve.json                                         │
+│  Session: <sessionDir>/channels/<platform>/<user_id>/        │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -495,14 +492,13 @@ Key TUI behaviors:
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `settings.json` | `~/.vibecoding/` or `.vibe/` | Core settings (provider, model, mode, etc.) |
-| `gateway.json` | `~/.vibecoding/` or `.vibe/` | HTTP gateway configuration |
-| `hermes.json` | `~/.vibecoding/` or `.vibe/` | Messaging gateway configuration |
-| `a2a.json` | `~/.vibecoding/` or `.vibe/` | A2A server configuration |
-| `a2a-list.json` | `~/.vibecoding/` or `.vibe/` | A2A Master remote agent list |
-| `mcp.json` | `~/.vibecoding/` or `.vibe/` | MCP server configuration |
-| `memory.md` | project root or `~/.vibecoding/` | Persistent memory |
-| `cron.json` | `~/.vibecoding/` | Cron job persistence |
+| `settings.json` | `~/.mothx/` or `.mothx/` | Core settings (provider, model, mode, etc.) |
+| `serve.json` | `~/.mothx/` or `.mothx/` | Unified serve configuration |
+| `a2a.json` | `~/.mothx/` or `.mothx/` | A2A server configuration |
+| `a2a-list.json` | `~/.mothx/` or `.mothx/` | A2A Master remote agent list |
+| `mcp.json` | `~/.mothx/` or `.mothx/` | MCP server configuration |
+| `memory.md` | project root or `~/.mothx/` | Persistent memory |
+| `serve-cron.json` | `~/.mothx/` | Serve cron job persistence |
 
 ## Data Flow
 
@@ -581,6 +577,6 @@ See [SDK Integration Guide](sdk.md) for usage details.
 
 ### 7. Shared Agent Loop
 
-All running modes (TUI, Gateway, Hermes, A2A, ACP) reuse the same Agent loop.
+All running modes (TUI, Serve, Channels, A2A, ACP) reuse the same Agent loop.
 The only difference is the input source and output target. This ensures behavioral
 consistency and avoids logic divergence.

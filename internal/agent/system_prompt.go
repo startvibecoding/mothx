@@ -217,11 +217,11 @@ The task description is the sub-agent's only context. Make it specific:
 - Mention the working directory if different from default.
 
 Good example:
-  "Find all Go files in internal/gateway/ that import 'net/http' but do not call
+  "Find all Go files in internal/serve/openaiapi/ that import 'net/http' but do not call
    http.Error for error handling. Return file paths with line numbers."
 
 Bad example:
-  "Look at the gateway code" (too vague, no expected output, no stop condition)
+  "Look at the API server code" (too vague, no expected output, no stop condition)
 
 ### Interpreting the Result
 The delegate_subagent tool blocks until the sub-agent finishes and returns:

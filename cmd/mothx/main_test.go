@@ -316,7 +316,7 @@ func TestUnknownSubcommandFlagSuggestsSimilarFlag(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"gateway", "--wur-dir", "."})
+	cmd.SetArgs([]string{"serve", "--wur-dir", "."})
 
 	err := cmd.Execute()
 	if err == nil {
@@ -379,7 +379,7 @@ func TestMistypedRootSubcommandSuggestsCommand(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"gatway"})
+	cmd.SetArgs([]string{"serbe"})
 
 	err := cmd.Execute()
 	if err == nil {
@@ -387,8 +387,8 @@ func TestMistypedRootSubcommandSuggestsCommand(t *testing.T) {
 	}
 	got := err.Error()
 	for _, want := range []string{
-		`invalid argument: unknown command "gatway" for "mothx"`,
-		"Did you mean gateway?",
+		`invalid argument: unknown command "serbe" for "mothx"`,
+		"Did you mean serve?",
 		"Run 'mothx --help' to see all commands.",
 	} {
 		if !strings.Contains(got, want) {

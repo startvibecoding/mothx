@@ -72,8 +72,7 @@ mothx/
 │   ├── context/               # 上下文管理和 token 估算
 │   ├── contextfiles/          # 上下文文件加载
 │   ├── cron/                  # 定时任务存储和调度器
-│   ├── gateway/               # OpenAI 兼容 HTTP 网关
-│   ├── hermes/                # 消息平台网关（微信/飞书/WebSocket）
+│   ├── serve/                 # 统一 OpenAI API、Web UI 和消息通道
 │   ├── mcp/                   # MCP 服务器集成
 │   ├── memory/                # 持久化记忆 (memory.md)
 │   ├── messaging/             # 消息平台抽象

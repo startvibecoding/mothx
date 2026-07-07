@@ -29,7 +29,7 @@ Delegate Mode（委派模式）是在现有 multi-agent 架构上的轻量增强
 - 不暴露 `spawn/status/send/destroy` 工作流给委派模式使用。
 - 不支持多个委派 sub-agent 并行执行。
 - 不要求 sub-agent 中间输出实时进入主 Agent 上下文。
-- 第一阶段不强制支持 Hermes / ACP，除非后续明确需要。
+- 第一阶段不强制支持 ACP，除非后续明确需要。
 
 ## 4. 与现有 Multi-Agent 模式的关系
 
@@ -69,10 +69,10 @@ mothx --delegate "分析这个 bug 并修复"
 mothx --print --delegate "检查当前项目测试失败原因"
 ```
 
-Gateway 可选支持：
+Serve 可选支持：
 
 ```bash
-mothx gateway --delegate
+mothx serve --delegate
 ```
 
 ### 5.2 会话内切换
@@ -447,11 +447,11 @@ Cannot change delegation mode while the agent is running.
 /delegate [on|off|status] - Toggle delegation mode
 ```
 
-## 11. Gateway 集成
+## 11. Serve 集成
 
-为保持 slash command parity，Gateway 也应支持 `/delegate`。
+为保持 slash command parity，Serve 也应支持 `/delegate`。
 
-### 11.1 `internal/gateway/gateway.go`
+### 11.1 `internal/serve/openaiapi/server.go`
 
 `RunOptions` 增加：
 
@@ -461,17 +461,17 @@ Delegate bool
 
 ### 11.2 `cmd/mothx/main.go`
 
-Gateway flags 增加：
+Serve flags 增加：
 
 ```go
-gatewayFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode")
+serveFlags.BoolVar(&flagDelegate, "delegate", false, "Enable delegation mode")
 ```
 
-传给 `gateway.Run(...)`。
+传给 `serve.Run(...)`。
 
-### 11.3 Gateway session
+### 11.3 Serve API session
 
-`GatewaySession` 增加：
+`APISession` 增加：
 
 ```go
 DelegateMode bool
@@ -479,7 +479,7 @@ DelegateMode bool
 
 每个 session 独立维护委派状态。
 
-### 11.4 `internal/gateway/handler_chat.go`
+### 11.4 `internal/serve/openaiapi/handler_chat.go`
 
 构建 agent 前根据 session 状态注册/移除工具：
 
@@ -497,7 +497,7 @@ if sess.DelegateMode && sess.AgentMgr != nil {
 DelegateMode: sess.DelegateMode,
 ```
 
-### 11.5 `internal/gateway/commands.go`
+### 11.5 `internal/serve/openaiapi/commands.go`
 
 新增：
 
@@ -508,14 +508,14 @@ case "/delegate":
 
 帮助文本同步新增 `/delegate [on|off|status]`。
 
-## 12. ACP / Hermes 集成
+## 12. ACP / Serve channels 集成
 
-第一阶段可不做 ACP / Hermes，以降低改动面。
+第一阶段可不做 ACP / Serve channels，以降低改动面。
 
 后续如果需要：
 
 - ACP：增加 `RunOptions.Delegate`、`--delegate` flag、注册工具、传递 `DelegateMode`。
-- Hermes：在 `hermes.json` 增加配置或启动参数，按 session 注册 `delegate_subagent`。
+- Serve channels：在 `serve.json` 增加配置或启动参数，按 session 注册 `delegate_subagent`。
 
 ## 13. 超时与取消
 
@@ -553,7 +553,7 @@ defer busy.Store(false)
 
 并发限制范围建议绑定到 tool instance。由于主 Agent registry 内只有一个 `delegate_subagent` 实例，可以满足“每次只能开启一个 subagent”。
 
-如果 Gateway 多 session 共享 registry，需要确保每个 session registry 有独立 tool instance；否则并发限制会跨 session 生效，可能过严。
+如果 Serve 多 session 共享 registry，需要确保每个 session registry 有独立 tool instance；否则并发限制会跨 session 生效，可能过严。
 
 ## 15. 状态清理
 
@@ -587,7 +587,7 @@ defer busy.Store(false)
 - `mode` 参数仍经过 `DefaultSubAgentPolicy().Validate`。
 - 默认 policy 当前只允许 sub-agent 使用 `agent` mode；如果传入 `plan` 或 `yolo` 会被拒绝。
 - 如需允许 `plan`，应单独调整 policy，而不是委派工具绕过。
-- approval request 继续转发给 parent event channel，由 TUI/CLI/Gateway 统一处理。
+- approval request 继续转发给 parent event channel，由 TUI/CLI/Serve 统一处理。
 
 ## 17. 测试计划
 
@@ -626,7 +626,7 @@ defer busy.Store(false)
 - running 状态下拒绝切换
 - on/off 后 agent 被 reset
 
-### 17.4 Gateway command tests
+### 17.4 Serve command tests
 
 覆盖：
 
@@ -653,22 +653,22 @@ defer busy.Store(false)
    - App field
    - `/delegate` command
    - help text
-5. Gateway
+5. Serve
    - flag plumbing
    - session state
    - `/delegate` command
 6. Focused validation
    - `go test ./internal/agent`
    - `go test ./internal/tui`
-   - `go test ./internal/gateway`
+   - `go test ./internal/serve/openaiapi`
 
 ## 19. 开放问题
 
 1. 委派工具实际 timeout 是否应保持 5 分钟，还是提升到 10 分钟？
 2. 委派完成后是否需要保留 manager status 供调试？
 3. 是否允许 delegate sub-agent 使用 `plan` mode？当前 policy 默认只允许 `agent`。
-4. Gateway 的 `/delegate on` 是否应该影响默认 session，还是仅当前 `x_session_id`？建议仅当前 session。
-5. ACP / Hermes 是否需要第一阶段同步支持？建议暂缓。
+4. Serve 的 `/delegate on` 是否应该影响默认 session，还是仅当前 `x_session_id`？建议仅当前 session。
+5. ACP / Serve channels 是否需要第一阶段同步支持？建议暂缓。
 
 ## 20. 验收标准
 

@@ -16,12 +16,12 @@ import (
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/debugpprof"
-	"github.com/startvibecoding/mothx/internal/gateway"
-	"github.com/startvibecoding/mothx/internal/hermes"
 	"github.com/startvibecoding/mothx/internal/memory"
 	"github.com/startvibecoding/mothx/internal/messaging"
 	"github.com/startvibecoding/mothx/internal/messaging/feishu"
 	"github.com/startvibecoding/mothx/internal/messaging/wechat"
+	channels "github.com/startvibecoding/mothx/internal/serve/channels"
+	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
 )
 
 type RunOptions struct {
@@ -43,10 +43,10 @@ type RunOptions struct {
 type channelRuntime struct {
 	cfg           *Config
 	version       string
-	dispatcher    *hermes.Dispatcher
+	dispatcher    *channels.Dispatcher
 	platforms     []messaging.Platform
 	logHub        *logHub
-	wsGateway     websocketRuntime
+	wsRuntime     websocketRuntime
 	cronStore     cron.CronStore
 	cronStorePath string
 	cronScheduler *cron.Scheduler
@@ -59,9 +59,9 @@ type channelStatus struct {
 }
 
 type activeSessionManager interface {
-	ListActiveSessions() []gateway.ActiveSessionInfo
+	ListActiveSessions() []openaiapi.ActiveSessionInfo
 	DeleteActiveSession(id string) (bool, error)
-	GetSessionMessages(id string) ([]gateway.SessionMessageEntry, error)
+	GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error)
 }
 
 type websocketRuntime interface {
@@ -118,7 +118,7 @@ func Run(opts RunOptions, version string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "MothX Serve v%s starting\n", version)
-	displayAddr := displayListenAddr(cfg.Gateway.GetListenAddr())
+	displayAddr := displayListenAddr(cfg.API.GetListenAddr())
 	if cfg.Features.OpenAIAPI {
 		fmt.Fprintf(os.Stderr, "  OpenAI API: http://%s/v1/chat/completions\n", displayAddr)
 	} else {
@@ -146,8 +146,8 @@ func Run(opts RunOptions, version string) error {
 	}
 	fmt.Fprintf(os.Stderr, "  Config: %s\n", path)
 
-	return gateway.Run(gateway.RunOptions{
-		Config:      &cfg.Gateway,
+	return openaiapi.Run(openaiapi.RunOptions{
+		Config:      &cfg.API,
 		DisableAPI:  !cfg.Features.OpenAIAPI,
 		Provider:    opts.Provider,
 		Model:       opts.Model,
@@ -183,7 +183,7 @@ func loadRunConfig(path string) (*Config, string, error) {
 
 func applyOverrides(cfg *Config, opts RunOptions) {
 	if opts.Port != "" {
-		cfg.Gateway.Listen = listenFromPortOverride(opts.Port)
+		cfg.API.Listen = listenFromPortOverride(opts.Port)
 	}
 	if opts.WebUIDir != "" {
 		cfg.WebUI.Dir = opts.WebUIDir
@@ -191,26 +191,26 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 		cfg.Features.WebUI = true
 	}
 	if opts.WorkDir != "" {
-		cfg.Gateway.WorkingDir = opts.WorkDir
+		cfg.API.WorkingDir = opts.WorkDir
 	}
 	if opts.Provider != "" {
-		cfg.Gateway.Provider = opts.Provider
+		cfg.API.Provider = opts.Provider
 	}
 	if opts.Model != "" {
-		cfg.Gateway.Model = opts.Model
+		cfg.API.Model = opts.Model
 	}
 	if opts.Sandbox {
-		cfg.Gateway.Sandbox.Enabled = true
+		cfg.API.Sandbox.Enabled = true
 	}
 	if opts.MultiAgent {
-		cfg.Gateway.EnableSubAgents = true
+		cfg.API.EnableSubAgents = true
 		cfg.Features.MultiAgent = true
 	}
 	if opts.Delegate {
-		cfg.Gateway.EnableDelegate = true
+		cfg.API.EnableDelegate = true
 	}
 	if opts.Workflows {
-		cfg.Gateway.EnableWorkflows = true
+		cfg.API.EnableWorkflows = true
 	}
 	if opts.Lobster {
 		cfg.LobsterMode = true
@@ -234,7 +234,7 @@ func applyRuntimeFeatures(cfg *Config) {
 		return
 	}
 	cfg.WebUI.Enabled = cfg.Features.WebUI
-	cfg.Gateway.EnableSubAgents = cfg.Features.MultiAgent
+	cfg.API.EnableSubAgents = cfg.Features.MultiAgent
 	cfg.Channels.Wechat.Enabled = cfg.Features.Wechat
 	cfg.Channels.Feishu.Enabled = cfg.Features.Feishu
 	cfg.Cron.Enabled = cfg.Features.Cron
@@ -244,33 +244,33 @@ func applyRuntimeFeatures(cfg *Config) {
 func startChannels(cfg *Config, settings *config.Settings, version string) (*channelRuntime, error) {
 	applyRuntimeFeatures(cfg)
 
-	hCfg := buildHermesConfigFromServeConfig(cfg)
+	hCfg := buildConfigFromServeConfig(cfg)
 	cronStore := buildCronStore(hCfg)
 
-	dispatcher, err := hermes.NewDispatcher(hCfg, settings, version, cronStore, nil)
+	dispatcher, err := channels.NewDispatcher(hCfg, settings, version, cronStore, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create channel dispatcher: %w", err)
 	}
 	rt := &channelRuntime{cfg: cfg, version: version, dispatcher: dispatcher, cronStore: cronStore, cronStorePath: cronStorePath(hCfg)}
 	rt.setupCronScheduler(hCfg)
-	rt.setupWebSocketGateway(version)
+	rt.setupWebSocketRuntime(version)
 	rt.startPlatforms()
 	return rt, nil
 }
 
-func buildHermesConfigFromServeConfig(cfg *Config) *hermes.HermesConfig {
-	hCfg := hermes.DefaultHermesConfig()
+func buildConfigFromServeConfig(cfg *Config) *channels.Config {
+	hCfg := channels.DefaultConfig()
 	if cfg == nil {
 		return hCfg
 	}
 	applyRuntimeFeatures(cfg)
 	hCfg.Server.Host = "127.0.0.1"
 	hCfg.Server.Port = 0
-	hCfg.DefaultProvider = cfg.Gateway.Provider
-	hCfg.DefaultModel = cfg.Gateway.Model
-	hCfg.MultiAgent = cfg.Gateway.EnableSubAgents
-	hCfg.Sandbox = cfg.Gateway.Sandbox.Enabled
-	hCfg.WorkDir = cfg.Gateway.GetWorkDir()
+	hCfg.DefaultProvider = cfg.API.Provider
+	hCfg.DefaultModel = cfg.API.Model
+	hCfg.MultiAgent = cfg.API.EnableSubAgents
+	hCfg.Sandbox = cfg.API.Sandbox.Enabled
+	hCfg.WorkDir = cfg.API.GetWorkDir()
 	hCfg.Wechat = cfg.Channels.Wechat
 	hCfg.Feishu = cfg.Channels.Feishu
 	hCfg.Cron = cfg.Cron
@@ -281,21 +281,21 @@ func buildHermesConfigFromServeConfig(cfg *Config) *hermes.HermesConfig {
 	return hCfg
 }
 
-func buildCronStore(hCfg *hermes.HermesConfig) cron.CronStore {
+func buildCronStore(hCfg *channels.Config) cron.CronStore {
 	if hCfg != nil && hCfg.Cron.Enabled {
 		return cron.NewFileCronStore(cronStorePath(hCfg))
 	}
 	return nil
 }
 
-func cronStorePath(hCfg *hermes.HermesConfig) string {
+func cronStorePath(hCfg *channels.Config) string {
 	if hCfg != nil && hCfg.Cron.StorePath != "" {
 		return hCfg.Cron.StorePath
 	}
 	return filepath.Join(config.ConfigDir(), "serve-cron.json")
 }
 
-func (rt *channelRuntime) setupCronScheduler(hCfg *hermes.HermesConfig) {
+func (rt *channelRuntime) setupCronScheduler(hCfg *channels.Config) {
 	if hCfg == nil || !hCfg.Cron.Enabled {
 		fmt.Fprintf(os.Stderr, "  Cron: disabled\n")
 		return
@@ -335,7 +335,7 @@ func (rt *channelRuntime) syncCronRuntime() {
 		return
 	}
 
-	hCfg := buildHermesConfigFromServeConfig(rt.cfg)
+	hCfg := buildConfigFromServeConfig(rt.cfg)
 	nextPath := cronStorePath(hCfg)
 	if rt.cronStore == nil || rt.cronStorePath != nextPath {
 		rt.stopCronScheduler()
@@ -372,17 +372,17 @@ func (rt *channelRuntime) stopCronScheduler() {
 
 func (rt *channelRuntime) syncWebSocketRuntime() {
 	if rt == nil || rt.cfg == nil || !rt.cfg.Features.WebSocket {
-		if rt != nil && rt.wsGateway != nil {
-			_ = rt.wsGateway.Stop(5 * time.Second)
-			rt.wsGateway = nil
+		if rt != nil && rt.wsRuntime != nil {
+			_ = rt.wsRuntime.Stop(5 * time.Second)
+			rt.wsRuntime = nil
 		}
 		return
 	}
-	if rt.wsGateway == nil {
-		rt.setupWebSocketGateway(rt.version)
+	if rt.wsRuntime == nil {
+		rt.setupWebSocketRuntime(rt.version)
 		return
 	}
-	rt.wsGateway.SetClientInfo(rt.cfg.Gateway.Model, rt.cfg.Gateway.GetWorkDir())
+	rt.wsRuntime.SetClientInfo(rt.cfg.API.Model, rt.cfg.API.GetWorkDir())
 }
 
 func (rt *channelRuntime) startPlatforms() {
@@ -431,14 +431,14 @@ func (rt *channelRuntime) stop() {
 	for _, p := range rt.platforms {
 		_ = p.Stop()
 	}
-	if rt.wsGateway != nil {
-		_ = rt.wsGateway.Stop(5 * time.Second)
+	if rt.wsRuntime != nil {
+		_ = rt.wsRuntime.Stop(5 * time.Second)
 	}
 }
 
-func (rt *channelRuntime) routes(configPath string) func(*gateway.Server, *http.ServeMux) {
-	return func(srv *gateway.Server, mux *http.ServeMux) {
-		sessions := activeSessionManagerFromGateway(srv)
+func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *http.ServeMux) {
+	return func(srv *openaiapi.Server, mux *http.ServeMux) {
+		sessions := activeSessionManagerFromAPI(srv)
 		mux.HandleFunc("/api/status", rt.handleStatus(sessions))
 		mux.HandleFunc("/api/serve/config", rt.handleServeConfig(configPath))
 		mux.HandleFunc("/api/sessions", rt.handleSessions(sessions))
@@ -455,7 +455,7 @@ func (rt *channelRuntime) routes(configPath string) func(*gateway.Server, *http.
 	}
 }
 
-func activeSessionManagerFromGateway(srv *gateway.Server) activeSessionManager {
+func activeSessionManagerFromAPI(srv *openaiapi.Server) activeSessionManager {
 	if srv == nil {
 		return nil
 	}
@@ -511,7 +511,7 @@ func (rt *channelRuntime) statusSnapshot(sessions activeSessionManager) serveSta
 		Sessions: sessionCount,
 	}
 	if rt.cfg != nil {
-		status.Listen = rt.cfg.Gateway.GetListenAddr()
+		status.Listen = rt.cfg.API.GetListenAddr()
 		status.Features = featureStatusFromConfig(rt.cfg.Features)
 		status.WebUI = rt.cfg.WebUI
 	}
@@ -538,7 +538,7 @@ func (rt *channelRuntime) handleSessions(sessions activeSessionManager) http.Han
 			return
 		}
 		if sessions == nil {
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "gateway server not ready"})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions.ListActiveSessions()})
@@ -560,7 +560,7 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 				return
 			}
 			if sessions == nil {
-				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "gateway server not ready"})
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
 				return
 			}
 			msgs, err := sessions.GetSessionMessages(id)
@@ -576,11 +576,11 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 			return
 		}
 		if sessions == nil {
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "gateway server not ready"})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
 			return
 		}
 		deleted, err := sessions.DeleteActiveSession(id)
-		if errors.Is(err, gateway.ErrActiveSessionIDAmbiguous) {
+		if errors.Is(err, openaiapi.ErrActiveSessionIDAmbiguous) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 			return
 		}
@@ -615,7 +615,7 @@ func (rt *channelRuntime) channelStatuses() []channelStatus {
 	statuses := []channelStatus{
 		{Name: "wechat", Enabled: rt.cfg.Channels.Wechat.Enabled, Connected: false},
 		{Name: "feishu", Enabled: rt.cfg.Channels.Feishu.Enabled, Connected: false},
-		{Name: "websocket", Enabled: rt.cfg.Features.WebSocket, Connected: rt.wsGateway != nil && rt.wsGateway.ConnectionCount() > 0},
+		{Name: "websocket", Enabled: rt.cfg.Features.WebSocket, Connected: rt.wsRuntime != nil && rt.wsRuntime.ConnectionCount() > 0},
 	}
 	byName := map[string]int{
 		"wechat": 0,
@@ -669,7 +669,7 @@ func (rt *channelRuntime) handleMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	store := memory.NewStore(rt.cfg.Memory.Path, rt.cfg.Gateway.GetWorkDir())
+	store := memory.NewStore(rt.cfg.Memory.Path, rt.cfg.API.GetWorkDir())
 	switch r.Method {
 	case http.MethodGet:
 		content, path, source, err := store.Read()
@@ -724,11 +724,11 @@ func (rt *channelRuntime) handleWebSocket(w http.ResponseWriter, r *http.Request
 		http.NotFound(w, r)
 		return
 	}
-	if rt.wsGateway == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "websocket gateway not ready"})
+	if rt.wsRuntime == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "websocket runtime not ready"})
 		return
 	}
-	rt.wsGateway.WebSocketHandler().ServeHTTP(w, r)
+	rt.wsRuntime.WebSocketHandler().ServeHTTP(w, r)
 }
 
 func (rt *channelRuntime) handleBrowse(w http.ResponseWriter, r *http.Request) {
@@ -775,7 +775,7 @@ func (rt *channelRuntime) handleBrowse(w http.ResponseWriter, r *http.Request) {
 
 func (rt *channelRuntime) browseDefaultDir() string {
 	if rt != nil && rt.cfg != nil {
-		return rt.cfg.Gateway.GetWorkDir()
+		return rt.cfg.API.GetWorkDir()
 	}
 	cwd, err := os.Getwd()
 	if err == nil && cwd != "" {
@@ -818,12 +818,12 @@ func (rt *channelRuntime) browseAllowedRoots() ([]string, error) {
 		return []string{filepath.Clean(cwd)}, nil
 	}
 	var configured []string
-	if rt.cfg.Gateway.AllowedWorkDirs != nil {
-		configured = append(configured, (*rt.cfg.Gateway.AllowedWorkDirs)...)
+	if rt.cfg.API.AllowedWorkDirs != nil {
+		configured = append(configured, (*rt.cfg.API.AllowedWorkDirs)...)
 	} else if len(rt.cfg.Security.AllowedWorkDirs) > 0 {
 		configured = append(configured, rt.cfg.Security.AllowedWorkDirs...)
 	} else {
-		configured = []string{rt.cfg.Gateway.GetWorkDir()}
+		configured = []string{rt.cfg.API.GetWorkDir()}
 	}
 	if len(configured) == 0 {
 		return nil, fmt.Errorf("directory browsing is disabled")

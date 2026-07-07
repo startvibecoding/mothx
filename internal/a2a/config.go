@@ -1,6 +1,6 @@
 // Package a2a implements the A2A (Agent-to-Agent) protocol server.
 // It provides a JSON-RPC 2.0 endpoint for other agents to send tasks to VibeCoding.
-// Supports both standalone mode (vibecoding a2a start) and integration mode (hermes + a2a.enabled).
+// Supports standalone A2A mode.
 package a2a
 
 import (

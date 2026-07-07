@@ -297,19 +297,19 @@ MothX 支持 Agent Client Protocol (ACP)，可集成到：
 
 ---
 
-## 🌐 网关模式
+## 🌐 Serve 模式
 
 ### OpenAI 兼容 HTTP API
 
 MothX 可以作为 OpenAI 兼容的 HTTP 服务器使用：
 
 ```bash
-# 启动网关
-mothx gateway
+# 启动 serve
+mothx serve
 
 # 配置文件
-~/.vibecoding/gateway.json
-.vibe/gateway.json
+~/.vibecoding/serve.json
+.vibe/serve.json
 ```
 
 ### 使用场景
@@ -327,12 +327,12 @@ mothx gateway
 MothX 可以部署为聊天机器人：
 
 ```bash
-# 启动消息网关
-mothx hermes
+# 启动消息通道
+mothx serve
 
 # 配置文件
-~/.vibecoding/hermes.json
-.vibe/hermes.json
+~/.vibecoding/serve.json
+.vibe/serve.json
 ```
 
 ### 功能特性
@@ -365,7 +365,7 @@ subagent_destroy  # 销毁子 Agent
 # 启用一个阻塞式委托子 Agent
 mothx --delegate
 
-# 在 TUI 或 Gateway 会话中切换
+# 在 TUI 或 Serve 会话中切换
 /delegate on
 /delegate status
 /delegate off
@@ -543,7 +543,7 @@ mothx doctor
 
 ### 检查项目
 
-- **配置文件**：检查 settings.json、gateway.json、hermes.json
+- **配置文件**：检查 settings.json、serve.json、serve.json
 - **Provider**：检查 API 密钥和连接
 - **沙箱**：检查 bwrap 安装和配置
 - **MCP**：检查 MCP 服务器配置

@@ -98,7 +98,7 @@ func (rt *channelRuntime) handleCronCreate(w http.ResponseWriter, r *http.Reques
 		Prompt:   *req.Prompt,
 		Enabled:  true,
 		Mode:     "yolo",
-		WorkDir:  rt.cfg.Gateway.GetWorkDir(),
+		WorkDir:  rt.cfg.API.GetWorkDir(),
 		Schedule: "",
 	}
 	if req.Enabled != nil {
@@ -234,7 +234,7 @@ func (rt *channelRuntime) ensureCronStore() cron.CronStore {
 	if rt == nil || rt.cfg == nil || !rt.cronEnabled() {
 		return nil
 	}
-	hCfg := buildHermesConfigFromServeConfig(rt.cfg)
+	hCfg := buildConfigFromServeConfig(rt.cfg)
 	nextPath := cronStorePath(hCfg)
 	if rt.cronStore == nil || rt.cronStorePath != nextPath {
 		rt.stopCronScheduler()
@@ -258,7 +258,7 @@ func (rt *channelRuntime) cronPath() string {
 	if rt.cfg == nil {
 		return ""
 	}
-	return cronStorePath(buildHermesConfigFromServeConfig(rt.cfg))
+	return cronStorePath(buildConfigFromServeConfig(rt.cfg))
 }
 
 func normalizeCronJobSchedule(job *cron.CronJob) error {

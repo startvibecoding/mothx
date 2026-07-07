@@ -7,16 +7,16 @@
 
 - **Unified Serve Mode with Web UI**
   - Added `mothx serve` CLI command to start a unified server exposing OpenAI-compatible APIs, a Web UI management panel, and messaging channels (WeChat/Feishu) simultaneously.
-  - Added `internal/serve/` package to unify Gateway, Hermes channel, and Web UI configuration and runtime management.
-  - Configuration via `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`), supporting Gateway, channels, Web UI, Cron, Memory, Security, Hooks, and Agent settings.
+  - Added `internal/serve/` package to unify Serve, Channels channel, and Web UI configuration and runtime management.
+  - Configuration via `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`), supporting Serve, channels, Web UI, Cron, Memory, Security, Hooks, and Agent settings.
   - Built-in Svelte Web UI panel with Dark theme, health check, channel status, config editor, settings editor, and chat interface with SSE streaming.
   - Web UI now includes full management APIs: `/api/status`, `/api/sessions`, `/api/cron`, `/api/memory`, and `/ws/logs` for real-time log streaming.
-  - WebSocket gateway mounted at `/ws`, reusing Hermes event protocol for real-time communication.
+  - WebSocket runtime mounted at `/ws`, reusing Channels event protocol for real-time communication.
   - Cron API supports CRUD operations with scheduler integration.
-  - Gateway SessionPool now has List/Delete management interfaces.
+  - Serve SessionPool now has List/Delete management interfaces.
   - Added `--web-ui-dir` CLI flag to override the Web UI static assets directory.
   - Added Lobster mode (`--lobster`) that auto-enables yolo mode, disables sandbox, and turns on sub-agents.
-  - Gateway now supports an `ExtraRoutes` hook for Serve mode to inject custom API routes (`/api/serve/config`, `/api/settings`, `/api/channels`).
+  - Serve now supports an `ExtraRoutes` hook for Serve mode to inject custom API routes (`/api/serve/config`, `/api/settings`, `/api/channels`).
 
 - **New Vendor Support**
   - Added Huawei Cloud vendor (`huawei`, `huawei-plan`) with 13 models total, including standard and Plan reasoning modes.
@@ -181,12 +181,12 @@
 
 ### ✨ Features
 
-- **Multi-Workspace Session Isolation in Gateway**
-  - Isolated default HTTP gateway sessions by work directory (`workDir`) rather than sharing a single global default. Multiple workspace clients no longer share fallback session history.
+- **Multi-Workspace Session Isolation in Serve**
+  - Isolated default HTTP API sessions by work directory (`workDir`) rather than sharing a single global default. Multiple workspace clients no longer share fallback session history.
   - Added `OpenByIDExact` to load session metadata and reconstruction info directly by exact session UUID, ignoring current working directory constraints.
-  - Serialized concurrent session creation inside the HTTP gateway to safely handle rapid successive calls and prevent duplicates.
+  - Serialized concurrent session creation inside the HTTP API server to safely handle rapid successive calls and prevent duplicates.
   - Improved `/sessions del` slash command to support prefix matching for session IDs and prevent deleting the currently active session.
-  - Preserved the gateway session slot on `/clear` while cleanly resetting all messages in the session manager.
+  - Preserved the serve session slot on `/clear` while cleanly resetting all messages in the session manager.
 
 - **PyPI Installer Packaging**
   - Added a PyPI package wrapper for `vibecoding-installer` that exposes the legacy `vibecoding` console command and ships platform-specific wheels with embedded native binaries.
@@ -293,11 +293,11 @@
 
 - **SQLite Session Storage**
   - Standardized new and resumed sessions on SQLite (`modernc.org/sqlite`) for improved query performance and metadata management.
-  - For CLI and Gateway, all session metadata and entry logs are stored in a single, unified `sessions.db` database file under `sessionDir`, using virtual `.db` paths as handles for listing, switching, and deleting. Only Hermes writes physical handle files (like `active.db` and archived `*_corrupt.db` files) under per-user directories.
+  - For CLI and Serve, all session metadata and entry logs are stored in a single, unified `sessions.db` database file under `sessionDir`, using virtual `.db` paths as handles for listing, switching, and deleting. Only Channels writes physical handle files (like `active.db` and archived `*_corrupt.db` files) under per-user directories.
   - Added fast exact/prefix matching in `OpenByID` and `OpenByPathOrID`, including ambiguity detection and direct session reconstruction from the unified SQLite database.
   - ACP history replay now streams tool execution events (`toolCall`/`toolResult`) while loading stored conversation history.
-  - `DeleteSession` purges session/entry rows from SQLite, and deletes the physical handle file if present (as in Hermes), while refusing to treat the shared `sessions.db` database as a session handle.
-  - Hermes now uses `active.db` physical session handles, archives corrupt sessions as `*_corrupt.db`, and no longer falls back to legacy `active.jsonl` paths.
+  - `DeleteSession` purges session/entry rows from SQLite, and deletes the physical handle file if present (as in Channels), while refusing to treat the shared `sessions.db` database as a session handle.
+  - Channels now uses `active.db` physical session handles, archives corrupt sessions as `*_corrupt.db`, and no longer falls back to legacy `active.jsonl` paths.
   - Removed legacy JSONL load/write paths so new and resumed sessions use SQLite only.
 
 ### 🐛 Bug Fixes
@@ -327,7 +327,7 @@
 
 ### 📚 Documentation
 
-- Updated session documentation, CLI examples, FAQ cleanup guidance, architecture diagrams, Hermes docs, and README feature summaries to describe SQLite-backed storage, `.db` handle files, and `active.db` Hermes sessions.
+- Updated session documentation, CLI examples, FAQ cleanup guidance, architecture diagrams, Channels docs, and README feature summaries to describe SQLite-backed storage, `.db` handle files, and `active.db` Channels sessions.
 - Added configuration docs for the built-in Volcengine/Doubao provider and refreshed provider-adapter lists to include Volcengine, Mistral, GitHub Copilot, Cloudflare, and Amazon Bedrock adapters.
 
 ### 💅 Improvements
@@ -434,7 +434,7 @@
   - Registered the lint tool alongside workflow run/status/cancel tools and updated workflow prompt guidance to lint non-trivial generated or edited workflows before execution.
 
 - **Configurable Context Compaction**
-  - Added compaction settings for `tokenizer`, `tokenizerModel`, and `template`, wired through CLI, print mode, ACP, Gateway, Hermes, TUI mode switches, and delegated agent factories.
+  - Added compaction settings for `tokenizer`, `tokenizerModel`, and `template`, wired through CLI, print mode, ACP, Serve, Channels, TUI mode switches, and delegated agent factories.
   - Added built-in compression summary templates: `default`, `code`, and `conversation`, so long sessions can preserve task-appropriate checkpoints.
   - Introduced a token estimator abstraction while preserving the existing generic chars/4 estimator for `auto` and `generic`.
   - Compaction entries now record summary version, previous compaction ID, and last summarized entry ID for better session replay/debugging.
@@ -472,7 +472,7 @@
 
 - Added workflow runner, lint, integration, and skill coverage for keyed repeated agents and keyed result lookup.
 - Added context compaction tests for custom token estimators, template resolution, configured summary prompts, compaction metadata, compactability checks, and session replay usage cleanup.
-- Added Gateway and Hermes coverage for `/compact` when only recent context can be kept.
+- Added Serve and Channels coverage for `/compact` when only recent context can be kept.
 - Added workflow lint tests for valid source collection and missing result reference errors.
 - Added workflow integration coverage verifying DSL agent names are reflected in runtime worker agent IDs.
 - Added file lock tests for wait/cancel behavior, shared default managers, and `write`/`edit` context handling.
@@ -500,8 +500,8 @@
 
 ### 🔧 Refactoring
 
-- **Gateway Session-Level Skills Support**
-  - Gateway sessions now support independent `SkillsMgr` and `ExtraContext`, so delegate sub-agents inherit per-session state.
+- **Serve Session-Level Skills Support**
+  - Serve sessions now support independent `SkillsMgr` and `ExtraContext`, so delegate sub-agents inherit per-session state.
   - `/skill` and `/skills` commands now operate on session-level skills instead of global server-level skills.
 
 - **System Prompt Streamlining**
@@ -533,10 +533,10 @@
 ### ✨ Features
 
 - **Dynamic Workflows**
-  - Added `--workflows` mode for CLI, ACP, and Gateway, independent from `--multi-agent`.
+  - Added `--workflows` mode for CLI, ACP, and Serve, independent from `--multi-agent`.
   - Added Elisp workflow tools: `workflow_run`, `workflow_status`, and `workflow_cancel`.
   - Added workflow runtime support for phases, series/parallel execution, concurrency limits, worker-agent tasks, result fan-in, and run logs.
-  - Added persistent workflow run state under the MothX workflow store and `/workflows` status commands in TUI and Gateway.
+  - Added persistent workflow run state under the MothX workflow store and `/workflows` status commands in TUI and Serve.
   - Added in-process active-run cancellation so `workflow_cancel` and `/workflows cancel <id>` can interrupt running workflows.
 
 - **Z.AI Vendor Adapter**
@@ -685,14 +685,14 @@
 ### ✨ Features
 
 - **GoStreamingMarkdown Renderer**
-  - Replaced Glamour-based Markdown rendering with `github.com/startvibecoding/GoStreamingMarkdown` (`gsm`) for print mode, local TUI, and Hermes remote TUI.
+  - Replaced Glamour-based Markdown rendering with `github.com/startvibecoding/GoStreamingMarkdown` (`gsm`) for print mode, local TUI, and Channels remote TUI.
   - Removed the local module replacement and now depend on the remote `github.com/startvibecoding/GoStreamingMarkdown` module directly.
 
 - **Delegate Mode (Blocking Single Sub-Agent Delegation)**
   - New `delegate_subagent` tool: runs one sub-agent synchronously, returns a summarized result, enforces a single concurrent delegate limit.
-  - `--delegate` CLI flag for root, ACP, and gateway commands.
-  - `/delegate [on|off|status]` slash command for TUI and gateway.
-  - `enableDelegate` configuration option in gateway config (`gateway.json`).
+  - `--delegate` CLI flag for root, ACP, and serve commands.
+  - `/delegate [on|off|status]` slash command for TUI and serve.
+  - `enableDelegate` configuration option in serve config (`serve.json`).
   - Dedicated **Delegation Mode** section in system prompt with context-cost heuristics, good/bad examples, and result interpretation guidance.
   - `AgentFactoryOptions.DelegateEnabled` factory support for programmatic use.
   - Sub-agent system prompt now uses a structured reporting format (`Result`, `Evidence`, `Changes`, `Risks`) with guidelines on negative results, test execution, and conciseness.
@@ -735,7 +735,7 @@
 - **Session Compaction Replay State Persistence**
   - Sessions now persist compaction replay state (`ReplayState`) so that compacted sessions can be correctly resumed across restarts.
   - `LoadHistoryState` / `GetHistoryState` track per-message session entry IDs, enabling the compaction boundary (`firstKeptEntryID`) to survive session reload.
-  - Gateway and Hermes use `LoadHistoryState` instead of `LoadHistoryMessages` for accurate post-compaction replay.
+  - Serve and Channels use `LoadHistoryState` instead of `LoadHistoryMessages` for accurate post-compaction replay.
   - TUI blocks user input during manual compaction and merges `agentStartMsg`/`compactionStartMsg` into a unified `agentStreamStartMsg`.
 
 - **TUI Viewport Rewrite & CJK Support**
@@ -775,11 +775,11 @@
 ### ✨ Features
 
 - **Custom Provider Model Fallback**
-  - When a provider is explicitly requested (via CLI, Gateway, or Hermes) but no model ID is specified, the factory now automatically falls back to the provider's **first available model** instead of using `settings.DefaultModel` (which belongs to the default provider).
+  - When a provider is explicitly requested (via CLI, Serve, or Channels) but no model ID is specified, the factory now automatically falls back to the provider's **first available model** instead of using `settings.DefaultModel` (which belongs to the default provider).
   - This prevents configuration mismatches and "model not found" errors when using non-default providers without a specified model.
 
-- **Hermes Configuration Default Resolution**
-  - Updated Hermes default model resolution so that when `DefaultProvider` is specified in `hermes.json` but `DefaultModel` is left blank, the system correctly falls back to the custom provider's first available model instead of propagating the global `DefaultModel` from `settings.json`.
+- **Channels Configuration Default Resolution**
+  - Updated Channels default model resolution so that when `DefaultProvider` is specified in `serve.json` but `DefaultModel` is left blank, the system correctly falls back to the custom provider's first available model instead of propagating the global `DefaultModel` from `settings.json`.
 
 - **Refined Exposed Agent SDK Package & Examples**
   - Completed the mapping for all missing events and fields inside the top-level `agent` bridge (including `Messages`, `TurnMessage`, `TurnToolResults`, `Message`, `ToolCall`, `ToolDiff`, `ToolError`, `PartialResult`, `Plan`, `Usage`, and `ContextUsage`).
@@ -790,7 +790,7 @@
 ### 🧪 Tests
 
 - Added `TestCreateFallbackToFirstModel` in `internal/provider/factory_test.go` to cover fallback behavior for both custom and built-in providers when the model ID is blank.
-- Added test coverage in `internal/hermes/config_test.go` for `GetDefaultModel` when `DefaultProvider` is specified in Hermes config but `DefaultModel` is empty.
+- Added test coverage in `internal/serve/channels/config_test.go` for `GetDefaultModel` when `DefaultProvider` is specified in Channels config but `DefaultModel` is empty.
 
 ---
 
@@ -820,7 +820,7 @@
 - **Doctor Subcommand** (`mothx doctor`)
   - New diagnostic command that checks environment, configuration, providers, sandbox, MCP servers, sessions, skills, and context files
   - Reports OS/arch, Go version, shell, home/working directory
-  - Validates settings, gateway, and MCP config files with parse checks
+  - Validates settings, serve, and MCP config files with parse checks
   - Lists configured providers with masked API keys, models with context window/max tokens/reasoning flags
   - Checks bwrap sandbox availability and version
   - Shows MCP servers, session counts, skills directories, and discovered context files
@@ -845,7 +845,7 @@
 
 - **Context Pressure Threshold Comparison**
   - Fixed Context Pressure threshold unit mismatch: `Percent` (0-100) was compared directly against `threshold` (0-1), causing the warning to fire at ~0.5% usage instead of the intended 55%
-  - Fixed `InitHermesConfig` project template to include explicit `context_pressure_threshold` and `budget_pressure_threshold` defaults, preventing them from being serialized as 0 (disabled)
+  - Fixed `InitChannelsConfig` project template to include explicit `context_pressure_threshold` and `budget_pressure_threshold` defaults, preventing them from being serialized as 0 (disabled)
 
 - **Live Message Rendering**
   - Live assistant messages render fenced code blocks as Markdown while keeping normal prose on the plain-text wrapping path to avoid awkward word splitting
@@ -854,7 +854,7 @@
   - Pass `ModelID` in `ChatParams` so providers know the active model
   - Forward model to compaction/summary generation, preventing silent fallback to default model
   - Return errors with available model list when model is not found instead of silently falling back
-  - Consistent model error messages across factory, gateway, and TUI
+  - Consistent model error messages across factory, serve, and TUI
 
 - **Google/OpenAI Tool Result Text Extraction**
   - Fixed Google and OpenAI providers sending empty content when tool results use rich `Contents` blocks instead of plain `Content` string
@@ -891,14 +891,14 @@
 
 ### ✨ Features
 
-- **Hermes Remote TUI Client**
-  - Replaced the plain-text WebSocket client with a full Bubble Tea TUI (`hermes client`)
+- **Channels Remote TUI Client**
+  - Replaced the plain-text WebSocket client with a full Bubble Tea TUI for the serve WebSocket channel
   - Markdown rendering with syntax highlighting via Glamour
   - Scrollable tool details modal (Ctrl+O), approval prompts (Enter/Esc), and question tool support
   - Plan update display, context pressure/budget warnings, and request timers
   - Native terminal scrollback for completed messages
   - Slash command support (`/clear`, `/mode`, `/model`, `/compact`, `/help`, etc.)
-  - New `internal/hermes/remotetui` package: `app.go`, `render.go`, `input.go`, `remote.go`, `agent_events.go`, `approval.go`, `commands.go`, `formatters.go`, `tool_modal.go`, `events.go`
+  - New `internal/serve/channels/remotetui` package: `app.go`, `render.go`, `input.go`, `remote.go`, `agent_events.go`, `approval.go`, `commands.go`, `formatters.go`, `tool_modal.go`, `events.go`
 
 - **WebSocket Protocol Enhancements**
   - Added `question_request` / `question_response` events for plan-mode question tool over WebSocket
@@ -916,7 +916,7 @@
 
 ### 🧪 Tests
 
-- Added WebSocket gateway server tests for connection, auth, chat, approval, question, and command flows
+- Added WebSocket runtime server tests for connection, auth, chat, approval, question, and command flows
 
 ## v0.1.33
 
@@ -927,7 +927,7 @@
   - Priority order: `.skills/` > `skills/` > global skills directory
   - New `NewManagerWithProjectDirs` constructor accepts explicit project dirs in priority order
   - New `ProjectSkillDirs` helper returns the standard project skill directory list
-  - Updated all call sites: CLI, ACP, gateway, and hermes
+  - Updated all call sites: CLI, ACP, and serve
   - Added tests for multi-directory priority and plain `skills/` directory loading
 
 ## v0.1.32
@@ -939,8 +939,8 @@
   - `jobs` tool: list and inspect background jobs started with `bash async=true`, with optional cleanup
   - `kill` tool: terminate a running background job by ID
   - `question` tool: AI can ask users multiple-choice questions during plan mode to clarify requirements
-  - `memory` tool (Hermes): persistent memory via `memory.md` with read/add/update/delete actions across sessions
-  - `cron` tool (Hermes/multi-agent): scheduled background tasks via sub-agents with `@daily`, `@weekly`, `@every N` schedules and one-shot support
+  - `memory` tool (Channels): persistent memory via `memory.md` with read/add/update/delete actions across sessions
+  - `cron` tool (Channels/multi-agent): scheduled background tasks via sub-agents with `@daily`, `@weekly`, `@every N` schedules and one-shot support
   - MCP dynamic tools: tools/resources/prompts from MCP servers are auto-discovered and registered per session
 
 - **Plan Mode Question Tool**
@@ -954,15 +954,15 @@
 - **Bash Tool Output Safety**
   - Synchronous bash mode now enforces a 1 GB output limit using `limitedBuffer`, preventing OOM from unbounded `bytes.Buffer` growth
 
-- **Hermes `/compact` Command**
-  - Implemented the `/compact` slash command for Hermes messaging mode (previously a TODO stub)
+- **Channels `/compact` Command**
+  - Implemented the `/compact` slash command for Channels messaging mode (previously a TODO stub)
   - Sets a `ForceCompact` flag on the session, consumed by the next agent run to trigger context compaction
 
 - **Session Durability**
   - `writeEntry` now calls `f.Sync()` after writing, guaranteeing data survives crash or power loss
   - Corrupt session lines are now logged as warnings and skipped instead of blocking session load
 
-- **Hermes Approval Race Condition**
+- **Channels Approval Race Condition**
   - `ResolveApproval` now uses `select` to avoid writing to an already-consumed channel when timeout and approval race
 
 - **Agent Sub-agent Panic Logging**
@@ -1014,12 +1014,12 @@
 - **Path and Session Safety**
   - Fixed path containment checks to use path-aware boundaries instead of string prefix checks
   - Prevented context `extraFiles` from escaping the working directory
-  - Encoded unsafe Hermes session path components and enforced `allowed_work_dirs` during session creation
+  - Encoded unsafe Channels session path components and enforced `allowed_work_dirs` during session creation
   - Restricted session deletion to `.db` files under the configured session directory
 
 - **Auth, Approval, and Resource Limits**
-  - Switched Hermes HTTP/WebSocket token checks to constant-time comparison
-  - Changed the Hermes WebSocket client to send auth via `Authorization: Bearer ...` instead of query strings
+  - Switched Channels HTTP/WebSocket token checks to constant-time comparison
+  - Changed the Channels WebSocket client to send auth via `Authorization: Bearer ...` instead of query strings
   - Cleaned up pending ACP permission requests on timeout and propagated ACP write errors
   - Added request/body size limits for ACP, read-tool image files, WeChat responses, and cron A2A responses
   - Added timeouts to cron A2A HTTP calls
@@ -1027,25 +1027,25 @@
 - **Memory, Context, and Concurrency**
   - Added locking to memory store operations
   - Fixed `memory.WriteAll()` path handling and kept memory update/delete scoped to the requested section
-  - Cloned gateway model settings before per-request `temperature`/`top_p` overrides
+  - Cloned API model settings before per-request `temperature`/`top_p` overrides
   - Passed agent callback context/message snapshots instead of shared references
   - Serialized cron job state transitions through the job store
 
-- **Configuration and Gateway Hardening**
+- **Configuration and Serve Hardening**
   - Gated `!command` API key resolution behind `VIBECODING_ALLOW_SHELL_CONFIG=1`
-  - Fixed Gateway CORS to echo only the allowed request origin
-  - Added a startup warning when Gateway listens beyond loopback in `yolo` mode without authentication
+  - Fixed Serve CORS to echo only the allowed request origin
+  - Added a startup warning when Serve listens beyond loopback in `yolo` mode without authentication
   - Hardened platform home/shell fallback behavior
 
 ### 🧪 Tests
 
 - Added regression coverage for A2A auth, task ID uniqueness, task snapshot isolation, and persisted working task messages
 - Added coverage for path traversal, unsafe session IDs, memory section operations, ACP cleanup, CORS behavior, UTF-8 truncation, and shell-config opt-in
-- Ran focused package tests plus race tests for A2A, agent, gateway, and cron
+- Ran focused package tests plus race tests for A2A, agent, serve, and cron
 
 ### 📝 Docs
 
-- Updated A2A, Hermes, Gateway, configuration, and security docs for the new authentication and hardening behavior
+- Updated A2A, Channels, Serve, configuration, and security docs for the new authentication and hardening behavior
 
 ## v0.1.30
 
@@ -1106,7 +1106,7 @@
   - Added `temperature` and `top_p` fields to `ModelConfig` and `Model` for per-model parameter tuning
   - Wired through OpenAI and Anthropic providers with `omitempty` — `nil` means use API default
   - Wired through provider factory, agent loop, and ACP mode
-  - Gateway supports per-request `temperature`/`top_p` override via `ChatParams`
+  - Serve supports per-request `temperature`/`top_p` override via `ChatParams`
   - When not configured, parameters are omitted entirely (no zero-value sent to API)
 
 - **OpenAI Responses API Support**
@@ -1128,8 +1128,8 @@
 
 ### ✨ Features
 
-- **Hermes Mode** (`mothx hermes`)
-  - New messaging gateway mode for WeChat, Feishu, and WebSocket
+- **Serve Mode** (`mothx serve`)
+  - New messaging channel mode for WeChat, Feishu, and WebSocket
   - Persistent per-user sessions with auto-archiving on `/new`
   - Default `yolo` mode for unattended operation
   - Smart approvals with tiered risk classification (low/medium/high)
@@ -1139,7 +1139,6 @@
 - **A2A Protocol** (`mothx a2a`)
   - New Agent-to-Agent protocol server (JSON-RPC 2.0 over HTTP + SSE streaming)
   - Standalone mode: `mothx a2a start` (port 8093)
-  - Integration mode: `hermes.json` `a2a.enabled: true` shares hermes HTTP port
   - Agent Card at `/.well-known/agent.json`
   - Task lifecycle: submitted → working → completed/failed/canceled
   - REST endpoints: `/a2a/send`, `/a2a/task`, `/a2a/task/cancel`, `/a2a/events`
@@ -1156,20 +1155,20 @@
 
 - **A2A Config Initialization**
   - `mothx a2a --init-a2a-config` generates `a2a.json` config template
-  - `mothx --init-gateway` generates `gateway.json` config template (existing)
+  - `mothx --init-serve` generates `serve.json` config template (existing)
   - `mothx --init-a2a-master-config` generates `a2a-list.json` config template
   - All `--init-*` flags support `--force` to overwrite existing files
 
 - **Scenarios & Walkthroughs Documentation**
   - New `docs/scenarios.md` (zh + en) covering 9 practical usage scenarios
   - Covers: daily coding, CI integration, multi-agent, VS Code ACP, A2A server,
-    A2A Master cross-machine dispatch, Gateway HTTP, Hermes messaging, combined modes
+    A2A Master cross-machine dispatch, Serve HTTP, Channels messaging, combined modes
 
 - **Documentation Overhaul**
-  - `architecture.md`: added all missing modules (a2a/acp/gateway/hermes/mcp/memory/messaging/vendored)
+  - `architecture.md`: added all missing modules (a2a/acp/serve/mcp/memory/messaging/vendored)
   - `tools.md`: added `a2a_dispatch` and `skill_ref` tool docs
   - `cli-reference.md`: added `--enable-a2a-master`, `--init-a2a-master-config`,
-    `--init-gateway`, `--force`, `a2a` subcommand docs
+    `--init-serve`, `--force`, `a2a` subcommand docs
   - `README.md`: updated architecture diagram, added running modes overview
 
 - **Pressure System**
@@ -1186,20 +1185,20 @@
   - Command risk classification: low/medium/high based on bash command patterns
 
 - **Provider/Model Configuration**
-  - `default_provider` / `default_model` in `hermes.json` (overrides `settings.json`)
-  - CLI flags `-p`/`--provider` and `-m`/`--model` for `hermes start`
-  - Priority: CLI flags > `hermes.json` > `settings.json`
+  - `default_provider` / `default_model` in `serve.json` (overrides `settings.json`)
+  - CLI flags `-p`/`--provider` and `-m`/`--model` for `mothx serve`
+  - Priority: CLI flags > `serve.json` > `settings.json`
 
 - **Multi-Agent Mode** (`--multi-agent`)
-  - Enables sub-agent tools (spawn/status/send/destroy) in hermes sessions
-  - Configurable via `hermes.json` `multi_agent` field or `--multi-agent` CLI flag
+  - Enables sub-agent tools (spawn/status/send/destroy) in serve channel sessions
+  - Configurable via `serve.json` `multi_agent` field or `--multi-agent` CLI flag
 
 - **Sandbox Mode** (`--sandbox`)
   - Optional bwrap sandbox isolation (disabled by default)
-  - Configurable via `hermes.json` `sandbox` field or `--sandbox` CLI flag
+  - Configurable via `serve.json` `sandbox` field or `--sandbox` CLI flag
 
 - **MCP Integration**
-  - Hermes automatically loads MCP servers from global/project `mcp.json`
+  - Channels automatically loads MCP servers from global/project `mcp.json`
   - MCP tools registered per-session, connections auto-closed on session removal
 
 - **Progress Events for Messaging Platforms**
@@ -1214,18 +1213,10 @@
   - Lookup priority: `memory.path` config → `.vibe/memory.md` → `<GLOBAL_DIR>/memory.md`
   - `/api/memory` HTTP endpoint (GET/PUT) for memory access
 
-- **Hermes CLI Commands**
-  - `hermes start` — start daemon with all CLI flags
-  - `hermes stop` — stop daemon via PID file + SIGTERM
-  - `hermes status` — check daemon status via PID + HTTP health
-  - `hermes client` — WebSocket client with streaming output and slash commands
-  - `hermes config init/show` — configuration management
-  - `hermes wechat login/status` — WeChat iLink management
-  - `hermes feishu setup/status` — Feishu configuration
-  - `hermes webhook list` — webhook route listing
-  - `hermes memory show/clear` — memory management
-  - `hermes sessions list` — active session listing (queries running instance)
-  - `hermes cron list/add/remove/enable/disable` — cron job management
+- **Serve Channel Management**
+  - `mothx serve` — start the unified API, Web UI, and channel runtime
+  - `mothx serve init-config` — create `serve.json`
+  - Web UI and serve APIs manage channel status, sessions, memory, webhooks, and cron jobs
   - `a2a start/stop/status/card` — A2A server management
 
 ### 📝 Changes
@@ -1235,7 +1226,7 @@
 - Shell hooks for pre/post tool call external scripts (JSON stdin/stdout)
 - Webhook inbound routing with HMAC-SHA256 signature verification
 - WebSocket uses `golang.org/x/net/websocket` (stdlib compatible)
-- PID file-based daemon management for hermes stop/status
+- Serve runtime process lifecycle management
 
 ### 🐛 Bug Fixes
 
@@ -1246,7 +1237,7 @@
   - Adjusted `npm/.npmignore` and `npm/bin` handling to avoid shipping accidental build artifacts and to keep
     package manifests (`files`) explicit.
 
-- **Hermes Webhook Delivery and Filtering**
+- **Channels Webhook Delivery and Filtering**
   - Webhook routes now treat unknown event types as non-matching unless the route explicitly allows `*`.
   - Added `delivery_target` to webhook routes so WeChat/Feishu delivery has a concrete recipient.
   - Updated webhook route listing and config templates to show the delivery target when present.
@@ -1264,7 +1255,7 @@
 
 ### ✨ Features
 
-- **Gateway Mode** (`mothx gateway`)
+- **Serve Mode** (`mothx serve`)
   - New HTTP server exposing a standard OpenAI Chat Completions API (`/v1/chat/completions`, `/v1/models`, `/health`)
   - Any OpenAI-compatible client (Cursor, Continue, Open WebUI, Python SDK, etc.) can connect directly
   - Streaming (SSE) and non-streaming responses fully supported
@@ -1275,17 +1266,17 @@
   - Session association via `x_session_id` in request body; auto-created when absent
   - Configurable idle timeout (`session.idleTimeoutSeconds`) and max session limit (`session.maxSessions`)
 
-- **Sub-Agent Support in Gateway**
-  - Optional `enableSubAgents` config to enable multi-agent orchestration in gateway mode
+- **Sub-Agent Support in Serve**
+  - Optional `enableSubAgents` config to enable multi-agent orchestration in serve mode
   - Reuses existing `AgentFactory` / `AgentManager` / sub-agent tools with no core agent changes
 
 - **Bearer Token Authentication**
-  - Configurable via `gateway.json` with `auth.enabled` and `auth.tokens` list
+  - Configurable via `serve.json` with `auth.enabled` and `auth.tokens` list
   - Disabled by default; `/health` endpoint always unauthenticated
 
 - **Slash Commands via API**
   - `/clear`, `/mode`, `/model`, `/models`, `/sessions`, `/compact`, `/status`, `/skill`, `/skills`, `/help`
-  - Triggered when the last user message starts with `/`; processed at gateway layer without invoking LLM
+  - Triggered when the last user message starts with `/`; processed at the serve HTTP layer without invoking LLM
   - Responses use standard OpenAI format with `x_command` extension field
 
 - **Tool Visibility Configuration** (`toolVisibility.mode`)
@@ -1301,14 +1292,14 @@
   - Directory whitelist for `x_working_dir` request-level overrides with path-separator-aware prefix matching
   - Three-layer security model: L1 auth + L2 directory control + L3 sandbox (bwrap)
 
-- **Sandbox Support in Gateway**
-  - Configurable via `gateway.json` `sandbox.enabled` / `sandbox.level` or `--sandbox` flag
+- **Sandbox Support in Serve**
+  - Configurable via `serve.json` `sandbox.enabled` / `sandbox.level` or `--sandbox` flag
   - Inherits detailed sandbox settings (allowedRead, deniedPaths, etc.) from `settings.json`
 
-- **Gateway Configuration** (`gateway.json`)
-  - Independent config file at `~/.vibecoding/gateway.json`
+- **Serve Configuration** (`serve.json`)
+  - Independent config file at `~/.vibecoding/serve.json`
   - Covers: listen address, auth, mode, sandbox, workingDir, allowedWorkDirs, session management, CORS, tool visibility, system prompt mode, request timeout, concurrency limit, logging
-  - `mothx --init-gateway` to generate template; `--force` to overwrite
+  - `mothx --init-serve` to generate template; `--force` to overwrite
 
 - **Request Timeout & Concurrency**
   - `requestTimeoutSeconds` (default 1800s); streaming keeps alive as long as data flows
@@ -1316,7 +1307,7 @@
 
 ### 📝 Docs
 
-- Added `docs/gateway-proposal.md` with full architecture, API design, security model, and implementation plan
+- Added an API server proposal with full architecture, API design, security model, and implementation plan
 - Updated `AGENTS.md` version note
 
 ## v0.1.25

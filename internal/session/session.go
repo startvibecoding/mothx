@@ -213,8 +213,8 @@ func (m *Manager) initWithIDLocked(id string) error {
 
 	m.file = filepath.Join(m.sessionDir, fmt.Sprintf("%s_%s.db", now.Format("20060102-150405"), id))
 
-	// Write session ID to handle file ONLY if the session directory is for Hermes
-	if strings.Contains(m.sessionDir, "hermes") {
+	// Write session ID to handle file only for per-channel user session directories.
+	if strings.Contains(m.sessionDir, "channels") {
 		dir := sessionDirForCwd(m.cwd, m.sessionDir)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("create session dir: %w", err)
@@ -741,8 +741,8 @@ func resolveDBPath(sessionFilePath string) string {
 		return filepath.Join(filepath.Dir(dir), "sessions.db")
 	}
 
-	// If inside Hermes per-user sessions dir, use the DB beside active.db/archive handles.
-	if strings.Contains(clean, string(filepath.Separator)+"hermes"+string(filepath.Separator)) {
+	// If inside messaging channel per-user sessions dir, use the DB beside active/archive handles.
+	if strings.Contains(clean, string(filepath.Separator)+"channels"+string(filepath.Separator)) {
 		return filepath.Join(dir, "sessions.db")
 	}
 

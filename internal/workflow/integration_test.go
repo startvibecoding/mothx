@@ -106,10 +106,10 @@ func TestWorkflowRunToolReadOnlyAuditEndToEnd(t *testing.T) {
 			  (concurrency 2)
 			  (phase "scan"
 			    (parallel
-			      (agent "gateway"
+			      (agent "api"
 			        :mode "plan"
 			        :tools '("read" "grep")
-			        :prompt "Read-only audit of internal/gateway.")
+			        :prompt "Read-only audit of internal/serve/openaiapi.")
 			      (agent "agent"
 			        :mode "plan"
 			        :tools '("read" "grep")
@@ -135,7 +135,7 @@ func TestWorkflowRunToolReadOnlyAuditEndToEnd(t *testing.T) {
 	if parsed.Status != StatusDone {
 		t.Fatalf("status = %s, want done", parsed.Status)
 	}
-	if parsed.Results["scan.gateway"] != StatusDone || parsed.Results["scan.agent"] != StatusDone || parsed.Results["verify.cross-check"] != StatusDone {
+	if parsed.Results["scan.api"] != StatusDone || parsed.Results["scan.agent"] != StatusDone || parsed.Results["verify.cross-check"] != StatusDone {
 		t.Fatalf("unexpected result statuses: %#v", parsed.Results)
 	}
 	if active.IsActive(parsed.ID) {

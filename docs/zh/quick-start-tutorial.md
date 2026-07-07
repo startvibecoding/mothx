@@ -196,13 +196,13 @@ mothx -P "写一个正则表达式，匹配中国手机号码"
 ### API 服务器
 ```bash
 # 启动 OpenAI 兼容的 HTTP 服务器
-mothx gateway
+mothx serve
 ```
 
 ### 聊天机器人
 ```bash
 # 部署为微信/飞书机器人
-mothx hermes
+mothx serve
 ```
 
 ---

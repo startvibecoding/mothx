@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Stop switching between Claude Code, Codex, Claw, and Hermes.<br>
+  Stop switching between Claude Code, Codex, Claw, and Channels.<br>
   MothX packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
 </p>
 
@@ -48,8 +48,8 @@ Welcome to the MothX Documentation Center!
 | **📊 Stats Dashboard** | Usage statistics with charts, per-provider/model breakdowns, and CLI mode |
 | **🔄 Workflows** | Elisp DSL for multi-phase, parallel, multi-agent orchestration |
 | **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
-| **🌐 Gateway** | OpenAI-compatible HTTP API with multi-workspace session isolation |
-| **📱 Messaging** | WeChat, Feishu, WebSocket with remote TUI client |
+| **🌐 Serve** | OpenAI-compatible HTTP API with multi-workspace session isolation |
+| **📱 Messaging** | WeChat, Feishu, and WebSocket messaging channels |
 | **🤝 Multi-Agent** | Async sub-agents with `--multi-agent`, blocking delegation with `--delegate`, and A2A master mode |
 | **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals, multiline input |
 | **🔒 Security** | Project-level bash auto-approval rules, bashBlacklist > whitelist, interactive approval dialog |
@@ -87,9 +87,8 @@ Welcome to the MothX Documentation Center!
 ### 💻 IDE Integration
 - [ACP Protocol](acp.md) — VS Code, Zed, JetBrains integration
 
-### 🌐 Gateway Modes
-- [Gateway Mode](gateway.md) — OpenAI-compatible HTTP API
-- [Hermes Mode](hermes.md) — WeChat/Feishu/WebSocket chatbot
+### 🌐 Serve Mode
+- [Serve Mode](serve.md) — OpenAI-compatible HTTP API, Web UI, and messaging channels
 - [A2A Protocol](a2a.md) — Agent-to-Agent protocol
 
 ### 📖 Tutorials
@@ -170,12 +169,12 @@ mothx -p "Generate changelog from git log" > CHANGELOG.md
 
 ### 🌐 API Server
 ```bash
-mothx gateway  # Start OpenAI-compatible HTTP server
+mothx serve  # Start OpenAI-compatible HTTP server
 ```
 
 ### 📱 Chatbot
 ```bash
-mothx hermes   # Deploy as WeChat/Feishu bot
+mothx serve   # Deploy as WeChat/Feishu bot
 ```
 
 ## 🛠️ Built-in Tools

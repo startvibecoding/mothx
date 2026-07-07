@@ -2,7 +2,7 @@
 
 ## 概述
 
-A2A（Agent-to-Agent）协议使不同的 AI Agent 能够互相发现、通信和协作。MothX 实现了 A2A 协议，支持**独立服务器**和 **Hermes 集成模式**两种运行方式。
+A2A（Agent-to-Agent）协议使不同的 AI Agent 能够互相发现、通信和协作。MothX 将 A2A 协议实现为独立服务器。
 
 ## 快速开始
 
@@ -28,8 +28,6 @@ mothx a2a stop
 
 ## 运行模式
 
-### 独立模式
-
 在单独的端口运行专用的 A2A HTTP 服务器（默认：`127.0.0.1:8093`）。
 
 ```bash
@@ -37,24 +35,6 @@ mothx a2a start --port 8093 --work-dir /path/to/project
 ```
 
 只有在明确需要对外暴露 A2A 服务时才使用 `--host 0.0.0.0`，并为对外部署配置 auth token。
-
-### 集成模式
-
-当 `hermes.json` 中 `a2a.enabled: true` 时，A2A 端点挂载到 Hermes 网关上。
-
-```jsonc
-{
-  "a2a": {
-    "enabled": true,
-    "port": 8093  // 集成模式下忽略（使用 hermes 端口）
-  }
-}
-```
-
-端点地址：
-- `http://localhost:8090/.well-known/agent.json`
-- `http://localhost:8090/a2a`
-- `http://localhost:8090/a2a/events`
 
 ## 协议细节
 
@@ -256,7 +236,7 @@ curl -X POST http://localhost:8093/a2a/task/cancel \
 
 ## 安全
 
-- **Auth Token**：Bearer token 认证（与 hermes 相同）
+- **Auth Token**：来自 `a2a.json` 或 `--auth-token` 标志的 Bearer token 认证
 - **Agent Card**：公开访问（无需认证）
 - **受保护端点**：配置 `auth_token` 后，`/a2a`、REST A2A 路由和 `/a2a/events` 都需要认证
 
@@ -287,12 +267,12 @@ mothx a2a discover http://remote:8093
 
 ```bash
 # 调度每日任务到远程 A2A 服务器
-mothx hermes cron add "daily-review" "review recent changes" \
+mothx serve cron add "daily-review" "review recent changes" \
   --schedule "@daily" \
   --a2a-target http://review-agent:8093
 
 # 带认证的调度
-mothx hermes cron add "ci-check" "run CI tests" \
+mothx serve cron add "ci-check" "run CI tests" \
   --schedule "@every 1h" \
   --a2a-target http://ci-agent:8093 \
   --a2a-token ${CI_TOKEN}

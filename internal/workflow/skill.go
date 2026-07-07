@@ -146,16 +146,16 @@ Invalid examples:
       (concurrency 2)
       (phase "scan"
         (parallel
-          (agent "gateway"
+          (agent "api"
             :mode "plan"
             :tools '("read" "grep" "find")
             :max-iterations 100
-            :prompt "Audit internal/gateway authentication risks. Return file:line evidence.")
-          (agent "hermes"
+            :prompt "Audit internal/serve/openaiapi authentication risks. Return file:line evidence.")
+          (agent "channels"
             :mode "plan"
             :tools '("read" "grep" "find")
             :max-iterations 100
-            :prompt "Audit internal/hermes authentication risks. Return file:line evidence.")))
+            :prompt "Audit internal/serve/channels authentication risks. Return file:line evidence.")))
       (phase "verify"
         (agent "cross-check"
           :mode "plan"
@@ -193,7 +193,7 @@ workflow_run has a tool-level timeout separate from worker :max-iterations. It i
 a tool parameter, not an (agent ...) DSL option. Omit timeoutSeconds to use the
 default tool timeout, set a positive number of seconds for bounded long
 workflows, and set timeoutSeconds to 0 only for intentional continuous workflows
-that should not have an agent-level deadline. Gateway mode may still have an
+that should not have an agent-level deadline. API mode may still have an
 outer request timeout.
 
 ## Agent Iteration Budgets

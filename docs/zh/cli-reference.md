@@ -47,7 +47,7 @@ mothx [flags] [message...]
 
 | 参数 | 简写 | 描述 |
 |------|------|------|
-| `--init-gateway` | - | 生成 `gateway.json` 配置模板 |
+| `--init-serve` | - | 生成 `serve.json` 配置模板 |
 | `--init-a2a-master-config` | - | 生成 `a2a-list.json` 配置模板 |
 | `--enable-a2a-master` | - | 启用 A2A Master 模式（远程 agent 调度） |
 | `--force` | - | 覆盖已存在的配置文件（配合 `--init-*` 使用） |
@@ -83,7 +83,7 @@ mothx acp [flags]
 
 ### `a2a` - A2A 协议服务器
 
-运行 A2A (Agent-to-Agent) 协议服务器，支持独立模式和集成模式。
+运行独立的 A2A (Agent-to-Agent) 协议服务器。
 
 ```
 mothx a2a [command]
@@ -102,18 +102,18 @@ mothx a2a [command]
 
 详见 [A2A 协议](a2a.md) 文档。
 
-### `gateway` - OpenAI 兼容 HTTP 网关
+### `serve` - 统一服务
 
-以 HTTP 服务器模式运行 MothX，暴露标准 OpenAI Chat Completions API。
+以统一服务模式运行 MothX，暴露 OpenAI 兼容 Chat Completions API、Web UI，以及可选的微信/飞书/WebSocket 消息通道。
 
 ```
-mothx gateway [flags]
+mothx serve [flags]
 ```
 
 | 标志 | 简写 | 默认值 | 描述 |
 |------|------|--------|------|
-| `--port` | - | `8080` | 监听端口（覆盖 gateway.json） |
-| `--config` | - | - | gateway.json 路径 |
+| `--port` | - | `8080` | 监听端口（覆盖 serve.json） |
+| `--config` | - | - | serve.json 路径 |
 | `--work-dir` | - | 当前目录 | 默认工作目录 |
 | `--provider` | `-p` | 配置文件中的默认值 | LLM 提供商 |
 | `--model` | `-m` | 配置文件中的默认值 | 模型 ID |
@@ -121,27 +121,16 @@ mothx gateway [flags]
 | `--multi-agent` | - | false | 启用多 Agent 工具 |
 | `--delegate` | - | false | 启用 Delegate 模式 |
 | `--workflows` | - | false | 启用 Elisp workflow 工具 |
+| `--lobster` | - | false | 启用 yolo 模式、关闭沙箱并启用子 Agent |
 | `--verbose` | - | false | 详细输出 |
 | `--debug` | - | false | 调试日志和本地 pprof |
 
-详见 [Gateway 模式](gateway.md) 文档。
-
-### `hermes` - 消息平台网关
-
-运行 Hermes 消息平台网关，支持微信/飞书/WebSocket，提供持久化 Agent 会话。
-
-```
-mothx hermes [command]
-```
-
 | 子命令 | 描述 |
 |--------|------|
-| `start` | 启动 Hermes 服务器 |
-| `client` | 以远程 TUI 客户端通过 WebSocket 连接 |
-| `--init-hermes-config` | 生成 `hermes.json` 配置模板 |
+| `init-config [global|project]` | 生成 `serve.json` 配置模板 |
 | `--force` | 覆盖已存在的配置文件 |
 
-详见 [Hermes 模式](hermes.md) 文档。
+详见 [Serve 模式](serve.md) 文档。
 
 ### `stats` - 用量统计
 
@@ -174,7 +163,7 @@ mothx doctor
 
 检查项目：
 - **环境**: OS/架构、Go 版本、Shell、Home/工作目录
-- **配置文件**: 校验 settings、gateway 和 MCP 配置文件，带解析检查
+- **配置文件**: 校验 settings、serve 和 MCP 配置文件，带解析检查
 - **Provider 与模型**: 列出已配置的 Provider（API key 脱敏显示）、模型及其上下文窗口/最大 token/推理标志；验证默认 Provider 初始化
 - **沙箱**: 检查 bubblewrap 可用性和版本
 - **MCP 服务器**: 列出已配置的 MCP 服务器
@@ -298,13 +287,13 @@ mothx --delegate
 # ACP 会话也可以启用
 mothx acp --delegate
 
-# Gateway 也可以启用
-mothx gateway --delegate
+# Serve 也可以启用
+mothx serve --delegate
 ```
 
 Delegate 模式会注册 `delegate_subagent` 工具，用于同步阻塞式子 Agent 委托。与可并行异步运行子 Agent 的多 Agent 模式不同，Delegate 模式同一时间只运行一个子 Agent，并等待其完成。适合父 Agent 只需要摘要结果的边界清晰调查任务。
 
-可在 TUI 或 Gateway 中通过 `/delegate [on|off|status]` 运行时切换。
+可在 TUI 或 Serve 中通过 `/delegate [on|off|status]` 运行时切换。
 
 ### A2A Master 模式
 
@@ -324,8 +313,8 @@ mothx --enable-a2a-master --verbose
 ### 初始化配置
 
 ```bash
-# 生成 gateway.json 模板
-mothx --init-gateway
+# 生成 serve.json 模板
+mothx --init-serve
 
 # 生成 a2a.json 模板
 mothx a2a --init-a2a-config
@@ -334,7 +323,7 @@ mothx a2a --init-a2a-config
 mothx --init-a2a-master-config
 
 # 强制覆盖已存在的文件
-mothx --init-gateway --force
+mothx --init-serve --force
 ```
 
 ### 思考级别

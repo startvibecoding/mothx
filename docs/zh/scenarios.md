@@ -175,7 +175,7 @@ $ mothx --multi-agent
 
 ```bash
 # 每天早上运行代码审查
-mothx hermes cron add "daily-review" \
+mothx serve cron add "daily-review" \
   "审查最近 24 小时的 git 变更，输出问题报告" \
   --schedule "@daily"
 ```
@@ -412,7 +412,7 @@ A2A master mode enabled: 2 agents loaded from /home/user/.vibecoding/a2a-list.js
 
 ---
 
-## 场景 7：Gateway 模式（HTTP API）
+## 场景 7：Serve 模式（HTTP API）
 
 将 MothX 作为 OpenAI 兼容的 HTTP 服务，供其他应用调用。
 
@@ -420,13 +420,13 @@ A2A master mode enabled: 2 agents loaded from /home/user/.vibecoding/a2a-list.js
 
 ```bash
 # 生成配置模板
-mothx --init-gateway
+mothx --init-serve
 
-# 编辑 gateway.json（设置 token、端口等）
-vim ~/.vibecoding/gateway.json
+# 编辑 serve.json（设置 token、端口等）
+vim ~/.vibecoding/serve.json
 
-# 启动网关
-mothx gateway --port 8080 --work-dir ~/projects/myapp
+# 启动 serve
+mothx serve --port 8080 --work-dir ~/projects/myapp
 ```
 
 ### 调用
@@ -454,18 +454,18 @@ response = client.chat.completions.create(
 
 ---
 
-## 场景 8：Hermes 消息平台网关
+## 场景 8：Channels 消息平台网关
 
 将 MothX 接入微信/飞书，实现无人值守的 AI 编码助手。
 
 ### 启动
 
 ```bash
-# 配置 hermes.json
-vim ~/.vibecoding/hermes.json
+# 配置 serve.json
+vim ~/.vibecoding/serve.json
 
 # 启动
-mothx hermes start
+mothx serve
 ```
 
 ### 典型配置
@@ -482,7 +482,6 @@ mothx hermes start
     "smart_approvals": true,
     "allowed_work_dirs": ["/srv/projects"]
   },
-  "a2a": { "enabled": true },
   "cron": { "enabled": true },
   "memory": { "enabled": true }
 }
@@ -520,13 +519,13 @@ mothx --mode yolo
 # 2. 提交前审查（Plan 模式）
 mothx --mode plan "审查 git diff 中的所有变更"
 
-# 3. 推送后 CI 自动审查（Gateway 模式）
+# 3. 推送后 CI 自动审查（Serve 模式）
 # CI 脚本中：
-curl http://gateway:8080/v1/chat/completions \
+curl http://serve:8080/v1/chat/completions \
   -d '{"messages": [{"role": "user", "content": "审查 PR #42 的代码"}]}'
 
-# 4. 定时巡检（Hermes + Cron）
-mothx hermes cron add "security-scan" \
+# 4. 定时巡检（Channels + Cron）
+mothx serve cron add "security-scan" \
   "扫描项目中的安全漏洞和敏感信息泄露" \
   --schedule "@weekly"
 ```
@@ -544,11 +543,11 @@ mothx hermes cron add "security-scan" \
 | 多 Agent | `mothx --multi-agent` |
 | A2A 服务器 | `mothx a2a start` |
 | A2A Master | `mothx --enable-a2a-master` |
-| HTTP 网关 | `mothx gateway` |
-| 消息平台 | `mothx hermes start` |
+| HTTP API | `mothx serve` |
+| 消息通道 | `mothx serve` |
 | IDE 集成 | `mothx acp` |
 | 继续会话 | `mothx -c` |
 | 恢复会话 | `mothx -r <id>` |
-| 生成配置 | `mothx --init-gateway` |
+| 生成配置 | `mothx --init-serve` |
 | 生成 A2A 配置 | `mothx a2a --init-a2a-config` |
 | 生成 Master 配置 | `mothx --init-a2a-master-config` |

@@ -8,9 +8,9 @@ import (
 	"github.com/startvibecoding/mothx/internal/cron"
 )
 
-// openCronStore opens the hermes cron store file.
+// openCronStore opens the serve cron store file.
 func openCronStore() *cron.FileCronStore {
-	path := filepath.Join(config.ConfigDir(), "hermes-cron.json")
+	path := filepath.Join(config.ConfigDir(), "serve-cron.json")
 	return cron.NewFileCronStore(path)
 }
 

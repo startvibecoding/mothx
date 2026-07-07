@@ -395,7 +395,7 @@ func (a *Agent) GetContextUsage() *ctxpkg.ContextUsage {
 }
 
 // SetForceCompact marks the agent for forced compaction on the next turn.
-// Called by /compact command in TUI and Gateway.
+// Called by /compact command in TUI and API.
 func (a *Agent) SetForceCompact() {
 	atomic.StoreInt32(&a.forceCompact, 1)
 }

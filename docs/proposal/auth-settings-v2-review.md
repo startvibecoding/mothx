@@ -1,7 +1,7 @@
 # /auth & /settings V2 代码审查
 
 > 审查日期: 2026-07-01
-> 审查范围: `internal/tui/auth_*.go`, `internal/config/settings.go` (导出 helper), `internal/gateway/commands.go`
+> 审查范围: `internal/tui/auth_*.go`, `internal/config/settings.go` (导出 helper), `internal/serve/openaiapi/commands.go`
 > 对照基线: `docs/proposal/auth-settings-v2-proposal.md`
 > 状态: 所有问题已修复 (2026-07-01)
 
@@ -28,7 +28,7 @@
 | 功能 | 方案章节 | 状态 | 说明 |
 |------|----------|------|------|
 | Headers 编辑器的删除操作 | §7.4 | ✅ 已实现 | Backspace 删除当前 header entry |
-| Gateway `/settings` 命令 | §17 | ⚠ N/A | HTTP 模式无 TUI 对话框，可接受 |
+| Serve `/settings` 命令 | §17 | ⚠ N/A | HTTP 模式无 TUI 对话框，可接受 |
 | Model List Done → Default → Review | §2.4.1 | ⚠ 偏差 | `popAuthView()` 返回上一级，不强制走 Default/Review |
 
 ---

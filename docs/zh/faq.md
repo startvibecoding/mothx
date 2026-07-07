@@ -477,17 +477,17 @@ sudo pacman -S bubblewrap        # Arch
 
 ---
 
-## 🌐 Gateway 模式
+## 🌐 Serve 模式
 
 ### Q: 如何将 MothX 作为 API 服务器？
 
 **A:**
 
 ```bash
-# 启动 Gateway
-mothx gateway
+# 启动 Serve
+mothx serve
 
-# 配置文件 ~/.vibecoding/gateway.json
+# 配置文件 ~/.vibecoding/serve.json
 {
   "port": 8080,
   "auth": {
@@ -502,7 +502,7 @@ curl http://localhost:8080/v1/chat/completions \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-### Q: Gateway 支持哪些 API？
+### Q: Serve 支持哪些 API？
 
 **A:** 兼容 OpenAI Chat Completions API：
 
@@ -520,10 +520,10 @@ curl http://localhost:8080/v1/chat/completions \
 **A:**
 
 ```bash
-# 启动 Hermes 模式
-mothx hermes
+# 启动 Serve 模式
+mothx serve
 
-# 配置文件 ~/.vibecoding/hermes.json
+# 配置文件 ~/.vibecoding/serve.json
 {
   "platform": "wechat",  // 或 "feishu"
   "appId": "your-app-id",
@@ -532,7 +532,7 @@ mothx hermes
 }
 ```
 
-详见 [Hermes 模式](hermes.md) 文档。
+详见 [Serve 模式](serve.md) 文档。
 
 ---
 
@@ -623,7 +623,7 @@ mothx --model deepseek-v4-pro  # 1M context
 | 会话管理 | ✅ 完整 | 有限 |
 | IDE 集成 | ✅ ACP | ✅ |
 | 消息平台 | ✅ 微信/飞书 | ❌ |
-| Gateway | ✅ OpenAI 兼容 | ❌ |
+| Serve | ✅ OpenAI 兼容 | ❌ |
 
 ### Q: MothX 和 Cursor 有什么区别？
 
@@ -635,7 +635,7 @@ mothx --model deepseek-v4-pro  # 1M context
 选择建议：
 - 喜欢终端 → MothX
 - 喜欢图形界面 → Cursor
-- 需要 API 服务 → MothX Gateway
+- 需要 API 服务 → MothX Serve
 
 ---
 

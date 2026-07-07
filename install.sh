@@ -5,10 +5,10 @@ set -euo pipefail
 trap 'error "Installation failed at line $LINENO."' ERR
 
 # MothX Installer
-# Progressive and agile vibe-coding tool. No need to re-deploy Claw/Hermes;
+# Progressive and agile vibe-coding tool. No need to re-deploy Claw or Codex;
 # everything is packed into a single file.
 # 主打渐进式、敏捷开发体验的 MothX 工具，整体打包为单个文件，开箱即用，
-# 无需重复搭建部署 Claude Code、codex、Claw、Hermes 环境。
+# 无需重复搭建部署 Claude Code、codex、Claw 等环境。
 #
 # Downloads and installs the latest release from GitHub
 #

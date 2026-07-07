@@ -31,7 +31,7 @@
 
 - 不改变 `settings.json` 既有 schema 与字段含义（白名单单独放 `allow.json`）。
 - 不改变 plan 模式只读语义、不改变 yolo 模式全自动语义。
-- `/btw` 第一阶段只面向 TUI；Gateway / Hermes / ACP 暂不暴露（理由见 §7）。
+- `/btw` 第一阶段只面向 TUI；Serve / ACP 暂不暴露（理由见 §7）。
 - `/btw` 不支持多轮追问浮动层内连续对话（第一阶段为单问单答）。
 - 不引入外部依赖；复用现有 multi-agent / delegate 的 sub-agent 基础设施。
 
@@ -282,7 +282,7 @@ func (c *AllowConfig) MatchEditPath(path string) bool
 
 ## 7. 各运行模式的适用范围
 
-| 能力 | TUI | Gateway | Hermes | ACP |
+| 能力 | TUI | Serve | Serve channels | ACP |
 |------|-----|---------|--------|-----|
 | `/btw` | ✅ 第一阶段 | ⛔（无浮层 UI 语义） | ⛔ | ⛔ |
 | `/alloweditpath` | ✅ | 可选（slash 已支持） | 可选 | ⛔ |

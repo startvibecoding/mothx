@@ -176,7 +176,7 @@ $ mothx --multi-agent
 
 ```bash
 # Daily code review
-mothx hermes cron add "daily-review" \
+mothx serve cron add "daily-review" \
   "review the last 24 hours of git changes, output an issue report" \
   --schedule "@daily"
 ```
@@ -391,7 +391,7 @@ A2A master mode enabled: 2 agents loaded from /home/user/.vibecoding/a2a-list.js
 
 ---
 
-## Scenario 7: Gateway Mode (HTTP API)
+## Scenario 7: Serve Mode (HTTP API)
 
 Run MothX as an OpenAI-compatible HTTP service for other applications to call.
 
@@ -399,13 +399,13 @@ Run MothX as an OpenAI-compatible HTTP service for other applications to call.
 
 ```bash
 # Generate config template
-mothx --init-gateway
+mothx --init-serve
 
-# Edit gateway.json (set token, port, etc.)
-vim ~/.vibecoding/gateway.json
+# Edit serve.json (set token, port, etc.)
+vim ~/.vibecoding/serve.json
 
-# Start gateway
-mothx gateway --port 8080 --work-dir ~/projects/myapp
+# Start serve
+mothx serve --port 8080 --work-dir ~/projects/myapp
 ```
 
 ### Call It
@@ -433,18 +433,18 @@ response = client.chat.completions.create(
 
 ---
 
-## Scenario 8: Hermes Messaging Gateway
+## Scenario 8: Channels Messaging Serve
 
 Connect MothX to WeChat/Feishu for unattended AI coding assistant.
 
 ### Start
 
 ```bash
-# Configure hermes.json
-vim ~/.vibecoding/hermes.json
+# Configure serve.json
+vim ~/.vibecoding/serve.json
 
 # Start
-mothx hermes start
+mothx serve
 ```
 
 ### Typical Config
@@ -461,7 +461,6 @@ mothx hermes start
     "smart_approvals": true,
     "allowed_work_dirs": ["/srv/projects"]
   },
-  "a2a": { "enabled": true },
   "cron": { "enabled": true },
   "memory": { "enabled": true }
 }
@@ -499,13 +498,13 @@ mothx --mode yolo
 # 2. Pre-commit review (Plan mode)
 mothx --mode plan "review all changes in git diff"
 
-# 3. Post-push CI review (Gateway mode)
+# 3. Post-push CI review (Serve mode)
 # In CI script:
-curl http://gateway:8080/v1/chat/completions \
+curl http://serve:8080/v1/chat/completions \
   -d '{"messages": [{"role": "user", "content": "review PR #42"}]}'
 
-# 4. Scheduled security scan (Hermes + Cron)
-mothx hermes cron add "security-scan" \
+# 4. Scheduled security scan (Channels + Cron)
+mothx serve cron add "security-scan" \
   "scan for security vulnerabilities and sensitive data leaks" \
   --schedule "@weekly"
 ```
@@ -523,11 +522,11 @@ mothx hermes cron add "security-scan" \
 | Multi-agent | `mothx --multi-agent` |
 | A2A server | `mothx a2a start` |
 | A2A master | `mothx --enable-a2a-master` |
-| HTTP gateway | `mothx gateway` |
-| Messaging gateway | `mothx hermes start` |
+| HTTP API | `mothx serve` |
+| Messaging channels | `mothx serve` |
 | IDE integration | `mothx acp` |
 | Continue session | `mothx -c` |
 | Resume session | `mothx -r <id>` |
-| Init gateway config | `mothx --init-gateway` |
+| Init serve config | `mothx --init-serve` |
 | Init A2A config | `mothx a2a --init-a2a-config` |
 | Init master config | `mothx --init-a2a-master-config` |

@@ -1,4 +1,4 @@
-// Package messaging defines the messaging platform abstraction for Hermes mode.
+// Package messaging defines the messaging platform abstraction for serve channels.
 // Each platform (WeChat, Feishu, etc.) implements the Platform interface.
 package messaging
 

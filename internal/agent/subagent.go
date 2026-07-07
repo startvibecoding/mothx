@@ -54,7 +54,7 @@ func (t *DelegateSubAgentTool) Parameters() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
-			"task": {"type": "string", "description": "A specific, bounded task description. Must include: (1) the exact goal or question, (2) relevant file paths or search patterns, (3) expected output format, (4) stop conditions. Example: 'Find all Go files in internal/gateway/ that import net/http but do not call http.Error. Return file paths with line numbers.'"},
+			"task": {"type": "string", "description": "A specific, bounded task description. Must include: (1) the exact goal or question, (2) relevant file paths or search patterns, (3) expected output format, (4) stop conditions. Example: 'Find all Go files in internal/serve/openaiapi/ that import net/http but do not call http.Error. Return file paths with line numbers.'"},
 			"mode": {"type": "string", "enum": ["plan", "agent", "yolo"], "description": "Sub-agent execution mode. Defaults to the parent agent's mode; if unavailable, falls back to 'agent'. 'agent' is balanced, 'yolo' is unrestricted, and 'plan' is read-only analysis."},
 			"work_dir": {"type": "string", "description": "Working directory for the sub-agent (defaults to current directory). Set explicitly if the task targets a different directory."},
 			"tools": {"type": "array", "items": {"type": "string"}, "description": "Restrict sub-agent to specific tools (empty = all tools except nested sub-agent/delegate). Use to narrow scope, e.g. ['read', 'grep', 'find'] for investigation-only tasks."},

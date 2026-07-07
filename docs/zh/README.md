@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  别再在 Claude Code、Codex、Claw、Hermes 之间来回切换了。<br>
+  别再在 Claude Code、Codex、Claw、Channels 之间来回切换了。<br>
   MothX 把所有功能打包成一个文件 — 提供商、工具、沙箱、会话、技能，一应俱全。
 </p>
 
@@ -120,8 +120,7 @@ mothx/
 │   ├── session/           # SQLite 会话存储
 │   ├── skills/            # 技能系统
 │   ├── tui/               # 终端 UI（BubbleTea + Lipgloss）
-│   ├── gateway/           # OpenAI 兼容 HTTP 网关
-│   ├── hermes/            # 消息平台网关（微信/飞书/WebSocket）
+│   ├── serve/             # 统一 OpenAI API、Web UI 和消息通道
 │   ├── a2a/               # A2A 协议服务器和 Master 模式
 │   └── acp/               # ACP / MCP 集成
 └── pkg/sdk/               # 公共 SDK 接口
@@ -158,9 +157,8 @@ mothx/
 ### 💻 IDE 集成
 - [ACP 协议](acp.md) — VS Code、Zed、JetBrains 集成
 
-### 🌐 网关模式
-- [Gateway 模式](gateway.md) — OpenAI 兼容 HTTP API
-- [Hermes 模式](hermes.md) — 微信/飞书/WebSocket 聊天机器人
+### 🌐 Serve 模式
+- [Serve 模式](serve.md) — OpenAI 兼容 HTTP API、Web UI 和消息通道
 - [A2A 协议](a2a.md) — Agent-to-Agent 协议
 
 ### 📖 教程
@@ -193,12 +191,12 @@ mothx -p "从 git log 生成更新日志" > CHANGELOG.md
 
 ### 🌐 API 服务器
 ```bash
-mothx gateway  # 启动 OpenAI 兼容 HTTP 服务器
+mothx serve  # 启动 OpenAI 兼容 HTTP 服务器
 ```
 
 ### 📱 聊天机器人
 ```bash
-mothx hermes   # 部署为微信/飞书机器人
+mothx serve   # 部署为微信/飞书机器人
 ```
 
 ---

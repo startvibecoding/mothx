@@ -72,8 +72,7 @@ mothx/
 │   ├── context/               # Context management and token estimation
 │   ├── contextfiles/          # Context file loading
 │   ├── cron/                  # Scheduled task store and scheduler
-│   ├── gateway/               # OpenAI-compatible HTTP gateway
-│   ├── hermes/                # Messaging gateway (WeChat/Feishu/WebSocket)
+│   ├── serve/                 # Unified OpenAI API, Web UI, and messaging channels
 │   ├── mcp/                   # MCP server integration
 │   ├── memory/                # Persistent memory (memory.md)
 │   ├── messaging/             # Messaging platform abstraction

@@ -125,11 +125,11 @@ mothx -M yolo
 
 ## Network Service Hardening
 
-Gateway, Hermes, and A2A can expose HTTP/WebSocket entry points. Treat these services as remote code-execution surfaces whenever tools can run in `agent` or `yolo` mode.
+Serve, Channels, and A2A can expose HTTP/WebSocket entry points. Treat these services as remote code-execution surfaces whenever tools can run in `agent` or `yolo` mode.
 
-- **Gateway**: enable `auth.enabled` before exposing beyond loopback; startup warns when Gateway listens beyond loopback in `yolo` mode without authentication.
+- **Serve**: enable `auth.enabled` before exposing beyond loopback; startup warns when Serve listens beyond loopback in `yolo` mode without authentication.
 - **A2A**: standalone A2A binds to `127.0.0.1` by default. Use `--host 0.0.0.0` only for intentional exposure, and configure an auth token.
-- **Hermes WebSocket**: send tokens with `Authorization: Bearer <token>` during the WebSocket handshake. Query-string tokens are accepted only for compatibility.
+- **Channels WebSocket**: send tokens with `Authorization: Bearer <token>` during the WebSocket handshake. Query-string tokens are accepted only for compatibility.
 - **Working directories**: use `allowedWorkDirs` / `allowed_work_dirs` to restrict per-request or per-platform working directories.
 
 ## Trusted Config Shell Commands

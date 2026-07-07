@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/startvibecoding/mothx/internal/config"
-	"github.com/startvibecoding/mothx/internal/gateway"
 	"github.com/startvibecoding/mothx/internal/mcp"
 	"github.com/startvibecoding/mothx/internal/platform"
 	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
+	"github.com/startvibecoding/mothx/internal/serve"
 	"github.com/startvibecoding/mothx/internal/skills"
 )
 
@@ -154,8 +154,8 @@ func checkConfigFiles() section {
 	files := []cfgFile{
 		{"Global settings", config.GlobalSettingsPath()},
 		{"Project settings", config.ProjectSettingsPath()},
-		{"Gateway config (global)", gateway.GatewayConfigPath()},
-		{"Gateway config (project)", gateway.ProjectGatewayConfigPath()},
+		{"Serve config (global)", serve.ConfigPath()},
+		{"Serve config (project)", serve.ProjectConfigPath()},
 		{"MCP config (global)", config.GlobalMCPPath()},
 		{"MCP config (project)", config.ProjectMCPPath()},
 	}

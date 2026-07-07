@@ -129,8 +129,7 @@ func newA2ACommand() *cobra.Command {
 		Use:   "stop",
 		Short: "Stop the A2A server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Reuse hermes PID file pattern but for A2A
-			// For simplicity, use HTTP health check
+			// For simplicity, use HTTP health check.
 			cfg := a2a.DefaultConfig()
 			url := fmt.Sprintf("http://%s/.well-known/agent.json", cfg.GetListenAddr())
 			client := &http.Client{Timeout: 2 * time.Second}

@@ -8,7 +8,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - UI: Bubble Tea + Lipgloss
 - CLI: Cobra
 - Default working style: terminal-first, tool-driven
-- Main purpose: a terminal AI coding assistant with provider abstraction, sessions, tools, sandboxing, context files, skills, and an OpenAI-compatible HTTP gateway
+- Main purpose: a terminal AI coding assistant with provider abstraction, sessions, tools, sandboxing, context files, skills, and unified serve mode
 
 ## Important Directories
 
@@ -17,7 +17,6 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/config/` — settings and defaults
 - `internal/context/` — context window and compaction
 - `internal/contextfiles/` — `AGENTS.md` / `CLAUDE.md` discovery
-- `internal/hermes/` — Hermes messaging gateway mode
 - `internal/memory/` — persistent memory (memory.md)
 - `internal/messaging/` — messaging platform abstraction (wechat, feishu)
 - `internal/provider/` — provider abstraction and implementations
@@ -31,7 +30,10 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/tui/` — terminal UI
 - `internal/acp/` — ACP / MCP related integration
 - `internal/a2a/` — A2A (Agent-to-Agent) protocol server and master mode
-- `internal/gateway/` — OpenAI-compatible HTTP gateway mode
+- `internal/serve/` — unified server mode: OpenAI-compatible API, Web UI, channels, cron, memory, settings APIs
+- `internal/serve/openaiapi/` — OpenAI-compatible HTTP API runtime used by serve
+- `internal/serve/channels/` — WeChat/Feishu/WebSocket channel dispatcher used by serve
+- `internal/serve/ws/` — serve WebSocket channel runtime
 - `docs/` — documentation
 
 ## Architecture Notes
@@ -45,7 +47,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - The agent loop builds a system prompt, sends messages, handles stream events, executes tools, and continues until completion.
 - Tools should stay stateless when possible; shared execution state belongs in registries/managers.
 - Context files and skills are first-class prompt inputs.
-- Sessions are stored in SQLite with parent/child relationships. CLI/Gateway sessions use a single root `sessions.db` database (where all session metadata and message entries live, with dynamically computed virtual `.db` paths for listing/switching); Hermes uses the same `sessions.db` database and additionally writes physical `active.db` handle files in per-user directories on disk.
+- Sessions are stored in SQLite with parent/child relationships. CLI and serve API sessions use a single root `sessions.db` database with dynamically computed virtual `.db` paths for listing/switching; serve channels additionally write physical handle files in per-user channel directories on disk.
 - Schema migrations are managed via `internal/session/migrations.go`. A `schema_migrations` table tracks which migrations have been applied. `ApplyMigrations(db)` runs any pending migrations and is called on every DB open from both `session.withDB()` and `stats.Open()`. To add a schema change, append a new entry to the `migrations` slice — do not use `CREATE TABLE IF NOT EXISTS` directly in new code.
 
 ### Settings Configuration
@@ -56,29 +58,29 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `/settings` provider edits should not change `defaultProvider` / `defaultModel` by default. Use the Defaults picker or an explicit "Set as Default" path for default model changes.
 - Approval bash whitelist/blacklist entries are command prefixes; trailing spaces can be meaningful (for example `go `). Preserve them and avoid comma-based trimming when editing those lists.
 
-### Gateway Mode
+### API Mode
 
-- `internal/gateway/` implements an HTTP server exposing a standard OpenAI Chat Completions API.
-- Gateway reuses the same agent loop, provider factory, session, tools, sandbox, and skills as CLI/ACP — no separate agent logic.
-- Configuration lives in `gateway.json` (global `~/.mothx/gateway.json`, project `.mothx/gateway.json`), separate from `settings.json`.
-- Project-level `.mothx/gateway.json` overrides global, same pattern as `.mothx/settings.json`.
-- Gateway supports slash commands (`/clear`, `/mode`, `/compact`, etc.) processed at the HTTP layer without invoking the LLM.
+- `internal/serve/openaiapi/` implements the OpenAI-compatible Chat Completions API used by `mothx serve`.
+- The API runtime reuses the same agent loop, provider factory, session, tools, sandbox, and skills as CLI/ACP — no separate agent logic.
+- Configuration lives in `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`), separate from `settings.json`.
+- Project-level `.mothx/serve.json` overrides global, same pattern as `.mothx/settings.json`.
+- The API runtime supports slash commands (`/clear`, `/mode`, `/compact`, etc.) processed at the HTTP layer without invoking the LLM.
 - Tool output visibility (`toolVisibility.mode` + `toolVisibility.detail`) is configurable: collapsed (default, one-line summary) or expanded (full code fences).
 - `edit`/`write` diffs and errors always show in full regardless of detail level.
-- When `x_session_id` is empty, the gateway reuses a default session so consecutive requests share context.
+- When `x_session_id` is empty, the API runtime reuses a default session so consecutive requests share context.
 - Security: three independent layers — Bearer token auth, `allowedWorkDirs` whitelist, sandbox (bwrap).
 - No external HTTP framework; uses `net/http` standard library.
 
-### Hermes Mode
+### Channels Mode
 
-- `internal/hermes/` implements a messaging gateway for WeChat/Feishu/WebSocket with persistent agent sessions.
-- Hermes reuses the same agent loop, provider factory, session, tools, sandbox, skills, and MCP as CLI/ACP.
-- Configuration lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.mothx/hermes.json`).
-- Per-user sessions stored in `<sessionDir>/hermes/<platform>/<user_id>/active.db`.
+- `internal/serve/channels/` implements WeChat/Feishu/WebSocket channels with persistent agent sessions.
+- Channels reuse the same agent loop, provider factory, session, tools, sandbox, skills, and MCP as CLI/ACP.
+- Configuration lives in `serve.json`; channel-specific fields are under `features`, `channels`, `cron`, `memory`, `security`, `hooks`, and `agent`.
+- Per-user channel sessions are stored under `<sessionDir>/channels/<platform>/<user_id>/`.
 - Default mode is `yolo` (not `agent`) — messaging platforms are unattended by nature.
-- `default_provider` / `default_model` in hermes.json override settings.json; CLI `-p`/`-m` override hermes.json.
-- `multi_agent` enables sub-agent tools (spawn/status/send/destroy).
-- `sandbox` enables bwrap sandbox (default off).
+- `provider` / `model` in `serve.json` override settings.json; CLI `-p`/`-m` override `serve.json`.
+- `features.multiAgent` enables sub-agent tools (spawn/status/send/destroy).
+- `sandbox.enabled` enables bwrap sandbox (default off).
 - MCP servers from global/project `mcp.json` are loaded per-session and auto-closed on removal.
 - memory.md defaults to project directory (`.mothx/memory.md`); only uses global when `memory.path` is explicitly set.
 - Progress events (tool execution + thinking) are sent to messaging platforms via `InboundMessage.ProgressFunc`.
@@ -133,7 +135,7 @@ Built-in tools include:
 - `agent`: file edits allowed; `bash` usually requires approval; `question` available (interactive, TUI only)
 - `yolo`: all tools auto-execute (no `question`)
 
-The `question` tool is registered for interactive TUI sessions (not print mode) and for the ACP server, and exposed in `plan` and `agent` modes via `Registry.ModeTools` (excluded in `yolo`). It uses the `QuestionHandler` optional interface (type assertion) to avoid polluting the public `Agent` interface. TUI shows it inline; ACP surfaces questions through the `session/request_permission` channel. Gateway/Hermes never register or expose it.
+The `question` tool is registered for interactive TUI sessions (not print mode) and for the ACP server, and exposed in `plan` and `agent` modes via `Registry.ModeTools` (excluded in `yolo`). It uses the `QuestionHandler` optional interface (type assertion) to avoid polluting the public `Agent` interface. TUI shows it inline; ACP surfaces questions through the `session/request_permission` channel. Serve API/channel runtimes never register or expose it.
 
 The `/systeminit` command (TUI, ACP, and the `vibecoding systeminit` CLI subcommand) generates or refreshes a project `AGENTS.md`. In interactive surfaces (TUI/ACP) the agent is told to use the `question` tool to clarify conventions first; on the CLI it runs non-interactively in yolo+print. The shared instruction prompt lives in `internal/systeminit`.
 
@@ -141,13 +143,13 @@ The TUI `/reload` command re-execs the process with session-continuation flags s
 
 When changing code, prefer the least risky approach that satisfies the request.
 
-## Gateway-Specific Notes
+## Serve-Specific Notes
 
-- Gateway-only config belongs in `internal/gateway/config.go`, not in `internal/config/settings.go`.
-- Tool output formatting (collapsed/expanded, markdown code fences) belongs in `internal/gateway/tool_format.go`.
-- Slash command handlers belong in `internal/gateway/commands.go`, kept separate from TUI commands (different dependencies).
+- Serve-only config belongs in `internal/serve/config.go`, not in `internal/config/settings.go`.
+- Tool output formatting (collapsed/expanded, markdown code fences) belongs in `internal/serve/openaiapi/tool_format.go`.
+- Slash command handlers belong in `internal/serve/openaiapi/commands.go`, kept separate from TUI commands (different dependencies).
 - The `resolveToolEvent()` helper in `handler_chat.go` handles the fact that `EventToolCall` carries tool name in `ev.ToolCall.Name` (not `ev.ToolName`).
-- When adding new slash commands, add to both gateway `commands.go` and TUI `commands.go` to keep feature parity.
+- When adding new slash commands, add to both API `commands.go` and TUI `commands.go` to keep feature parity.
 
 ## TUI-Specific Notes
 

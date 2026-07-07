@@ -8,25 +8,25 @@ MothX stores sessions in SQLite, supporting tree structure, branching, compactio
 
 MothX's session architecture differs based on the execution mode:
 
-1. **CLI / TUI / Gateway Mode (Single Database + Virtual Handles)**
+1. **CLI / TUI / Serve Mode (Single Database + Virtual Handles)**
    All session metadata (session list, session IDs, CWD, timestamps) and all history messages/entries are stored entirely inside a single, unified SQLite database file `sessions.db` under `sessionDir`.
    In this mode, **no physical working directory subdirectories or per-session handle files are created on disk**. The `.db` paths displayed in the CLI/TUI (e.g., `~/.vibecoding/sessions/20260625-120000_abcd1234.db`) are **virtual paths** (handles) computed dynamically from the database metadata. They do not exist on the filesystem but are fully recognized, navigated, and deleted by the program.
 
-2. **Hermes Mode (Single Database + Physical Handles)**
-   As an unattended chatbot gateway, Hermes stores records in the single `sessions.db` database and additionally writes physical subdirectory handle files containing the session ID (e.g., `20260625-120000_abcd1234.db`) under platform-specific or per-user paths on disk. This layout facilitates platform-specific mapping and lifecycle tracking.
+2. **Serve Channels (Single Database + Physical Handles)**
+   Unattended messaging channels store records in the single `sessions.db` database and additionally write physical subdirectory handle files containing the session ID (e.g., `20260625-120000_abcd1234.db`) under platform-specific or per-user paths on disk. This layout facilitates platform-specific mapping and lifecycle tracking.
 
 ### Storage Location Layout
 
 ```text
 ~/.vibecoding/sessions/
 ├── sessions.db                       # The unified SQLite database for all session entries and metadata
-└── hermes/                             # (Only present in Hermes mode)
-    └── wechat/user_123/active.db       # Hermes platform-specific physical session handle
+└── channels/                           # (Only present for messaging channels)
+    └── wechat/user_123/active.db       # Channels platform-specific physical session handle
 ```
 
 ### Path Encoding
 
-In scenarios requiring directory isolation (such as Hermes), working directory paths are encoded with URL-safe base64 to avoid collisions and filesystem issues.
+In scenarios requiring directory isolation (such as Channels), working directory paths are encoded with URL-safe base64 to avoid collisions and filesystem issues.
 
 Examples:
 - `/home/user/project` → `--L2hvbWUvdXNlci9wcm9qZWN0--`

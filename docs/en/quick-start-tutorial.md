@@ -196,13 +196,13 @@ By default, dangerous commands (like `rm -rf`, `sudo`) are blocked by the blackl
 ### API Server
 ```bash
 # Start OpenAI-compatible HTTP server
-mothx gateway
+mothx serve
 ```
 
 ### Chatbot
 ```bash
 # Deploy as WeChat/Feishu bot
-mothx hermes
+mothx serve
 ```
 
 ---

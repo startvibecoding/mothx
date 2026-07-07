@@ -45,8 +45,8 @@ func (h *fakeHost) RunAgent(ctx context.Context, task AgentTask) (AgentResult, e
 
 func TestRunnerExecutesPhasesAndResults(t *testing.T) {
 	host := &fakeHost{resultsByName: map[string]string{
-		"gateway": "gateway findings",
-		"hermes":  "hermes findings",
+		"api":      "api findings",
+		"channels": "channels findings",
 	}}
 	store := &memoryStore{}
 	r := &Runner{Host: host, Store: store, Concurrency: 2, Now: fixedClock()}
@@ -56,18 +56,18 @@ func TestRunnerExecutesPhasesAndResults(t *testing.T) {
 		  (concurrency 2)
 		  (phase "scan"
 		    (parallel
-		      (agent "gateway"
+		      (agent "api"
 		        :mode "plan"
 		        :tools '("read" "grep")
-		        :prompt "scan gateway")
-		      (agent "hermes"
+		        :prompt "scan api")
+		      (agent "channels"
 		        :mode "plan"
 		        :tools '("read" "grep")
-		        :prompt "scan hermes")))
+		        :prompt "scan channels")))
 		  (phase "verify"
 		    (agent "cross-check"
 		      :mode "plan"
-		      :prompt (concat (result "scan.gateway") "\n" (result "scan.hermes")))))
+		      :prompt (concat (result "scan.api") "\n" (result "scan.channels")))))
 	`)
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -78,24 +78,24 @@ func TestRunnerExecutesPhasesAndResults(t *testing.T) {
 	if len(state.Phases) != 2 {
 		t.Fatalf("phases = %d, want 2", len(state.Phases))
 	}
-	if got := state.Results["scan.gateway"].Result; got != "gateway findings" {
-		t.Fatalf("scan.gateway result = %q", got)
+	if got := state.Results["scan.api"].Result; got != "api findings" {
+		t.Fatalf("scan.api result = %q", got)
 	}
-	gateway := findTask(host.tasks, "gateway")
-	if gateway == nil {
-		t.Fatal("gateway task not found")
+	api := findTask(host.tasks, "api")
+	if api == nil {
+		t.Fatal("api task not found")
 	}
-	if gateway.Mode != "plan" {
-		t.Fatalf("gateway mode = %q, want plan", gateway.Mode)
+	if api.Mode != "plan" {
+		t.Fatalf("api mode = %q, want plan", api.Mode)
 	}
-	if !equalStrings(gateway.Tools, []string{"read", "grep"}) {
-		t.Fatalf("gateway tools = %#v, want read/grep", gateway.Tools)
+	if !equalStrings(api.Tools, []string{"read", "grep"}) {
+		t.Fatalf("api tools = %#v, want read/grep", api.Tools)
 	}
 	verify := findTask(host.tasks, "cross-check")
 	if verify == nil {
 		t.Fatal("cross-check task not found")
 	}
-	if !strings.Contains(verify.Prompt, "gateway findings") || !strings.Contains(verify.Prompt, "hermes findings") {
+	if !strings.Contains(verify.Prompt, "api findings") || !strings.Contains(verify.Prompt, "channels findings") {
 		t.Fatalf("verify prompt did not include prior results: %q", verify.Prompt)
 	}
 	if host.maxRunning > 2 {

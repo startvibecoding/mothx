@@ -477,17 +477,17 @@ Make sure:
 
 ---
 
-## 🌐 Gateway Mode
+## 🌐 Serve Mode
 
 ### Q: How to use MothX as an API server?
 
 **A:**
 
 ```bash
-# Start Gateway
-mothx gateway
+# Start Serve
+mothx serve
 
-# Config file ~/.vibecoding/gateway.json
+# Config file ~/.vibecoding/serve.json
 {
   "port": 8080,
   "auth": {
@@ -502,7 +502,7 @@ curl http://localhost:8080/v1/chat/completions \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-### Q: What APIs does Gateway support?
+### Q: What APIs does Serve support?
 
 **A:** Compatible with OpenAI Chat Completions API:
 
@@ -520,10 +520,10 @@ curl http://localhost:8080/v1/chat/completions \
 **A:**
 
 ```bash
-# Start Hermes mode
-mothx hermes
+# Start Channels mode
+mothx serve
 
-# Config file ~/.vibecoding/hermes.json
+# Config file ~/.vibecoding/serve.json
 {
   "platform": "wechat",  // or "feishu"
   "appId": "your-app-id",
@@ -532,7 +532,7 @@ mothx hermes
 }
 ```
 
-See [Hermes Mode](hermes.md) documentation for details.
+See [Serve Mode](serve.md) documentation for details.
 
 ---
 
@@ -623,7 +623,7 @@ mothx --model deepseek-v4-pro  # 1M context
 | Session Management | ✅ Full | Limited |
 | IDE Integration | ✅ ACP | ✅ |
 | Messaging | ✅ WeChat/Feishu | ❌ |
-| Gateway | ✅ OpenAI compatible | ❌ |
+| Serve | ✅ OpenAI compatible | ❌ |
 
 ### Q: What's the difference between MothX and Cursor?
 
@@ -635,7 +635,7 @@ mothx --model deepseek-v4-pro  # 1M context
 Choose based on:
 - Prefer terminal → MothX
 - Prefer GUI → Cursor
-- Need API service → MothX Gateway
+- Need API service → MothX Serve
 
 ---
 

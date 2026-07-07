@@ -2,7 +2,7 @@
 
 ## Overview
 
-The A2A (Agent-to-Agent) protocol enables different AI agents to discover, communicate, and collaborate with each other. MothX implements the A2A protocol as both a **standalone server** and an **integrated mode** within Hermes.
+The A2A (Agent-to-Agent) protocol enables different AI agents to discover, communicate, and collaborate with each other. MothX implements the A2A protocol as a standalone server.
 
 ## Quick Start
 
@@ -26,9 +26,7 @@ mothx a2a discover http://remote:8093
 mothx a2a stop
 ```
 
-## Running Modes
-
-### Standalone Mode
+## Running Mode
 
 Runs a dedicated A2A HTTP server on a separate port (default: `127.0.0.1:8093`).
 
@@ -37,24 +35,6 @@ mothx a2a start --port 8093 --work-dir /path/to/project
 ```
 
 Use `--host 0.0.0.0` only when you intentionally want to expose the A2A server beyond loopback, and configure an auth token for exposed deployments.
-
-### Integration Mode
-
-A2A endpoints are mounted on the Hermes gateway when `a2a.enabled: true` in `hermes.json`.
-
-```jsonc
-{
-  "a2a": {
-    "enabled": true,
-    "port": 8093  // ignored in integration mode (uses hermes port)
-  }
-}
-```
-
-Endpoints are available at:
-- `http://localhost:8090/.well-known/agent.json`
-- `http://localhost:8090/a2a`
-- `http://localhost:8090/a2a/events`
 
 ## Protocol Details
 
@@ -256,7 +236,7 @@ curl -X POST http://localhost:8093/a2a/task/cancel \
 
 ## Security
 
-- **Auth Token**: Bearer token authentication (same as hermes)
+- **Auth Token**: Bearer token authentication from `a2a.json` or the `--auth-token` flag
 - **Agent Card**: Publicly accessible (no auth required)
 - **Protected Endpoints**: `/a2a`, REST A2A routes, and `/a2a/events` require auth when `auth_token` is configured
 
@@ -287,12 +267,12 @@ Cron jobs can send tasks to A2A servers instead of running local agents.
 
 ```bash
 # Schedule a daily task to a remote A2A server
-mothx hermes cron add "daily-review" "review recent changes" \
+mothx serve cron add "daily-review" "review recent changes" \
   --schedule "@daily" \
   --a2a-target http://review-agent:8093
 
 # Schedule with auth
-mothx hermes cron add "ci-check" "run CI tests" \
+mothx serve cron add "ci-check" "run CI tests" \
   --schedule "@every 1h" \
   --a2a-target http://ci-agent:8093 \
   --a2a-token ${CI_TOKEN}

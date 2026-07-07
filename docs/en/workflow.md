@@ -17,7 +17,7 @@ Use `--workflows` flag in CLI:
 mothx --workflows
 ```
 
-Gateway and ACP also support workflow mode — enable it in their respective configurations.
+Serve and ACP also support workflow mode — enable it in their respective configurations.
 
 ### Your First Workflow
 
@@ -27,14 +27,14 @@ After launching, you can ask the AI to run a workflow directly. Here is a minima
 (workflow "quick audit"
   (phase "scan"
     (parallel
-      (agent "gateway"
+      (agent "api"
         :mode "plan"
         :tools '("read" "grep" "find")
-        :prompt "Audit internal/gateway for auth risks. Return file:line evidence.")
-      (agent "hermes"
+        :prompt "Audit internal/serve/openaiapi for auth risks. Return file:line evidence.")
+      (agent "channels"
         :mode "plan"
         :tools '("read" "grep" "find")
-        :prompt "Audit internal/hermes for auth risks. Return file:line evidence.")))
+        :prompt "Audit internal/serve/channels for auth risks. Return file:line evidence.")))
   (phase "verify"
     (agent "cross-check"
       :mode "plan"
@@ -381,7 +381,7 @@ Loops must always have a maximum iteration count and a clear exit condition.
 
 ## Related Commands
 
-Both CLI and Gateway support `/workflows` commands to view and manage workflow runs:
+Both CLI and Serve support `/workflows` commands to view and manage workflow runs:
 
 - `/workflows` — list recent workflow runs
 - `/workflows <id>` — view detailed status of a workflow
@@ -393,7 +393,7 @@ You can also use tool calls:
 - `workflow_status` — check status
 - `workflow_cancel` — cancel a run
 
-`workflow_run` accepts an optional `timeoutSeconds` parameter. Omit it to use the default tool timeout, set a positive value for long bounded workflows, or set `0` only for intentional continuous workflows that should not be interrupted by the agent-level deadline. This is separate from worker `:max-iterations` and is not an `(agent ...)` option. In Gateway mode, `requestTimeoutSeconds` is still an outer HTTP request deadline and must also be sized for long-running requests.
+`workflow_run` accepts an optional `timeoutSeconds` parameter. Omit it to use the default tool timeout, set a positive value for long bounded workflows, or set `0` only for intentional continuous workflows that should not be interrupted by the agent-level deadline. This is separate from worker `:max-iterations` and is not an `(agent ...)` option. In Serve mode, `requestTimeoutSeconds` is still an outer HTTP request deadline and must also be sized for long-running requests.
 
 ---
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Stop switching between Claude Code, Codex, Claw, and Hermes.<br>
+  Stop switching between Claude Code, Codex, Claw, and Channels.<br>
   MothX packs everything into a single file — providers, tools, sandbox, sessions, skills, and more.
 </p>
 
@@ -50,7 +50,7 @@
 | **📝 Sessions** | Persistent SQLite-backed history with branching, compaction, and tree structure |
 | **🧩 Skills** | Reusable prompt snippets for project conventions — share across teams |
 | **💻 IDE Ready** | ACP protocol for VS Code, Zed, JetBrains — native editor integration |
-| **🌐 Gateway** | OpenAI-compatible HTTP API — use MothX as a backend service |
+| **🌐 Serve** | OpenAI-compatible HTTP API — use MothX as a backend service |
 | **📱 Messaging** | WeChat, Feishu, WebSocket — deploy as a chatbot |
 | **🤝 Multi-Agent** | Async sub-agents with `--multi-agent`, blocking delegation with `--delegate`, and A2A master mode |
 | **🎨 Rich TUI** | Markdown rendering, syntax highlighting, thinking display, tool modals, multiline input |
@@ -128,8 +128,7 @@ mothx/
 │   ├── session/           # SQLite session storage
 │   ├── skills/            # Skills system
 │   ├── tui/               # Terminal UI (BubbleTea + Lipgloss)
-│   ├── gateway/           # OpenAI-compatible HTTP gateway
-│   ├── hermes/            # Messaging gateway (WeChat/Feishu/WebSocket)
+│   ├── serve/             # Unified OpenAI API, Web UI, and messaging channels
 │   ├── a2a/               # A2A protocol server & master mode
 │   ├── acp/               # ACP / MCP integration
 │   ├── stats/             # Usage statistics web dashboard
@@ -163,9 +162,8 @@ mothx/
 ### 💻 IDE Integration
 - [ACP Protocol](docs/en/acp.md) — VS Code, Zed, JetBrains integration
 
-### 🌐 Gateway Modes
-- [Gateway Mode](docs/en/gateway.md) — OpenAI-compatible HTTP API
-- [Hermes Mode](docs/en/hermes.md) — WeChat/Feishu/WebSocket chatbot
+### 🌐 Serve Mode
+- [Serve Mode](docs/en/serve.md) — OpenAI-compatible HTTP API, Web UI, and messaging channels
 - [A2A Protocol](docs/en/a2a.md) — Agent-to-Agent protocol
 
 ### 📊 Analytics
@@ -201,12 +199,12 @@ mothx -p "Generate changelog from git log" > CHANGELOG.md
 
 ### 🌐 API Server
 ```bash
-mothx gateway  # Start OpenAI-compatible HTTP server
+mothx serve  # Start OpenAI-compatible HTTP server
 ```
 
 ### 📱 Chatbot
 ```bash
-mothx hermes   # Deploy as WeChat/Feishu bot
+mothx serve   # Deploy as WeChat/Feishu bot
 ```
 
 ### 📊 Usage Analytics
@@ -279,13 +277,9 @@ Existing `.vibecoding` and `.vibe` directories are automatically migrated to `.m
 | `VIBECODING_NO_UPDATE_CHECK` | Disable update notifications |
 | `VIBECODING_NPM_REGISTRY` | Override npm registry URL |
 
-### Gateway Configuration
+### Serve Configuration
 
-Gateway-specific config lives in `gateway.json` (global `~/.mothx/gateway.json`, project `.mothx/gateway.json`). See [Gateway Mode](docs/en/gateway.md) for details.
-
-### Hermes Configuration
-
-Hermes-specific config lives in `hermes.json` (global `<GLOBAL_DIR>/hermes.json`, project `.mothx/hermes.json`). See [Hermes Mode](docs/en/hermes.md) for details.
+Serve config lives in `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`) and covers the OpenAI-compatible API, Web UI, cron, memory, and messaging channels. See [Serve Mode](docs/en/serve.md) for details.
 
 ---
 
