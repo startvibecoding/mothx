@@ -63,21 +63,28 @@ func (t *A2ADispatchTool) Parameters() json.RawMessage {
 		agentDesc += fmt.Sprintf("  - %s (%s)\n", a.Name, a.URL)
 	}
 
-	return json.RawMessage(fmt.Sprintf(`{
+	schema := map[string]any{
 		"type": "object",
-		"properties": {
-			"agent_name": {
-				"type": "string",
-				"description": %q,
-				"enum": %s
+		"properties": map[string]any{
+			"agent_name": map[string]any{
+				"type":        "string",
+				"description": agentDesc,
+				"enum":        agentNames,
 			},
-			"message": {
-				"type": "string",
-				"description": "The task message to send to the agent"
-			}
+			"message": map[string]any{
+				"type":        "string",
+				"description": "The task message to send to the agent",
+			},
 		},
-		"required": ["agent_name", "message"]
-	}`, agentDesc, mustMarshalJSON(agentNames)))
+		"required": []string{"agent_name", "message"},
+	}
+
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+
+	return json.RawMessage(data)
 }
 
 func (t *A2ADispatchTool) Execute(ctx context.Context, params map[string]any) (ToolResult, error) {
@@ -99,7 +106,4 @@ func (t *A2ADispatchTool) Execute(ctx context.Context, params map[string]any) (T
 	return NewTextToolResult(result), nil
 }
 
-func mustMarshalJSON(v any) string {
-	data, _ := json.Marshal(v)
-	return string(data)
-}
+
