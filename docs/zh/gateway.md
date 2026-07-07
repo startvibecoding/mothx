@@ -40,7 +40,7 @@ curl http://localhost:8080/v1/chat/completions \
 | `--multi-agent` | 启用子 Agent 工具 |
 | `--delegate` | 启用 Delegate 模式（阻塞式单子 Agent 工具） |
 | `--verbose` | 详细输出 |
-| `--debug` | 调试日志 |
+| `--debug` | 调试日志和本地 pprof |
 
 ## 配置
 

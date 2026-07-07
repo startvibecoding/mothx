@@ -71,7 +71,7 @@ mothx acp --multi-agent
 | `--thinking` | `-t` | From config | Thinking level |
 | `--sandbox` | - | false | Enable sandbox |
 | `--verbose` | - | false | Verbose output |
-| `--debug` | - | false | Debug logging |
+| `--debug` | - | false | Debug logging and local pprof |
 | `--multi-agent` | - | false | Enable sub-agent tools and multi-agent workflows |
 | `--workflows` | - | false | Enable Elisp workflow tools |
 

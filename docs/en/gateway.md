@@ -40,7 +40,7 @@ curl http://localhost:8080/v1/chat/completions \
 | `--multi-agent` | Enable sub-agent tools |
 | `--delegate` | Enable delegation mode (blocking single sub-agent tool) |
 | `--verbose` | Verbose output |
-| `--debug` | Debug logging |
+| `--debug` | Debug logging and local pprof |
 
 ## Configuration
 

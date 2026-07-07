@@ -21,6 +21,7 @@ import (
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/cron"
+	"github.com/startvibecoding/mothx/internal/debugpprof"
 	"github.com/startvibecoding/mothx/internal/gateway"
 	"github.com/startvibecoding/mothx/internal/mcp"
 	"github.com/startvibecoding/mothx/internal/platform"
@@ -454,6 +455,7 @@ func initRunEnvironment(opts runOptions) {
 	config.Verbose = opts.verbose || opts.debug
 	if opts.debug {
 		_ = os.Setenv("VIBECODING_DEBUG", "1")
+		debugpprof.StartForDebug(os.Stderr)
 	}
 }
 

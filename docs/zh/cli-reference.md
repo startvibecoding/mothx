@@ -34,7 +34,7 @@ mothx [flags] [message...]
 |------|------|------|
 | `--print` | `-P` | 非交互模式，打印响应后退出；如果工具调用需要审批，则直接报错退出，不会自动批准 |
 | `--verbose` | - | 详细输出 |
-| `--debug` | - | 启用调试日志（同时启用 provider 请求/响应调试输出） |
+| `--debug` | - | 启用调试日志、provider 请求/响应调试输出，并在 `127.0.0.1:6060` 启动本地 pprof |
 
 ### 安全
 
@@ -74,7 +74,7 @@ mothx acp [flags]
 | `--thinking` | `-t` | 配置文件中的默认值 | 思考级别 |
 | `--sandbox` | - | false | 启用沙箱 |
 | `--verbose` | - | false | 详细输出 |
-| `--debug` | - | false | 调试日志 |
+| `--debug` | - | false | 调试日志和本地 pprof |
 | `--multi-agent` | - | false | 为 ACP 会话启用多 Agent 工具 |
 | `--delegate` | - | false | 为 ACP 会话启用 Delegate 模式 |
 | `--workflows` | - | false | 为 ACP 会话启用 Elisp workflow 工具 |
@@ -122,7 +122,7 @@ mothx gateway [flags]
 | `--delegate` | - | false | 启用 Delegate 模式 |
 | `--workflows` | - | false | 启用 Elisp workflow 工具 |
 | `--verbose` | - | false | 详细输出 |
-| `--debug` | - | false | 调试日志 |
+| `--debug` | - | false | 调试日志和本地 pprof |
 
 详见 [Gateway 模式](gateway.md) 文档。
 

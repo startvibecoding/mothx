@@ -521,6 +521,7 @@ mothx --debug
 - Provider 请求/响应
 - ACP 模式调试
 - 工具执行详情
+- 本地 pprof：http://127.0.0.1:6060/debug/pprof/
 ```
 
 ### 使用场景

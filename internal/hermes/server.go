@@ -15,6 +15,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/cron"
+	"github.com/startvibecoding/mothx/internal/debugpprof"
 	"github.com/startvibecoding/mothx/internal/hermes/webhook"
 	"github.com/startvibecoding/mothx/internal/hermes/ws"
 	"github.com/startvibecoding/mothx/internal/memory"
@@ -88,6 +89,7 @@ func Run(opts RunOptions, version string) error {
 	config.Verbose = opts.Verbose || opts.Debug
 	if opts.Debug {
 		_ = os.Setenv("VIBECODING_DEBUG", "1")
+		debugpprof.StartForDebug(os.Stderr)
 	}
 
 	// Load settings.json

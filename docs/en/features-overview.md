@@ -522,6 +522,7 @@ mothx --debug
 - Provider request/response
 - ACP mode debugging
 - Tool execution details
+- Local pprof at http://127.0.0.1:6060/debug/pprof/
 ```
 
 ### Use Cases

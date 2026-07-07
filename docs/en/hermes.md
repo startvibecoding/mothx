@@ -71,7 +71,7 @@ Start the Hermes daemon.
 | `--sandbox` | Enable bwrap sandbox |
 | `--config` | Path to hermes.json |
 | `--verbose` | Verbose output |
-| `--debug` | Debug logging |
+| `--debug` | Debug logging and local pprof |
 
 ### `hermes stop`
 

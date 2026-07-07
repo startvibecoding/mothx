@@ -34,7 +34,7 @@ mothx [flags] [message...]
 |-----------|-------|-------------|
 | `--print` | `-P` | Non-interactive mode, print response and exit. If a tool would require approval, the command exits with an error instead of auto-approving. |
 | `--verbose` | - | Verbose output |
-| `--debug` | - | Enable debug logging (also enables provider request/response debug output) |
+| `--debug` | - | Enable debug logging, provider request/response debug output, and local pprof at `127.0.0.1:6060` |
 
 ### Security
 
@@ -74,7 +74,7 @@ Supports VS Code, JetBrains IDEs, and any ACP-compatible editor.
 | `--thinking` | `-t` | From config | Thinking level |
 | `--sandbox` | - | false | Enable sandbox |
 | `--verbose` | - | false | Verbose output |
-| `--debug` | - | false | Debug logging |
+| `--debug` | - | false | Debug logging and local pprof |
 | `--multi-agent` | - | false | Enable multi-agent tools for ACP sessions |
 | `--delegate` | - | false | Enable delegation mode for ACP sessions |
 | `--workflows` | - | false | Enable Elisp workflow tools for ACP sessions |
@@ -122,7 +122,7 @@ mothx gateway [flags]
 | `--delegate` | - | false | Enable delegation mode |
 | `--workflows` | - | false | Enable Elisp workflow tools |
 | `--verbose` | - | false | Verbose output |
-| `--debug` | - | false | Debug logging |
+| `--debug` | - | false | Debug logging and local pprof |
 
 See [Gateway Mode](gateway.md) documentation for details.
 

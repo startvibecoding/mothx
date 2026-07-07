@@ -1134,6 +1134,7 @@ These environment variables override settings at runtime:
 | `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |
 | `VIBECODING_THINKING` | `defaultThinkingLevel` | `export VIBECODING_THINKING=high` |
 | `VIBECODING_DEBUG` | Enable provider-level request/response debug output | `export VIBECODING_DEBUG=1` |
+| `VIBECODING_PPROF_ADDR` | pprof listen address when `--debug` is set | `export VIBECODING_PPROF_ADDR=127.0.0.1:6061` |
 | `VIBECODING_NO_UPDATE_CHECK` | Disable update check | `export VIBECODING_NO_UPDATE_CHECK=1` |
 | `VIBECODING_NPM_REGISTRY` | Override npm registry for update checks | `export VIBECODING_NPM_REGISTRY=https://registry.npmjs.org` |
 

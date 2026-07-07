@@ -1134,6 +1134,7 @@ export DEEPSEEK_API_KEY=sk-...
 | `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |
 | `VIBECODING_THINKING` | `defaultThinkingLevel` | `export VIBECODING_THINKING=high` |
 | `VIBECODING_DEBUG` | 启用 provider 级请求/响应调试输出 | `export VIBECODING_DEBUG=1` |
+| `VIBECODING_PPROF_ADDR` | 设置 `--debug` 启动的 pprof 监听地址 | `export VIBECODING_PPROF_ADDR=127.0.0.1:6061` |
 | `VIBECODING_NO_UPDATE_CHECK` | 禁用版本更新检测 | `export VIBECODING_NO_UPDATE_CHECK=1` |
 | `VIBECODING_NPM_REGISTRY` | 覆盖 npm registry 地址 | `export VIBECODING_NPM_REGISTRY=https://registry.npmjs.org` |
 

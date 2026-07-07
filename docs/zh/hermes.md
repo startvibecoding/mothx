@@ -71,7 +71,7 @@ mothx hermes client
 | `--sandbox` | 启用 bwrap 沙箱 |
 | `--config` | hermes.json 路径 |
 | `--verbose` | 详细输出 |
-| `--debug` | 调试日志 |
+| `--debug` | 调试日志和本地 pprof |
 
 ### `hermes stop`
 
