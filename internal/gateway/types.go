@@ -25,9 +25,69 @@ type ChatCompletionRequest struct {
 
 // RequestMessage represents a message in the OpenAI request.
 type RequestMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-	Name    string `json:"name,omitempty"`
+	Role         string               `json:"role"`
+	Content      string               `json:"content"`
+	ContentParts []RequestContentPart `json:"-"`
+	Name         string               `json:"name,omitempty"`
+}
+
+// RequestContentPart represents one OpenAI-compatible multimodal content part.
+type RequestContentPart struct {
+	Type     string            `json:"type"`
+	Text     string            `json:"text,omitempty"`
+	ImageURL *RequestImageURL  `json:"image_url,omitempty"`
+	Image    *RequestImageData `json:"image,omitempty"`
+}
+
+// RequestImageURL represents an OpenAI image_url content part.
+type RequestImageURL struct {
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// RequestImageData represents an internal image content part shape.
+type RequestImageData struct {
+	Data     string `json:"data"`
+	MimeType string `json:"mimeType"`
+	Detail   string `json:"detail,omitempty"`
+}
+
+// UnmarshalJSON accepts both classic string content and OpenAI-style content arrays.
+func (m *RequestMessage) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+		Name    string          `json:"name,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	m.Role = raw.Role
+	m.Name = raw.Name
+	m.Content = ""
+	m.ContentParts = nil
+	if len(raw.Content) == 0 || string(raw.Content) == "null" {
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(raw.Content, &text); err == nil {
+		m.Content = text
+		return nil
+	}
+	var parts []RequestContentPart
+	if err := json.Unmarshal(raw.Content, &parts); err != nil {
+		return fmt.Errorf("content must be a string or content array")
+	}
+	m.ContentParts = parts
+	for _, part := range parts {
+		if part.Type == "text" && part.Text != "" {
+			if m.Content != "" {
+				m.Content += "\n"
+			}
+			m.Content += part.Text
+		}
+	}
+	return nil
 }
 
 // --- OpenAI-compatible response types ---
@@ -109,10 +169,11 @@ type ModelListResponse struct {
 
 // ModelItem represents one model in the list.
 type ModelItem struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	OwnedBy string `json:"owned_by"`
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	OwnedBy string   `json:"owned_by"`
+	Input   []string `json:"input,omitempty"`
 }
 
 // --- Health ---

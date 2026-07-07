@@ -24,6 +24,8 @@
   let workDir = '';
   let sessionCreated = false;
   let showBrowser = false;
+  let imageInput;
+  let imageUploads = [];
 
   const suggestions = [
     '资讯：Fable 5 用 1600 行代码生成水下曼哈顿获赞',
@@ -53,7 +55,7 @@
     try {
       const msgs = await getSessionMessages(id);
       if (msgs && msgs.length > 0) {
-        messages = msgs.map((m) => ({ role: m.role, content: m.content }));
+        messages = msgs.map(normalizeSessionMessage);
       } else {
         messages = [];
       }
@@ -67,9 +69,14 @@
   $: activeSession = $sessions.find((s) => s.id === $currentSession);
   $: recentTools = chatEvents.slice(-6).reverse();
   $: modelOptions = $models;
+  $: activeModel = modelOptions.find((m) => m.id === $selectedModel);
+  $: selectedModelSupportsImages = (activeModel?.input || []).includes('image');
   $: apiEnabled = $features.api;
   $: isNewSession = !$currentSession && !sessionCreated;
   $: activeSessionWorkDir = activeSession?.workDir || workDir.trim();
+  $: if (!selectedModelSupportsImages && imageUploads.length > 0) {
+    clearImages();
+  }
 
   function pick(text) {
     if (busy) return;
@@ -86,7 +93,12 @@
 
   async function sendPrompt() {
     const outgoing = prompt.trim();
-    if (!outgoing || !apiEnabled) return;
+    const outgoingImages = imageUploads;
+    if ((!outgoing && outgoingImages.length === 0) || !apiEnabled) return;
+    if (outgoingImages.length > 0 && !selectedModelSupportsImages) {
+      setError('当前模型不支持图片输入');
+      return;
+    }
     if (isNewSession && !workDir.trim()) {
       setError('请先填写工作目录');
       return;
@@ -96,17 +108,25 @@
     clearBanners();
 
     // Add user message
-    messages = [...messages, { role: 'user', content: outgoing }];
+    messages = [...messages, { role: 'user', content: outgoing, images: outgoingImages }];
     prompt = '';
+    imageUploads = [];
+    if (imageInput) imageInput.value = '';
 
     chatAbort = new AbortController();
     try {
+      const requestMessages = messages.map((m, idx) => {
+        if (idx === messages.length - 1 && outgoingImages.length > 0) {
+          return { role: m.role, content: buildOutgoingContent(outgoing, outgoingImages) };
+        }
+        return { role: m.role, content: m.content || '' };
+      });
       const body = JSON.stringify({
         model: $selectedModel || 'default',
         stream: true,
         x_session_id: $currentSession || undefined,
         x_working_dir: workDir.trim(),
-        messages: messages.map((m) => ({ role: m.role, content: m.content }))
+        messages: requestMessages
       });
       const res = await fetch('/v1/chat/completions', {
         method: 'POST',
@@ -147,6 +167,93 @@
   function onDirSelect(e) {
     workDir = e.detail.path;
     showBrowser = false;
+  }
+
+  async function handleImageSelect(event) {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+    if (!selectedModelSupportsImages) {
+      setError('当前模型不支持图片输入');
+      event.target.value = '';
+      return;
+    }
+    try {
+      const next = await Promise.all(files.map(readImageFile));
+      imageUploads = [...imageUploads, ...next].slice(0, 6);
+    } catch (err) {
+      setError(err);
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  function readImageFile(file) {
+    if (!file.type.startsWith('image/')) {
+      throw new Error(`不支持的文件类型：${file.name}`);
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl: String(reader.result || '')
+      });
+      reader.onerror = () => reject(new Error(`读取图片失败：${file.name}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removeImage(index) {
+    imageUploads = imageUploads.filter((_, i) => i !== index);
+  }
+
+  function clearImages() {
+    imageUploads = [];
+    if (imageInput) imageInput.value = '';
+  }
+
+  function buildOutgoingContent(text, images) {
+    const parts = [];
+    if (text) parts.push({ type: 'text', text });
+    for (const image of images) {
+      parts.push({
+        type: 'image_url',
+        image_url: { url: image.dataUrl, detail: 'auto' }
+      });
+    }
+    return parts;
+  }
+
+  function formatImageSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  function normalizeSessionMessage(message) {
+    const images = [];
+    for (const block of message.contents || []) {
+      if (block.type !== 'image' || !block.image?.data || !block.image?.mimeType) continue;
+      images.push({
+        name: block.image.mimeType,
+        type: block.image.mimeType,
+        size: block.image.bytes || block.image.originalBytes || 0,
+        dataUrl: `data:${block.image.mimeType};base64,${block.image.data}`
+      });
+    }
+    return {
+      role: message.role,
+      content: message.content || textFromContents(message.contents),
+      images
+    };
+  }
+
+  function textFromContents(contents = []) {
+    return contents
+      .filter((block) => block.type === 'text' && block.text)
+      .map((block) => block.text)
+      .join('\n');
   }
 
   function handleStreamEvent(event) {
@@ -204,6 +311,13 @@
                 <span>{shortID($currentSession)}</span>
               </div>
               <p>{msg.content}</p>
+              {#if msg.images?.length}
+                <div class="msg-images">
+                  {#each msg.images as image}
+                    <img src={image.dataUrl} alt={image.name} />
+                  {/each}
+                </div>
+              {/if}
             </article>
           {:else}
             <article class="msg assistant">
@@ -266,6 +380,18 @@
       </div>
     {/if}
     <div class="composer-row">
+      {#if imageUploads.length > 0}
+        <div class="image-preview-row">
+          {#each imageUploads as image, idx}
+            <div class="image-preview">
+              <img src={image.dataUrl} alt={image.name} />
+              <span title={image.name}>{image.name}</span>
+              <em>{formatImageSize(image.size)}</em>
+              <button type="button" aria-label="移除图片" on:click={() => removeImage(idx)}>×</button>
+            </div>
+          {/each}
+        </div>
+      {/if}
       <textarea
         bind:value={prompt}
         on:keydown={handleKeydown}
@@ -276,6 +402,26 @@
     </div>
     <div class="composer-bar">
       <div class="left">
+        <input
+          bind:this={imageInput}
+          class="file-input"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          on:change={handleImageSelect}
+        />
+        {#if selectedModelSupportsImages}
+          <button
+            type="button"
+            class="icon-btn"
+            disabled={!apiEnabled || busy}
+            title="上传图片"
+            aria-label="上传图片"
+            on:click={() => imageInput?.click()}
+          >
+            📎
+          </button>
+        {/if}
         <select
           bind:value={$selectedModel}
           disabled={!apiEnabled || modelOptions.length === 0}
@@ -303,7 +449,7 @@
         <button
           type="button"
           class="primary"
-          disabled={busy || !prompt.trim() || !apiEnabled || (isNewSession && !workDir.trim())}
+          disabled={busy || (!prompt.trim() && imageUploads.length === 0) || !apiEnabled || (isNewSession && !workDir.trim())}
           on:click={sendPrompt}
         >
           {busy ? '发送中' : '发送'}

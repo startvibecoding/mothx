@@ -626,6 +626,44 @@ func TestListActiveSessions(t *testing.T) {
 	}
 }
 
+func TestGetSessionMessagesReadsFromSessionDB(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	mgr := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("db-history"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	userMsg := provider.NewUserMessage("describe this")
+	userMsg.Contents = []provider.ContentBlock{
+		{Type: "text", Text: "describe this"},
+		{Type: "image", Image: &provider.ImageContent{MimeType: "image/png", Data: "aW1n", Bytes: 3}},
+	}
+	if _, err := mgr.AppendMessage(userMsg); err != nil {
+		t.Fatalf("append user message: %v", err)
+	}
+	if _, err := mgr.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "ok"}})); err != nil {
+		t.Fatalf("append assistant message: %v", err)
+	}
+
+	messages, err := srv.GetSessionMessages("db-history")
+	if err != nil {
+		t.Fatalf("GetSessionMessages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages len = %d, want 2", len(messages))
+	}
+	if messages[0].Role != "user" || messages[0].Content != "describe this" {
+		t.Fatalf("first message = %#v", messages[0])
+	}
+	if len(messages[0].Contents) != 2 || messages[0].Contents[1].Image == nil || messages[0].Contents[1].Image.Data != "aW1n" {
+		t.Fatalf("first message contents = %#v", messages[0].Contents)
+	}
+	if messages[1].Role != "assistant" || messages[1].Content != "ok" {
+		t.Fatalf("second message = %#v", messages[1])
+	}
+}
+
 func TestDeleteActiveSession(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.pool.Stop()
@@ -664,6 +702,30 @@ func TestDeleteActiveSession(t *testing.T) {
 	}
 }
 
+func TestDeleteActiveSessionDeletesPersistedSession(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	mgr := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("persisted-delete"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	if _, err := mgr.AppendMessage(provider.NewUserMessage("hello")); err != nil {
+		t.Fatalf("append message: %v", err)
+	}
+
+	deleted, err := srv.DeleteActiveSession("persisted-delete")
+	if err != nil {
+		t.Fatalf("DeleteActiveSession: %v", err)
+	}
+	if !deleted {
+		t.Fatal("persisted session should be deleted")
+	}
+	if _, err := session.OpenByIDExact(srv.settings.GetSessionDir(), "persisted-delete"); err == nil {
+		t.Fatal("session should not exist after delete")
+	}
+}
+
 func TestDeleteActiveSessionAmbiguousID(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.pool.Stop()
@@ -697,8 +759,8 @@ func TestParseMessages(t *testing.T) {
 		{Role: "user", Content: "explain main.go"},
 	}
 	lastUser, sysMsgs, history := parseMessages(msgs)
-	if lastUser != "explain main.go" {
-		t.Errorf("lastUser = %q", lastUser)
+	if lastUser.Content != "explain main.go" {
+		t.Errorf("lastUser = %q", lastUser.Content)
 	}
 	if len(sysMsgs) != 1 || sysMsgs[0] != "you are helpful" {
 		t.Errorf("sysMsgs = %v", sysMsgs)
@@ -713,8 +775,48 @@ func TestParseMessages_NoUser(t *testing.T) {
 		{Role: "system", Content: "test"},
 	}
 	lastUser, _, _ := parseMessages(msgs)
-	if lastUser != "" {
-		t.Errorf("expected empty lastUser, got %q", lastUser)
+	if lastUser.Content != "" {
+		t.Errorf("expected empty lastUser, got %q", lastUser.Content)
+	}
+}
+
+func TestRequestMessageMultimodalContent(t *testing.T) {
+	var msg RequestMessage
+	body := `{"role":"user","content":[{"type":"text","text":"describe this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,aW1n","detail":"auto"}}]}`
+	if err := json.Unmarshal([]byte(body), &msg); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if msg.Content != "describe this" {
+		t.Fatalf("content = %q", msg.Content)
+	}
+	providerMsg, err := buildUserMessage(msg)
+	if err != nil {
+		t.Fatalf("buildUserMessage: %v", err)
+	}
+	if len(providerMsg.Contents) != 2 {
+		t.Fatalf("contents len = %d, want 2", len(providerMsg.Contents))
+	}
+	if providerMsg.Contents[1].Image == nil || providerMsg.Contents[1].Image.MimeType != "image/png" || providerMsg.Contents[1].Image.Data != "aW1n" {
+		t.Fatalf("image content = %#v", providerMsg.Contents[1].Image)
+	}
+}
+
+func TestChatHandlerRejectsImageForTextOnlyModel(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+	srv.model.Input = []string{"text"}
+
+	body := `{"messages":[{"role":"user","content":[{"type":"text","text":"describe"},{"type":"image_url","image_url":{"url":"data:image/png;base64,aW1n"}}]}],"stream":false}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400, body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "does not support image input") {
+		t.Fatalf("body = %s", w.Body.String())
 	}
 }
 
@@ -816,7 +918,7 @@ func TestHealthHandler(t *testing.T) {
 
 func TestModelsHandler(t *testing.T) {
 	mockP := provider.NewMockProvider("test", []*provider.Model{
-		{ID: "m1", Name: "Model 1"},
+		{ID: "m1", Name: "Model 1", Input: []string{"text", "image"}},
 		{ID: "m2", Name: "Model 2"},
 	}, nil)
 	srv := &Server{
@@ -835,6 +937,9 @@ func TestModelsHandler(t *testing.T) {
 	}
 	if len(resp.Data) != 2 {
 		t.Errorf("models = %d, want 2", len(resp.Data))
+	}
+	if len(resp.Data[0].Input) != 2 || resp.Data[0].Input[0] != "text" || resp.Data[0].Input[1] != "image" {
+		t.Errorf("model input = %#v, want text/image", resp.Data[0].Input)
 	}
 }
 
@@ -1906,8 +2011,8 @@ func TestParseMessages_MultipleSystem(t *testing.T) {
 		{Role: "user", Content: "hello"},
 	}
 	lastUser, sysMsgs, history := parseMessages(msgs)
-	if lastUser != "hello" {
-		t.Errorf("lastUser = %q", lastUser)
+	if lastUser.Content != "hello" {
+		t.Errorf("lastUser = %q", lastUser.Content)
 	}
 	if len(sysMsgs) != 2 {
 		t.Errorf("sysMsgs len = %d, want 2", len(sysMsgs))
@@ -1922,8 +2027,8 @@ func TestParseMessages_SingleUser(t *testing.T) {
 		{Role: "user", Content: "only message"},
 	}
 	lastUser, sysMsgs, history := parseMessages(msgs)
-	if lastUser != "only message" {
-		t.Errorf("lastUser = %q", lastUser)
+	if lastUser.Content != "only message" {
+		t.Errorf("lastUser = %q", lastUser.Content)
 	}
 	if len(sysMsgs) != 0 {
 		t.Errorf("sysMsgs len = %d", len(sysMsgs))

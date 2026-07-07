@@ -19,6 +19,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 			Object:  "model",
 			Created: time.Now().Unix(),
 			OwnedBy: "vibecoding",
+			Input:   append([]string(nil), m.Input...),
 		})
 	}
 

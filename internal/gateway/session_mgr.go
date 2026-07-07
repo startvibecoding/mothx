@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -45,8 +46,9 @@ type ActiveSessionInfo struct {
 
 // SessionMessageEntry is a simplified message for the WebUI.
 type SessionMessageEntry struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role     string                  `json:"role"`
+	Content  string                  `json:"content"`
+	Contents []provider.ContentBlock `json:"contents,omitempty"`
 }
 
 // ErrActiveSessionIDAmbiguous is returned when a session ID matches multiple active workdirs.
@@ -320,7 +322,47 @@ func (s *Server) ListActiveSessions() []ActiveSessionInfo {
 	if s == nil || s.pool == nil {
 		return nil
 	}
-	return s.pool.listDetails()
+	active := s.pool.listDetails()
+	if s.settings == nil || s.cfg == nil {
+		return active
+	}
+	workDir := s.cfg.GetWorkDir()
+	details, err := session.ListForDirDetailed(workDir, s.settings.GetSessionDir())
+	if err != nil {
+		return active
+	}
+	byID := make(map[string]ActiveSessionInfo, len(active)+len(details))
+	for _, item := range details {
+		byID[item.ID] = ActiveSessionInfo{
+			ID:           item.ID,
+			WorkDir:      workDir,
+			LastUsed:     item.ModTime,
+			MessageCount: item.MessageCount,
+		}
+	}
+	for _, item := range active {
+		persisted := byID[item.ID]
+		if persisted.ID == "" {
+			byID[item.ID] = item
+			continue
+		}
+		item.MessageCount = persisted.MessageCount
+		if item.WorkDir == "" {
+			item.WorkDir = persisted.WorkDir
+		}
+		byID[item.ID] = item
+	}
+	sessions := make([]ActiveSessionInfo, 0, len(byID))
+	for _, item := range byID {
+		sessions = append(sessions, item)
+	}
+	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].LastUsed.Equal(sessions[j].LastUsed) {
+			return sessions[i].ID < sessions[j].ID
+		}
+		return sessions[i].LastUsed.After(sessions[j].LastUsed)
+	})
+	return sessions
 }
 
 // DeleteActiveSession deletes one active session from persistence and the runtime pool.
@@ -333,7 +375,17 @@ func (s *Server) DeleteActiveSession(id string) (bool, error) {
 		return false, err
 	}
 	if sess == nil {
-		return false, nil
+		if s.settings == nil {
+			return false, nil
+		}
+		mgr, err := session.OpenByIDExact(s.settings.GetSessionDir(), id)
+		if err != nil {
+			return false, nil
+		}
+		if err := session.DeleteSession(mgr.GetFile(), s.settings.GetSessionDir()); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 	if sess.Manager != nil && sess.Manager.GetFile() != "" && s.settings != nil {
 		if err := session.DeleteSession(sess.Manager.GetFile(), s.settings.GetSessionDir()); err != nil {
@@ -355,7 +407,7 @@ func (s *Server) DeleteActiveSession(id string) (bool, error) {
 	return true, nil
 }
 
-// GetSessionMessages returns the message history for an active session.
+// GetSessionMessages returns the message history for a persisted session.
 func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 	if s == nil || s.pool == nil {
 		return nil, nil
@@ -374,6 +426,12 @@ func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 	if id == "" {
 		return nil, nil
 	}
+	if s.settings != nil {
+		mgr, err := session.OpenByIDExact(s.settings.GetSessionDir(), id)
+		if err == nil {
+			return sessionMessagesToEntries(mgr.GetMessages()), nil
+		}
+	}
 	sess, err := s.pool.getExact(id)
 	if err != nil {
 		return nil, err
@@ -381,7 +439,10 @@ func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 	if sess == nil {
 		return nil, nil
 	}
-	msgs := sess.Manager.GetMessages()
+	return sessionMessagesToEntries(sess.Manager.GetMessages()), nil
+}
+
+func sessionMessagesToEntries(msgs []provider.Message) []SessionMessageEntry {
 	var entries []SessionMessageEntry
 	for _, m := range msgs {
 		if m.SystemInjected {
@@ -398,10 +459,34 @@ func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 				}
 			}
 		}
-		if content == "" {
+		if content == "" && len(m.Contents) == 0 {
 			continue
 		}
-		entries = append(entries, SessionMessageEntry{Role: m.Role, Content: content})
+		entry := SessionMessageEntry{Role: m.Role, Content: content}
+		if len(m.Contents) > 0 {
+			entry.Contents = cloneContentBlocks(m.Contents)
+		}
+		entries = append(entries, entry)
 	}
-	return entries, nil
+	return entries
+}
+
+func cloneContentBlocks(blocks []provider.ContentBlock) []provider.ContentBlock {
+	cloned := make([]provider.ContentBlock, len(blocks))
+	for i, block := range blocks {
+		cloned[i] = block
+		if block.Image != nil {
+			image := *block.Image
+			cloned[i].Image = &image
+		}
+		if block.ToolCall != nil {
+			toolCall := *block.ToolCall
+			cloned[i].ToolCall = &toolCall
+		}
+		if block.CacheControl != nil {
+			cacheControl := *block.CacheControl
+			cloned[i].CacheControl = &cacheControl
+		}
+	}
+	return cloned
 }

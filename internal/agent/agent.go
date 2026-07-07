@@ -565,13 +565,23 @@ func (a *Agent) ParentID() agentpkg.AgentID { return a.parentID }
 
 // Run processes a user message and streams events back.
 func (a *Agent) Run(ctx context.Context, userMsg string) <-chan Event {
+	return a.RunWithUserMessage(ctx, provider.NewUserMessage(userMsg))
+}
+
+// RunWithUserMessage processes an already-built user message and streams events back.
+func (a *Agent) RunWithUserMessage(ctx context.Context, msg provider.Message) <-chan Event {
 	ch := make(chan Event, 100)
 
 	go func() {
 		defer close(ch)
 
 		// Add user message to conversation
-		msg := provider.NewUserMessage(userMsg)
+		if msg.Role == "" {
+			msg.Role = "user"
+		}
+		if msg.Timestamp.IsZero() {
+			msg.Timestamp = time.Now()
+		}
 		a.mu.Lock()
 		msgIndex := len(a.messages)
 		a.messages = append(a.messages, msg)

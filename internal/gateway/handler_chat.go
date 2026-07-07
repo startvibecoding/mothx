@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -70,8 +71,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	// Extract last user message
 	lastUserMsg, systemMsgs, historyMsgs := parseMessages(req.Messages)
-	if lastUserMsg == "" {
+	if strings.TrimSpace(lastUserMsg.Content) == "" && len(lastUserMsg.ContentParts) == 0 {
 		writeError(w, http.StatusBadRequest, "no user message found", "invalid_request_error")
+		return
+	}
+	lastUserMessage, err := buildUserMessage(lastUserMsg)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error(), "invalid_request_error")
+		return
+	}
+	if messageHasImage(lastUserMessage) && !modelSupportsInput(currentModel, "image") {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("model %q does not support image input", currentModel.ID), "invalid_request_error")
 		return
 	}
 
@@ -98,18 +108,18 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	sess.Touch()
 
 	// Check for slash command
-	if cmdResult := s.handleCommand(sess, lastUserMsg); cmdResult != nil {
+	if cmdResult := s.handleCommand(sess, lastUserMsg.Content); cmdResult != nil {
 		// If /clear, we need to reset agent state on the session
-		if strings.HasPrefix(strings.TrimSpace(lastUserMsg), "/clear") {
+		if strings.HasPrefix(strings.TrimSpace(lastUserMsg.Content), "/clear") {
 			if err := s.clearSession(sess, workDir); err != nil {
 				writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 				return
 			}
 		}
 		if req.Stream {
-			s.writeCommandResponseStreaming(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg)
+			s.writeCommandResponseStreaming(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content)
 		} else {
-			s.writeCommandResponse(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg)
+			s.writeCommandResponse(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content)
 		}
 		return
 	}
@@ -229,7 +239,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run agent
-	eventCh := a.Run(ctx, lastUserMsg)
+	eventCh := a.RunWithUserMessage(ctx, lastUserMessage)
 
 	if req.Stream {
 		s.handleStreamingResponse(w, r, eventCh, currentModel.ID, sess.ID)
@@ -693,7 +703,7 @@ func (s *Server) clearSession(sess *GatewaySession, workDir string) error {
 }
 
 // parseMessages extracts the last user message, system messages, and history messages.
-func parseMessages(msgs []RequestMessage) (lastUser string, systemMsgs []string, history []RequestMessage) {
+func parseMessages(msgs []RequestMessage) (lastUser RequestMessage, systemMsgs []string, history []RequestMessage) {
 	for _, m := range msgs {
 		switch m.Role {
 		case "system":
@@ -710,9 +720,9 @@ func parseMessages(msgs []RequestMessage) (lastUser string, systemMsgs []string,
 		}
 	}
 	if lastIdx < 0 {
-		return "", systemMsgs, nil
+		return RequestMessage{}, systemMsgs, nil
 	}
-	lastUser = msgs[lastIdx].Content
+	lastUser = msgs[lastIdx]
 
 	// Everything before the last user message (excluding system) is history
 	for i := 0; i < lastIdx; i++ {
@@ -723,13 +733,118 @@ func parseMessages(msgs []RequestMessage) (lastUser string, systemMsgs []string,
 	return lastUser, systemMsgs, history
 }
 
+func buildUserMessage(m RequestMessage) (provider.Message, error) {
+	if len(m.ContentParts) == 0 {
+		return provider.NewUserMessage(m.Content), nil
+	}
+	contents, err := requestContentBlocks(m)
+	if err != nil {
+		return provider.Message{}, err
+	}
+	msg := provider.NewUserMessage(m.Content)
+	msg.Contents = contents
+	return msg, nil
+}
+
+func requestContentBlocks(m RequestMessage) ([]provider.ContentBlock, error) {
+	contents := make([]provider.ContentBlock, 0, len(m.ContentParts))
+	for _, part := range m.ContentParts {
+		switch part.Type {
+		case "text":
+			if part.Text != "" {
+				contents = append(contents, provider.ContentBlock{Type: "text", Text: part.Text})
+			}
+		case "image_url":
+			if part.ImageURL == nil || part.ImageURL.URL == "" {
+				return nil, fmt.Errorf("image_url content part is missing url")
+			}
+			image, err := imageFromDataURL(part.ImageURL.URL, part.ImageURL.Detail)
+			if err != nil {
+				return nil, err
+			}
+			contents = append(contents, provider.ContentBlock{Type: "image", Image: image})
+		case "image":
+			if part.Image == nil || part.Image.Data == "" || part.Image.MimeType == "" {
+				return nil, fmt.Errorf("image content part is missing data or mimeType")
+			}
+			if err := validateImagePayload(part.Image.MimeType, part.Image.Data); err != nil {
+				return nil, err
+			}
+			contents = append(contents, provider.ContentBlock{Type: "image", Image: &provider.ImageContent{
+				Data:     part.Image.Data,
+				MimeType: part.Image.MimeType,
+				Detail:   part.Image.Detail,
+			}})
+		default:
+			return nil, fmt.Errorf("unsupported content part type %q", part.Type)
+		}
+	}
+	if len(contents) == 0 && m.Content != "" {
+		contents = append(contents, provider.ContentBlock{Type: "text", Text: m.Content})
+	}
+	return contents, nil
+}
+
+func imageFromDataURL(dataURL, detail string) (*provider.ImageContent, error) {
+	const marker = ";base64,"
+	if !strings.HasPrefix(dataURL, "data:image/") {
+		return nil, fmt.Errorf("image_url must be a data:image URL")
+	}
+	idx := strings.Index(dataURL, marker)
+	if idx < 0 {
+		return nil, fmt.Errorf("image_url must contain base64 image data")
+	}
+	mimeType := dataURL[len("data:"):idx]
+	data := dataURL[idx+len(marker):]
+	if err := validateImagePayload(mimeType, data); err != nil {
+		return nil, err
+	}
+	return &provider.ImageContent{Data: data, MimeType: mimeType, Detail: detail}, nil
+}
+
+func validateImagePayload(mimeType, data string) error {
+	switch mimeType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+	default:
+		return fmt.Errorf("unsupported image MIME type %q", mimeType)
+	}
+	if _, err := base64.StdEncoding.DecodeString(data); err != nil {
+		return fmt.Errorf("invalid base64 image data: %w", err)
+	}
+	return nil
+}
+
+func messageHasImage(msg provider.Message) bool {
+	for _, block := range msg.Contents {
+		if block.Type == "image" && block.Image != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func modelSupportsInput(model *provider.Model, input string) bool {
+	if model == nil {
+		return false
+	}
+	for _, item := range model.Input {
+		if item == input {
+			return true
+		}
+	}
+	return false
+}
+
 // convertHistoryMessages converts OpenAI-format history to internal provider.Message.
 func convertHistoryMessages(msgs []RequestMessage) []provider.Message {
 	result := make([]provider.Message, 0, len(msgs))
 	for _, m := range msgs {
 		switch m.Role {
 		case "user":
-			result = append(result, provider.NewUserMessage(m.Content))
+			msg, err := buildUserMessage(m)
+			if err == nil {
+				result = append(result, msg)
+			}
 		case "assistant":
 			result = append(result, provider.NewAssistantMessage([]provider.ContentBlock{
 				{Type: "text", Text: m.Content},
