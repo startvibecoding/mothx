@@ -1630,6 +1630,13 @@ func teaSpecialKeyMsgForTest(key tea.KeyType) tea.KeyMsg {
 	return tea.KeyMsg{Type: key}
 }
 
+func withSplitPasteCoalescing(t *testing.T, enabled bool) {
+	t.Helper()
+	old := splitPasteCoalescingEnabled
+	splitPasteCoalescingEnabled = func() bool { return enabled }
+	t.Cleanup(func() { splitPasteCoalescingEnabled = old })
+}
+
 func withTempTUIAllowPaths(t *testing.T) {
 	t.Helper()
 	tmp := t.TempDir()
@@ -1736,6 +1743,7 @@ func TestInputSmallMultilinePastePreservesNewlines(t *testing.T) {
 }
 
 func TestInputSplitMultilinePastePreservesNewlines(t *testing.T) {
+	withSplitPasteCoalescing(t, true)
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.Update(teaKeyMsgForTest("one"))
@@ -1768,6 +1776,7 @@ func TestInputSplitPasteCtrlJPreservesNewline(t *testing.T) {
 }
 
 func TestInputSplitLargePasteCreatesMarker(t *testing.T) {
+	withSplitPasteCoalescing(t, true)
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
 	a.Update(teaKeyMsgForTest("one"))
@@ -1796,6 +1805,7 @@ func TestInputSplitLargePasteCreatesMarker(t *testing.T) {
 }
 
 func TestInputSplitPasteWaitsPastNormalIdleWindow(t *testing.T) {
+	withSplitPasteCoalescing(t, true)
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.inputDelay = time.Millisecond
 
@@ -1811,6 +1821,7 @@ func TestInputSplitPasteWaitsPastNormalIdleWindow(t *testing.T) {
 }
 
 func TestInputDelayedTwentyTwoLineSplitPasteCreatesMarker(t *testing.T) {
+	withSplitPasteCoalescing(t, true)
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 	a.inputDelay = time.Millisecond
 
@@ -1850,6 +1861,51 @@ func TestInputDelayedTwentyTwoLineSplitPasteCreatesMarker(t *testing.T) {
 	}
 }
 
+func TestInputSplitSchedulerLogPasteCreatesMarkerByDefault(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	const logPaste = `Container geo-stats-scheduler  Recreate
+ Container geo-stats-scheduler  Recreated
+ Container geo-stats-scheduler  Starting
+ Container geo-stats-scheduler  Started
+=========================================
+  geo_stats Scheduler Starting
+  Time: 2026-07-07 16:32:41
+=========================================
+DB: mysql+pymysql://***:***@127.0.0.1:3306/oscdb?charset=utf8mb4
+Interval: 1800s
+Limit: 0
+Workers: 1
+Browser: enabled
+
+2026-07-07 16:32:41,723 [INFO] 调度器启动 interval=1800s limit=0 desc=True browser=True workers=1
+2026-07-07 16:32:41,723 [INFO] ===== 调度轮次开始 [2026-07-07 16:32:41] limit=0 desc=True browser=True workers=1 =====
+读取分发记录（带周期过滤）失败: (pymysql.err.OperationalError) (1045, "Access denied for user 'oschina'@'172.17.0.1' (using password: YES)")
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-07-07 16:32:41,742 [INFO] 本轮到期回调记录: 0 条
+2026-07-07 16:32:41,742 [INFO] 无到期任务，跳过本轮
+2026-07-07 16:32:41,742 [INFO] 休眠 1800 秒后进入下一轮...`
+
+	lines := strings.Split(logPaste, "\n")
+	for i, line := range lines {
+		a.Update(teaKeyMsgForTest(line))
+		if i < len(lines)-1 {
+			a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+		}
+	}
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "[paste #1 +21 lines]" {
+		t.Fatalf("split log paste input = %q, want marker", got)
+	}
+	if got := a.pastes[1]; got != logPaste {
+		t.Fatalf("stored log paste = %q, want %q", got, logPaste)
+	}
+	if len(a.messages) != 0 {
+		t.Fatalf("split log paste submitted messages = %#v, want none", a.messages)
+	}
+}
+
 func TestInputQueuedTextEnterSubmits(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 
@@ -1862,6 +1918,22 @@ func TestInputQueuedTextEnterSubmits(t *testing.T) {
 	}
 	if len(a.messages) == 0 || !strings.Contains(stripANSI(a.messages[len(a.messages)-1]), "Conversation cleared") {
 		t.Fatalf("expected /clear to execute, messages = %#v", a.messages)
+	}
+}
+
+func TestInputSplitPasteCoalescingDisabledEnterSubmits(t *testing.T) {
+	withSplitPasteCoalescing(t, false)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("/clear"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "" {
+		t.Fatalf("input after submit = %q, want empty", got)
+	}
+	if len(a.messages) == 0 || !strings.Contains(stripANSI(a.messages[len(a.messages)-1]), "Conversation cleared") {
+		t.Fatalf("expected /clear to execute immediately, messages = %#v", a.messages)
 	}
 }
 

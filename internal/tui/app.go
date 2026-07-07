@@ -628,6 +628,10 @@ const spinnerInterval = 100 * time.Millisecond
 const mouseWheelScrollLines = 3
 const splitPasteIdleDelay = 120 * time.Millisecond
 
+var splitPasteCoalescingEnabled = func() bool {
+	return true
+}
+
 // tickSpinner returns a command that updates the spinner
 func (a *App) tickSpinner() tea.Cmd {
 	return tea.Tick(spinnerInterval, func(t time.Time) tea.Msg {
@@ -830,7 +834,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.scheduleRender()
 				return a, flushCmd
 			}
-			if a.hasQueuedInput() && !a.commandSuggestionsVisible() {
+			if splitPasteCoalescingEnabled() && a.hasQueuedInput() && !a.commandSuggestionsVisible() {
 				a.queueInput(msg)
 				a.resetInputHistoryNavigation()
 				return a, nil
@@ -1012,7 +1016,7 @@ func (a *App) inputQueueIdle() bool {
 	}
 
 	delay := a.inputDelay
-	if queuedInputHasLineBreak(a.inputQueue) && delay < splitPasteIdleDelay {
+	if splitPasteCoalescingEnabled() && queuedInputHasLineBreak(a.inputQueue) && delay < splitPasteIdleDelay {
 		delay = splitPasteIdleDelay
 	}
 	return time.Since(a.lastInputTime) >= delay
@@ -1031,10 +1035,12 @@ func (a *App) flushInputQueue() tea.Cmd {
 		return nil
 	}
 
-	if text, ok := coalescedSplitPaste(events); ok {
-		a.handlePaste(text)
-		a.updateCommandSuggestions()
-		return nil
+	if splitPasteCoalescingEnabled() {
+		if text, ok := coalescedSplitPaste(events); ok {
+			a.handlePaste(text)
+			a.updateCommandSuggestions()
+			return nil
+		}
 	}
 
 	// Process events in batch
