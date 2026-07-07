@@ -12,7 +12,7 @@
     const t = term.trim().toLowerCase();
     if (!t) return list;
     return list.filter((s) =>
-      `${s.id || ''} ${s.workDir || ''} ${s.title || ''}`.toLowerCase().includes(t)
+      `${s.id || ''} ${s.workDir || ''} ${s.title || ''} ${s.preview || ''}`.toLowerCase().includes(t)
     );
   }
 
@@ -50,6 +50,7 @@
         <tr>
           <th>会话</th>
           <th>工作目录</th>
+          <th>状态</th>
           <th class="num">消息数</th>
           <th></th>
         </tr>
@@ -59,11 +60,15 @@
           <tr class:active={$currentSession === s.id}>
             <td>
               <button type="button" class="link-btn" on:click={() => open(s.id)}>
-                {s.title || shortID(s.id)}
+                {s.title || s.preview || shortID(s.id)}
               </button>
               <div class="sub">{s.id}</div>
+              {#if s.preview && s.title}
+                <div class="sub">{s.preview}</div>
+              {/if}
             </td>
             <td class="wd">{s.workDir || '—'}</td>
+            <td>{s.active ? '运行中' : '历史'}</td>
             <td class="num">{s.messageCount || 0}</td>
             <td class="actions">
               <button type="button" class="ghost" on:click={() => open(s.id)}>打开</button>
@@ -73,7 +78,7 @@
         {/each}
         {#if filtered.length === 0}
           <tr>
-            <td colspan="4" class="empty-cell">没有可显示的会话</td>
+            <td colspan="5" class="empty-cell">没有可显示的会话</td>
           </tr>
         {/if}
       </tbody>

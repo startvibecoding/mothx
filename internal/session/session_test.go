@@ -880,6 +880,50 @@ func TestListForDirDetailed(t *testing.T) {
 	if d.ID == "" {
 		t.Error("expected non-empty ID")
 	}
+	if d.Cwd != "/tmp/test" {
+		t.Errorf("expected cwd '/tmp/test', got %q", d.Cwd)
+	}
+}
+
+func TestListAllDetailedAcrossWorkDirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m1 := New("/tmp/project-a", sessionDir)
+	if err := m1.InitWithID("session-a"); err != nil {
+		t.Fatalf("init session a: %v", err)
+	}
+	if _, err := m1.AppendMessage(provider.NewUserMessage("Project A task")); err != nil {
+		t.Fatalf("append session a message: %v", err)
+	}
+
+	m2 := New("/tmp/project-b", sessionDir)
+	if err := m2.InitWithID("session-b"); err != nil {
+		t.Fatalf("init session b: %v", err)
+	}
+	if _, err := m2.AppendMessage(provider.NewUserMessage("Project B task")); err != nil {
+		t.Fatalf("append session b message: %v", err)
+	}
+
+	details, err := ListAllDetailed(sessionDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(details) != 2 {
+		t.Fatalf("expected 2 session details, got %d", len(details))
+	}
+
+	byID := make(map[string]SessionDetail)
+	for _, d := range details {
+		byID[d.ID] = d
+	}
+	if byID["session-a"].Cwd != "/tmp/project-a" || byID["session-a"].Preview != "Project A task" {
+		t.Fatalf("session-a detail = %#v", byID["session-a"])
+	}
+	if byID["session-b"].Cwd != "/tmp/project-b" || byID["session-b"].Preview != "Project B task" {
+		t.Fatalf("session-b detail = %#v", byID["session-b"])
+	}
 }
 
 func TestListForDirDetailedLongPreview(t *testing.T) {

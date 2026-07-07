@@ -113,6 +113,7 @@ type SessionInfo struct {
 	Path    string
 	ModTime time.Time
 	Name    string
+	Cwd     string
 }
 
 // sessionDirForCwd returns the encoded session directory path for a working directory.
@@ -121,15 +122,17 @@ func sessionDirForCwd(cwd, sessionDir string) string {
 	return filepath.Join(sessionDir, "--"+encoded+"--")
 }
 
-// ListForDir lists session files for a given working directory.
-func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
+func openExistingSessionDB(sessionDir string) (*sql.DB, bool, error) {
 	if sessionDir == "" {
 		sessionDir = platform.SessionDir()
 	}
 
 	dbPath := filepath.Join(sessionDir, "sessions.db")
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		return nil, nil
+	if _, err := os.Stat(dbPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
 	}
 
 	dbLock.Lock()
@@ -139,7 +142,7 @@ func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 		db, err = sql.Open("sqlite", dbPath)
 		if err != nil {
 			dbLock.Unlock()
-			return nil, fmt.Errorf("open sqlite db: %w", err)
+			return nil, false, fmt.Errorf("open sqlite db: %w", err)
 		}
 		db.SetMaxOpenConns(1)
 		db.SetMaxIdleConns(1)
@@ -149,9 +152,39 @@ func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
 		cachedDBs[dbPath] = db
 	}
+	if err := ApplyMigrations(db); err != nil {
+		dbLock.Unlock()
+		return nil, false, fmt.Errorf("apply migrations: %w", err)
+	}
 	dbLock.Unlock()
 
-	rows, err := db.Query("SELECT id, timestamp FROM sessions WHERE cwd = ? ORDER BY timestamp DESC", cwd)
+	return db, true, nil
+}
+
+func parseSessionTimestamp(timestampStr string) time.Time {
+	ts, _ := time.Parse(time.RFC3339Nano, timestampStr)
+	if ts.IsZero() {
+		ts, _ = time.Parse(time.RFC3339, timestampStr)
+	}
+	return ts
+}
+
+func virtualSessionFile(sessionDir, id string, ts time.Time) string {
+	return filepath.Join(sessionDir, fmt.Sprintf("%s_%s.db", ts.Format("20060102-150405"), id))
+}
+
+// ListForDir lists session files for a given working directory.
+func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
+	if sessionDir == "" {
+		sessionDir = platform.SessionDir()
+	}
+
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	rows, err := db.Query("SELECT id, cwd, timestamp FROM sessions WHERE cwd = ? ORDER BY timestamp DESC", cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -160,22 +193,63 @@ func ListForDir(cwd, sessionDir string) ([]SessionInfo, error) {
 	var sessions []SessionInfo
 	for rows.Next() {
 		var id string
+		var rowCwd string
 		var timestampStr string
-		if err := rows.Scan(&id, &timestampStr); err != nil {
+		if err := rows.Scan(&id, &rowCwd, &timestampStr); err != nil {
 			continue
 		}
-		ts, _ := time.Parse(time.RFC3339Nano, timestampStr)
-		if ts.IsZero() {
-			ts, _ = time.Parse(time.RFC3339, timestampStr)
-		}
+		ts := parseSessionTimestamp(timestampStr)
 
 		// Create a virtual file path in the sessionDir directory
-		virtualFile := filepath.Join(sessionDir, fmt.Sprintf("%s_%s.db", ts.Format("20060102-150405"), id))
+		virtualFile := virtualSessionFile(sessionDir, id, ts)
 
 		sessions = append(sessions, SessionInfo{
 			Path:    virtualFile,
 			ModTime: ts,
+			Cwd:     rowCwd,
 		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
+}
+
+// ListAll lists session files across all working directories.
+func ListAll(sessionDir string) ([]SessionInfo, error) {
+	if sessionDir == "" {
+		sessionDir = platform.SessionDir()
+	}
+
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	rows, err := db.Query("SELECT id, cwd, timestamp FROM sessions ORDER BY timestamp DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []SessionInfo
+	for rows.Next() {
+		var id string
+		var cwd string
+		var timestampStr string
+		if err := rows.Scan(&id, &cwd, &timestampStr); err != nil {
+			continue
+		}
+		ts := parseSessionTimestamp(timestampStr)
+		sessions = append(sessions, SessionInfo{
+			Path:    virtualSessionFile(sessionDir, id, ts),
+			ModTime: ts,
+			Cwd:     cwd,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return sessions, nil
@@ -1039,7 +1113,19 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 	if err != nil {
 		return nil, err
 	}
+	return buildSessionDetails(sessions)
+}
 
+// ListAllDetailed lists sessions with details across all working directories.
+func ListAllDetailed(sessionDir string) ([]SessionDetail, error) {
+	sessions, err := ListAll(sessionDir)
+	if err != nil {
+		return nil, err
+	}
+	return buildSessionDetails(sessions)
+}
+
+func buildSessionDetails(sessions []SessionInfo) ([]SessionDetail, error) {
 	var details []SessionDetail
 	for _, s := range sessions {
 		d := SessionDetail{SessionInfo: s}
@@ -1049,7 +1135,11 @@ func ListForDirDetailed(cwd, sessionDir string) ([]SessionDetail, error) {
 		mgr := &Manager{file: s.Path}
 		if err := mgr.load(); err == nil {
 			for _, e := range mgr.entries {
-				if msg, ok := e.(MessageEntry); ok {
+				switch entry := e.(type) {
+				case SessionInfoEntry:
+					d.Name = entry.Name
+				case MessageEntry:
+					msg := entry
 					d.MessageCount++
 					if d.Preview == "" && msg.Message.Role == "user" {
 						text := msg.Message.Content

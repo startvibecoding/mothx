@@ -11,7 +11,8 @@
     setNotice,
     clearBanners,
     refreshSessions,
-    getSessionMessages
+    getSessionMessages,
+    getSessionToolResult
   } from '../lib/stores.js';
   import { shortID, toolStateClass, formatArgs } from '../lib/format.js';
   import DirBrowser from '../components/DirBrowser.svelte';
@@ -28,14 +29,14 @@
   let imageUploads = [];
 
   const suggestions = [
-    '资讯：Fable 5 用 1600 行代码生成水下曼哈顿获赞',
-    '教我如何判断电脑是否需要清灰',
-    '推荐几本末日求生题材的小说',
-    '帮我分析线稿常见错误及改进方法',
-    '资讯：前端工具链正从 JavaScript 向 Rust 逐步迁移',
-    '分析机械盘选购注意事项',
-    '创作一段末世废土风格的环境描写',
-    '分析振荡器在电子乐器中的应用案例'
+    '阅读当前项目并总结核心模块和调用链',
+    '审查最近的代码改动，列出潜在回归风险',
+    '帮我为这个 Go 包补充关键单元测试',
+    '定位测试失败原因并给出最小修复方案',
+    '重构这段代码，保持行为不变并降低复杂度',
+    '检查配置文件和启动参数是否存在冲突',
+    '为新增功能整理一份简洁的 README 说明',
+    '生成一个安全的多 Agent 任务拆解方案'
   ];
 
   // Reset state when session becomes empty (new chat)
@@ -55,7 +56,7 @@
     try {
       const msgs = await getSessionMessages(id);
       if (msgs && msgs.length > 0) {
-        messages = msgs.map(normalizeSessionMessage);
+        messages = msgs.map(normalizeSessionMessage).filter(Boolean);
       } else {
         messages = [];
       }
@@ -74,6 +75,9 @@
   $: apiEnabled = $features.api;
   $: isNewSession = !$currentSession && !sessionCreated;
   $: activeSessionWorkDir = activeSession?.workDir || workDir.trim();
+  $: if ($currentSession && activeSession?.workDir && workDir !== activeSession.workDir) {
+    workDir = activeSession.workDir;
+  }
   $: if (!selectedModelSupportsImages && imageUploads.length > 0) {
     clearImages();
   }
@@ -125,7 +129,7 @@
         model: $selectedModel || 'default',
         stream: true,
         x_session_id: $currentSession || undefined,
-        x_working_dir: workDir.trim(),
+        x_working_dir: isNewSession ? workDir.trim() : activeSessionWorkDir,
         messages: requestMessages
       });
       const res = await fetch('/v1/chat/completions', {
@@ -152,6 +156,11 @@
       chatAbort = null;
       try { await refreshSessions(); } catch {
         // opportunistic
+      }
+      if ($currentSession) {
+        try { await loadSessionMessages($currentSession); } catch {
+          // opportunistic
+        }
       }
     }
   }
@@ -232,6 +241,40 @@
   }
 
   function normalizeSessionMessage(message) {
+    if (message.role === 'toolCall') {
+      const plan = normalizePlan(message.plan || (message.toolName === 'plan' ? message.arguments : null));
+      if (message.toolName === 'plan' && plan) {
+        return {
+          role: 'plan',
+          toolCallId: message.toolCallId,
+          toolName: message.toolName,
+          plan
+        };
+      }
+      return {
+        role: 'toolCall',
+        toolCallId: message.toolCallId,
+        toolName: message.toolName || 'tool',
+        arguments: message.arguments,
+        invalidArguments: message.invalidArguments,
+        callView: buildToolCallView(message.toolName || 'tool', message.arguments, message.invalidArguments)
+      };
+    }
+    if (message.role === 'toolResult') {
+      if (message.toolName === 'plan' && !message.isError) return null;
+      return {
+        role: 'toolResult',
+        toolCallId: message.toolCallId,
+        toolName: message.toolName || 'tool',
+        summary: message.summary || '工具结果',
+        isError: message.isError,
+        hasDetail: message.hasDetail,
+        detailLoaded: false,
+        detailLoading: false,
+        detailError: '',
+        detail: null
+      };
+    }
     const images = [];
     for (const block of message.contents || []) {
       if (block.type !== 'image' || !block.image?.data || !block.image?.mimeType) continue;
@@ -247,6 +290,253 @@
       content: message.content || textFromContents(message.contents),
       images
     };
+  }
+
+  function normalizePlan(value) {
+    if (!value || !Array.isArray(value.steps) || value.steps.length === 0) return null;
+    const steps = value.steps
+      .map((step) => ({
+        title: String(step?.title || '').trim(),
+        status: normalizePlanStatus(step?.status)
+      }))
+      .filter((step) => step.title);
+    if (steps.length === 0) return null;
+    return {
+      title: String(value.title || '').trim(),
+      note: String(value.note || '').trim(),
+      steps
+    };
+  }
+
+  function normalizePlanStatus(status) {
+    const s = String(status || '').trim().toLowerCase();
+    if (['pending', 'running', 'done', 'failed'].includes(s)) return s;
+    return 'pending';
+  }
+
+  function planStatusLabel(status) {
+    switch (status) {
+      case 'done': return '完成';
+      case 'running': return '进行中';
+      case 'failed': return '失败';
+      default: return '待处理';
+    }
+  }
+
+  async function loadToolResultDetail(msg, event) {
+    if (!event.currentTarget.open || !msg.hasDetail || msg.detailLoaded || msg.detailLoading) return;
+    if (!$currentSession || !msg.toolCallId) return;
+    msg.detailLoading = true;
+    msg.detailError = '';
+    messages = messages;
+    try {
+      const detail = await getSessionToolResult($currentSession, msg.toolCallId);
+      msg.detail = normalizeToolResultDetail(detail);
+      msg.detailLoaded = true;
+    } catch (err) {
+      msg.detailError = err instanceof Error ? err.message : String(err || '加载失败');
+    } finally {
+      msg.detailLoading = false;
+      messages = messages;
+    }
+  }
+
+  function normalizeToolResultDetail(detail) {
+    if (!detail) return { content: '', images: [] };
+    const images = [];
+    for (const block of detail.contents || []) {
+      if (block.type !== 'image' || !block.image?.data || !block.image?.mimeType) continue;
+      images.push({
+        name: block.image.mimeType,
+        type: block.image.mimeType,
+        size: block.image.bytes || block.image.originalBytes || 0,
+        dataUrl: `data:${block.image.mimeType};base64,${block.image.data}`
+      });
+    }
+    const content = detail.content || textFromContents(detail.contents);
+    return {
+      toolName: detail.toolName || '',
+      kind: toolResultKind(detail.toolName, content),
+      content: detail.content || textFromContents(detail.contents),
+      images,
+      readLines: parseReadResult(content),
+      lsEntries: parseLsResult(content),
+      grepMatches: parseGrepResult(content),
+      bashResult: parseBashResult(content)
+    };
+  }
+
+  function buildToolCallView(toolName, args, invalidArguments = '') {
+    const name = toolName || 'tool';
+    const value = isPlainObject(args) ? args : {};
+    if (name === 'read') {
+      const details = [];
+      if (value.offset) details.push(`从第 ${value.offset} 行`);
+      if (value.limit) details.push(`最多 ${value.limit} 行`);
+      if (value.imageMode) details.push(`图片模式 ${value.imageMode}`);
+      if (value.maxLongEdge) details.push(`最长边 ${value.maxLongEdge}px`);
+      if (value.crop) details.push(`裁剪 ${value.crop.width || 0}x${value.crop.height || 0}+${value.crop.x || 0}+${value.crop.y || 0}`);
+      return {
+        kind: 'read',
+        label: '读取文件',
+        target: value.path || '(未指定文件)',
+        details,
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'ls') {
+      return {
+        kind: 'ls',
+        label: '列出目录',
+        target: value.path || '.',
+        details: [],
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'grep') {
+      const details = [];
+      if (value.path) details.push(value.path);
+      if (value.include) details.push(`include ${value.include}`);
+      if (value.maxResults) details.push(`最多 ${value.maxResults} 条`);
+      return {
+        kind: 'grep',
+        label: '搜索文本',
+        target: value.pattern || '(未指定 pattern)',
+        details,
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'bash') {
+      const details = [];
+      if (value.async) details.push('后台运行');
+      if (value.timeout !== undefined && value.timeout !== null) {
+        details.push(Number(value.timeout) === 0 ? '无工具超时' : `超时 ${value.timeout}s`);
+      }
+      return {
+        kind: 'bash',
+        label: '执行命令',
+        target: value.command || '(未指定命令)',
+        details,
+        raw: args,
+        invalidArguments
+      };
+    }
+    return {
+      kind: 'generic',
+      label: name,
+      target: '',
+      details: [],
+      raw: args,
+      invalidArguments
+    };
+  }
+
+  function isPlainObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function toolResultKind(toolName, content) {
+    if (toolName === 'read' && parseReadResult(content).length > 0) return 'read';
+    if (toolName === 'ls' && (parseLsResult(content).length > 0 || content === '(empty directory)')) return 'ls';
+    if (toolName === 'grep' && (parseGrepResult(content).matches.length > 0 || content === '(no matches found)')) return 'grep';
+    if (toolName === 'bash' && parseBashResult(content)) return 'bash';
+    return 'text';
+  }
+
+  function parseReadResult(content = '') {
+    if (!content) return [];
+    const lines = content.split('\n').filter((line) => line.length > 0);
+    const parsed = [];
+    for (const line of lines) {
+      const match = line.match(/^(\d+)\t(.*)$/);
+      if (!match) return [];
+      parsed.push({ number: match[1], text: match[2] });
+    }
+    return parsed;
+  }
+
+  function parseLsResult(content = '') {
+    if (!content || content === '(empty directory)') return [];
+    const entries = [];
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const dir = trimmed.match(/^📁\s+(.+)\/$/);
+      if (dir) {
+        entries.push({ type: 'dir', name: dir[1], size: '' });
+        continue;
+      }
+      const file = trimmed.match(/^📄\s+(.+)\s+\(([^)]+)\)$/);
+      if (file) {
+        entries.push({ type: 'file', name: file[1], size: file[2] });
+        continue;
+      }
+      return [];
+    }
+    return entries;
+  }
+
+  function parseGrepResult(content = '') {
+    const result = { matches: [], note: '' };
+    if (!content || content === '(no matches found)') return result;
+    for (const line of content.split('\n')) {
+      if (!line) continue;
+      if (line.startsWith('... (truncated')) {
+        result.note = line;
+        continue;
+      }
+      const match = line.match(/^(.+):(\d+):(.*)$/);
+      if (!match) return { matches: [], note: '' };
+      result.matches.push({ path: match[1], line: match[2], text: match[3] });
+    }
+    return result;
+  }
+
+  function parseBashResult(content = '') {
+    if (!content) return null;
+    const sections = parseTaggedSections(content);
+    if (!sections.runtime && !sections.command && !sections.stdout && !sections.stderr && !sections.exit_code) {
+      return null;
+    }
+    let command = sections.command || '';
+    let note = '';
+    const noteIndex = command.indexOf("\nUse 'jobs' tool");
+    if (noteIndex >= 0) {
+      note = command.slice(noteIndex + 1).trim();
+      command = command.slice(0, noteIndex).trimEnd();
+    }
+    return {
+      runtime: sections.runtime || '',
+      command,
+      cwd: sections.cwd || '',
+      stdout: sections.stdout || '',
+      stderr: sections.stderr || '',
+      exitCode: sections.exit_code || '',
+      note,
+      prefix: sections.__prefix || ''
+    };
+  }
+
+  function parseTaggedSections(content = '') {
+    const sections = { __prefix: [] };
+    let current = '__prefix';
+    for (const line of content.split('\n')) {
+      const match = line.match(/^\[([a-z_]+)\]$/);
+      if (match) {
+        current = match[1];
+        if (!sections[current]) sections[current] = [];
+        continue;
+      }
+      sections[current].push(line);
+    }
+    const out = {};
+    for (const [key, lines] of Object.entries(sections)) {
+      out[key] = lines.join('\n').trim();
+    }
+    return out;
   }
 
   function textFromContents(contents = []) {
@@ -319,7 +609,7 @@
                 </div>
               {/if}
             </article>
-          {:else}
+          {:else if msg.role === 'assistant'}
             <article class="msg assistant">
               <div class="meta">
                 <strong>MothX</strong>
@@ -330,6 +620,156 @@
               {:else if busy && idx === messages.length - 1}
                 <p class="pending-text">正在等待模型响应…</p>
               {/if}
+            </article>
+          {:else if msg.role === 'plan'}
+            <article class="msg plan-card">
+              <div class="meta">
+                <strong>任务计划</strong>
+                {#if msg.toolCallId}<span>{shortID(msg.toolCallId)}</span>{/if}
+              </div>
+              <section class="todo-plan">
+                {#if msg.plan.title}
+                  <h3>{msg.plan.title}</h3>
+                {/if}
+                <ol>
+                  {#each msg.plan.steps as step}
+                    <li class:done={step.status === 'done'} class:running={step.status === 'running'} class:failed={step.status === 'failed'}>
+                      <span class="todo-mark" aria-hidden="true"></span>
+                      <span class="todo-title">{step.title}</span>
+                      <em>{planStatusLabel(step.status)}</em>
+                    </li>
+                  {/each}
+                </ol>
+                {#if msg.plan.note}
+                  <p>{msg.plan.note}</p>
+                {/if}
+              </section>
+            </article>
+          {:else if msg.role === 'toolCall'}
+            <article class="msg tool-call">
+              <div class="meta">
+                <strong>工具调用</strong>
+                <span>{msg.toolName}</span>
+              </div>
+              <div class="tool-call-body">
+                <div class="tool-title">
+                  <span class="dot running"></span>
+                  <strong>{msg.callView?.label || msg.toolName}</strong>
+                  {#if msg.callView?.target}
+                    <span class="tool-target">{msg.callView.target}</span>
+                  {/if}
+                  {#if msg.toolCallId}<em>{shortID(msg.toolCallId)}</em>{/if}
+                </div>
+                {#if msg.callView?.details?.length}
+                  <div class="tool-call-tags">
+                    {#each msg.callView.details as item}
+                      <span>{item}</span>
+                    {/each}
+                  </div>
+                {/if}
+                {#if msg.callView?.kind !== 'generic' && msg.arguments}
+                  <details class="tool-raw">
+                    <summary>参数 JSON</summary>
+                    <pre>{formatArgs(msg.arguments)}</pre>
+                  </details>
+                {:else if msg.arguments}
+                  <pre>{formatArgs(msg.arguments)}</pre>
+                {:else if msg.invalidArguments}
+                  <pre>{msg.invalidArguments}</pre>
+                {/if}
+              </div>
+            </article>
+          {:else if msg.role === 'toolResult'}
+            <article class="msg tool-result">
+              <details on:toggle={(event) => loadToolResultDetail(msg, event)}>
+                <summary>
+                  <span class="dot {msg.isError ? 'error' : 'done'}"></span>
+                  <strong>{msg.toolName}</strong>
+                  <span>{msg.isError ? '失败' : '完成'}</span>
+                  <em>{msg.summary}</em>
+                </summary>
+                {#if msg.detailLoading}
+                  <p class="pending-text">正在加载工具结果…</p>
+                {:else if msg.detailError}
+                  <p class="error-text">{msg.detailError}</p>
+                {:else if msg.detailLoaded}
+                  {#if msg.detail?.kind === 'bash' && msg.detail.bashResult}
+                    <div class="bash-result">
+                      <div class="bash-meta">
+                        {#if msg.detail.bashResult.runtime}<span>{msg.detail.bashResult.runtime}</span>{/if}
+                        {#if msg.detail.bashResult.cwd}<span>{msg.detail.bashResult.cwd}</span>{/if}
+                        {#if msg.detail.bashResult.exitCode}
+                          <strong class:failed={msg.detail.bashResult.exitCode !== '0'}>exit {msg.detail.bashResult.exitCode}</strong>
+                        {/if}
+                      </div>
+                      {#if msg.detail.bashResult.prefix}
+                        <p class="bash-note">{msg.detail.bashResult.prefix}</p>
+                      {/if}
+                      {#if msg.detail.bashResult.command}
+                        <div class="bash-block">
+                          <span>command</span>
+                          <pre>{msg.detail.bashResult.command}</pre>
+                        </div>
+                      {/if}
+                      {#if msg.detail.bashResult.stdout}
+                        <div class="bash-block">
+                          <span>stdout</span>
+                          <pre class:empty={msg.detail.bashResult.stdout === '(no output)'}>{msg.detail.bashResult.stdout}</pre>
+                        </div>
+                      {/if}
+                      {#if msg.detail.bashResult.stderr}
+                        <div class="bash-block">
+                          <span>stderr</span>
+                          <pre class:empty={msg.detail.bashResult.stderr === '(no output)'}>{msg.detail.bashResult.stderr}</pre>
+                        </div>
+                      {/if}
+                      {#if msg.detail.bashResult.note}
+                        <p class="bash-note">{msg.detail.bashResult.note}</p>
+                      {/if}
+                    </div>
+                  {:else if msg.detail?.kind === 'read' && msg.detail.readLines?.length}
+                    <div class="read-result">
+                      {#each msg.detail.readLines as line}
+                        <div class="code-line">
+                          <span>{line.number}</span>
+                          <code>{line.text}</code>
+                        </div>
+                      {/each}
+                    </div>
+                  {:else if msg.detail?.kind === 'ls' && msg.detail.lsEntries?.length}
+                    <div class="ls-result">
+                      {#each msg.detail.lsEntries as entry}
+                        <div class="ls-entry {entry.type}">
+                          <span>{entry.type === 'dir' ? 'dir' : 'file'}</span>
+                          <strong>{entry.name}</strong>
+                          {#if entry.size}<em>{entry.size}</em>{/if}
+                        </div>
+                      {/each}
+                    </div>
+                  {:else if msg.detail?.kind === 'grep' && msg.detail.grepMatches?.matches?.length}
+                    <div class="grep-result">
+                      {#each msg.detail.grepMatches.matches as match}
+                        <div class="grep-match">
+                          <div><strong>{match.path}</strong><span>:{match.line}</span></div>
+                          <code>{match.text}</code>
+                        </div>
+                      {/each}
+                      {#if msg.detail.grepMatches.note}
+                        <p>{msg.detail.grepMatches.note}</p>
+                      {/if}
+                    </div>
+                  {:else if msg.detail?.content}
+                    <pre>{msg.detail.content}</pre>
+                  {/if}
+                  {#if msg.detail?.images?.length}
+                    <div class="msg-images">
+                      {#each msg.detail.images as image}
+                        <img src={image.dataUrl} alt={image.name} />
+                      {/each}
+                    </div>
+                  {/if}
+                {/if}
+              </details>
             </article>
           {/if}
         {/each}
@@ -438,7 +878,7 @@
         <select bind:value={$currentSession} aria-label="选择会话">
           <option value="">默认会话</option>
           {#each $sessions as s}
-            <option value={s.id}>{shortID(s.id)}</option>
+            <option value={s.id}>{shortID(s.id)} · {s.workDir || '未知目录'}</option>
           {/each}
         </select>
       </div>

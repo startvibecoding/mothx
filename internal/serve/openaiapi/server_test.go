@@ -531,6 +531,13 @@ func TestListActiveSessions(t *testing.T) {
 	if _, err := mgr.AppendMessage(provider.NewUserMessage("hello")); err != nil {
 		t.Fatalf("append message: %v", err)
 	}
+	otherMgr := session.New("/tmp/history-only", srv.settings.GetSessionDir())
+	if err := otherMgr.InitWithID("s3"); err != nil {
+		t.Fatalf("init other session: %v", err)
+	}
+	if _, err := otherMgr.AppendMessage(provider.NewUserMessage("history only")); err != nil {
+		t.Fatalf("append other message: %v", err)
+	}
 	older := time.Now().Add(-time.Minute)
 	newer := time.Now()
 	if err := srv.pool.Put(&APISession{ID: "s1", WorkDir: srv.cfg.GetWorkDir(), Manager: mgr, Mode: "agent", LastUsed: older}); err != nil {
@@ -541,14 +548,21 @@ func TestListActiveSessions(t *testing.T) {
 	}
 
 	sessions := srv.ListActiveSessions()
-	if len(sessions) != 2 {
-		t.Fatalf("sessions = %d, want 2", len(sessions))
+	if len(sessions) != 3 {
+		t.Fatalf("sessions = %d, want 3", len(sessions))
 	}
-	if sessions[0].ID != "s2" || sessions[1].ID != "s1" {
-		t.Fatalf("sessions order = %#v", sessions)
+	byID := make(map[string]ActiveSessionInfo)
+	for _, sess := range sessions {
+		byID[sess.ID] = sess
 	}
-	if sessions[1].Mode != "agent" || sessions[1].MessageCount != 1 {
-		t.Fatalf("session details = %#v", sessions[1])
+	if !byID["s1"].Active || byID["s1"].Mode != "agent" || byID["s1"].MessageCount != 1 {
+		t.Fatalf("s1 details = %#v", byID["s1"])
+	}
+	if !byID["s2"].Active || byID["s2"].WorkDir != "/tmp/other" {
+		t.Fatalf("s2 details = %#v", byID["s2"])
+	}
+	if byID["s3"].Active || byID["s3"].WorkDir != "/tmp/history-only" || byID["s3"].Preview != "history only" {
+		t.Fatalf("s3 details = %#v", byID["s3"])
 	}
 }
 
@@ -587,6 +601,116 @@ func TestGetSessionMessagesReadsFromSessionDB(t *testing.T) {
 	}
 	if messages[1].Role != "assistant" || messages[1].Content != "ok" {
 		t.Fatalf("second message = %#v", messages[1])
+	}
+}
+
+func TestGetSessionMessagesIncludesToolCallsAndCollapsedResults(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	mgr := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("tool-history"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	if _, err := mgr.AppendMessage(provider.NewUserMessage("list files")); err != nil {
+		t.Fatalf("append user message: %v", err)
+	}
+	assistant := provider.NewAssistantMessage([]provider.ContentBlock{
+		{Type: "text", Text: "I will inspect the tree."},
+		{Type: "toolCall", ToolCall: &provider.ToolCallBlock{
+			ID:        "call-1",
+			Name:      "bash",
+			Arguments: json.RawMessage(`{"command":"ls -la"}`),
+		}},
+	})
+	if _, err := mgr.AppendMessage(assistant); err != nil {
+		t.Fatalf("append assistant message: %v", err)
+	}
+	fullOutput := "total 8\n-rw-r--r-- file.txt\n"
+	if _, err := mgr.AppendMessage(provider.NewToolResultMessage("call-1", "bash", fullOutput, false)); err != nil {
+		t.Fatalf("append tool result: %v", err)
+	}
+
+	messages, err := srv.GetSessionMessages("tool-history")
+	if err != nil {
+		t.Fatalf("GetSessionMessages: %v", err)
+	}
+	if len(messages) != 4 {
+		t.Fatalf("messages len = %d, want 4: %#v", len(messages), messages)
+	}
+	if messages[1].Role != "assistant" || messages[1].Content != "I will inspect the tree." {
+		t.Fatalf("assistant message = %#v", messages[1])
+	}
+	if messages[2].Role != "toolCall" || messages[2].ToolCallID != "call-1" || messages[2].ToolName != "bash" {
+		t.Fatalf("tool call entry = %#v", messages[2])
+	}
+	if string(messages[2].Arguments) != `{"command":"ls -la"}` {
+		t.Fatalf("tool call args = %s", messages[2].Arguments)
+	}
+	if messages[3].Role != "toolResult" || messages[3].Content != "" || !messages[3].HasDetail {
+		t.Fatalf("tool result summary entry = %#v", messages[3])
+	}
+	if messages[3].Summary != "total 8" {
+		t.Fatalf("tool result summary = %q", messages[3].Summary)
+	}
+
+	detail, err := srv.GetSessionToolResult("tool-history", "call-1")
+	if err != nil {
+		t.Fatalf("GetSessionToolResult: %v", err)
+	}
+	if detail.Content != fullOutput || detail.ToolName != "bash" {
+		t.Fatalf("detail = %#v", detail)
+	}
+}
+
+func TestGetSessionMessagesExtractsPlanToolCall(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	mgr := session.New(srv.cfg.GetWorkDir(), srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("plan-history"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	assistant := provider.NewAssistantMessage([]provider.ContentBlock{
+		{Type: "toolCall", ToolCall: &provider.ToolCallBlock{
+			ID:   "plan-call",
+			Name: "plan",
+			Arguments: json.RawMessage(`{
+				"title":"Ship WebUI plan",
+				"steps":[
+					{"title":"Read current UI","status":"done"},
+					{"title":"Render todo card","status":"running"},
+					{"title":"Build frontend","status":"pending"}
+				],
+				"note":"Keep output compact"
+			}`),
+		}},
+	})
+	if _, err := mgr.AppendMessage(assistant); err != nil {
+		t.Fatalf("append assistant message: %v", err)
+	}
+	if _, err := mgr.AppendMessage(provider.NewToolResultMessage("plan-call", "plan", "Plan updated.", false)); err != nil {
+		t.Fatalf("append tool result: %v", err)
+	}
+
+	messages, err := srv.GetSessionMessages("plan-history")
+	if err != nil {
+		t.Fatalf("GetSessionMessages: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages len = %d, want 2: %#v", len(messages), messages)
+	}
+	if messages[0].Role != "toolCall" || messages[0].ToolName != "plan" || messages[0].Plan == nil {
+		t.Fatalf("plan tool call = %#v", messages[0])
+	}
+	if messages[0].Plan.Title != "Ship WebUI plan" || messages[0].Plan.Note != "Keep output compact" {
+		t.Fatalf("plan = %#v", messages[0].Plan)
+	}
+	if len(messages[0].Plan.Steps) != 3 || messages[0].Plan.Steps[1].Status != "running" {
+		t.Fatalf("plan steps = %#v", messages[0].Plan.Steps)
+	}
+	if messages[1].Role != "toolResult" || messages[1].ToolName != "plan" {
+		t.Fatalf("plan result = %#v", messages[1])
 	}
 }
 

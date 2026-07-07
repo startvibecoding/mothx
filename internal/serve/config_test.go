@@ -18,11 +18,13 @@ import (
 )
 
 type fakeActiveSessionManager struct {
-	sessions  []openaiapi.ActiveSessionInfo
-	messages  []openaiapi.SessionMessageEntry
-	deletedID string
-	deleted   bool
-	err       error
+	sessions     []openaiapi.ActiveSessionInfo
+	messages     []openaiapi.SessionMessageEntry
+	toolResult   *openaiapi.SessionToolResultDetail
+	toolResultID string
+	deletedID    string
+	deleted      bool
+	err          error
 }
 
 func (f *fakeActiveSessionManager) ListActiveSessions() []openaiapi.ActiveSessionInfo {
@@ -36,6 +38,11 @@ func (f *fakeActiveSessionManager) DeleteActiveSession(id string) (bool, error) 
 
 func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error) {
 	return append([]openaiapi.SessionMessageEntry(nil), f.messages...), f.err
+}
+
+func (f *fakeActiveSessionManager) GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error) {
+	f.toolResultID = toolCallID
+	return f.toolResult, f.err
 }
 
 type fakeWebSocketRuntime struct {
@@ -591,6 +598,35 @@ func TestHandleSessionByID_DeletesActiveSession(t *testing.T) {
 	}
 	if got.ID != "s1" || !got.Deleted {
 		t.Fatalf("response = %#v", got)
+	}
+}
+
+func TestHandleSessionByID_ReturnsToolResultDetail(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		toolResult: &openaiapi.SessionToolResultDetail{
+			ToolCallID: "call-1",
+			ToolName:   "bash",
+			Content:    "full output",
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/s1/tool-results/call-1", nil)
+	w := httptest.NewRecorder()
+	rt.handleSessionByID(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	if sessions.toolResultID != "call-1" {
+		t.Fatalf("toolResultID = %q, want call-1", sessions.toolResultID)
+	}
+	var got openaiapi.SessionToolResultDetail
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.ToolCallID != "call-1" || got.Content != "full output" {
+		t.Fatalf("detail = %#v", got)
 	}
 }
 

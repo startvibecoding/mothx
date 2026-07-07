@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,6 +63,7 @@ type activeSessionManager interface {
 	ListActiveSessions() []openaiapi.ActiveSessionInfo
 	DeleteActiveSession(id string) (bool, error)
 	GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error)
+	GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error)
 }
 
 type websocketRuntime interface {
@@ -547,14 +549,21 @@ func (rt *channelRuntime) handleSessions(sessions activeSessionManager) http.Han
 
 func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		id := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/")
+		parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/"), "/")
+		if len(parts) == 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session ID required"})
+			return
+		}
+		id, err := url.PathUnescape(parts[0])
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid session ID"})
+			return
+		}
 		if id == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session ID required"})
 			return
 		}
-		// Check if the path ends with /messages
-		if strings.HasSuffix(id, "/messages") {
-			id = strings.TrimSuffix(id, "/messages")
+		if len(parts) == 2 && parts[1] == "messages" {
 			if r.Method != http.MethodGet {
 				w.WriteHeader(http.StatusMethodNotAllowed)
 				return
@@ -569,6 +578,40 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+			return
+		}
+		if len(parts) == 3 && parts[1] == "tool-results" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			toolCallID, err := url.PathUnescape(parts[2])
+			if err != nil || toolCallID == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid tool call ID"})
+				return
+			}
+			detail, err := sessions.GetSessionToolResult(id, toolCallID)
+			if errors.Is(err, openaiapi.ErrSessionToolResultNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			if detail == nil {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": openaiapi.ErrSessionToolResultNotFound.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, detail)
+			return
+		}
+		if len(parts) != 1 {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 			return
 		}
 		if r.Method != http.MethodDelete {

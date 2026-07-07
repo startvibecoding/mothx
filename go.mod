@@ -10,7 +10,7 @@ require (
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.3
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
-	github.com/startvibecoding/GoStreamingMarkdown v0.0.4
+	github.com/startvibecoding/GoStreamingMarkdown v0.0.5
 	github.com/startvibecoding/go-fd v0.0.7
 	github.com/startvibecoding/go-ripgrep v0.0.5
 	github.com/startvibecoding/vibe-browser v0.1.3

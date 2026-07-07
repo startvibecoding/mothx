@@ -1,8 +1,10 @@
 package openaiapi
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,19 +42,55 @@ type ActiveSessionInfo struct {
 	Mode         string    `json:"mode,omitempty"`
 	DelegateMode bool      `json:"delegateMode,omitempty"`
 	Workflows    bool      `json:"workflows,omitempty"`
+	Active       bool      `json:"active"`
 	LastUsed     time.Time `json:"lastUsed"`
 	MessageCount int       `json:"messageCount"`
+	Preview      string    `json:"preview,omitempty"`
+	Title        string    `json:"title,omitempty"`
 }
 
 // SessionMessageEntry is a simplified message for the WebUI.
 type SessionMessageEntry struct {
-	Role     string                  `json:"role"`
-	Content  string                  `json:"content"`
-	Contents []provider.ContentBlock `json:"contents,omitempty"`
+	Role        string                  `json:"role"`
+	Content     string                  `json:"content,omitempty"`
+	Contents    []provider.ContentBlock `json:"contents,omitempty"`
+	ToolCallID  string                  `json:"toolCallId,omitempty"`
+	ToolName    string                  `json:"toolName,omitempty"`
+	Arguments   json.RawMessage         `json:"arguments,omitempty"`
+	InvalidArgs string                  `json:"invalidArguments,omitempty"`
+	Plan        *SessionTaskPlan        `json:"plan,omitempty"`
+	IsError     bool                    `json:"isError,omitempty"`
+	Summary     string                  `json:"summary,omitempty"`
+	HasDetail   bool                    `json:"hasDetail,omitempty"`
+}
+
+// SessionToolResultDetail contains the full persisted result for one tool call.
+type SessionToolResultDetail struct {
+	ToolCallID string                  `json:"toolCallId"`
+	ToolName   string                  `json:"toolName,omitempty"`
+	Content    string                  `json:"content,omitempty"`
+	Contents   []provider.ContentBlock `json:"contents,omitempty"`
+	IsError    bool                    `json:"isError,omitempty"`
+}
+
+// SessionTaskPlan is the WebUI view of a plan tool call.
+type SessionTaskPlan struct {
+	Title string            `json:"title,omitempty"`
+	Steps []SessionPlanStep `json:"steps,omitempty"`
+	Note  string            `json:"note,omitempty"`
+}
+
+// SessionPlanStep is one todo item in a plan tool call.
+type SessionPlanStep struct {
+	Title  string `json:"title"`
+	Status string `json:"status"`
 }
 
 // ErrActiveSessionIDAmbiguous is returned when a session ID matches multiple active workdirs.
 var ErrActiveSessionIDAmbiguous = errors.New("active session ID is ambiguous")
+
+// ErrSessionToolResultNotFound is returned when a persisted tool result cannot be found.
+var ErrSessionToolResultNotFound = errors.New("session tool result not found")
 
 // Lock acquires the session lock (one request at a time per session).
 func (s *APISession) Lock() { s.mu.Lock() }
@@ -245,6 +283,7 @@ func (p *SessionPool) listDetails() []ActiveSessionInfo {
 			Mode:         s.Mode,
 			DelegateMode: s.DelegateMode,
 			Workflows:    s.Workflows,
+			Active:       true,
 			LastUsed:     s.LastUsed,
 			MessageCount: messageCount,
 		})
@@ -317,7 +356,8 @@ func (e *PoolFullError) Error() string {
 	return "session pool is at capacity"
 }
 
-// ListActiveSessions returns the currently active API sessions.
+// ListActiveSessions returns persisted sessions from sessions.db, merged with
+// currently active API runtime state.
 func (s *Server) ListActiveSessions() []ActiveSessionInfo {
 	if s == nil || s.pool == nil {
 		return nil
@@ -326,8 +366,7 @@ func (s *Server) ListActiveSessions() []ActiveSessionInfo {
 	if s.settings == nil || s.cfg == nil {
 		return active
 	}
-	workDir := s.cfg.GetWorkDir()
-	details, err := session.ListForDirDetailed(workDir, s.settings.GetSessionDir())
+	details, err := session.ListAllDetailed(s.settings.GetSessionDir())
 	if err != nil {
 		return active
 	}
@@ -335,9 +374,11 @@ func (s *Server) ListActiveSessions() []ActiveSessionInfo {
 	for _, item := range details {
 		byID[item.ID] = ActiveSessionInfo{
 			ID:           item.ID,
-			WorkDir:      workDir,
+			WorkDir:      item.Cwd,
 			LastUsed:     item.ModTime,
 			MessageCount: item.MessageCount,
+			Preview:      item.Preview,
+			Title:        item.Name,
 		}
 	}
 	for _, item := range active {
@@ -349,6 +390,12 @@ func (s *Server) ListActiveSessions() []ActiveSessionInfo {
 		item.MessageCount = persisted.MessageCount
 		if item.WorkDir == "" {
 			item.WorkDir = persisted.WorkDir
+		}
+		if item.Preview == "" {
+			item.Preview = persisted.Preview
+		}
+		if item.Title == "" {
+			item.Title = persisted.Title
 		}
 		byID[item.ID] = item
 	}
@@ -412,15 +459,49 @@ func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 	if s == nil || s.pool == nil {
 		return nil, nil
 	}
+	messages, err := s.sessionMessages(id)
+	if err != nil {
+		return nil, err
+	}
+	return sessionMessagesToEntries(messages), nil
+}
+
+// GetSessionToolResult returns the full persisted result for a tool call.
+func (s *Server) GetSessionToolResult(id, toolCallID string) (*SessionToolResultDetail, error) {
+	if s == nil || s.pool == nil {
+		return nil, nil
+	}
+	if toolCallID == "" {
+		return nil, ErrSessionToolResultNotFound
+	}
+	messages, err := s.sessionMessages(id)
+	if err != nil {
+		return nil, err
+	}
+	for _, msg := range messages {
+		if msg.SystemInjected || msg.Role != "toolResult" || msg.ToolCallID != toolCallID {
+			continue
+		}
+		detail := &SessionToolResultDetail{
+			ToolCallID: msg.ToolCallID,
+			ToolName:   msg.ToolName,
+			Content:    toolResultText(msg),
+			IsError:    msg.IsError,
+		}
+		if len(msg.Contents) > 0 {
+			detail.Contents = cloneContentBlocks(msg.Contents)
+		}
+		return detail, nil
+	}
+	return nil, ErrSessionToolResultNotFound
+}
+
+func (s *Server) sessionMessages(id string) ([]provider.Message, error) {
 	if id == "" {
-		// Default session: find by workDir
 		workDir := s.cfg.GetWorkDir()
 		s.mu.RLock()
 		defaultID := s.defaultSessionIDs[workDir]
 		s.mu.RUnlock()
-		if defaultID == "" {
-			return nil, nil
-		}
 		id = defaultID
 	}
 	if id == "" {
@@ -429,17 +510,17 @@ func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 	if s.settings != nil {
 		mgr, err := session.OpenByIDExact(s.settings.GetSessionDir(), id)
 		if err == nil {
-			return sessionMessagesToEntries(mgr.GetMessages()), nil
+			return mgr.GetMessages(), nil
 		}
 	}
 	sess, err := s.pool.getExact(id)
 	if err != nil {
 		return nil, err
 	}
-	if sess == nil {
+	if sess == nil || sess.Manager == nil {
 		return nil, nil
 	}
-	return sessionMessagesToEntries(sess.Manager.GetMessages()), nil
+	return sess.Manager.GetMessages(), nil
 }
 
 func sessionMessagesToEntries(msgs []provider.Message) []SessionMessageEntry {
@@ -448,27 +529,139 @@ func sessionMessagesToEntries(msgs []provider.Message) []SessionMessageEntry {
 		if m.SystemInjected {
 			continue
 		}
-		if m.Role != "user" && m.Role != "assistant" {
-			continue
-		}
-		content := m.Content
-		if content == "" && len(m.Contents) > 0 {
-			for _, b := range m.Contents {
-				if b.Type == "text" && b.Text != "" {
-					content += b.Text
-				}
+		switch m.Role {
+		case "user":
+			content := messageText(m)
+			entry := SessionMessageEntry{Role: m.Role, Content: content}
+			if len(m.Contents) > 0 {
+				entry.Contents = cloneContentBlocks(m.Contents)
 			}
+			entries = append(entries, entry)
+		case "assistant":
+			content := messageText(m)
+			if content != "" {
+				entries = append(entries, SessionMessageEntry{Role: m.Role, Content: content})
+			}
+			for _, block := range m.Contents {
+				if block.ToolCall == nil {
+					continue
+				}
+				entries = append(entries, SessionMessageEntry{
+					Role:        "toolCall",
+					ToolCallID:  block.ToolCall.ID,
+					ToolName:    block.ToolCall.Name,
+					Arguments:   validRawMessage(block.ToolCall.Arguments),
+					InvalidArgs: block.ToolCall.InvalidArguments,
+					Plan:        planFromToolCall(block.ToolCall.Name, block.ToolCall.Arguments),
+				})
+			}
+		case "toolResult":
+			entries = append(entries, SessionMessageEntry{
+				Role:       "toolResult",
+				ToolCallID: m.ToolCallID,
+				ToolName:   m.ToolName,
+				IsError:    m.IsError,
+				Summary:    summarizeToolResult(m),
+				HasDetail:  true,
+			})
 		}
-		if content == "" && len(m.Contents) == 0 {
-			continue
-		}
-		entry := SessionMessageEntry{Role: m.Role, Content: content}
-		if len(m.Contents) > 0 {
-			entry.Contents = cloneContentBlocks(m.Contents)
-		}
-		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func messageText(msg provider.Message) string {
+	if msg.Content != "" {
+		return msg.Content
+	}
+	var content string
+	for _, b := range msg.Contents {
+		if b.Type == "text" && b.Text != "" {
+			content += b.Text
+		}
+	}
+	return content
+}
+
+func toolResultText(msg provider.Message) string {
+	text := messageText(msg)
+	if text != "" {
+		return text
+	}
+	if len(msg.Contents) > 0 {
+		return "(rich tool result)"
+	}
+	return ""
+}
+
+func summarizeToolResult(msg provider.Message) string {
+	text := strings.TrimSpace(toolResultText(msg))
+	if text == "" {
+		text = "(empty result)"
+	}
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	if idx := strings.IndexByte(text, '\n'); idx >= 0 {
+		text = text[:idx]
+	}
+	if len(text) > 140 {
+		text = text[:140] + "..."
+	}
+	return text
+}
+
+func planFromToolCall(toolName string, args json.RawMessage) *SessionTaskPlan {
+	if toolName != "plan" || len(args) == 0 || !json.Valid(args) {
+		return nil
+	}
+	var raw struct {
+		Title string `json:"title"`
+		Steps []struct {
+			Title  string `json:"title"`
+			Status string `json:"status"`
+		} `json:"steps"`
+		Note string `json:"note"`
+	}
+	if err := json.Unmarshal(args, &raw); err != nil || len(raw.Steps) == 0 {
+		return nil
+	}
+	plan := &SessionTaskPlan{
+		Title: strings.TrimSpace(raw.Title),
+		Note:  strings.TrimSpace(raw.Note),
+		Steps: make([]SessionPlanStep, 0, len(raw.Steps)),
+	}
+	for _, step := range raw.Steps {
+		title := strings.TrimSpace(step.Title)
+		if title == "" {
+			continue
+		}
+		status := normalizeSessionPlanStatus(step.Status)
+		if status == "" {
+			status = "pending"
+		}
+		plan.Steps = append(plan.Steps, SessionPlanStep{Title: title, Status: status})
+	}
+	if len(plan.Steps) == 0 {
+		return nil
+	}
+	return plan
+}
+
+func normalizeSessionPlanStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "pending", "running", "done", "failed":
+		return strings.ToLower(strings.TrimSpace(status))
+	default:
+		return ""
+	}
+}
+
+func validRawMessage(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return nil
+	}
+	if !json.Valid(raw) {
+		return nil
+	}
+	return append(json.RawMessage(nil), raw...)
 }
 
 func cloneContentBlocks(blocks []provider.ContentBlock) []provider.ContentBlock {

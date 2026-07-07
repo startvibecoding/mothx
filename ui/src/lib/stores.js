@@ -120,6 +120,13 @@ export async function getSessionMessages(id) {
   }
 }
 
+export async function getSessionToolResult(id, toolCallID) {
+  if (!id || !toolCallID) return null;
+  return request(
+    `/api/sessions/${encodeURIComponent(id)}/tool-results/${encodeURIComponent(toolCallID)}`
+  );
+}
+
 export async function refreshCron() {
   cronInfo.set(await request('/api/cron'));
 }
