@@ -626,6 +626,7 @@ var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 const spinnerInterval = 100 * time.Millisecond
 const mouseWheelScrollLines = 3
+const splitPasteIdleDelay = 120 * time.Millisecond
 
 // tickSpinner returns a command that updates the spinner
 func (a *App) tickSpinner() tea.Cmd {
@@ -1006,7 +1007,15 @@ func (a *App) hasQueuedInput() bool {
 func (a *App) inputQueueIdle() bool {
 	a.inputQueueMu.Lock()
 	defer a.inputQueueMu.Unlock()
-	return len(a.inputQueue) == 0 || a.lastInputTime.IsZero() || time.Since(a.lastInputTime) >= a.inputDelay
+	if len(a.inputQueue) == 0 || a.lastInputTime.IsZero() {
+		return true
+	}
+
+	delay := a.inputDelay
+	if queuedInputHasLineBreak(a.inputQueue) && delay < splitPasteIdleDelay {
+		delay = splitPasteIdleDelay
+	}
+	return time.Since(a.lastInputTime) >= delay
 }
 
 // flushInputQueue processes all queued input events
@@ -1107,6 +1116,28 @@ func coalescedSplitPaste(events []InputEvent) (string, bool) {
 		return "", false
 	}
 	return b.String(), true
+}
+
+func queuedInputHasLineBreak(events []InputEvent) bool {
+	for _, event := range events {
+		msg, ok := event.msg.(tea.KeyMsg)
+		if !ok {
+			continue
+		}
+		switch msg.Type {
+		case tea.KeyEnter, tea.KeyCtrlJ:
+			if msg.Type == tea.KeyEnter && msg.Alt {
+				continue
+			}
+			return true
+		case tea.KeyRunes:
+			text := string(msg.Runes)
+			if strings.ContainsAny(text, "\r\n") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // scheduleRender schedules a render update with throttling.

@@ -1795,6 +1795,61 @@ func TestInputSplitLargePasteCreatesMarker(t *testing.T) {
 	}
 }
 
+func TestInputSplitPasteWaitsPastNormalIdleWindow(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+	a.inputDelay = time.Millisecond
+
+	a.Update(teaKeyMsgForTest("one"))
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.inputQueueMu.Lock()
+	a.lastInputTime = time.Now().Add(-2 * a.inputDelay)
+	a.inputQueueMu.Unlock()
+
+	if a.inputQueueIdle() {
+		t.Fatal("split paste candidate became idle after normal input delay")
+	}
+}
+
+func TestInputDelayedTwentyTwoLineSplitPasteCreatesMarker(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+	a.inputDelay = time.Millisecond
+
+	lines := make([]string, 22)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line-%02d", i+1)
+		a.Update(teaKeyMsgForTest(lines[i]))
+		if i < len(lines)-1 {
+			a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+		}
+		a.inputQueueMu.Lock()
+		a.lastInputTime = time.Now().Add(-2 * a.inputDelay)
+		a.inputQueueMu.Unlock()
+		if a.inputQueueIdle() {
+			t.Fatalf("split paste queue became idle before line %d was coalesced", i+1)
+		}
+	}
+
+	a.inputQueueMu.Lock()
+	a.lastInputTime = time.Now().Add(-splitPasteIdleDelay - time.Millisecond)
+	a.inputQueueMu.Unlock()
+	if !a.inputQueueIdle() {
+		t.Fatal("split paste queue did not become idle after paste delay")
+	}
+
+	a.flushInputQueue()
+
+	wantPaste := strings.Join(lines, "\n")
+	if got := a.input.Value(); got != "[paste #1 +22 lines]" {
+		t.Fatalf("split large pasted input = %q, want marker", got)
+	}
+	if got := a.pastes[1]; got != wantPaste {
+		t.Fatalf("stored paste = %q, want %q", got, wantPaste)
+	}
+	if len(a.messages) != 0 {
+		t.Fatalf("split paste submitted messages = %#v, want none", a.messages)
+	}
+}
+
 func TestInputQueuedTextEnterSubmits(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 

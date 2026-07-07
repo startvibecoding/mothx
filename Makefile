@@ -20,6 +20,7 @@ DIST_DIR=dist
 CHECKSUM_FILE=$(DIST_DIR)/checksums.txt
 PYTHON ?= python3
 NPM ?= npm
+NPM_PUBLISH_IF_NEEDED = NPM="$(NPM)" node scripts/npm-publish-if-needed.js
 
 # Python venv for PyPI builds (isolated from system Python)
 PYPI_VENV := $(CURDIR)/pypi/.venv-build
@@ -379,14 +380,14 @@ npm-publish-all: npm-version npm-packages
 	@set -e; for d in npm/packages/*/; do \
 		if [ -f "$$d/package.json" ]; then \
 			echo "  Publishing $$(basename $$d)..."; \
-			cd "$$d" && npm publish --tag latest && cd - > /dev/null; \
+			$(NPM_PUBLISH_IF_NEEDED) --tag latest "$$d"; \
 		fi; \
 	done
 	$(MAKE) npm-verify-platforms
 	@echo "Publishing mothx-installer package..."
-	cd npm/mothx && npm publish --tag latest
+	$(NPM_PUBLISH_IF_NEEDED) --tag latest npm/mothx
 	@echo "Publishing compatibility package..."
-	cd npm && npm publish --tag latest
+	$(NPM_PUBLISH_IF_NEEDED) --tag latest npm
 	@echo "Published all packages!"
 
 # Publish pre-release
@@ -397,20 +398,20 @@ npm-publish-pre:
 	@set -e; for d in npm/packages/*/; do \
 		if [ -f "$$d/package.json" ]; then \
 			echo "  Publishing $$(basename $$d)..."; \
-			cd "$$d" && npm publish --tag next && cd - > /dev/null; \
+			$(NPM_PUBLISH_IF_NEEDED) --tag next "$$d"; \
 		fi; \
 	done
 	$(MAKE) npm-verify-platforms
 	@echo "Publishing mothx-installer package (pre-release)..."
-	cd npm/mothx && npm publish --tag next
+	$(NPM_PUBLISH_IF_NEEDED) --tag next npm/mothx
 	@echo "Publishing compatibility package (pre-release)..."
-	cd npm && npm publish --tag next
+	$(NPM_PUBLISH_IF_NEEDED) --tag next npm
 	@echo "Published all packages (pre-release)!"
 
 # Legacy: publish main package only (use npm-publish-all instead)
 npm-publish: npm-version npm-binaries
 	@echo "WARNING: npm-publish is deprecated, use npm-publish-all instead" >&2
-	cd npm && npm publish --tag latest
+	$(NPM_PUBLISH_IF_NEEDED) --tag latest npm
 
 # PyPI targets
 

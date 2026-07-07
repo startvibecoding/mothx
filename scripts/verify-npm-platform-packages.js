@@ -8,7 +8,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const pkgPath = process.argv[2]
   ? path.resolve(process.argv[2])
   : path.join(repoRoot, 'npm', 'mothx', 'package.json');
-const registry = (process.env.NPM_REGISTRY || 'https://registry.npmjs.org').replace(/\/+$/, '');
+const registry = (process.env.NPM_REGISTRY || process.env.npm_config_registry || 'https://registry.npmjs.org').replace(/\/+$/, '');
 
 function readPackageJSON(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));

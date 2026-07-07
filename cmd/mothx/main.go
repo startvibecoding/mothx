@@ -63,6 +63,7 @@ func newRootCommand(runFn func([]string, runOptions) error, acpRunFn func(acp.Ru
 	rootCmd.AddCommand(newDoctorCommand())
 	rootCmd.AddCommand(newSystemInitCommand(runFn, &flags.provider, &flags.model))
 	rootCmd.AddCommand(newStatsCommand())
+	rootCmd.AddCommand(newSpeedtestCommand())
 	installFriendlyFlagErrors(rootCmd)
 	return rootCmd
 }
