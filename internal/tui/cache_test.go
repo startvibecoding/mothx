@@ -1405,6 +1405,81 @@ func TestAbortClearsQueuedInput(t *testing.T) {
 	}
 }
 
+func TestQueueInputStartsInputTickOnDemand(t *testing.T) {
+	a := &App{
+		inputQueue: make([]InputEvent, 0, 4),
+		inputDelay: time.Hour,
+	}
+
+	if cmd := a.queueInput(teaKeyMsgForTest("a")); cmd == nil {
+		t.Fatal("first queued input did not start input queue tick")
+	}
+	if cmd := a.queueInput(teaKeyMsgForTest("b")); cmd != nil {
+		t.Fatal("second queued input started a duplicate input queue tick")
+	}
+	if !a.inputQueueTickActive {
+		t.Fatal("input queue tick is not marked active")
+	}
+	if got := len(a.inputQueue); got != 2 {
+		t.Fatalf("len(inputQueue) = %d, want 2", got)
+	}
+}
+
+func TestInputQueueTickContinuesUntilQueueIsIdle(t *testing.T) {
+	a := &App{
+		inputQueue: make([]InputEvent, 0, 4),
+		inputDelay: time.Hour,
+	}
+	_ = a.queueInput(teaKeyMsgForTest("a"))
+
+	_, cmd := a.Update(inputQueueTickMsg(time.Now()))
+	if cmd == nil {
+		t.Fatal("non-idle input queue tick did not schedule the next tick")
+	}
+	if !a.inputQueueTickActive {
+		t.Fatal("input queue tick stopped while queue was not idle")
+	}
+	if got := len(a.inputQueue); got != 1 {
+		t.Fatalf("len(inputQueue) = %d, want 1", got)
+	}
+}
+
+func TestInputQueueTickStopsWhenQueueIsEmpty(t *testing.T) {
+	a := &App{
+		inputQueue:           make([]InputEvent, 0, 4),
+		inputQueueTickActive: true,
+		inputDelay:           time.Hour,
+	}
+
+	_, cmd := a.Update(inputQueueTickMsg(time.Now()))
+	if cmd != nil {
+		t.Fatal("empty input queue tick scheduled another tick")
+	}
+	if a.inputQueueTickActive {
+		t.Fatal("empty input queue tick left tick marked active")
+	}
+}
+
+func TestInputQueueTickStopsAfterIdleFlush(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+	a.inputDelay = time.Millisecond
+	_ = a.queueInput(teaKeyMsgForTest("a"))
+	a.inputQueueMu.Lock()
+	a.lastInputTime = time.Now().Add(-2 * a.inputDelay)
+	a.inputQueueMu.Unlock()
+
+	_, cmd := a.Update(inputQueueTickMsg(time.Now()))
+	if cmd != nil {
+		t.Fatal("idle input queue flush scheduled another tick")
+	}
+	if a.inputQueueTickActive {
+		t.Fatal("idle input queue flush left tick marked active")
+	}
+	if got := a.input.Value(); got != "a" {
+		t.Fatalf("input value = %q, want %q", got, "a")
+	}
+}
+
 func TestHandleAgentEventStatusAndWarningMessage(t *testing.T) {
 	a := &App{}
 

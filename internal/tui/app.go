@@ -155,11 +155,12 @@ type App struct {
 	lastPastedImagePath string
 
 	// Input queue for batching
-	inputQueue     []InputEvent
-	inputQueueMu   sync.Mutex
-	lastInputTime  time.Time
-	inputBatchSize int
-	inputDelay     time.Duration
+	inputQueue           []InputEvent
+	inputQueueMu         sync.Mutex
+	inputQueueTickActive bool
+	lastInputTime        time.Time
+	inputBatchSize       int
+	inputDelay           time.Duration
 
 	// Completed transcript blocks are printed above the live Bubble Tea view so
 	// the terminal owns scrollback, mouse scrolling, and text selection.
@@ -579,7 +580,6 @@ func (a *App) Init() tea.Cmd {
 	if inputCmd := a.input.Init(); inputCmd != nil {
 		cmds = append(cmds, inputCmd)
 	}
-	cmds = append(cmds, a.processInputQueue())
 
 	if a.autoOpenAuthDialog {
 		a.openAuthDialog()
@@ -677,6 +677,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.inputQueueIdle() {
 			cmd := a.flushInputQueue()
 			cmds = append(cmds, cmd)
+			if a.stopInputQueueTickIfEmpty() {
+				return a, tea.Batch(cmds...)
+			}
+			cmds = append(cmds, a.processInputQueue())
+			return a, tea.Batch(cmds...)
 		}
 		// Schedule next tick
 		cmds = append(cmds, a.processInputQueue())
@@ -835,9 +840,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, flushCmd
 			}
 			if splitPasteCoalescingEnabled() && a.hasQueuedInput() && !a.commandSuggestionsVisible() {
-				a.queueInput(msg)
+				cmd := a.queueInput(msg)
 				a.resetInputHistoryNavigation()
-				return a, nil
+				return a, cmd
 			}
 
 			flushCmd := a.flushInputQueue()
@@ -914,9 +919,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		a.queueInput(msg)
+		cmd := a.queueInput(msg)
 		a.resetInputHistoryNavigation()
-		return a, nil
+		return a, cmd
 
 	case agentStreamStartMsg:
 		a.eventCh = msg.eventCh
@@ -989,8 +994,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, tea.Batch(cmds...)
 }
 
-// queueInput adds an input event to the queue
-func (a *App) queueInput(msg tea.Msg) {
+// queueInput adds an input event to the queue and starts the queue tick on demand.
+func (a *App) queueInput(msg tea.Msg) tea.Cmd {
 	a.inputQueueMu.Lock()
 	defer a.inputQueueMu.Unlock()
 
@@ -1000,12 +1005,27 @@ func (a *App) queueInput(msg tea.Msg) {
 		arrived: now,
 	})
 	a.lastInputTime = now
+	if a.inputQueueTickActive {
+		return nil
+	}
+	a.inputQueueTickActive = true
+	return a.processInputQueue()
 }
 
 func (a *App) hasQueuedInput() bool {
 	a.inputQueueMu.Lock()
 	defer a.inputQueueMu.Unlock()
 	return len(a.inputQueue) > 0
+}
+
+func (a *App) stopInputQueueTickIfEmpty() bool {
+	a.inputQueueMu.Lock()
+	defer a.inputQueueMu.Unlock()
+	if len(a.inputQueue) > 0 {
+		return false
+	}
+	a.inputQueueTickActive = false
+	return true
 }
 
 func (a *App) inputQueueIdle() bool {

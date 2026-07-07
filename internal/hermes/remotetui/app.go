@@ -113,11 +113,12 @@ type App struct {
 	pastes       map[int]string
 
 	// Input queue for batching
-	inputQueue     []InputEvent
-	inputQueueMu   sync.Mutex
-	lastInputTime  time.Time
-	inputBatchSize int
-	inputDelay     time.Duration
+	inputQueue           []InputEvent
+	inputQueueMu         sync.Mutex
+	inputQueueTickActive bool
+	lastInputTime        time.Time
+	inputBatchSize       int
+	inputDelay           time.Duration
 
 	// Transcript content is rendered through a managed viewport. Keeping both
 	// completed history and streaming deltas in one render tree avoids stale
@@ -278,7 +279,7 @@ func (a *App) Init() tea.Cmd {
 	a.LoadHistoryMessages()
 	a.updateViewportContent()
 
-	cmds = append(cmds, a.connectWS(), textinput.Blink, a.processInputQueue())
+	cmds = append(cmds, a.connectWS(), textinput.Blink)
 	return tea.Batch(cmds...)
 }
 
@@ -332,6 +333,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Process queued input events
 		cmd := a.flushInputQueue()
 		cmds = append(cmds, cmd)
+		if a.stopInputQueueTickIfEmpty() {
+			return a, tea.Batch(cmds...)
+		}
 		// Schedule next tick
 		cmds = append(cmds, a.processInputQueue())
 		return a, tea.Batch(cmds...)
@@ -509,9 +513,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		a.queueInput(msg)
+		cmd := a.queueInput(msg)
 		a.resetInputHistoryNavigation()
-		return a, nil
+		return a, cmd
 
 	case agentStartMsg:
 		a.isThinking = true
@@ -560,16 +564,32 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a, tea.Batch(cmds...)
 }
 
-// queueInput adds an input event to the queue
-func (a *App) queueInput(msg tea.Msg) {
+// queueInput adds an input event to the queue and starts the queue tick on demand.
+func (a *App) queueInput(msg tea.Msg) tea.Cmd {
 	a.inputQueueMu.Lock()
 	defer a.inputQueueMu.Unlock()
 
+	now := time.Now()
 	a.inputQueue = append(a.inputQueue, InputEvent{
 		msg:     msg,
-		arrived: time.Now(),
+		arrived: now,
 	})
-	a.lastInputTime = time.Now()
+	a.lastInputTime = now
+	if a.inputQueueTickActive {
+		return nil
+	}
+	a.inputQueueTickActive = true
+	return a.processInputQueue()
+}
+
+func (a *App) stopInputQueueTickIfEmpty() bool {
+	a.inputQueueMu.Lock()
+	defer a.inputQueueMu.Unlock()
+	if len(a.inputQueue) > 0 {
+		return false
+	}
+	a.inputQueueTickActive = false
+	return true
 }
 
 // flushInputQueue processes all queued input events
