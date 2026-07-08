@@ -168,9 +168,6 @@ func displayListenAddr(addr string) string {
 	if strings.HasPrefix(addr, ":") {
 		return "127.0.0.1" + addr
 	}
-	if strings.HasPrefix(addr, "0.0.0.0:") {
-		return "127.0.0.1:" + strings.TrimPrefix(addr, "0.0.0.0:")
-	}
 	return addr
 }
 

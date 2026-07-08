@@ -201,6 +201,7 @@ func TestApplyRunOverrides_PortForms(t *testing.T) {
 		{name: "port only", port: "9090", want: ":9090"},
 		{name: "colon port", port: ":9090", want: ":9090"},
 		{name: "host port", port: "127.0.0.1:9090", want: "127.0.0.1:9090"},
+		{name: "all interfaces host port", port: "0.0.0.0:9090", want: "0.0.0.0:9090"},
 	}
 
 	for _, tt := range tests {

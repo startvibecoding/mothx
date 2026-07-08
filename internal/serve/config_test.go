@@ -1118,6 +1118,7 @@ func TestApplyOverridesPortForms(t *testing.T) {
 		{name: "port only", port: "9090", want: ":9090"},
 		{name: "colon port", port: ":9090", want: ":9090"},
 		{name: "host port", port: "127.0.0.1:9090", want: "127.0.0.1:9090"},
+		{name: "all interfaces host port", port: "0.0.0.0:9090", want: "0.0.0.0:9090"},
 	}
 
 	for _, tt := range tests {
@@ -1126,6 +1127,25 @@ func TestApplyOverridesPortForms(t *testing.T) {
 			applyOverrides(cfg, RunOptions{Port: tt.port})
 			if cfg.API.Listen != tt.want {
 				t.Fatalf("listen = %q, want %q", cfg.API.Listen, tt.want)
+			}
+		})
+	}
+}
+
+func TestDisplayListenAddrPreservesExplicitExternalBind(t *testing.T) {
+	tests := []struct {
+		addr string
+		want string
+	}{
+		{addr: ":8080", want: "127.0.0.1:8080"},
+		{addr: "0.0.0.0:8080", want: "0.0.0.0:8080"},
+		{addr: "127.0.0.1:8080", want: "127.0.0.1:8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.addr, func(t *testing.T) {
+			if got := displayListenAddr(tt.addr); got != tt.want {
+				t.Fatalf("displayListenAddr(%q) = %q, want %q", tt.addr, got, tt.want)
 			}
 		})
 	}

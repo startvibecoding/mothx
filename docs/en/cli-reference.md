@@ -112,7 +112,7 @@ mothx serve [flags]
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--port` | - | `8080` | Listen port (overrides serve.json) |
+| `--port` | - | `8080` | Listen port or address, e.g. `8080` or `0.0.0.0:8080` (overrides serve.json) |
 | `--config` | - | - | Path to serve.json |
 | `--work-dir` | - | Current directory | Default working directory |
 | `--provider` | `-p` | From config | LLM provider |

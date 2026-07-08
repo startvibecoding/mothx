@@ -57,7 +57,7 @@ func newServeInitConfigCommand() *cobra.Command {
 }
 
 func registerServeFlags(fs *pflag.FlagSet, flags *cliFlags) {
-	fs.StringVar(&flags.servePort, "port", "", "Listen port (default: from serve.json or 8080)")
+	fs.StringVar(&flags.servePort, "port", "", "Listen port or address (e.g. 8080, :8080, 0.0.0.0:8080)")
 	fs.StringVar(&flags.serveConfig, "config", "", "Path to serve.json")
 	fs.StringVar(&flags.serveWebUIDir, "web-ui-dir", "", "Directory containing built Serve Web UI assets")
 	fs.StringVar(&flags.workDir, "work-dir", "", "Default working directory")

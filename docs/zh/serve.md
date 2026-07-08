@@ -9,6 +9,7 @@
 ```bash
 mothx serve
 mothx serve --port 8080 --work-dir /path/to/project
+mothx serve --port 0.0.0.0:8080 --work-dir /path/to/project
 mothx serve init-config project
 ```
 
@@ -19,5 +20,7 @@ mothx serve init-config project
 - 自定义路径：`mothx serve --config /path/to/serve.json`
 
 项目配置会覆盖全局配置。使用 `mothx serve init-config global` 或 `mothx serve init-config project` 生成模板。
+
+如果需要允许其他机器访问，把 Serve 绑定到外部网卡，例如 `--port 0.0.0.0:8080`，或在 `serve.json` 中设置 `"listen": "0.0.0.0:8080"`。对外暴露前应开启 Bearer token 认证。
 
 安全配置由 `serve.json` 中的 Bearer token、`allowedWorkDirs` 和 sandbox 设置共同控制。
