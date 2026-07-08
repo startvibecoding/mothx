@@ -123,19 +123,59 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	sess.Lock()
 	defer sess.Unlock()
 	sess.Touch()
-	if err := s.applySessionToolOptions(sess, req.XTools); err != nil {
+	runID := newRunID()
+	if err := s.applySessionToolOptions(sess, req.XTools, runID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+		return
+	}
+
+	mode := s.cfg.DefaultMode
+	if sess.Mode != "" {
+		mode = sess.Mode
+	}
+	if req.XMode != "" {
+		mode = req.XMode
+	}
+	command := ""
+	if fields := strings.Fields(strings.TrimSpace(lastUserMsg.Content)); len(fields) > 0 && strings.HasPrefix(fields[0], "/") {
+		command = fields[0]
+	}
+	if err := s.recordSessionRunEvent(sess, runID, "started", "running", "chat_completion", currentModel.ID, mode, map[string]any{
+		"stream":       req.Stream,
+		"transcript":   req.XTranscript,
+		"workDir":      sess.WorkDir,
+		"provider":     s.providerName,
+		"command":      command,
+		"messageCount": len(req.Messages),
+	}); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 		return
 	}
 
 	// Check for slash command
-	if cmdResult := s.handleCommand(sess, lastUserMsg.Content); cmdResult != nil {
+	if cmdResult := s.handleCommand(sess, lastUserMsg.Content, runID); cmdResult != nil {
 		// If /clear, we need to reset agent state on the session
 		if strings.HasPrefix(strings.TrimSpace(lastUserMsg.Content), "/clear") {
 			if err := s.clearSession(sess, workDir); err != nil {
+				_ = s.recordSessionRunEvent(sess, runID, "failed", "failed", "chat_completion", currentModel.ID, mode, map[string]any{
+					"command": command,
+					"error":   err.Error(),
+				})
 				writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 				return
 			}
+		}
+		status := "completed"
+		eventType := "finished"
+		if cmdResult.Error {
+			status = "failed"
+			eventType = "failed"
+		}
+		if err := s.recordSessionRunEvent(sess, runID, eventType, status, "chat_completion", currentModel.ID, mode, map[string]any{
+			"command": command,
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+			return
 		}
 		if req.Stream {
 			s.writeCommandResponseStreaming(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content, req.XTranscript)
@@ -143,15 +183,6 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			s.writeCommandResponse(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content)
 		}
 		return
-	}
-
-	// Determine mode
-	mode := s.cfg.DefaultMode
-	if sess.Mode != "" {
-		mode = sess.Mode
-	}
-	if req.XMode != "" {
-		mode = req.XMode
 	}
 
 	// Build extra context: system prompt handling
@@ -265,9 +296,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	eventCh := a.RunWithUserMessage(ctx, lastUserMessage)
 
 	if req.Stream {
-		s.handleStreamingResponse(w, r, eventCh, currentModel.ID, sess.ID, req.XTranscript)
+		usage, status, errMsg := s.handleStreamingResponse(w, r, eventCh, currentModel.ID, sess.ID, req.XTranscript)
+		_ = s.recordSessionRunEvent(sess, runID, runEventTypeForStatus(status), status, "chat_completion", currentModel.ID, mode, usageEventData(usage, errMsg))
 	} else {
-		s.handleNonStreamingResponse(w, eventCh, currentModel.ID, sess.ID)
+		usage, status, errMsg := s.handleNonStreamingResponse(w, eventCh, currentModel.ID, sess.ID)
+		_ = s.recordSessionRunEvent(sess, runID, runEventTypeForStatus(status), status, "chat_completion", currentModel.ID, mode, usageEventData(usage, errMsg))
 	}
 }
 
@@ -291,7 +324,7 @@ func sameWorkDir(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string, transcript bool) {
+func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string, transcript bool) (CompletionUsage, string, string) {
 	sse := NewSSEWriter(w, modelID, sessionID)
 	sse.WriteRoleDelta()
 
@@ -305,7 +338,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 	for ev := range eventCh {
 		select {
 		case <-r.Context().Done():
-			return
+			return totalUsage, "canceled", r.Context().Err().Error()
 		default:
 		}
 
@@ -394,7 +427,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 
 		case agent.EventDone:
 			sse.WriteDone(&totalUsage)
-			return
+			return totalUsage, "completed", ""
 
 		case agent.EventError:
 			if ev.Error != nil {
@@ -402,14 +435,16 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 					sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent("\n\n[Error: " + ev.Error.Error() + "]"))
 				}
 				sse.WriteError(ev.Error.Error())
+				return totalUsage, "failed", ev.Error.Error()
 			} else {
 				sse.WriteDone(&totalUsage)
+				return totalUsage, "completed", ""
 			}
-			return
 		}
 	}
 	// Channel closed without EventDone
 	sse.WriteDone(&totalUsage)
+	return totalUsage, "completed", ""
 }
 
 func assistantDeltaTranscriptEvent(text string) TranscriptStreamEvent {
@@ -481,7 +516,7 @@ func rawToolArgs(args map[string]any) json.RawMessage {
 	return data
 }
 
-func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-chan agent.Event, modelID, sessionID string) {
+func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-chan agent.Event, modelID, sessionID string) (CompletionUsage, string, string) {
 	var sb strings.Builder
 	var totalUsage CompletionUsage
 	var xToolCalls []XToolCall
@@ -538,7 +573,7 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 		case agent.EventError:
 			if ev.Error != nil {
 				writeError(w, http.StatusInternalServerError, ev.Error.Error(), "server_error")
-				return
+				return totalUsage, "failed", ev.Error.Error()
 			}
 		}
 	}
@@ -561,6 +596,7 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 		XToolCalls: xToolCalls,
 	}
 	writeJSON(w, http.StatusOK, resp)
+	return totalUsage, "completed", ""
 }
 
 func summarizeToolStatusResult(result string) string {
@@ -812,10 +848,11 @@ func (s *Server) buildSessionResources(workDir string) (*sessionResources, error
 	}, nil
 }
 
-func (s *Server) applySessionToolOptions(sess *APISession, opts *SessionToolOptions) error {
+func (s *Server) applySessionToolOptions(sess *APISession, opts *SessionToolOptions, runID string) error {
 	if sess == nil {
 		return nil
 	}
+	before := capabilitySnapshotFromSession(sess)
 	browserChanged := false
 	if opts != nil {
 		applyBoolOption(&sess.WebSearch, opts.WebSearch)
@@ -828,7 +865,9 @@ func (s *Server) applySessionToolOptions(sess *APISession, opts *SessionToolOpti
 		return err
 	}
 	if opts != nil {
-		return s.persistSessionCapabilities(sess)
+		return s.persistSessionCapabilitiesWithEvents(sess, before, "x_tools", "webui", runID, map[string]any{
+			"source": "chat_completion",
+		})
 	}
 	return nil
 }

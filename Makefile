@@ -1,4 +1,4 @@
-.PHONY: help build build-all install test lint fmt clean run
+.PHONY: help build build-all install test lint fmt clean run serve
 .PHONY: ui-install ui-build ui-dev ui-preview
 .PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows
 .PHONY: build-freebsd build-openbsd build-netbsd
@@ -113,6 +113,7 @@ help:
 	@echo "  clean-all      Remove everything including dist"
 	@echo "  checksums      Generate checksums for all dist files"
 	@echo "  run            Build and run"
+	@echo "  serve          Build and start serve mode"
 	@echo "  help           Show this help"
 
 # Build for current platform
@@ -226,6 +227,10 @@ clean-all: clean
 # Run
 run: build
 	./bin/$(BINARY_NAME)
+
+# Start serve mode
+serve: build
+	./bin/$(BINARY_NAME) serve
 
 # Distribution: tar.gz for Unix-like platforms
 dist-tarball: build-linux build-linux-musl build-darwin build-freebsd build-openbsd build-netbsd

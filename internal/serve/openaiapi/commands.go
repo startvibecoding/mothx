@@ -23,7 +23,7 @@ type CommandResult struct {
 
 // handleCommand processes a /xxx slash command.
 // Returns nil if the input is not a command (should go to agent).
-func (s *Server) handleCommand(sess *APISession, input string) *CommandResult {
+func (s *Server) handleCommand(sess *APISession, input string, runIDs ...string) *CommandResult {
 	trimmed := strings.TrimSpace(input)
 	if !strings.HasPrefix(trimmed, "/") {
 		return nil
@@ -34,12 +34,16 @@ func (s *Server) handleCommand(sess *APISession, input string) *CommandResult {
 		return nil
 	}
 
+	runID := ""
+	if len(runIDs) > 0 {
+		runID = runIDs[0]
+	}
 	cmd := parts[0]
 	switch cmd {
 	case "/clear":
 		return s.cmdClear(sess)
 	case "/mode":
-		return s.cmdMode(sess, parts)
+		return s.cmdMode(sess, parts, runID)
 	case "/model":
 		return s.cmdModel(parts)
 	case "/defaultModel":
@@ -53,7 +57,7 @@ func (s *Server) handleCommand(sess *APISession, input string) *CommandResult {
 	case "/compact":
 		return s.cmdCompact(sess)
 	case "/delegate":
-		return s.cmdDelegate(sess, parts)
+		return s.cmdDelegate(sess, parts, runID)
 	case "/alloweditpath":
 		return s.cmdAllowEditPath(parts)
 	case "/allowautoedit":
@@ -91,13 +95,20 @@ func (s *Server) cmdClear(sess *APISession) *CommandResult {
 	return &CommandResult{Message: "✅ Conversation cleared"}
 }
 
-func (s *Server) cmdMode(sess *APISession, parts []string) *CommandResult {
+func (s *Server) cmdMode(sess *APISession, parts []string, runIDs ...string) *CommandResult {
+	runID := ""
+	if len(runIDs) > 0 {
+		runID = runIDs[0]
+	}
 	if len(parts) > 1 {
 		switch parts[1] {
 		case "plan", "agent", "yolo":
 			if sess != nil {
+				before := capabilitySnapshotFromSession(sess)
 				sess.Mode = parts[1]
-				if err := s.persistSessionCapabilities(sess); err != nil {
+				if err := s.persistSessionCapabilitiesWithEvents(sess, before, "slash_mode", "user", runID, map[string]any{
+					"command": "/mode",
+				}); err != nil {
 					return &CommandResult{Message: fmt.Sprintf("Failed to save mode: %v", err), Error: true}
 				}
 			}
@@ -316,7 +327,11 @@ func (s *Server) cmdStatus(sess *APISession) *CommandResult {
 	return &CommandResult{Message: msg}
 }
 
-func (s *Server) cmdDelegate(sess *APISession, parts []string) *CommandResult {
+func (s *Server) cmdDelegate(sess *APISession, parts []string, runIDs ...string) *CommandResult {
+	runID := ""
+	if len(runIDs) > 0 {
+		runID = runIDs[0]
+	}
 	if sess == nil {
 		return &CommandResult{Message: "No active session.", Error: true}
 	}
@@ -329,20 +344,26 @@ func (s *Server) cmdDelegate(sess *APISession, parts []string) *CommandResult {
 	}
 	switch parts[1] {
 	case "on":
+		before := capabilitySnapshotFromSession(sess)
 		if sess.AgentMgr == nil {
 			sess.DelegateMode = true
 			sess.AgentMgr = s.newAgentManagerForSession(sess)
 		}
 		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
 		sess.DelegateMode = true
-		if err := s.persistSessionCapabilities(sess); err != nil {
+		if err := s.persistSessionCapabilitiesWithEvents(sess, before, "slash_delegate", "user", runID, map[string]any{
+			"command": "/delegate on",
+		}); err != nil {
 			return &CommandResult{Message: fmt.Sprintf("Failed to save delegation mode: %v", err), Error: true}
 		}
 		return &CommandResult{Message: "Delegation mode: ON"}
 	case "off":
+		before := capabilitySnapshotFromSession(sess)
 		sess.Registry.Remove("delegate_subagent")
 		sess.DelegateMode = false
-		if err := s.persistSessionCapabilities(sess); err != nil {
+		if err := s.persistSessionCapabilitiesWithEvents(sess, before, "slash_delegate", "user", runID, map[string]any{
+			"command": "/delegate off",
+		}); err != nil {
 			return &CommandResult{Message: fmt.Sprintf("Failed to save delegation mode: %v", err), Error: true}
 		}
 		return &CommandResult{Message: "Delegation mode: OFF"}

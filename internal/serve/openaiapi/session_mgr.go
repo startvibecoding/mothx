@@ -533,6 +533,7 @@ func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatc
 	sess.Lock()
 	defer sess.Unlock()
 
+	before := capabilitySnapshotFromSession(sess)
 	refreshContext := false
 	if patch.Mode != nil {
 		mode := strings.TrimSpace(*patch.Mode)
@@ -562,7 +563,9 @@ func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatc
 	if err := s.syncSessionTools(sess, refreshContext); err != nil {
 		return nil, err
 	}
-	if err := s.persistSessionCapabilities(sess); err != nil {
+	if err := s.persistSessionCapabilitiesWithEvents(sess, before, "api_patch", "webui", "", map[string]any{
+		"source": "session_capabilities_patch",
+	}); err != nil {
 		return nil, err
 	}
 	sess.Touch()
@@ -829,6 +832,71 @@ func (s *Server) GetSessionToolResult(id, toolCallID string) (*SessionToolResult
 	return nil, ErrSessionToolResultNotFound
 }
 
+// GetSessionRunEvents returns persisted run lifecycle events for a session.
+func (s *Server) GetSessionRunEvents(id string) ([]SessionRunEventEntry, error) {
+	if s == nil || s.settings == nil || id == "" {
+		return nil, ErrSessionNotFound
+	}
+	if _, found, err := s.findSessionWorkDir(id); err != nil {
+		return nil, err
+	} else if !found {
+		return nil, ErrSessionNotFound
+	}
+	events, err := session.ListSessionRunEvents(s.settings.GetSessionDir(), id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SessionRunEventEntry, 0, len(events))
+	for _, ev := range events {
+		out = append(out, SessionRunEventEntry{
+			ID:        ev.ID,
+			SessionID: ev.SessionID,
+			RunID:     ev.RunID,
+			EventType: ev.EventType,
+			Source:    ev.Source,
+			Status:    ev.Status,
+			Model:     ev.Model,
+			Mode:      ev.Mode,
+			Timestamp: formatEventTimestamp(ev.Timestamp),
+			Data:      decodeEventData(ev.Data),
+		})
+	}
+	return out, nil
+}
+
+// GetSessionCapabilityEvents returns persisted capability transition events for a session.
+func (s *Server) GetSessionCapabilityEvents(id string) ([]SessionCapabilityEventEntry, error) {
+	if s == nil || s.settings == nil || id == "" {
+		return nil, ErrSessionNotFound
+	}
+	if _, found, err := s.findSessionWorkDir(id); err != nil {
+		return nil, err
+	} else if !found {
+		return nil, ErrSessionNotFound
+	}
+	events, err := session.ListSessionCapabilityEvents(s.settings.GetSessionDir(), id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SessionCapabilityEventEntry, 0, len(events))
+	for _, ev := range events {
+		out = append(out, SessionCapabilityEventEntry{
+			ID:         ev.ID,
+			SessionID:  ev.SessionID,
+			RunID:      ev.RunID,
+			EventType:  ev.EventType,
+			Source:     ev.Source,
+			Actor:      ev.Actor,
+			Capability: ev.Capability,
+			OldValue:   ev.OldValue,
+			NewValue:   ev.NewValue,
+			Timestamp:  formatEventTimestamp(ev.Timestamp),
+			Data:       decodeEventData(ev.Data),
+		})
+	}
+	return out, nil
+}
+
 func (s *Server) sessionMessages(id string) ([]provider.Message, error) {
 	if id == "" {
 		workDir := s.cfg.GetWorkDir()
@@ -854,6 +922,24 @@ func (s *Server) sessionMessages(id string) ([]provider.Message, error) {
 		return nil, nil
 	}
 	return sess.Manager.GetMessages(), nil
+}
+
+func formatEventTimestamp(ts time.Time) string {
+	if ts.IsZero() {
+		return ""
+	}
+	return ts.UTC().Format(time.RFC3339Nano)
+}
+
+func decodeEventData(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil || len(data) == 0 {
+		return nil
+	}
+	return data
 }
 
 func sessionMessagesToEntries(msgs []provider.Message) []SessionMessageEntry {

@@ -141,6 +141,26 @@ export async function getSessionToolResult(id, toolCallID) {
   );
 }
 
+export async function getSessionRunEvents(id) {
+  if (!id) return [];
+  try {
+    const data = await request(`/api/sessions/${encodeURIComponent(id)}/run-events`);
+    return data?.events || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getSessionCapabilityEvents(id) {
+  if (!id) return [];
+  try {
+    const data = await request(`/api/sessions/${encodeURIComponent(id)}/capability-events`);
+    return data?.events || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function refreshCron() {
   cronInfo.set(await request('/api/cron'));
 }

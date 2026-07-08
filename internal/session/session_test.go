@@ -1208,8 +1208,8 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	if err := db2.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("schema_migrations should exist: %v", err)
 	}
-	if migrationCount != 7 {
-		t.Errorf("expected 7 migrations applied, got %d", migrationCount)
+	if migrationCount != 8 {
+		t.Errorf("expected 8 migrations applied, got %d", migrationCount)
 	}
 
 	// request_stats should exist
@@ -1266,5 +1266,92 @@ func TestSessionCapabilitiesSaveLoadAndDelete(t *testing.T) {
 	}
 	if _, ok, err := LoadSessionCapabilities(sessionDir, "caps-session"); err != nil || ok {
 		t.Fatalf("capabilities after delete: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestSessionRunAndCapabilityEventsSaveListAndDelete(t *testing.T) {
+	sessionDir := t.TempDir()
+	m := New("/tmp/events-project", sessionDir)
+	if err := m.InitWithID("events-session"); err != nil {
+		t.Fatalf("InitWithID: %v", err)
+	}
+
+	if _, err := SaveSessionRunEvent(sessionDir, SessionRunEvent{
+		SessionID: "events-session",
+		RunID:     "run-1",
+		EventType: "started",
+		Source:    "chat_completion",
+		Status:    "running",
+		Model:     "m1",
+		Mode:      "agent",
+		Data:      []byte(`{"stream":true}`),
+	}); err != nil {
+		t.Fatalf("SaveSessionRunEvent started: %v", err)
+	}
+	if _, err := SaveSessionRunEvent(sessionDir, SessionRunEvent{
+		SessionID: "events-session",
+		RunID:     "run-1",
+		EventType: "finished",
+		Source:    "chat_completion",
+		Status:    "completed",
+		Data:      []byte(`{"usage":{"total_tokens":3}}`),
+	}); err != nil {
+		t.Fatalf("SaveSessionRunEvent finished: %v", err)
+	}
+	if _, err := SaveSessionCapabilityEvent(sessionDir, SessionCapabilityEvent{
+		SessionID:  "events-session",
+		RunID:      "run-1",
+		EventType:  "changed",
+		Source:     "api_patch",
+		Actor:      "webui",
+		Capability: "browser",
+		OldValue:   "false",
+		NewValue:   "true",
+		Data:       []byte(`{"reason":"test"}`),
+	}); err != nil {
+		t.Fatalf("SaveSessionCapabilityEvent: %v", err)
+	}
+
+	runEvents, err := ListSessionRunEvents(sessionDir, "events-session")
+	if err != nil {
+		t.Fatalf("ListSessionRunEvents: %v", err)
+	}
+	if len(runEvents) != 2 {
+		t.Fatalf("run events len = %d, want 2: %#v", len(runEvents), runEvents)
+	}
+	if runEvents[0].RunID != "run-1" || runEvents[0].EventType != "started" || runEvents[0].Status != "running" {
+		t.Fatalf("first run event = %#v", runEvents[0])
+	}
+	if string(runEvents[0].Data) != `{"stream":true}` {
+		t.Fatalf("first run event data = %s", runEvents[0].Data)
+	}
+
+	capabilityEvents, err := ListSessionCapabilityEvents(sessionDir, "events-session")
+	if err != nil {
+		t.Fatalf("ListSessionCapabilityEvents: %v", err)
+	}
+	if len(capabilityEvents) != 1 {
+		t.Fatalf("capability events len = %d, want 1: %#v", len(capabilityEvents), capabilityEvents)
+	}
+	if capabilityEvents[0].Capability != "browser" || capabilityEvents[0].OldValue != "false" || capabilityEvents[0].NewValue != "true" {
+		t.Fatalf("capability event = %#v", capabilityEvents[0])
+	}
+
+	if err := DeleteSession(m.GetFile(), sessionDir); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	runEvents, err = ListSessionRunEvents(sessionDir, "events-session")
+	if err != nil {
+		t.Fatalf("ListSessionRunEvents after delete: %v", err)
+	}
+	if len(runEvents) != 0 {
+		t.Fatalf("run events after delete len = %d, want 0", len(runEvents))
+	}
+	capabilityEvents, err = ListSessionCapabilityEvents(sessionDir, "events-session")
+	if err != nil {
+		t.Fatalf("ListSessionCapabilityEvents after delete: %v", err)
+	}
+	if len(capabilityEvents) != 0 {
+		t.Fatalf("capability events after delete len = %d, want 0", len(capabilityEvents))
 	}
 }

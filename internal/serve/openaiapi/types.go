@@ -229,6 +229,35 @@ type TranscriptStreamEvent struct {
 	Message    *SessionMessageEntry `json:"message,omitempty"`
 }
 
+// SessionRunEventEntry is the Web/API view of a run lifecycle event.
+type SessionRunEventEntry struct {
+	ID        string         `json:"id"`
+	SessionID string         `json:"sessionId"`
+	RunID     string         `json:"runId"`
+	EventType string         `json:"eventType"`
+	Source    string         `json:"source,omitempty"`
+	Status    string         `json:"status,omitempty"`
+	Model     string         `json:"model,omitempty"`
+	Mode      string         `json:"mode,omitempty"`
+	Timestamp string         `json:"timestamp"`
+	Data      map[string]any `json:"data,omitempty"`
+}
+
+// SessionCapabilityEventEntry is the Web/API view of a capability transition.
+type SessionCapabilityEventEntry struct {
+	ID         string         `json:"id"`
+	SessionID  string         `json:"sessionId"`
+	RunID      string         `json:"runId,omitempty"`
+	EventType  string         `json:"eventType"`
+	Source     string         `json:"source,omitempty"`
+	Actor      string         `json:"actor,omitempty"`
+	Capability string         `json:"capability"`
+	OldValue   string         `json:"oldValue"`
+	NewValue   string         `json:"newValue"`
+	Timestamp  string         `json:"timestamp"`
+	Data       map[string]any `json:"data,omitempty"`
+}
+
 // --- Model list types ---
 
 // ModelListResponse is the response for GET /v1/models.

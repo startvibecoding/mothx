@@ -277,8 +277,8 @@ func TestMigrationFromOldDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema_migrations table should exist after migration: %v", err)
 	}
-	if migrationCount != 6 {
-		t.Errorf("expected 6 migrations recorded, got %d", migrationCount)
+	if migrationCount != 8 {
+		t.Errorf("expected 8 migrations recorded, got %d", migrationCount)
 	}
 
 	// Verify a specific migration was recorded
@@ -339,8 +339,8 @@ func TestIdempotentMigrations(t *testing.T) {
 
 	var count1 int
 	db1.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count1)
-	if count1 != 6 {
-		t.Errorf("expected 6 migrations after first open, got %d", count1)
+	if count1 != 8 {
+		t.Errorf("expected 8 migrations after first open, got %d", count1)
 	}
 	db1.Close()
 
@@ -353,7 +353,7 @@ func TestIdempotentMigrations(t *testing.T) {
 
 	var count2 int
 	db2.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count2)
-	if count2 != 6 {
-		t.Errorf("expected 6 migrations after second open (no re-apply), got %d", count2)
+	if count2 != 8 {
+		t.Errorf("expected 8 migrations after second open (no re-apply), got %d", count2)
 	}
 }

@@ -87,6 +87,42 @@ var migrations = []migration{
 			updated_at TEXT NOT NULL
 		);`,
 	},
+	{
+		Name: "008_create_session_event_tables",
+		SQL: `CREATE TABLE IF NOT EXISTS session_run_events (
+			seq INTEGER PRIMARY KEY AUTOINCREMENT,
+			id TEXT UNIQUE NOT NULL,
+			session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+			run_id TEXT NOT NULL,
+			event_type TEXT NOT NULL,
+			source TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			mode TEXT NOT NULL DEFAULT '',
+			timestamp TEXT NOT NULL,
+			data TEXT NOT NULL DEFAULT '{}'
+		);
+		CREATE INDEX IF NOT EXISTS idx_session_run_events_session_id ON session_run_events(session_id);
+		CREATE INDEX IF NOT EXISTS idx_session_run_events_run_id ON session_run_events(run_id);
+		CREATE INDEX IF NOT EXISTS idx_session_run_events_type ON session_run_events(event_type);
+		CREATE TABLE IF NOT EXISTS session_capability_events (
+			seq INTEGER PRIMARY KEY AUTOINCREMENT,
+			id TEXT UNIQUE NOT NULL,
+			session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+			run_id TEXT NOT NULL DEFAULT '',
+			event_type TEXT NOT NULL,
+			source TEXT NOT NULL DEFAULT '',
+			actor TEXT NOT NULL DEFAULT '',
+			capability TEXT NOT NULL,
+			old_value TEXT NOT NULL DEFAULT '',
+			new_value TEXT NOT NULL DEFAULT '',
+			timestamp TEXT NOT NULL,
+			data TEXT NOT NULL DEFAULT '{}'
+		);
+		CREATE INDEX IF NOT EXISTS idx_session_capability_events_session_id ON session_capability_events(session_id);
+		CREATE INDEX IF NOT EXISTS idx_session_capability_events_run_id ON session_capability_events(run_id);
+		CREATE INDEX IF NOT EXISTS idx_session_capability_events_capability ON session_capability_events(capability);`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

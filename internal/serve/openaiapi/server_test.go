@@ -2547,7 +2547,7 @@ func TestAPISessionAppliesPerSessionToolOptions(t *testing.T) {
 		A2AMaster:  &enabled,
 		Delegate:   &enabled,
 		MultiAgent: &enabled,
-	}); err != nil {
+	}, ""); err != nil {
 		t.Fatalf("apply enable options: %v", err)
 	}
 	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn"} {
@@ -2566,7 +2566,7 @@ func TestAPISessionAppliesPerSessionToolOptions(t *testing.T) {
 		A2AMaster:  &disabled,
 		Delegate:   &disabled,
 		MultiAgent: &disabled,
-	}); err != nil {
+	}, ""); err != nil {
 		t.Fatalf("apply disable options: %v", err)
 	}
 	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn"} {
@@ -2668,6 +2668,96 @@ func TestSessionCapabilitiesGetAndPatch(t *testing.T) {
 		if _, ok := restored.Registry.Get(name); !ok {
 			t.Fatalf("expected restored %s tool to be registered", name)
 		}
+	}
+}
+
+func TestSessionCapabilityEventsRecordedForPatchAndXTools(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	mgr := session.New(workDir, srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("cap-events-sess"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	mode := "agent"
+	enabled := true
+	if _, err := srv.PatchSessionCapabilities("cap-events-sess", SessionCapabilityPatch{
+		Mode:    &mode,
+		Browser: &enabled,
+	}); err != nil {
+		t.Fatalf("PatchSessionCapabilities: %v", err)
+	}
+	sess := srv.pool.GetForWorkDir(workDir, "cap-events-sess")
+	if sess == nil {
+		t.Fatal("expected active session")
+	}
+	disabled := false
+	if err := srv.applySessionToolOptions(sess, &SessionToolOptions{
+		Browser: &disabled,
+	}, "run-xtools"); err != nil {
+		t.Fatalf("applySessionToolOptions: %v", err)
+	}
+
+	events, err := session.ListSessionCapabilityEvents(srv.settings.GetSessionDir(), "cap-events-sess")
+	if err != nil {
+		t.Fatalf("ListSessionCapabilityEvents: %v", err)
+	}
+	if len(events) < 3 {
+		t.Fatalf("capability events len = %d, want at least 3: %#v", len(events), events)
+	}
+	var sawPatchMode, sawPatchBrowser, sawXToolsBrowser bool
+	for _, ev := range events {
+		if ev.Source == "api_patch" && ev.Capability == "mode" && ev.OldValue == "" && ev.NewValue == "agent" {
+			sawPatchMode = true
+		}
+		if ev.Source == "api_patch" && ev.Capability == "browser" && ev.OldValue == "false" && ev.NewValue == "true" {
+			sawPatchBrowser = true
+		}
+		if ev.Source == "x_tools" && ev.RunID == "run-xtools" && ev.Capability == "browser" && ev.OldValue == "true" && ev.NewValue == "false" {
+			sawXToolsBrowser = true
+		}
+	}
+	if !sawPatchMode || !sawPatchBrowser || !sawXToolsBrowser {
+		t.Fatalf("missing expected capability events: patchMode=%v patchBrowser=%v xToolsBrowser=%v events=%#v",
+			sawPatchMode, sawPatchBrowser, sawXToolsBrowser, events)
+	}
+}
+
+func TestChatCompletionsRecordsRunEvents(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	body := `{"messages":[{"role":"user","content":"/status"}],"stream":false}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var resp ChatCompletionResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.XSessionID == "" {
+		t.Fatal("expected session id")
+	}
+	events, err := session.ListSessionRunEvents(srv.settings.GetSessionDir(), resp.XSessionID)
+	if err != nil {
+		t.Fatalf("ListSessionRunEvents: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("run events len = %d, want 2: %#v", len(events), events)
+	}
+	if events[0].EventType != "started" || events[0].Status != "running" || events[0].RunID == "" {
+		t.Fatalf("started event = %#v", events[0])
+	}
+	if events[1].EventType != "finished" || events[1].Status != "completed" || events[1].RunID != events[0].RunID {
+		t.Fatalf("finished event = %#v after %#v", events[1], events[0])
+	}
+	if !strings.Contains(string(events[0].Data), `"/status"`) {
+		t.Fatalf("started event data should include command: %s", events[0].Data)
 	}
 }
 

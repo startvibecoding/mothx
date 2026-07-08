@@ -1087,6 +1087,8 @@ func DeleteSession(path string, sessionDir string) error {
 			}
 		}
 		if db != nil {
+			_, _ = db.Exec("DELETE FROM session_run_events WHERE session_id = ?", sessionID)
+			_, _ = db.Exec("DELETE FROM session_capability_events WHERE session_id = ?", sessionID)
 			_, _ = db.Exec("DELETE FROM session_capabilities WHERE session_id = ?", sessionID)
 			_, _ = db.Exec("DELETE FROM entries WHERE session_id = ?", sessionID)
 			_, _ = db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
@@ -1119,6 +1121,35 @@ type SessionCapabilities struct {
 	Browser      bool
 	A2AMaster    bool
 	UpdatedAt    time.Time
+}
+
+// SessionRunEvent records one lifecycle event for a single chat/run execution.
+type SessionRunEvent struct {
+	ID        string
+	SessionID string
+	RunID     string
+	EventType string
+	Source    string
+	Status    string
+	Model     string
+	Mode      string
+	Timestamp time.Time
+	Data      json.RawMessage
+}
+
+// SessionCapabilityEvent records one capability state transition.
+type SessionCapabilityEvent struct {
+	ID         string
+	SessionID  string
+	RunID      string
+	EventType  string
+	Source     string
+	Actor      string
+	Capability string
+	OldValue   string
+	NewValue   string
+	Timestamp  time.Time
+	Data       json.RawMessage
 }
 
 // LoadSessionCapabilities loads persisted capabilities for a session.
@@ -1200,6 +1231,182 @@ func SaveSessionCapabilities(sessionDir string, caps SessionCapabilities) error 
 		)
 		return err
 	})
+}
+
+// SaveSessionRunEvent appends a run lifecycle event to the independent run event table.
+func SaveSessionRunEvent(sessionDir string, ev SessionRunEvent) (string, error) {
+	if ev.SessionID == "" {
+		return "", fmt.Errorf("session run event session ID is empty")
+	}
+	if ev.RunID == "" {
+		return "", fmt.Errorf("session run event run ID is empty")
+	}
+	if ev.EventType == "" {
+		return "", fmt.Errorf("session run event type is empty")
+	}
+	if ev.ID == "" {
+		ev.ID = GenerateID()
+	}
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = time.Now()
+	}
+	if sessionDir == "" {
+		sessionDir = platform.SessionDir()
+	}
+	m := &Manager{file: filepath.Join(sessionDir, ev.SessionID+".db"), sessionDir: sessionDir}
+	data := normalizeEventData(ev.Data)
+	return ev.ID, m.withDB(func(db *sql.DB) error {
+		_, err := db.Exec(`INSERT INTO session_run_events
+			(id, session_id, run_id, event_type, source, status, model, mode, timestamp, data)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ev.ID,
+			ev.SessionID,
+			ev.RunID,
+			ev.EventType,
+			ev.Source,
+			ev.Status,
+			ev.Model,
+			ev.Mode,
+			ev.Timestamp.Format(time.RFC3339Nano),
+			data,
+		)
+		return err
+	})
+}
+
+// ListSessionRunEvents returns run events for a session, ordered by insertion.
+func ListSessionRunEvents(sessionDir, sessionID string) ([]SessionRunEvent, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT id, session_id, run_id, event_type, source, status, model, mode, timestamp, data
+		FROM session_run_events WHERE session_id = ? ORDER BY seq ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []SessionRunEvent
+	for rows.Next() {
+		var ev SessionRunEvent
+		var timestamp string
+		var data string
+		if err := rows.Scan(
+			&ev.ID,
+			&ev.SessionID,
+			&ev.RunID,
+			&ev.EventType,
+			&ev.Source,
+			&ev.Status,
+			&ev.Model,
+			&ev.Mode,
+			&timestamp,
+			&data,
+		); err != nil {
+			return nil, err
+		}
+		ev.Timestamp = parseSessionTimestamp(timestamp)
+		ev.Data = json.RawMessage(data)
+		events = append(events, ev)
+	}
+	return events, rows.Err()
+}
+
+// SaveSessionCapabilityEvent appends a capability transition event to the independent event table.
+func SaveSessionCapabilityEvent(sessionDir string, ev SessionCapabilityEvent) (string, error) {
+	if ev.SessionID == "" {
+		return "", fmt.Errorf("session capability event session ID is empty")
+	}
+	if ev.EventType == "" {
+		return "", fmt.Errorf("session capability event type is empty")
+	}
+	if ev.Capability == "" {
+		return "", fmt.Errorf("session capability event capability is empty")
+	}
+	if ev.ID == "" {
+		ev.ID = GenerateID()
+	}
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = time.Now()
+	}
+	if sessionDir == "" {
+		sessionDir = platform.SessionDir()
+	}
+	m := &Manager{file: filepath.Join(sessionDir, ev.SessionID+".db"), sessionDir: sessionDir}
+	data := normalizeEventData(ev.Data)
+	return ev.ID, m.withDB(func(db *sql.DB) error {
+		_, err := db.Exec(`INSERT INTO session_capability_events
+			(id, session_id, run_id, event_type, source, actor, capability, old_value, new_value, timestamp, data)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ev.ID,
+			ev.SessionID,
+			ev.RunID,
+			ev.EventType,
+			ev.Source,
+			ev.Actor,
+			ev.Capability,
+			ev.OldValue,
+			ev.NewValue,
+			ev.Timestamp.Format(time.RFC3339Nano),
+			data,
+		)
+		return err
+	})
+}
+
+// ListSessionCapabilityEvents returns capability events for a session, ordered by insertion.
+func ListSessionCapabilityEvents(sessionDir, sessionID string) ([]SessionCapabilityEvent, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT id, session_id, run_id, event_type, source, actor, capability, old_value, new_value, timestamp, data
+		FROM session_capability_events WHERE session_id = ? ORDER BY seq ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []SessionCapabilityEvent
+	for rows.Next() {
+		var ev SessionCapabilityEvent
+		var timestamp string
+		var data string
+		if err := rows.Scan(
+			&ev.ID,
+			&ev.SessionID,
+			&ev.RunID,
+			&ev.EventType,
+			&ev.Source,
+			&ev.Actor,
+			&ev.Capability,
+			&ev.OldValue,
+			&ev.NewValue,
+			&timestamp,
+			&data,
+		); err != nil {
+			return nil, err
+		}
+		ev.Timestamp = parseSessionTimestamp(timestamp)
+		ev.Data = json.RawMessage(data)
+		events = append(events, ev)
+	}
+	return events, rows.Err()
+}
+
+func normalizeEventData(data json.RawMessage) string {
+	if len(data) == 0 {
+		return "{}"
+	}
+	if !json.Valid(data) {
+		return "{}"
+	}
+	return string(data)
 }
 
 func boolToInt(v bool) int {

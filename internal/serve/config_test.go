@@ -21,6 +21,8 @@ type fakeActiveSessionManager struct {
 	sessions     []openaiapi.ActiveSessionInfo
 	messages     []openaiapi.SessionMessageEntry
 	toolResult   *openaiapi.SessionToolResultDetail
+	runEvents    []openaiapi.SessionRunEventEntry
+	capEvents    []openaiapi.SessionCapabilityEventEntry
 	overview     openaiapi.CapabilityOverview
 	caps         *openaiapi.SessionCapabilities
 	patch        openaiapi.SessionCapabilityPatch
@@ -47,6 +49,14 @@ func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]openaiapi.Se
 func (f *fakeActiveSessionManager) GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error) {
 	f.toolResultID = toolCallID
 	return f.toolResult, f.err
+}
+
+func (f *fakeActiveSessionManager) GetSessionRunEvents(id string) ([]openaiapi.SessionRunEventEntry, error) {
+	return append([]openaiapi.SessionRunEventEntry(nil), f.runEvents...), f.err
+}
+
+func (f *fakeActiveSessionManager) GetSessionCapabilityEvents(id string) ([]openaiapi.SessionCapabilityEventEntry, error) {
+	return append([]openaiapi.SessionCapabilityEventEntry(nil), f.capEvents...), f.err
 }
 
 func (f *fakeActiveSessionManager) CapabilityOverview() openaiapi.CapabilityOverview {
@@ -788,6 +798,59 @@ func TestHandleSessionByID_ReturnsToolResultDetail(t *testing.T) {
 	}
 	if got.ToolCallID != "call-1" || got.Content != "full output" {
 		t.Fatalf("detail = %#v", got)
+	}
+}
+
+func TestHandleSessionByID_ReturnsRunEvents(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		runEvents: []openaiapi.SessionRunEventEntry{
+			{ID: "evt-1", SessionID: "s1", RunID: "run-1", EventType: "started", Status: "running"},
+			{ID: "evt-2", SessionID: "s1", RunID: "run-1", EventType: "finished", Status: "completed"},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/s1/run-events", nil)
+	w := httptest.NewRecorder()
+	rt.handleSessionByID(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Events []openaiapi.SessionRunEventEntry `json:"events"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got.Events) != 2 || got.Events[0].RunID != "run-1" || got.Events[1].EventType != "finished" {
+		t.Fatalf("events = %#v", got.Events)
+	}
+}
+
+func TestHandleSessionByID_ReturnsCapabilityEvents(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		capEvents: []openaiapi.SessionCapabilityEventEntry{
+			{ID: "evt-1", SessionID: "s1", RunID: "run-1", EventType: "changed", Capability: "browser", OldValue: "false", NewValue: "true"},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/s1/capability-events", nil)
+	w := httptest.NewRecorder()
+	rt.handleSessionByID(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Events []openaiapi.SessionCapabilityEventEntry `json:"events"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got.Events) != 1 || got.Events[0].Capability != "browser" || got.Events[0].NewValue != "true" {
+		t.Fatalf("events = %#v", got.Events)
 	}
 }
 

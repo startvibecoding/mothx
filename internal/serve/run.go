@@ -70,6 +70,8 @@ type activeSessionManager interface {
 	DeleteActiveSession(id string) (bool, error)
 	GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error)
 	GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error)
+	GetSessionRunEvents(id string) ([]openaiapi.SessionRunEventEntry, error)
+	GetSessionCapabilityEvents(id string) ([]openaiapi.SessionCapabilityEventEntry, error)
 	CapabilityOverview() openaiapi.CapabilityOverview
 	GetSessionCapabilities(id string) (*openaiapi.SessionCapabilities, error)
 	PatchSessionCapabilities(id string, patch openaiapi.SessionCapabilityPatch) (*openaiapi.SessionCapabilities, error)
@@ -706,6 +708,48 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 				return
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "run-events" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			events, err := sessions.GetSessionRunEvents(id)
+			if errors.Is(err, openaiapi.ErrSessionNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"events": events})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "capability-events" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			events, err := sessions.GetSessionCapabilityEvents(id)
+			if errors.Is(err, openaiapi.ErrSessionNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"events": events})
 			return
 		}
 		if len(parts) == 3 && parts[1] == "tool-results" {

@@ -14,6 +14,8 @@
     refreshSessions,
     getSessionMessages,
     getSessionToolResult,
+    getSessionRunEvents,
+    getSessionCapabilityEvents,
     sessionToolOptions,
     sessionToolsFor,
     setSessionTools,
@@ -28,6 +30,8 @@
   let busy = false;
   let chatAbort = null;
   let chatEvents = [];
+  let sessionRunEvents = [];
+  let sessionCapabilityEvents = [];
   let workDir = '';
   let sessionCreated = false;
   let showBrowser = false;
@@ -75,6 +79,8 @@
         workDir = '';
         messages = []; // new chat — no history
         chatEvents = []; // reset tool events
+        sessionRunEvents = [];
+        sessionCapabilityEvents = [];
         shouldFollowOutput = true;
       } else if (busy) {
         // The first streaming chunk can assign the newly-created session ID.
@@ -99,6 +105,7 @@
         messages = [];
       }
       chatEvents = []; // reset tool events for new session view
+      await loadSessionEvents(id);
       scrollChatToBottom({ force: true });
     } catch {
       if (id !== $currentSession) return;
@@ -111,6 +118,7 @@
   $: sessionToolKey = $currentSession || '__new__';
   $: sessionTools = sessionToolsFor($sessionToolOptions, sessionToolKey, activeSession || $features);
   $: recentTools = chatEvents.slice(-6).reverse();
+  $: recentSessionEvents = buildRecentSessionEvents(sessionRunEvents, sessionCapabilityEvents);
   $: modelOptions = $models;
   $: activeModel = modelOptions.find((m) => m.id === $selectedModel);
   $: selectedModelSupportsImages = (activeModel?.input || []).includes('image');
@@ -261,6 +269,7 @@
       );
       if (targetSession === $currentSession) {
         setSessionTools(targetSession, updated);
+        await loadSessionEvents(targetSession);
       }
       await refreshSessions();
     } catch (err) {
@@ -334,6 +343,68 @@
     if (!bytes) return '';
     if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  async function loadSessionEvents(id) {
+    if (!id) {
+      sessionRunEvents = [];
+      sessionCapabilityEvents = [];
+      return;
+    }
+    try {
+      const [runs, caps] = await Promise.all([
+        getSessionRunEvents(id),
+        getSessionCapabilityEvents(id)
+      ]);
+      if (id !== $currentSession) return;
+      sessionRunEvents = runs || [];
+      sessionCapabilityEvents = caps || [];
+    } catch {
+      if (id !== $currentSession) return;
+      sessionRunEvents = [];
+      sessionCapabilityEvents = [];
+    }
+  }
+
+  function buildRecentSessionEvents(runEvents = [], capabilityEvents = []) {
+    const items = [
+      ...runEvents.map((event) => ({ kind: 'run', ...event })),
+      ...capabilityEvents.map((event) => ({ kind: 'capability', ...event }))
+    ];
+    return items
+      .sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''))
+      .slice(0, 8);
+  }
+
+  function sessionEventTitle(event) {
+    if (event.kind === 'capability') {
+      return `${event.capability || 'capability'}: ${event.oldValue || '""'} -> ${event.newValue || '""'}`;
+    }
+    return `${event.eventType || 'run'}${event.status ? ` · ${event.status}` : ''}`;
+  }
+
+  function sessionEventMeta(event) {
+    const parts = [];
+    if (event.kind === 'run' && event.runId) parts.push(shortID(event.runId));
+    if (event.kind === 'capability' && event.source) parts.push(event.source);
+    if (event.kind === 'run' && event.model) parts.push(event.model);
+    const ts = formatEventTime(event.timestamp);
+    if (ts) parts.push(ts);
+    return parts.join(' · ');
+  }
+
+  function sessionEventClass(event) {
+    if (event.kind === 'capability') return 'done';
+    if (event.status === 'failed' || event.eventType === 'failed') return 'error';
+    if (event.status === 'running' || event.eventType === 'started') return 'running';
+    return 'done';
+  }
+
+  function formatEventTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
   function normalizeSessionMessage(message) {
@@ -505,6 +576,28 @@
         invalidArguments
       };
     }
+    if (name === 'find') {
+      const details = [];
+      if (value.path) details.push($t('chat.tool.find.path', { path: value.path }));
+      if (value.maxDepth !== undefined && value.maxDepth !== null) {
+        details.push($t('chat.tool.find.maxDepth', { depth: value.maxDepth }));
+      }
+      if (value.maxResults !== undefined && value.maxResults !== null) {
+        details.push($t('chat.tool.find.maxResults', { count: value.maxResults }));
+      }
+      return {
+        kind: 'find',
+        label: $t('chat.tool.find.label'),
+        target: value.pattern || $t('chat.tool.find.missing'),
+        details,
+        pattern: value.pattern || '',
+        path: value.path || '.',
+        maxDepth: value.maxDepth ?? '',
+        maxResults: value.maxResults ?? '',
+        raw: args,
+        invalidArguments
+      };
+    }
     if (name === 'bash') {
       const details = [];
       if (value.async) details.push($t('chat.tool.bash.async'));
@@ -516,6 +609,51 @@
         label: $t('chat.tool.bash.label'),
         target: value.command || $t('chat.tool.bash.missing'),
         details,
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'edit') {
+      const edits = Array.isArray(value.edits)
+        ? value.edits
+          .filter(isPlainObject)
+          .map((item, index) => {
+            const oldText = String(item.oldText ?? '');
+            const newText = String(item.newText ?? '');
+            return {
+              index: index + 1,
+              oldText,
+              newText,
+              oldLines: countTextLines(oldText),
+              newLines: countTextLines(newText)
+            };
+          })
+        : [];
+      return {
+        kind: 'edit',
+        label: $t('chat.tool.edit.label'),
+        target: value.path || $t('chat.tool.edit.missing'),
+        details: [edits.length === 1 ? $t('chat.tool.edit.oneEdit') : $t('chat.tool.edit.manyEdits', { count: edits.length })],
+        edits,
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'write') {
+      const content = typeof value.content === 'string' ? value.content : '';
+      const lines = countTextLines(content);
+      const chars = content.length;
+      return {
+        kind: 'write',
+        label: $t('chat.tool.write.label'),
+        target: value.path || $t('chat.tool.write.missing'),
+        details: [
+          $t('chat.tool.write.lines', { count: lines }),
+          $t('chat.tool.write.chars', { count: chars })
+        ],
+        content,
+        lines,
+        chars,
         raw: args,
         invalidArguments
       };
@@ -532,6 +670,11 @@
 
   function isPlainObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function countTextLines(text = '') {
+    if (!text) return 0;
+    return String(text).split('\n').length;
   }
 
   function toolResultKind(toolName, content) {
@@ -910,6 +1053,60 @@
                     {/each}
                   </div>
                 {/if}
+                {#if msg.callView?.kind === 'edit' && msg.callView.edits?.length}
+                  <div class="edit-call">
+                    {#each msg.callView.edits as edit}
+                      <section class="edit-block">
+                        <div class="edit-block-head">
+                          <strong>{$t('chat.tool.edit.editNumber', { number: edit.index })}</strong>
+                          <span>{$t('chat.tool.edit.lineChange', { old: edit.oldLines, next: edit.newLines })}</span>
+                        </div>
+                        <div class="edit-columns">
+                          <div class="edit-pane old">
+                            <span>{$t('chat.tool.edit.oldText')}</span>
+                            <pre class:empty={edit.oldText === ''}>{edit.oldText || $t('chat.tool.edit.empty')}</pre>
+                          </div>
+                          <div class="edit-pane new">
+                            <span>{$t('chat.tool.edit.newText')}</span>
+                            <pre class:empty={edit.newText === ''}>{edit.newText || $t('chat.tool.edit.empty')}</pre>
+                          </div>
+                        </div>
+                      </section>
+                    {/each}
+                  </div>
+                {:else if msg.callView?.kind === 'write'}
+                  <div class="write-call">
+                    <div class="write-call-head">
+                      <strong>{$t('chat.tool.write.preview')}</strong>
+                      <span>{$t('chat.tool.write.summary', { lines: msg.callView.lines, chars: msg.callView.chars })}</span>
+                    </div>
+                    <span>{$t('chat.tool.write.content')}</span>
+                    <pre class:empty={msg.callView.content === ''}>{msg.callView.content || $t('chat.tool.edit.empty')}</pre>
+                  </div>
+                {:else if msg.callView?.kind === 'find'}
+                  <div class="find-call">
+                    <div class="find-row">
+                      <span>{$t('chat.tool.find.pattern')}</span>
+                      <code>{msg.callView.pattern || $t('chat.tool.find.missing')}</code>
+                    </div>
+                    <div class="find-row">
+                      <span>{$t('chat.tool.find.searchPath')}</span>
+                      <code>{msg.callView.path}</code>
+                    </div>
+                    {#if msg.callView.maxDepth !== ''}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.find.depth')}</span>
+                        <code>{msg.callView.maxDepth}</code>
+                      </div>
+                    {/if}
+                    {#if msg.callView.maxResults !== ''}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.find.resultLimit')}</span>
+                        <code>{msg.callView.maxResults}</code>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
                 {#if msg.callView?.kind !== 'generic' && msg.arguments}
                   <details class="tool-raw">
                     <summary>{$t('chat.argsJson')}</summary>
@@ -1030,6 +1227,23 @@
                   <pre>{formatArgs(item.args)}</pre>
                 {:else if item.raw}
                   <pre>{item.raw}</pre>
+                {/if}
+              </details>
+            {/each}
+          </aside>
+        {/if}
+        {#if recentSessionEvents.length > 0}
+          <aside class="tool-feed session-events">
+            <div class="tf-head"><span>{$t('chat.sessionEvents')}</span><strong>{sessionRunEvents.length + sessionCapabilityEvents.length}</strong></div>
+            {#each recentSessionEvents as item}
+              <details class="tool-item" open={item.kind === 'run' && item.status === 'running'}>
+                <summary>
+                  <span class="dot {sessionEventClass(item)}"></span>
+                  <strong>{sessionEventTitle(item)}</strong>
+                  <em>{sessionEventMeta(item)}</em>
+                </summary>
+                {#if item.data && Object.keys(item.data).length > 0}
+                  <pre>{formatArgs(item.data)}</pre>
                 {/if}
               </details>
             {/each}
