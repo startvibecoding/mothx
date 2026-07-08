@@ -13,6 +13,7 @@ import (
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/messaging/wechat"
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
+	"github.com/startvibecoding/mothx/internal/stats"
 	webui "github.com/startvibecoding/mothx/ui"
 )
 
@@ -217,7 +219,8 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 		cfg.Features.WebUI = true
 	}
 	if opts.WorkDir != "" {
-		cfg.API.WorkingDir = opts.WorkDir
+		cfg.API.DefaultWorkDir = opts.WorkDir
+		cfg.API.WorkingDir = ""
 	}
 	if opts.Provider != "" {
 		cfg.API.Provider = opts.Provider
@@ -482,6 +485,7 @@ func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *htt
 		mux.HandleFunc("/api/capabilities", rt.handleCapabilities(sessions))
 		mux.HandleFunc("/api/sessions", rt.handleSessions(sessions))
 		mux.HandleFunc("/api/sessions/", rt.handleSessionByID(sessions))
+		mux.HandleFunc("/api/stats/", rt.handleStats(srv.SessionDir()))
 		mux.HandleFunc("/api/settings", rt.handleSettings)
 		mux.HandleFunc("/api/memory", rt.handleMemory)
 		mux.HandleFunc("/api/cron", rt.handleCron)
@@ -499,6 +503,127 @@ func activeSessionManagerFromAPI(srv *openaiapi.Server) activeSessionManager {
 		return nil
 	}
 	return srv
+}
+
+func (rt *channelRuntime) handleStats(sessionDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		endpoint := strings.TrimPrefix(r.URL.Path, "/api/stats/")
+		if endpoint == "" {
+			endpoint = "summary"
+		}
+		if sessionDir == "" {
+			rt.writeEmptyStatsResponse(w, endpoint)
+			return
+		}
+		dbPath := filepath.Join(sessionDir, "sessions.db")
+		if _, err := os.Stat(dbPath); err != nil {
+			if os.IsNotExist(err) {
+				rt.writeEmptyStatsResponse(w, endpoint)
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		db, err := stats.Open(dbPath)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		defer db.Close()
+
+		q := parseStatsQuery(r)
+		switch endpoint {
+		case "summary":
+			summary, err := db.Summary(q)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, summary)
+		case "timeseries":
+			data, err := db.TimeSeries(q)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, data)
+		case "by-provider":
+			data, err := db.ByProvider(q)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, data)
+		case "by-model":
+			data, err := db.ByModel(q)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, data)
+		case "recent":
+			page := parsePositiveInt(r.URL.Query().Get("page"), 1)
+			pageSize := parsePositiveInt(r.URL.Query().Get("pageSize"), 20)
+			data, err := db.RecentFiltered(q, page, pageSize)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, data)
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown stats endpoint"})
+		}
+	}
+}
+
+func (rt *channelRuntime) writeEmptyStatsResponse(w http.ResponseWriter, endpoint string) {
+	switch endpoint {
+	case "summary", "":
+		writeJSON(w, http.StatusOK, stats.Summary{})
+	case "timeseries", "by-provider", "by-model":
+		writeJSON(w, http.StatusOK, []stats.Aggregate{})
+	case "recent":
+		writeJSON(w, http.StatusOK, stats.RecentPage{Items: []stats.StatsEntry{}, Page: 1, PageSize: 20})
+	default:
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown stats endpoint"})
+	}
+}
+
+func parseStatsQuery(r *http.Request) stats.Query {
+	q := stats.Query{GroupBy: "day"}
+	values := r.URL.Query()
+	if from := values.Get("from"); from != "" {
+		if t, err := time.Parse("2006-01-02", from); err == nil {
+			q.From = t
+		}
+	}
+	if to := values.Get("to"); to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			q.To = t.Add(24 * time.Hour)
+		}
+	}
+	q.Vendor = values.Get("vendor")
+	q.Protocol = values.Get("protocol")
+	q.Model = values.Get("model")
+	if groupBy := values.Get("groupBy"); groupBy != "" {
+		q.GroupBy = groupBy
+	}
+	return q
+}
+
+func parsePositiveInt(value string, fallback int) int {
+	if value == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
 }
 
 func (rt *channelRuntime) handleServeConfig(path string) http.HandlerFunc {
@@ -692,6 +817,25 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 				w.WriteHeader(http.StatusMethodNotAllowed)
 				return
 			}
+		}
+		if len(parts) == 2 && parts[1] == "stream" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			streamer, ok := sessions.(interface {
+				StreamSession(http.ResponseWriter, *http.Request, string)
+			})
+			if !ok {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "session stream is unavailable"})
+				return
+			}
+			streamer.StreamSession(w, r, id)
+			return
 		}
 		if len(parts) == 2 && parts[1] == "messages" {
 			if r.Method != http.MethodGet {
@@ -1048,7 +1192,7 @@ func (rt *channelRuntime) browseAllowedRoots() ([]string, error) {
 	} else if len(rt.cfg.Security.AllowedWorkDirs) > 0 {
 		configured = append(configured, rt.cfg.Security.AllowedWorkDirs...)
 	} else {
-		configured = []string{rt.cfg.API.GetWorkDir()}
+		configured = []string{browseFilesystemRoot(rt.browseDefaultDir())}
 	}
 	if len(configured) == 0 {
 		return nil, fmt.Errorf("directory browsing is disabled")
@@ -1072,6 +1216,18 @@ func (rt *channelRuntime) browseAllowedRoots() ([]string, error) {
 		return nil, fmt.Errorf("directory browsing is disabled")
 	}
 	return roots, nil
+}
+
+func browseFilesystemRoot(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil || abs == "" {
+		abs = string(filepath.Separator)
+	}
+	volume := filepath.VolumeName(abs)
+	if volume != "" {
+		return filepath.Clean(volume + string(filepath.Separator))
+	}
+	return string(filepath.Separator)
 }
 
 func pathWithinAnyRoot(path string, roots []string) bool {

@@ -61,10 +61,19 @@ type Server struct {
 	sandboxMgr   *sandbox.Manager
 	skillsMgr    *skills.Manager
 	pool         *SessionPool
+	streamHub    *sessionStreamHub
 
 	extraContext      string
 	defaultSessionIDs map[string]string // key: workDir, used when x_session_id is empty
 	sessionCreateMu   sync.Mutex
+}
+
+// SessionDir returns the configured root directory that contains sessions.db.
+func (s *Server) SessionDir() string {
+	if s == nil || s.settings == nil {
+		return ""
+	}
+	return s.settings.GetSessionDir()
 }
 
 // Run starts the OpenAI-compatible API server.
@@ -168,6 +177,7 @@ func Run(opts RunOptions, version string) error {
 		sandboxMgr:        sbMgr,
 		skillsMgr:         skillsMgr,
 		pool:              pool,
+		streamHub:         newSessionStreamHub(),
 		extraContext:      extraContext,
 		defaultSessionIDs: make(map[string]string),
 	}
@@ -298,7 +308,8 @@ func applyRunOverrides(cfg *Config, opts RunOptions) {
 		cfg.Sandbox.Enabled = true
 	}
 	if opts.WorkDir != "" {
-		cfg.WorkingDir = opts.WorkDir
+		cfg.DefaultWorkDir = opts.WorkDir
+		cfg.WorkingDir = ""
 	}
 }
 

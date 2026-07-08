@@ -3,7 +3,8 @@
   import { putJSON } from '../../lib/api.js';
   import { t } from '../../lib/preferences.js';
 
-  let workingDir = '';
+  let defaultWorkDir = '';
+  let restrictWorkDirs = false;
   let allowedWorkDirs = [];
 
   $: parseConfig($serveConfig);
@@ -11,16 +12,38 @@
   function parseConfig(raw) {
     try {
       const cfg = JSON.parse(raw);
-      workingDir = cfg?.gateway?.workingDir || '';
-      const rawDirs = cfg?.gateway?.allowedWorkDirs;
+      defaultWorkDir = readDefaultWorkDir(cfg);
+      const rawDirs = readAllowedWorkDirs(cfg);
+      restrictWorkDirs = Array.isArray(rawDirs);
       allowedWorkDirs = Array.isArray(rawDirs) ? [...rawDirs] : [];
     } catch {
-      workingDir = '';
+      defaultWorkDir = '';
+      restrictWorkDirs = false;
       allowedWorkDirs = [];
     }
   }
 
+  function readDefaultWorkDir(cfg) {
+    for (const source of [cfg, cfg?.api, cfg?.gateway]) {
+      if (!source || typeof source !== 'object') continue;
+      const value = source.defaultWorkDir || source.workDir || source.workingDir;
+      if (value) return value;
+    }
+    return '';
+  }
+
+  function readAllowedWorkDirs(cfg) {
+    for (const source of [cfg, cfg?.api, cfg?.gateway]) {
+      if (!source || typeof source !== 'object') continue;
+      if (Object.prototype.hasOwnProperty.call(source, 'allowedWorkDirs')) {
+        return source.allowedWorkDirs;
+      }
+    }
+    return undefined;
+  }
+
   function addAllowed() {
+    restrictWorkDirs = true;
     allowedWorkDirs = [...allowedWorkDirs, ''];
   }
 
@@ -32,16 +55,37 @@
     clearBanners();
     try {
       const cfg = JSON.parse($serveConfig);
-      if (!cfg.gateway) cfg.gateway = {};
-      cfg.gateway.workingDir = workingDir.trim();
+      const nextDefaultWorkDir = defaultWorkDir.trim();
+      if (nextDefaultWorkDir) cfg.defaultWorkDir = nextDefaultWorkDir;
+      else delete cfg.defaultWorkDir;
+      delete cfg.workDir;
+      clearLegacyWorkDirFields(cfg.api);
+      clearLegacyWorkDirFields(cfg.gateway);
+
       const filtered = allowedWorkDirs.map((d) => d.trim()).filter(Boolean);
-      cfg.gateway.allowedWorkDirs = filtered.length > 0 ? filtered : undefined;
+      if (restrictWorkDirs) cfg.allowedWorkDirs = filtered;
+      else delete cfg.allowedWorkDirs;
+      clearAllowedWorkDirs(cfg.api);
+      clearAllowedWorkDirs(cfg.gateway);
+
       const saved = await putJSON('/api/serve/config', cfg);
       serveConfig.set(JSON.stringify(saved, null, 2));
       setNotice($t('settings.workdir.saved'));
     } catch (err) {
       setError(err);
     }
+  }
+
+  function clearLegacyWorkDirFields(source) {
+    if (!source || typeof source !== 'object') return;
+    delete source.defaultWorkDir;
+    delete source.workDir;
+    delete source.workingDir;
+  }
+
+  function clearAllowedWorkDirs(source) {
+    if (!source || typeof source !== 'object') return;
+    delete source.allowedWorkDirs;
   }
 
   function handleKeydown(event) {
@@ -64,7 +108,7 @@
     <label>
       <span>{$t('settings.workdir.default')}</span>
       <input
-        bind:value={workingDir}
+        bind:value={defaultWorkDir}
         on:keydown={handleKeydown}
         placeholder="/home/user/projects"
       />
@@ -85,9 +129,21 @@
     </div>
   </div>
   <div class="form-body">
-    {#if allowedWorkDirs.length === 0}
+    <label class="checkbox-row">
+      <input type="checkbox" bind:checked={restrictWorkDirs} />
+      <span>{$t('settings.workdir.restrict')}</span>
+    </label>
+    <p class="hint">
+      {$t('settings.workdir.restrictHint')}
+    </p>
+
+    {#if !restrictWorkDirs}
       <p class="empty">
         {$t('settings.workdir.noWhitelist')}
+      </p>
+    {:else if allowedWorkDirs.length === 0}
+      <p class="empty">
+        {$t('settings.workdir.denyAll')}
       </p>
     {:else}
       <div class="dir-list">

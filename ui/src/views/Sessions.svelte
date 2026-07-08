@@ -19,7 +19,7 @@
 
   function open(id) {
     currentSession.set(id);
-    navigate('/chat');
+    navigate(id ? `/chat?session=${encodeURIComponent(id)}` : '/chat');
   }
 
   async function remove(id) {

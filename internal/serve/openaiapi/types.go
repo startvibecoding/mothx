@@ -184,6 +184,8 @@ type CompletionUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
 // XToolCall is a VibeCoding extension for exposing tool call info.
@@ -231,6 +233,7 @@ type TranscriptStreamEvent struct {
 
 // SessionRunEventEntry is the Web/API view of a run lifecycle event.
 type SessionRunEventEntry struct {
+	Seq       int64          `json:"seq,omitempty"`
 	ID        string         `json:"id"`
 	SessionID string         `json:"sessionId"`
 	RunID     string         `json:"runId"`
@@ -245,6 +248,7 @@ type SessionRunEventEntry struct {
 
 // SessionCapabilityEventEntry is the Web/API view of a capability transition.
 type SessionCapabilityEventEntry struct {
+	Seq        int64          `json:"seq,omitempty"`
 	ID         string         `json:"id"`
 	SessionID  string         `json:"sessionId"`
 	RunID      string         `json:"runId,omitempty"`

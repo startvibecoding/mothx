@@ -90,6 +90,18 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestGetWorkDirPrefersDefaultWorkDir(t *testing.T) {
+	cfg := &Config{DefaultWorkDir: "/tmp/default", WorkingDir: "/tmp/legacy"}
+	if got := cfg.GetWorkDir(); got != "/tmp/default" {
+		t.Fatalf("GetWorkDir() = %q, want /tmp/default", got)
+	}
+
+	cfg.DefaultWorkDir = ""
+	if got := cfg.GetWorkDir(); got != "/tmp/legacy" {
+		t.Fatalf("legacy GetWorkDir() = %q, want /tmp/legacy", got)
+	}
+}
+
 func TestValidateWorkDir(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -162,7 +174,7 @@ func TestApplyRunOverrides(t *testing.T) {
 	cfg.EnableDelegate = false
 	cfg.EnableWorkflows = false
 	cfg.Sandbox.Enabled = false
-	cfg.WorkingDir = "/tmp/original"
+	cfg.DefaultWorkDir = "/tmp/original"
 
 	applyRunOverrides(cfg, RunOptions{
 		Port:       "9090",
@@ -179,8 +191,8 @@ func TestApplyRunOverrides(t *testing.T) {
 	if cfg.Listen != ":9090" {
 		t.Fatalf("listen = %q, want :9090", cfg.Listen)
 	}
-	if cfg.WorkingDir != "/tmp/override" {
-		t.Fatalf("workDir = %q, want /tmp/override", cfg.WorkingDir)
+	if cfg.DefaultWorkDir != "/tmp/override" || cfg.GetWorkDir() != "/tmp/override" {
+		t.Fatalf("defaultWorkDir = %q, effective = %q, want /tmp/override", cfg.DefaultWorkDir, cfg.GetWorkDir())
 	}
 	if !cfg.Sandbox.Enabled {
 		t.Fatal("sandbox should be enabled")
@@ -265,8 +277,8 @@ func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 	if cfg.Listen != ":9090" {
 		t.Fatalf("listen = %q, want :9090", cfg.Listen)
 	}
-	if cfg.WorkingDir != "/tmp/work" {
-		t.Fatalf("workDir = %q, want /tmp/work", cfg.WorkingDir)
+	if cfg.DefaultWorkDir != "/tmp/work" || cfg.GetWorkDir() != "/tmp/work" {
+		t.Fatalf("defaultWorkDir = %q, effective = %q, want /tmp/work", cfg.DefaultWorkDir, cfg.GetWorkDir())
 	}
 	if !cfg.Sandbox.Enabled || !cfg.EnableSubAgents || !cfg.EnableDelegate || !cfg.EnableWorkflows ||
 		!cfg.EnableWebSearch || !cfg.EnableBrowser || !cfg.EnableA2AMaster {
@@ -276,8 +288,8 @@ func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 	if original.Listen != ":8080" {
 		t.Fatalf("original listen mutated: %q", original.Listen)
 	}
-	if original.WorkingDir != "" {
-		t.Fatalf("original workDir mutated: %q", original.WorkingDir)
+	if original.DefaultWorkDir != "" || original.WorkingDir != "" {
+		t.Fatalf("original workDir mutated: default=%q legacy=%q", original.DefaultWorkDir, original.WorkingDir)
 	}
 	if original.Sandbox.Enabled || original.EnableSubAgents || original.EnableDelegate || original.EnableWorkflows ||
 		original.EnableWebSearch || original.EnableBrowser || original.EnableA2AMaster {
@@ -2758,6 +2770,23 @@ func TestChatCompletionsRecordsRunEvents(t *testing.T) {
 	}
 	if !strings.Contains(string(events[0].Data), `"/status"`) {
 		t.Fatalf("started event data should include command: %s", events[0].Data)
+	}
+}
+
+func TestUsageEventDataIncludesCacheTokens(t *testing.T) {
+	data := usageEventData(CompletionUsage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+		TotalTokens:      120,
+		CacheReadTokens:  75,
+		CacheWriteTokens: 10,
+	}, "")
+	usage, ok := data["usage"].(map[string]any)
+	if !ok {
+		t.Fatalf("usage data = %#v", data["usage"])
+	}
+	if usage["cache_read_tokens"] != 75 || usage["cache_write_tokens"] != 10 {
+		t.Fatalf("cache usage = %#v", usage)
 	}
 }
 

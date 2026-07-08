@@ -1,5 +1,5 @@
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { markdownToHTML } from '../lib/markdown.js';
   import { patchJSON, readSSE } from '../lib/api.js';
   import {
@@ -12,6 +12,7 @@
     setNotice,
     clearBanners,
     refreshSessions,
+    refreshStatsSummary,
     getSessionMessages,
     getSessionToolResult,
     getSessionRunEvents,
@@ -41,6 +42,12 @@
   let shouldFollowOutput = true;
   let scrollFrame = 0;
   let streamUsesTranscript = false;
+  let sessionStreamAbort = null;
+  let sessionStreamID = '';
+  let sessionHistoryLoadedFor = '';
+  let sessionStreamCompletedFor = '';
+  let sessionStreamCursor = { entrySeq: 0, runSeq: 0, capabilitySeq: 0 };
+  let optimisticRunEventID = '';
   let sessionToolKey = '__new__';
   let sessionTools = sessionToolsFor({}, sessionToolKey);
 
@@ -70,10 +77,16 @@
       loadSessionMessages($currentSession);
     }
   });
+  onDestroy(() => {
+    stopSessionStream();
+  });
 
   $: {
     const nextSession = $currentSession;
     if (nextSession !== prevSession) {
+      stopSessionStream();
+      sessionHistoryLoadedFor = '';
+      resetSessionStreamCursor();
       if (nextSession === '') {
         sessionCreated = false;
         workDir = '';
@@ -106,10 +119,14 @@
       }
       chatEvents = []; // reset tool events for new session view
       await loadSessionEvents(id);
+      sessionHistoryLoadedFor = id;
+      updateSessionStreamCursorFromState();
       scrollChatToBottom({ force: true });
     } catch {
       if (id !== $currentSession) return;
       // Leave messages empty on error
+      sessionHistoryLoadedFor = id;
+      updateSessionStreamCursorFromState();
     }
     sessionCreated = true; // existing session, not "new"
   }
@@ -118,7 +135,7 @@
   $: sessionToolKey = $currentSession || '__new__';
   $: sessionTools = sessionToolsFor($sessionToolOptions, sessionToolKey, activeSession || $features);
   $: recentTools = chatEvents.slice(-6).reverse();
-  $: recentSessionEvents = buildRecentSessionEvents(sessionRunEvents, sessionCapabilityEvents);
+  $: sessionEventSummary = buildSessionEventSummary(sessionRunEvents, sessionCapabilityEvents, activeSessionWorkDir, $selectedModel);
   $: modelOptions = $models;
   $: activeModel = modelOptions.find((m) => m.id === $selectedModel);
   $: selectedModelSupportsImages = (activeModel?.input || []).includes('image');
@@ -130,6 +147,23 @@
   }
   $: if (!selectedModelSupportsImages && imageUploads.length > 0) {
     clearImages();
+  }
+  $: {
+    const tailID = $currentSession;
+    const shouldTail = Boolean(
+      tailID &&
+      !busy &&
+      activeSession?.running &&
+      sessionHistoryLoadedFor === tailID &&
+      sessionStreamCompletedFor !== tailID
+    );
+    if (shouldTail) {
+      startSessionStream(tailID);
+    } else if (sessionStreamID && sessionStreamID !== tailID) {
+      stopSessionStream();
+    } else if (!shouldTail && sessionStreamID) {
+      stopSessionStream();
+    }
   }
 
   function pick(text) {
@@ -157,9 +191,12 @@
       setError($t('chat.error.needWorkDir'));
       return;
     }
+    stopSessionStream();
+    sessionStreamCompletedFor = '';
     busy = true;
     chatEvents = [];
     streamUsesTranscript = false;
+    optimisticRunEventID = beginOptimisticRunEvent();
     clearBanners();
 
     // Add user message
@@ -202,14 +239,23 @@
       messages = [...messages, { role: 'assistant', content: '' }];
       scrollChatToBottom({ force: true });
       await readSSE(res.body, handleStreamEvent);
+      finishOptimisticRunEvent('completed');
       sessionCreated = true;
     } catch (err) {
-      if (err?.name === 'AbortError') setNotice($t('chat.notice.stopped'));
-      else setError(err);
+      if (err?.name === 'AbortError') {
+        finishOptimisticRunEvent('canceled');
+        setNotice($t('chat.notice.stopped'));
+      } else {
+        finishOptimisticRunEvent('failed');
+        setError(err);
+      }
     } finally {
       busy = false;
       chatAbort = null;
       try { await refreshSessions(); } catch {
+        // opportunistic
+      }
+      try { await refreshStatsSummary(); } catch {
         // opportunistic
       }
       if ($currentSession) {
@@ -217,6 +263,7 @@
           // opportunistic
         }
       }
+      optimisticRunEventID = '';
     }
   }
 
@@ -366,38 +413,322 @@
     }
   }
 
-  function buildRecentSessionEvents(runEvents = [], capabilityEvents = []) {
-    const items = [
-      ...runEvents.map((event) => ({ kind: 'run', ...event })),
-      ...capabilityEvents.map((event) => ({ kind: 'capability', ...event }))
-    ];
-    return items
-      .sort((a, b) => Date.parse(b.timestamp || '') - Date.parse(a.timestamp || ''))
-      .slice(0, 8);
+  function beginOptimisticRunEvent() {
+    const id = `local-run-${Date.now()}`;
+    const runID = `local_${Date.now()}`;
+    const event = {
+      id,
+      runId: runID,
+      sessionId: $currentSession || '',
+      eventType: 'started',
+      source: 'webui',
+      status: 'running',
+      model: $selectedModel || 'default',
+      mode: activeSession?.mode || '',
+      timestamp: new Date().toISOString(),
+      data: {
+        workDir: isNewSession ? workDir.trim() : activeSessionWorkDir,
+        optimistic: true
+      }
+    };
+    sessionRunEvents = [...sessionRunEvents.filter((item) => item.id !== id), event];
+    return id;
   }
 
-  function sessionEventTitle(event) {
-    if (event.kind === 'capability') {
-      return `${event.capability || 'capability'}: ${event.oldValue || '""'} -> ${event.newValue || '""'}`;
+  function finishOptimisticRunEvent(status) {
+    if (!optimisticRunEventID) return;
+    const idx = sessionRunEvents.findIndex((item) => item.id === optimisticRunEventID);
+    if (idx < 0) return;
+    const eventType = status === 'failed' ? 'failed' : status === 'canceled' ? 'canceled' : 'finished';
+    sessionRunEvents[idx] = {
+      ...sessionRunEvents[idx],
+      eventType,
+      status,
+      timestamp: new Date().toISOString()
+    };
+    sessionRunEvents = sessionRunEvents;
+  }
+
+  function resetSessionStreamCursor() {
+    sessionStreamCursor = { entrySeq: 0, runSeq: 0, capabilitySeq: 0 };
+  }
+
+  function updateSessionStreamCursorFromState() {
+    sessionStreamCursor = {
+      entrySeq: maxSeq(messages),
+      runSeq: maxSeq(sessionRunEvents),
+      capabilitySeq: maxSeq(sessionCapabilityEvents)
+    };
+  }
+
+  function maxSeq(items = []) {
+    return items.reduce((max, item) => {
+      const seq = Number(item?.seq || 0);
+      return seq > max ? seq : max;
+    }, 0);
+  }
+
+  function bumpSessionStreamCursorFromMessage(message) {
+    const seq = Number(message?.seq || 0);
+    if (seq > sessionStreamCursor.entrySeq) {
+      sessionStreamCursor = { ...sessionStreamCursor, entrySeq: seq };
     }
-    return `${event.eventType || 'run'}${event.status ? ` · ${event.status}` : ''}`;
   }
 
-  function sessionEventMeta(event) {
-    const parts = [];
-    if (event.kind === 'run' && event.runId) parts.push(shortID(event.runId));
-    if (event.kind === 'capability' && event.source) parts.push(event.source);
-    if (event.kind === 'run' && event.model) parts.push(event.model);
-    const ts = formatEventTime(event.timestamp);
-    if (ts) parts.push(ts);
-    return parts.join(' · ');
+  function upsertSessionRunEvent(event) {
+    if (!event?.id) return;
+    if (event.eventType === 'started' || event.status === 'running') {
+      sessionStreamCompletedFor = '';
+    }
+    const idx = sessionRunEvents.findIndex((item) => item.id === event.id);
+    if (idx >= 0) {
+      sessionRunEvents[idx] = { ...sessionRunEvents[idx], ...event };
+      sessionRunEvents = sessionRunEvents;
+    } else {
+      sessionRunEvents = [...sessionRunEvents, event];
+    }
+    const seq = Number(event.seq || 0);
+    if (seq > sessionStreamCursor.runSeq) {
+      sessionStreamCursor = { ...sessionStreamCursor, runSeq: seq };
+    }
   }
 
-  function sessionEventClass(event) {
-    if (event.kind === 'capability') return 'done';
-    if (event.status === 'failed' || event.eventType === 'failed') return 'error';
-    if (event.status === 'running' || event.eventType === 'started') return 'running';
+  function upsertSessionCapabilityEvent(event) {
+    if (!event?.id) return;
+    const idx = sessionCapabilityEvents.findIndex((item) => item.id === event.id);
+    if (idx >= 0) {
+      sessionCapabilityEvents[idx] = { ...sessionCapabilityEvents[idx], ...event };
+      sessionCapabilityEvents = sessionCapabilityEvents;
+    } else {
+      sessionCapabilityEvents = [...sessionCapabilityEvents, event];
+    }
+    const seq = Number(event.seq || 0);
+    if (seq > sessionStreamCursor.capabilitySeq) {
+      sessionStreamCursor = { ...sessionStreamCursor, capabilitySeq: seq };
+    }
+  }
+
+  function stopSessionStream() {
+    if (sessionStreamAbort) {
+      sessionStreamAbort.abort();
+    }
+    sessionStreamAbort = null;
+    sessionStreamID = '';
+  }
+
+  function startSessionStream(id) {
+    if (!id || busy) return;
+    if (sessionStreamID === id && sessionStreamAbort) return;
+    stopSessionStream();
+    const cursor = { ...sessionStreamCursor };
+    const abort = new AbortController();
+    sessionStreamAbort = abort;
+    sessionStreamID = id;
+    consumeSessionStream(id, cursor, abort).finally(() => {
+      if (sessionStreamAbort === abort) {
+        sessionStreamAbort = null;
+        sessionStreamID = '';
+      }
+    });
+  }
+
+  async function consumeSessionStream(id, cursor, abort) {
+    const params = new URLSearchParams();
+    if (cursor.entrySeq > 0) params.set('after_entry_seq', String(cursor.entrySeq));
+    if (cursor.runSeq > 0) params.set('after_run_seq', String(cursor.runSeq));
+    if (cursor.capabilitySeq > 0) params.set('after_capability_seq', String(cursor.capabilitySeq));
+    const query = params.toString();
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(id)}/stream${query ? `?${query}` : ''}`, {
+        signal: abort.signal
+      });
+      if (!res.ok || !res.body) {
+        const text = await res.text();
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+        throw new Error(data?.error?.message || data?.error || data?.message || `${res.status} ${res.statusText}`);
+      }
+      await readSSE(res.body, (event) => handleSessionStreamEvent(id, event));
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        setError(err);
+      }
+    }
+  }
+
+  function handleSessionStreamEvent(id, event) {
+    if (id !== $currentSession) return;
+    if (event.data === '[DONE]') return;
+    if (event.event === 'done') {
+      sessionStreamCompletedFor = id;
+      refreshSessions().catch(() => {});
+      loadSessionMessages(id).catch(() => {});
+      refreshStatsSummary().catch(() => {});
+      return;
+    }
+    if (event.event === 'heartbeat') return;
+    if (event.event === 'error') {
+      try {
+        const item = JSON.parse(event.data);
+        setError(item?.error || event.data);
+      } catch {
+        setError(event.data);
+      }
+      return;
+    }
+    if (event.event === 'transcript') {
+      try {
+        const item = JSON.parse(event.data);
+        applyTranscriptStreamEvent(item);
+      } catch {
+        // ignore malformed transcript frames
+      }
+      return;
+    }
+    if (event.event === 'run_event') {
+      try {
+        upsertSessionRunEvent(JSON.parse(event.data));
+      } catch {
+        // ignore malformed event frames
+      }
+      return;
+    }
+    if (event.event === 'capability_event') {
+      try {
+        upsertSessionCapabilityEvent(JSON.parse(event.data));
+      } catch {
+        // ignore malformed event frames
+      }
+    }
+  }
+
+  function buildSessionEventSummary(runEvents = [], capabilityEvents = [], workDir = '', model = '') {
+    const runs = mergeRunEvents(runEvents);
+    const currentModel = model && model !== 'default' ? model : '';
+    const matchingRuns = runs.filter((run) => {
+      if (!run.usage) return false;
+      if (currentModel && run.model && run.model !== currentModel) return false;
+      if (workDir && run.workDir && run.workDir !== workDir) return false;
+      return true;
+    });
+    const totals = matchingRuns.reduce((acc, run) => {
+      acc.promptTokens += run.usage.promptTokens;
+      acc.completionTokens += run.usage.completionTokens;
+      acc.totalTokens += run.usage.totalTokens;
+      acc.cacheReadTokens += run.usage.cacheReadTokens;
+      acc.cacheWriteTokens += run.usage.cacheWriteTokens;
+      return acc;
+    }, { promptTokens: 0, completionTokens: 0, totalTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 });
+    return {
+      visible: runs.length > 0 || capabilityEvents.length > 0,
+      lastRun: runs[0] || null,
+      runCount: runs.length,
+      capabilityCount: capabilityEvents.length,
+      model: currentModel || runs[0]?.model || '',
+      workDir: workDir || runs[0]?.workDir || '',
+      matchingRuns: matchingRuns.length,
+      ...totals
+    };
+  }
+
+  function mergeRunEvents(events = []) {
+    const byRun = new Map();
+    for (const event of events) {
+      const runId = event.runId || event.id || '';
+      if (!runId) continue;
+      const run = byRun.get(runId) || {
+        runId,
+        eventType: '',
+        status: '',
+        model: '',
+        mode: '',
+        workDir: '',
+        timestamp: '',
+        usage: null
+      };
+      const eventTime = Date.parse(event.timestamp || '') || 0;
+      const runTime = Date.parse(run.timestamp || '') || 0;
+      if (eventTime >= runTime) {
+        run.timestamp = event.timestamp || run.timestamp;
+        run.eventType = event.eventType || run.eventType;
+        run.status = event.status || run.status;
+      }
+      if (event.model) run.model = event.model;
+      if (event.mode) run.mode = event.mode;
+      if (event.data?.workDir) run.workDir = event.data.workDir;
+      const usage = normalizeRunUsage(event.data?.usage);
+      if (usage) run.usage = usage;
+      byRun.set(runId, run);
+    }
+    return Array.from(byRun.values())
+      .sort((a, b) => (Date.parse(b.timestamp || '') || 0) - (Date.parse(a.timestamp || '') || 0));
+  }
+
+  function normalizeRunUsage(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const promptTokens = readNumber(raw, ['prompt_tokens', 'promptTokens', 'inputTokens', 'input']);
+    const completionTokens = readNumber(raw, ['completion_tokens', 'completionTokens', 'outputTokens', 'output']);
+    const cacheReadTokens = readNumber(raw, ['cache_read_tokens', 'cacheReadTokens', 'cacheRead', 'cached_tokens']);
+    const cacheWriteTokens = readNumber(raw, ['cache_write_tokens', 'cacheWriteTokens', 'cacheWrite']);
+    const explicitTotal = readNumber(raw, ['total_tokens', 'totalTokens']);
+    const totalTokens = explicitTotal || promptTokens + completionTokens;
+    if (promptTokens === 0 && completionTokens === 0 && totalTokens === 0 && cacheReadTokens === 0 && cacheWriteTokens === 0) return null;
+    return { promptTokens, completionTokens, totalTokens, cacheReadTokens, cacheWriteTokens };
+  }
+
+  function readNumber(source, keys) {
+    for (const key of keys) {
+      const value = Number(source?.[key]);
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+    return 0;
+  }
+
+  function sessionRunStateClass(run) {
+    if (!run) return 'done';
+    if (run.status === 'failed' || run.eventType === 'failed') return 'error';
+    if (run.status === 'running' || run.eventType === 'started') return 'running';
     return 'done';
+  }
+
+  function sessionRunLabel(run) {
+    if (!run) return $t('chat.sessionEvents.idle');
+    if (run.status === 'running' || run.eventType === 'started') return $t('common.running');
+    if (run.status === 'failed' || run.eventType === 'failed') return $t('common.failed');
+    if (run.status === 'canceled' || run.eventType === 'canceled') return $t('chat.sessionEvents.canceled');
+    return $t('common.completed');
+  }
+
+  function formatCompactTokens(value) {
+    const n = Number(value) || 0;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+    return String(n);
+  }
+
+  function formatCacheRate(summary) {
+    if (!summary || summary.promptTokens <= 0) return '--';
+    const pct = Math.min(100, Math.max(0, (summary.cacheReadTokens / summary.promptTokens) * 100));
+    return `${Math.round(pct)}%`;
+  }
+
+  function compactPath(path) {
+    if (!path) return '';
+    const normalized = String(path).replace(/\/+$/, '');
+    const parts = normalized.split('/').filter(Boolean);
+    if (parts.length <= 2) return normalized || '/';
+    return `.../${parts.slice(-2).join('/')}`;
+  }
+
+  function sessionEventTooltip(summary) {
+    if (!summary) return '';
+    const parts = [];
+    if (summary.workDir) parts.push(summary.workDir);
+    if (summary.model) parts.push(summary.model);
+    parts.push(`${formatCompactTokens(summary.totalTokens)} tokens`);
+    parts.push(`cache ${formatCacheRate(summary)}`);
+    if (summary.lastRun?.timestamp) parts.push(formatEventTime(summary.lastRun.timestamp));
+    return parts.join(' · ');
   }
 
   function formatEventTime(value) {
@@ -412,6 +743,8 @@
       const plan = normalizePlan(message.plan || (message.toolName === 'plan' ? message.arguments : null));
       if (message.toolName === 'plan' && plan) {
         return {
+          id: message.id,
+          seq: message.seq,
           role: 'plan',
           toolCallId: message.toolCallId,
           toolName: message.toolName,
@@ -419,6 +752,8 @@
         };
       }
       return {
+        id: message.id,
+        seq: message.seq,
         role: 'toolCall',
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
@@ -430,6 +765,8 @@
     if (message.role === 'toolResult') {
       if (message.toolName === 'plan' && !message.isError) return null;
       return {
+        id: message.id,
+        seq: message.seq,
         role: 'toolResult',
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
@@ -453,6 +790,8 @@
       });
     }
     return {
+      id: message.id,
+      seq: message.seq,
       role: message.role,
       content: message.content || textFromContents(message.contents),
       images
@@ -797,7 +1136,24 @@
 
   function upsertTranscriptMessage(next) {
     if (!next) return;
+    bumpSessionStreamCursorFromMessage(next);
+    if (next.id) {
+      const existing = messages.findIndex((m) => m.id === next.id);
+      if (existing >= 0) {
+        messages[existing] = { ...messages[existing], ...next };
+        messages = messages;
+        scrollChatToBottom();
+        return;
+      }
+    }
     if (next.role === 'assistant') {
+      const last = messages[messages.length - 1];
+      if (next.id && last?.role === 'assistant' && !last.id) {
+        messages[messages.length - 1] = { ...last, ...next };
+        messages = messages;
+        scrollChatToBottom();
+        return;
+      }
       messages = [...messages, next];
       scrollChatToBottom();
       return;
@@ -1232,21 +1588,17 @@
             {/each}
           </aside>
         {/if}
-        {#if recentSessionEvents.length > 0}
-          <aside class="tool-feed session-events">
-            <div class="tf-head"><span>{$t('chat.sessionEvents')}</span><strong>{sessionRunEvents.length + sessionCapabilityEvents.length}</strong></div>
-            {#each recentSessionEvents as item}
-              <details class="tool-item" open={item.kind === 'run' && item.status === 'running'}>
-                <summary>
-                  <span class="dot {sessionEventClass(item)}"></span>
-                  <strong>{sessionEventTitle(item)}</strong>
-                  <em>{sessionEventMeta(item)}</em>
-                </summary>
-                {#if item.data && Object.keys(item.data).length > 0}
-                  <pre>{formatArgs(item.data)}</pre>
-                {/if}
-              </details>
-            {/each}
+        {#if sessionEventSummary.visible}
+          <aside class="session-event-strip" title={sessionEventTooltip(sessionEventSummary)}>
+            <span class="dot {sessionRunStateClass(sessionEventSummary.lastRun)}"></span>
+            <strong>{sessionRunLabel(sessionEventSummary.lastRun)}</strong>
+            {#if sessionEventSummary.workDir}<span class="path">{compactPath(sessionEventSummary.workDir)}</span>{/if}
+            {#if sessionEventSummary.model}<span>{sessionEventSummary.model}</span>{/if}
+            <span class="metric">{$t('chat.sessionEvents.tokens', { tokens: formatCompactTokens(sessionEventSummary.totalTokens) })}</span>
+            <span class="metric">{$t('chat.sessionEvents.cache', { rate: formatCacheRate(sessionEventSummary) })}</span>
+            {#if sessionEventSummary.capabilityCount > 0}
+              <span>{$t('chat.sessionEvents.capabilities', { count: sessionEventSummary.capabilityCount })}</span>
+            {/if}
           </aside>
         {/if}
       </div>

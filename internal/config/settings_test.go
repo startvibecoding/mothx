@@ -689,6 +689,37 @@ func TestGetSessionDir(t *testing.T) {
 	}
 }
 
+func TestGetSessionDirNormalizesLegacyDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "")
+
+	s := &Settings{SessionDir: "~/.vibecoding/sessions"}
+	want := filepath.Join(home, ".mothx", "sessions")
+	if got := s.GetSessionDir(); got != want {
+		t.Fatalf("GetSessionDir() = %q, want %q", got, want)
+	}
+
+	s.SessionDir = filepath.Join(home, ".vibecoding", "sessions")
+	if got := s.GetSessionDir(); got != want {
+		t.Fatalf("GetSessionDir() absolute legacy = %q, want %q", got, want)
+	}
+}
+
+func TestGetSessionDirPreservesCustomLegacyNamedPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "")
+
+	custom := filepath.Join(home, "projects", ".vibecoding", "sessions")
+	s := &Settings{SessionDir: custom}
+	if got := s.GetSessionDir(); got != custom {
+		t.Fatalf("GetSessionDir() = %q, want custom %q", got, custom)
+	}
+}
+
 func TestGetGlobalSkillsDir(t *testing.T) {
 	s := &Settings{}
 
@@ -703,6 +734,19 @@ func TestGetGlobalSkillsDir(t *testing.T) {
 	dir = s.GetGlobalSkillsDir()
 	if dir != "/tmp/skills" {
 		t.Errorf("expected '/tmp/skills', got '%s'", dir)
+	}
+}
+
+func TestGetGlobalSkillsDirNormalizesLegacyDefault(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MOTHX_DIR", "")
+	t.Setenv("VIBECODING_DIR", "")
+
+	s := &Settings{SkillsDir: "~/.vibecoding/skills"}
+	want := filepath.Join(home, ".mothx", "skills")
+	if got := s.GetGlobalSkillsDir(); got != want {
+		t.Fatalf("GetGlobalSkillsDir() = %q, want %q", got, want)
 	}
 }
 

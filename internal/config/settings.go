@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/startvibecoding/mothx/internal/platform"
@@ -1247,22 +1248,36 @@ func (s *Settings) GetShell() string {
 
 func (s *Settings) GetSessionDir() string {
 	if s.SessionDir != "" {
-		if strings.HasPrefix(s.SessionDir, "~") {
-			return platform.ExpandHome(s.SessionDir)
-		}
-		return s.SessionDir
+		return normalizeLegacyDefaultDir(s.SessionDir, filepath.Join(platform.LegacyConfigDir(), "sessions"), platform.SessionDir())
 	}
 	return platform.SessionDir()
 }
 
 func (s *Settings) GetGlobalSkillsDir() string {
 	if s.SkillsDir != "" {
-		if strings.HasPrefix(s.SkillsDir, "~") {
-			return platform.ExpandHome(s.SkillsDir)
-		}
-		return s.SkillsDir
+		return normalizeLegacyDefaultDir(s.SkillsDir, filepath.Join(platform.LegacyConfigDir(), "skills"), platform.SkillsDir())
 	}
 	return platform.SkillsDir()
+}
+
+func normalizeLegacyDefaultDir(configured, legacyDefault, currentDefault string) string {
+	resolved := configured
+	if strings.HasPrefix(resolved, "~") {
+		resolved = platform.ExpandHome(resolved)
+	}
+	if sameConfigPath(resolved, legacyDefault) {
+		return currentDefault
+	}
+	return resolved
+}
+
+func sameConfigPath(a, b string) bool {
+	a = filepath.Clean(a)
+	b = filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 func (s *Settings) IsPlanToolEnabled() bool {

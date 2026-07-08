@@ -5,7 +5,8 @@ type rawConfig struct {
 	Provider           string                   `json:"provider,omitempty"`
 	Model              string                   `json:"model,omitempty"`
 	Mode               string                   `json:"mode,omitempty"`
-	WorkDir            string                   `json:"workDir,omitempty"`
+	DefaultWorkDir     string                   `json:"defaultWorkDir,omitempty"`
+	WorkDir            string                   `json:"workDir,omitempty"` // legacy alias for defaultWorkDir
 	Auth               *rawAuthConfig           `json:"auth,omitempty"`
 	Features           *rawFeaturesConfig       `json:"features,omitempty"`
 	Sandbox            *rawSandboxConfig        `json:"sandbox,omitempty"`

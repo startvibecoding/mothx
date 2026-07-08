@@ -184,8 +184,6 @@ func InitConfigForProject(project bool, force bool) (string, error) {
 	if home == "" {
 		home = "/home/user"
 	}
-	cfg.API.WorkingDir = filepath.Join(home, "projects")
-	allowed := []string{filepath.Join(home, "projects")}
-	cfg.API.AllowedWorkDirs = &allowed
+	cfg.API.DefaultWorkDir = filepath.Join(home, "projects")
 	return path, SaveConfig(path, cfg)
 }

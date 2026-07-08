@@ -35,6 +35,8 @@ type APISession struct {
 	MultiAgent   bool   // session-level sub-agent tools toggle
 	LastUsed     time.Time
 	mu           sync.Mutex // serializes requests within this session
+	runMu        sync.RWMutex
+	running      bool
 
 	// ForceCompact is set by /compact command and consumed by the next agent run.
 	ForceCompact bool
@@ -52,6 +54,7 @@ type ActiveSessionInfo struct {
 	A2AMaster    bool      `json:"a2aMaster,omitempty"`
 	MultiAgent   bool      `json:"multiAgent,omitempty"`
 	Active       bool      `json:"active"`
+	Running      bool      `json:"running,omitempty"`
 	LastUsed     time.Time `json:"lastUsed"`
 	MessageCount int       `json:"messageCount"`
 	Preview      string    `json:"preview,omitempty"`
@@ -60,6 +63,8 @@ type ActiveSessionInfo struct {
 
 // SessionMessageEntry is a simplified message for the WebUI.
 type SessionMessageEntry struct {
+	ID          string                  `json:"id,omitempty"`
+	Seq         int64                   `json:"seq,omitempty"`
 	Role        string                  `json:"role"`
 	Content     string                  `json:"content,omitempty"`
 	Contents    []provider.ContentBlock `json:"contents,omitempty"`
@@ -115,6 +120,26 @@ func (s *APISession) Unlock() { s.mu.Unlock() }
 
 // Touch updates the last-used timestamp.
 func (s *APISession) Touch() { s.LastUsed = time.Now() }
+
+// SetRunning records whether a chat run is currently active for this session.
+func (s *APISession) SetRunning(running bool) {
+	if s == nil {
+		return
+	}
+	s.runMu.Lock()
+	s.running = running
+	s.runMu.Unlock()
+}
+
+// IsRunning reports whether a chat run is currently active for this session.
+func (s *APISession) IsRunning() bool {
+	if s == nil {
+		return false
+	}
+	s.runMu.RLock()
+	defer s.runMu.RUnlock()
+	return s.running
+}
 
 // SessionPool manages multiple concurrent API sessions.
 type SessionPool struct {
@@ -303,6 +328,7 @@ func (p *SessionPool) listDetails() []ActiveSessionInfo {
 			A2AMaster:    s.A2AMaster,
 			MultiAgent:   s.MultiAgent,
 			Active:       true,
+			Running:      s.IsRunning(),
 			LastUsed:     s.LastUsed,
 			MessageCount: messageCount,
 		})
@@ -795,6 +821,17 @@ func (s *Server) GetSessionMessages(id string) ([]SessionMessageEntry, error) {
 	if s == nil || s.pool == nil {
 		return nil, nil
 	}
+	if s.settings != nil && id != "" {
+		if _, found, err := s.findSessionWorkDir(id); err != nil {
+			return nil, err
+		} else if found {
+			messages, err := session.ListSessionMessagesWithSeq(s.settings.GetSessionDir(), id)
+			if err != nil {
+				return nil, err
+			}
+			return sequencedMessagesToEntries(messages), nil
+		}
+	}
 	messages, err := s.sessionMessages(id)
 	if err != nil {
 		return nil, err
@@ -842,24 +879,13 @@ func (s *Server) GetSessionRunEvents(id string) ([]SessionRunEventEntry, error) 
 	} else if !found {
 		return nil, ErrSessionNotFound
 	}
-	events, err := session.ListSessionRunEvents(s.settings.GetSessionDir(), id)
+	events, err := session.ListSessionRunEventsWithSeq(s.settings.GetSessionDir(), id)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]SessionRunEventEntry, 0, len(events))
-	for _, ev := range events {
-		out = append(out, SessionRunEventEntry{
-			ID:        ev.ID,
-			SessionID: ev.SessionID,
-			RunID:     ev.RunID,
-			EventType: ev.EventType,
-			Source:    ev.Source,
-			Status:    ev.Status,
-			Model:     ev.Model,
-			Mode:      ev.Mode,
-			Timestamp: formatEventTimestamp(ev.Timestamp),
-			Data:      decodeEventData(ev.Data),
-		})
+	for _, item := range events {
+		out = append(out, sessionRunEventToEntry(item.Event, item.Seq))
 	}
 	return out, nil
 }
@@ -874,25 +900,13 @@ func (s *Server) GetSessionCapabilityEvents(id string) ([]SessionCapabilityEvent
 	} else if !found {
 		return nil, ErrSessionNotFound
 	}
-	events, err := session.ListSessionCapabilityEvents(s.settings.GetSessionDir(), id)
+	events, err := session.ListSessionCapabilityEventsWithSeq(s.settings.GetSessionDir(), id)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]SessionCapabilityEventEntry, 0, len(events))
-	for _, ev := range events {
-		out = append(out, SessionCapabilityEventEntry{
-			ID:         ev.ID,
-			SessionID:  ev.SessionID,
-			RunID:      ev.RunID,
-			EventType:  ev.EventType,
-			Source:     ev.Source,
-			Actor:      ev.Actor,
-			Capability: ev.Capability,
-			OldValue:   ev.OldValue,
-			NewValue:   ev.NewValue,
-			Timestamp:  formatEventTimestamp(ev.Timestamp),
-			Data:       decodeEventData(ev.Data),
-		})
+	for _, item := range events {
+		out = append(out, sessionCapabilityEventToEntry(item.Event, item.Seq))
 	}
 	return out, nil
 }
@@ -942,48 +956,117 @@ func decodeEventData(raw json.RawMessage) map[string]any {
 	return data
 }
 
+func sessionRunEventToEntry(ev session.SessionRunEvent, seq int64) SessionRunEventEntry {
+	return SessionRunEventEntry{
+		Seq:       seq,
+		ID:        ev.ID,
+		SessionID: ev.SessionID,
+		RunID:     ev.RunID,
+		EventType: ev.EventType,
+		Source:    ev.Source,
+		Status:    ev.Status,
+		Model:     ev.Model,
+		Mode:      ev.Mode,
+		Timestamp: formatEventTimestamp(ev.Timestamp),
+		Data:      decodeEventData(ev.Data),
+	}
+}
+
+func sessionCapabilityEventToEntry(ev session.SessionCapabilityEvent, seq int64) SessionCapabilityEventEntry {
+	return SessionCapabilityEventEntry{
+		Seq:        seq,
+		ID:         ev.ID,
+		SessionID:  ev.SessionID,
+		RunID:      ev.RunID,
+		EventType:  ev.EventType,
+		Source:     ev.Source,
+		Actor:      ev.Actor,
+		Capability: ev.Capability,
+		OldValue:   ev.OldValue,
+		NewValue:   ev.NewValue,
+		Timestamp:  formatEventTimestamp(ev.Timestamp),
+		Data:       decodeEventData(ev.Data),
+	}
+}
+
 func sessionMessagesToEntries(msgs []provider.Message) []SessionMessageEntry {
 	var entries []SessionMessageEntry
 	for _, m := range msgs {
-		if m.SystemInjected {
-			continue
+		entries = append(entries, providerMessageToSessionEntries(m, 0, "")...)
+	}
+	return entries
+}
+
+func sequencedMessagesToEntries(msgs []session.SequencedMessage) []SessionMessageEntry {
+	var entries []SessionMessageEntry
+	for _, item := range msgs {
+		entries = append(entries, providerMessageToSessionEntries(item.Message, item.Seq, item.EntryID)...)
+	}
+	return entries
+}
+
+func providerMessageToSessionEntries(m provider.Message, seq int64, entryID string) []SessionMessageEntry {
+	var entries []SessionMessageEntry
+	if m.SystemInjected {
+		return entries
+	}
+	entryIDFor := func(suffix string) string {
+		if entryID == "" {
+			return ""
 		}
-		switch m.Role {
-		case "user":
-			content := messageText(m)
-			entry := SessionMessageEntry{Role: m.Role, Content: content}
-			if len(m.Contents) > 0 {
-				entry.Contents = cloneContentBlocks(m.Contents)
-			}
-			entries = append(entries, entry)
-		case "assistant":
-			content := messageText(m)
-			if content != "" {
-				entries = append(entries, SessionMessageEntry{Role: m.Role, Content: content})
-			}
-			for _, block := range m.Contents {
-				if block.ToolCall == nil {
-					continue
-				}
-				entries = append(entries, SessionMessageEntry{
-					Role:        "toolCall",
-					ToolCallID:  block.ToolCall.ID,
-					ToolName:    block.ToolCall.Name,
-					Arguments:   validRawMessage(block.ToolCall.Arguments),
-					InvalidArgs: block.ToolCall.InvalidArguments,
-					Plan:        planFromToolCall(block.ToolCall.Name, block.ToolCall.Arguments),
-				})
-			}
-		case "toolResult":
-			entries = append(entries, SessionMessageEntry{
-				Role:       "toolResult",
-				ToolCallID: m.ToolCallID,
-				ToolName:   m.ToolName,
-				IsError:    m.IsError,
-				Summary:    summarizeToolResult(m),
-				HasDetail:  true,
-			})
+		if suffix == "" {
+			return entryID
 		}
+		return entryID + ":" + suffix
+	}
+	withCursor := func(entry SessionMessageEntry, suffix string) SessionMessageEntry {
+		entry.ID = entryIDFor(suffix)
+		entry.Seq = seq
+		return entry
+	}
+	switch m.Role {
+	case "user":
+		content := messageText(m)
+		entry := SessionMessageEntry{Role: m.Role, Content: content}
+		if len(m.Contents) > 0 {
+			entry.Contents = cloneContentBlocks(m.Contents)
+		}
+		entries = append(entries, withCursor(entry, ""))
+	case "assistant":
+		content := messageText(m)
+		if content != "" {
+			entries = append(entries, withCursor(SessionMessageEntry{Role: m.Role, Content: content}, "assistant"))
+		}
+		for idx, block := range m.Contents {
+			if block.ToolCall == nil {
+				continue
+			}
+			suffix := fmt.Sprintf("tool:%d", idx)
+			if block.ToolCall.ID != "" {
+				suffix = "tool:" + block.ToolCall.ID
+			}
+			entries = append(entries, withCursor(SessionMessageEntry{
+				Role:        "toolCall",
+				ToolCallID:  block.ToolCall.ID,
+				ToolName:    block.ToolCall.Name,
+				Arguments:   validRawMessage(block.ToolCall.Arguments),
+				InvalidArgs: block.ToolCall.InvalidArguments,
+				Plan:        planFromToolCall(block.ToolCall.Name, block.ToolCall.Arguments),
+			}, suffix))
+		}
+	case "toolResult":
+		suffix := "toolResult"
+		if m.ToolCallID != "" {
+			suffix += ":" + m.ToolCallID
+		}
+		entries = append(entries, withCursor(SessionMessageEntry{
+			Role:       "toolResult",
+			ToolCallID: m.ToolCallID,
+			ToolName:   m.ToolName,
+			IsError:    m.IsError,
+			Summary:    summarizeToolResult(m),
+			HasDetail:  true,
+		}, suffix))
 	}
 	return entries
 }

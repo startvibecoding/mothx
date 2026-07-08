@@ -22,7 +22,8 @@ type Config struct {
 	Sandbox              SandboxConfig        `json:"sandbox"`
 	AllowedWorkDirs      *[]string            `json:"allowedWorkDirs,omitempty"` // nil=no check, []=deny all overrides
 	Session              SessionConfig        `json:"session"`
-	WorkingDir           string               `json:"workingDir,omitempty"`
+	DefaultWorkDir       string               `json:"defaultWorkDir,omitempty"`
+	WorkingDir           string               `json:"workingDir,omitempty"` // legacy alias for defaultWorkDir
 	CORS                 CORSConfig           `json:"cors"`
 	Provider             string               `json:"provider,omitempty"`
 	Model                string               `json:"model,omitempty"`
@@ -138,14 +139,18 @@ func (c *Config) GetListenAddr() string {
 
 // GetWorkDir returns the effective working directory.
 func (c *Config) GetWorkDir() string {
-	if c.WorkingDir != "" {
-		if strings.HasPrefix(c.WorkingDir, "~") {
+	workDir := c.DefaultWorkDir
+	if workDir == "" {
+		workDir = c.WorkingDir
+	}
+	if workDir != "" {
+		if strings.HasPrefix(workDir, "~") {
 			home, _ := os.UserHomeDir()
 			if home != "" {
-				return filepath.Join(home, c.WorkingDir[1:])
+				return filepath.Join(home, workDir[1:])
 			}
 		}
-		return c.WorkingDir
+		return workDir
 	}
 	cwd, _ := os.Getwd()
 	return cwd

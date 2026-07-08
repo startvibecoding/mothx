@@ -6,6 +6,8 @@
   import SettingsMemory from './settings/Memory.svelte';
   import SettingsFeatures from './settings/Features.svelte';
   import SettingsWorkDir from './settings/WorkDir.svelte';
+  import SettingsChannels from './settings/Channels.svelte';
+  import SettingsLogs from './settings/Logs.svelte';
   import { t } from '../lib/preferences.js';
 
   const tabs = [
@@ -14,7 +16,9 @@
     { key: 'workdir', label: 'settings.tabs.workdir' },
     { key: 'app', label: 'settings.tabs.app' },
     { key: 'memory', label: 'settings.tabs.memory' },
-    { key: 'features', label: 'settings.tabs.features' }
+    { key: 'features', label: 'settings.tabs.features' },
+    { key: 'channels', label: 'settings.tabs.channels' },
+    { key: 'logs', label: 'settings.tabs.logs' }
   ];
 
   $: activeTab = $route.sub || '';
@@ -50,6 +54,10 @@
       <SettingsMemory />
     {:else if activeTab === 'features'}
       <SettingsFeatures />
+    {:else if activeTab === 'channels'}
+      <SettingsChannels />
+    {:else if activeTab === 'logs'}
+      <SettingsLogs />
     {:else}
       <p class="empty">{$t('settings.unknown')}</p>
     {/if}

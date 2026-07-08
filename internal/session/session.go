@@ -42,6 +42,25 @@ type replayState struct {
 	entryIDs []string
 }
 
+// SequencedMessage is a persisted conversation message with its entries.seq cursor.
+type SequencedMessage struct {
+	Seq     int64
+	EntryID string
+	Message provider.Message
+}
+
+// SequencedSessionRunEvent is a run lifecycle event with its table cursor.
+type SequencedSessionRunEvent struct {
+	Seq   int64
+	Event SessionRunEvent
+}
+
+// SequencedSessionCapabilityEvent is a capability event with its table cursor.
+type SequencedSessionCapabilityEvent struct {
+	Seq   int64
+	Event SessionCapabilityEvent
+}
+
 // encodePath encodes a directory path for use in a session directory name.
 // Uses base64 URL encoding to avoid collisions from different characters mapping
 // to the same replacement (e.g. "/" and ":" both mapped to "-").
@@ -734,6 +753,52 @@ func buildReplayState(entries []interface{}) replayState {
 	return state
 }
 
+type sequencedReplayState struct {
+	messages []SequencedMessage
+	entryIDs []string
+}
+
+func applySequencedCompactionEntry(state *sequencedReplayState, entry CompactionEntry, seq int64) {
+	if state == nil || entry.FirstKeptEntry == "" {
+		return
+	}
+
+	firstKept := -1
+	for i, id := range state.entryIDs {
+		if id == entry.FirstKeptEntry {
+			firstKept = i
+			break
+		}
+	}
+	if firstKept < 0 {
+		return
+	}
+	if firstKept > len(state.messages) || firstKept > len(state.entryIDs) {
+		return
+	}
+
+	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
+	nextMessages := make([]SequencedMessage, 0, 1+len(state.messages[firstKept:]))
+	nextMessages = append(nextMessages, SequencedMessage{
+		Seq:     seq,
+		EntryID: entry.ID,
+		Message: summary,
+	})
+	for _, msg := range state.messages[firstKept:] {
+		cloned := msg
+		cloned.Message = cloneMessage(msg.Message)
+		cloned.Message.Usage = nil
+		nextMessages = append(nextMessages, cloned)
+	}
+
+	nextEntryIDs := make([]string, 0, 1+len(state.entryIDs[firstKept:]))
+	nextEntryIDs = append(nextEntryIDs, entry.ID)
+	nextEntryIDs = append(nextEntryIDs, append([]string(nil), state.entryIDs[firstKept:]...)...)
+
+	state.messages = nextMessages
+	state.entryIDs = nextEntryIDs
+}
+
 func applyCompactionEntry(state *replayState, entry CompactionEntry) {
 	if entry.FirstKeptEntry == "" {
 		return
@@ -1395,6 +1460,211 @@ func ListSessionCapabilityEvents(sessionDir, sessionID string) ([]SessionCapabil
 		ev.Timestamp = parseSessionTimestamp(timestamp)
 		ev.Data = json.RawMessage(data)
 		events = append(events, ev)
+	}
+	return events, rows.Err()
+}
+
+// ListSessionMessagesWithSeq returns the visible replay messages for a session,
+// preserving each message row's entries.seq cursor.
+func ListSessionMessagesWithSeq(sessionDir, sessionID string) ([]SequencedMessage, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT seq, type, data FROM entries
+		WHERE session_id = ? AND type IN (?, ?)
+		ORDER BY seq ASC`, sessionID, string(EntryMessage), string(EntryCompaction))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	state := sequencedReplayState{}
+	for rows.Next() {
+		var seq int64
+		var typeStr string
+		var data string
+		if err := rows.Scan(&seq, &typeStr, &data); err != nil {
+			return nil, err
+		}
+		switch EntryType(typeStr) {
+		case EntryMessage:
+			var e MessageEntry
+			if err := json.Unmarshal([]byte(data), &e); err != nil {
+				continue
+			}
+			state.messages = append(state.messages, SequencedMessage{
+				Seq:     seq,
+				EntryID: e.ID,
+				Message: cloneMessage(e.Message),
+			})
+			state.entryIDs = append(state.entryIDs, e.ID)
+		case EntryCompaction:
+			var e CompactionEntry
+			if err := json.Unmarshal([]byte(data), &e); err != nil {
+				continue
+			}
+			applySequencedCompactionEntry(&state, e, seq)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return state.messages, nil
+}
+
+// ListSessionMessagesAfter returns persisted message rows after entries.seq.
+func ListSessionMessagesAfter(sessionDir, sessionID string, afterSeq int64, limit int) ([]SequencedMessage, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 500
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT seq, data FROM entries
+		WHERE session_id = ? AND type = ? AND seq > ?
+		ORDER BY seq ASC LIMIT ?`, sessionID, string(EntryMessage), afterSeq, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []SequencedMessage
+	for rows.Next() {
+		var seq int64
+		var data string
+		if err := rows.Scan(&seq, &data); err != nil {
+			return nil, err
+		}
+		var e MessageEntry
+		if err := json.Unmarshal([]byte(data), &e); err != nil {
+			continue
+		}
+		messages = append(messages, SequencedMessage{
+			Seq:     seq,
+			EntryID: e.ID,
+			Message: cloneMessage(e.Message),
+		})
+	}
+	return messages, rows.Err()
+}
+
+// ListSessionRunEventsWithSeq returns run events with their session_run_events.seq cursor.
+func ListSessionRunEventsWithSeq(sessionDir, sessionID string) ([]SequencedSessionRunEvent, error) {
+	return ListSessionRunEventsAfter(sessionDir, sessionID, 0, 0)
+}
+
+// ListSessionRunEventsAfter returns run events after session_run_events.seq.
+func ListSessionRunEventsAfter(sessionDir, sessionID string, afterSeq int64, limit int) ([]SequencedSessionRunEvent, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+	query := `SELECT seq, id, session_id, run_id, event_type, source, status, model, mode, timestamp, data
+		FROM session_run_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`
+	args := []any{sessionID, afterSeq}
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []SequencedSessionRunEvent
+	for rows.Next() {
+		var item SequencedSessionRunEvent
+		var timestamp string
+		var data string
+		if err := rows.Scan(
+			&item.Seq,
+			&item.Event.ID,
+			&item.Event.SessionID,
+			&item.Event.RunID,
+			&item.Event.EventType,
+			&item.Event.Source,
+			&item.Event.Status,
+			&item.Event.Model,
+			&item.Event.Mode,
+			&timestamp,
+			&data,
+		); err != nil {
+			return nil, err
+		}
+		item.Event.Timestamp = parseSessionTimestamp(timestamp)
+		item.Event.Data = json.RawMessage(data)
+		events = append(events, item)
+	}
+	return events, rows.Err()
+}
+
+// ListSessionCapabilityEventsWithSeq returns capability events with their seq cursor.
+func ListSessionCapabilityEventsWithSeq(sessionDir, sessionID string) ([]SequencedSessionCapabilityEvent, error) {
+	return ListSessionCapabilityEventsAfter(sessionDir, sessionID, 0, 0)
+}
+
+// ListSessionCapabilityEventsAfter returns capability events after session_capability_events.seq.
+func ListSessionCapabilityEventsAfter(sessionDir, sessionID string, afterSeq int64, limit int) ([]SequencedSessionCapabilityEvent, error) {
+	if sessionID == "" {
+		return nil, nil
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, err
+	}
+	query := `SELECT seq, id, session_id, run_id, event_type, source, actor, capability, old_value, new_value, timestamp, data
+		FROM session_capability_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`
+	args := []any{sessionID, afterSeq}
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []SequencedSessionCapabilityEvent
+	for rows.Next() {
+		var item SequencedSessionCapabilityEvent
+		var timestamp string
+		var data string
+		if err := rows.Scan(
+			&item.Seq,
+			&item.Event.ID,
+			&item.Event.SessionID,
+			&item.Event.RunID,
+			&item.Event.EventType,
+			&item.Event.Source,
+			&item.Event.Actor,
+			&item.Event.Capability,
+			&item.Event.OldValue,
+			&item.Event.NewValue,
+			&timestamp,
+			&data,
+		); err != nil {
+			return nil, err
+		}
+		item.Event.Timestamp = parseSessionTimestamp(timestamp)
+		item.Event.Data = json.RawMessage(data)
+		events = append(events, item)
 	}
 	return events, rows.Err()
 }

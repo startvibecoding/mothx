@@ -71,7 +71,7 @@ func (s *Server) recordSessionCapabilityChanges(sess *APISession, before capabil
 		if oldValue == newValue {
 			continue
 		}
-		if _, err := session.SaveSessionCapabilityEvent(s.settings.GetSessionDir(), session.SessionCapabilityEvent{
+		ev := session.SessionCapabilityEvent{
 			SessionID:  sess.ID,
 			RunID:      runID,
 			EventType:  "changed",
@@ -82,9 +82,13 @@ func (s *Server) recordSessionCapabilityChanges(sess *APISession, before capabil
 			NewValue:   newValue,
 			Timestamp:  time.Now(),
 			Data:       eventData,
-		}); err != nil {
+		}
+		id, err := session.SaveSessionCapabilityEvent(s.settings.GetSessionDir(), ev)
+		if err != nil {
 			return fmt.Errorf("save capability event: %w", err)
 		}
+		ev.ID = id
+		s.publishSessionStreamEvent(sess.ID, "capability_event", sessionCapabilityEventToEntry(ev, 0))
 	}
 	return nil
 }
@@ -93,7 +97,7 @@ func (s *Server) recordSessionRunEvent(sess *APISession, runID, eventType, statu
 	if s == nil || s.settings == nil || sess == nil || sess.ID == "" || runID == "" {
 		return nil
 	}
-	if _, err := session.SaveSessionRunEvent(s.settings.GetSessionDir(), session.SessionRunEvent{
+	ev := session.SessionRunEvent{
 		SessionID: sess.ID,
 		RunID:     runID,
 		EventType: eventType,
@@ -103,9 +107,13 @@ func (s *Server) recordSessionRunEvent(sess *APISession, runID, eventType, statu
 		Mode:      mode,
 		Timestamp: time.Now(),
 		Data:      rawEventData(data),
-	}); err != nil {
+	}
+	id, err := session.SaveSessionRunEvent(s.settings.GetSessionDir(), ev)
+	if err != nil {
 		return fmt.Errorf("save run event: %w", err)
 	}
+	ev.ID = id
+	s.publishSessionStreamEvent(sess.ID, "run_event", sessionRunEventToEntry(ev, 0))
 	return nil
 }
 
@@ -134,9 +142,11 @@ func runEventTypeForStatus(status string) string {
 func usageEventData(usage CompletionUsage, errMsg string) map[string]any {
 	data := map[string]any{
 		"usage": map[string]any{
-			"prompt_tokens":     usage.PromptTokens,
-			"completion_tokens": usage.CompletionTokens,
-			"total_tokens":      usage.TotalTokens,
+			"prompt_tokens":      usage.PromptTokens,
+			"completion_tokens":  usage.CompletionTokens,
+			"total_tokens":       usage.TotalTokens,
+			"cache_read_tokens":  usage.CacheReadTokens,
+			"cache_write_tokens": usage.CacheWriteTokens,
 		},
 	}
 	if errMsg != "" {

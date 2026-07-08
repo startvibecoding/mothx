@@ -1,5 +1,6 @@
 <script>
-  import { sessions, currentSession, features } from '../lib/stores.js';
+  import { onMount } from 'svelte';
+  import { sessions, currentSession, features, statsSummary, refreshStatsSummary } from '../lib/stores.js';
   import { route, navigate } from '../lib/router.js';
   import { shortID } from '../lib/format.js';
   import { t } from '../lib/preferences.js';
@@ -10,9 +11,8 @@
   const primaryNav = [
     { key: 'chat', path: '/chat', label: 'nav.newChat', icon: 'edit', accent: true },
     { key: 'sessions', path: '/sessions', label: 'nav.sessions', icon: 'clock' },
-    { key: 'cron', path: '/cron', label: 'nav.cron', icon: 'timer', feature: 'cron' },
-    { key: 'channels', path: '/channels', label: 'nav.channels', icon: 'plug' },
-    { key: 'logs', path: '/logs', label: 'nav.logs', icon: 'stream' }
+    { key: 'stats', path: '/stats', label: 'nav.stats', icon: 'chart' },
+    { key: 'cron', path: '/cron', label: 'nav.cron', icon: 'timer', feature: 'cron' }
   ];
 
   const secondaryNav = [
@@ -21,6 +21,11 @@
 
   $: filteredSessions = filterSessions($sessions, searchTerm);
   $: recentSessions = filteredSessions.slice(0, 12);
+  $: summaryStats = $statsSummary || {};
+
+  onMount(() => {
+    refreshStatsSummary();
+  });
 
   function filterSessions(list, term) {
     const t = term.trim().toLowerCase();
@@ -33,7 +38,7 @@
 
   function openSession(id) {
     currentSession.set(id);
-    navigate('/chat');
+    navigate(id ? `/chat?session=${encodeURIComponent(id)}` : '/chat');
   }
 
   function openNewChat() {
@@ -48,6 +53,16 @@
   function isFeatureEnabled(item) {
     if (!item.feature) return true;
     return $features[item.feature] !== false;
+  }
+
+  function formatStat(value) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n)) return '0';
+    if (Math.abs(n) < 10000) return new Intl.NumberFormat().format(n);
+    return new Intl.NumberFormat(undefined, {
+      notation: 'compact',
+      maximumFractionDigits: 1
+    }).format(n);
   }
 </script>
 
@@ -141,14 +156,21 @@
     </div>
   </section>
 
-  <div class="side-footer">
-    <PreferenceControls />
-    <div class="side-identity">
-      <div class="avatar" aria-hidden="true">Mx</div>
-      <div class="who">
-        <strong>{$t('app.name')}</strong>
-        <span>{$t('app.local')}</span>
+  <button type="button" class="side-stats" aria-label={$t('sidebar.stats')} on:click={() => navigate('/stats')}>
+    <span>{$t('sidebar.stats')}</span>
+    <div>
+      <div>
+        <strong>{formatStat(summaryStats.totalRequests)}</strong>
+        <span>{$t('sidebar.stats.requests')}</span>
+      </div>
+      <div>
+        <strong>{formatStat(summaryStats.totalTokens)}</strong>
+        <span>{$t('sidebar.stats.tokens')}</span>
       </div>
     </div>
+  </button>
+
+  <div class="side-footer">
+    <PreferenceControls />
   </div>
 </aside>

@@ -40,8 +40,12 @@ func applyRawConfig(cfg *Config, raw *rawConfig) {
 	if raw.Mode != "" {
 		cfg.API.DefaultMode = raw.Mode
 	}
-	if raw.WorkDir != "" {
-		cfg.API.WorkingDir = raw.WorkDir
+	if raw.DefaultWorkDir != "" {
+		cfg.API.DefaultWorkDir = raw.DefaultWorkDir
+		cfg.API.WorkingDir = ""
+	} else if raw.WorkDir != "" {
+		cfg.API.DefaultWorkDir = raw.WorkDir
+		cfg.API.WorkingDir = ""
 	}
 	if raw.Auth != nil {
 		if raw.Auth.Enabled != nil {
@@ -264,6 +268,10 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	webSearchEnabled := c.API.EnableWebSearch
 	browserEnabled := c.API.EnableBrowser
 	a2aMasterEnabled := c.API.EnableA2AMaster
+	defaultWorkDir := c.API.DefaultWorkDir
+	if defaultWorkDir == "" {
+		defaultWorkDir = c.API.WorkingDir
+	}
 	agentMaxTurns := c.Agent.MaxTurns
 	agentBudgetPressure := c.Agent.BudgetPressure
 	agentContextPressure := c.Agent.ContextPressure
@@ -287,7 +295,7 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 		Provider:           c.API.Provider,
 		Model:              c.API.Model,
 		Mode:               c.API.DefaultMode,
-		WorkDir:            c.API.WorkingDir,
+		DefaultWorkDir:     defaultWorkDir,
 		Auth:               &rawAuthConfig{Enabled: &authEnabled, Tokens: append([]string(nil), c.API.Auth.Tokens...)},
 		Features:           &features,
 		Sandbox:            &rawSandboxConfig{Enabled: &sandboxEnabled, Level: c.API.Sandbox.Level},

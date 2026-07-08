@@ -15,6 +15,8 @@ import (
 	"github.com/startvibecoding/mothx/internal/cron"
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
+	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/stats"
 )
 
 type fakeActiveSessionManager struct {
@@ -178,7 +180,7 @@ func TestLoadConfigFrom_FlatSchema(t *testing.T) {
 		"provider": "openai",
 		"model": "gpt-4o",
 		"mode": "agent",
-		"workDir": "/tmp/project",
+		"defaultWorkDir": "/tmp/project",
 		"thinking": "high",
 		"auth": {
 			"enabled": true,
@@ -235,8 +237,8 @@ func TestLoadConfigFrom_FlatSchema(t *testing.T) {
 	if cfg.API.DefaultMode != "agent" {
 		t.Fatalf("mode = %q, want agent", cfg.API.DefaultMode)
 	}
-	if cfg.API.WorkingDir != "/tmp/project" {
-		t.Fatalf("workDir = %q, want /tmp/project", cfg.API.WorkingDir)
+	if cfg.API.DefaultWorkDir != "/tmp/project" || cfg.API.GetWorkDir() != "/tmp/project" {
+		t.Fatalf("defaultWorkDir = %q, effective = %q, want /tmp/project", cfg.API.DefaultWorkDir, cfg.API.GetWorkDir())
 	}
 	if !cfg.API.Auth.Enabled || len(cfg.API.Auth.Tokens) != 1 || cfg.API.Auth.Tokens[0] != "sk-test" {
 		t.Fatalf("auth = %#v", cfg.API.Auth)
@@ -291,6 +293,39 @@ func TestLoadConfigFrom_FlatSchema(t *testing.T) {
 	}
 	if cfg.Agent.MaxTurns != 12 {
 		t.Fatalf("agent max turns = %d, want 12", cfg.Agent.MaxTurns)
+	}
+}
+
+func TestDecodeConfigBytes_LegacyWorkDirMapsToDefaultWorkDir(t *testing.T) {
+	cfg, err := DecodeConfigBytes([]byte(`{"workDir":"/tmp/legacy-project"}`))
+	if err != nil {
+		t.Fatalf("DecodeConfigBytes: %v", err)
+	}
+	if cfg.API.DefaultWorkDir != "/tmp/legacy-project" || cfg.API.GetWorkDir() != "/tmp/legacy-project" {
+		t.Fatalf("defaultWorkDir = %q, effective = %q, want /tmp/legacy-project", cfg.API.DefaultWorkDir, cfg.API.GetWorkDir())
+	}
+	if cfg.API.WorkingDir != "" {
+		t.Fatalf("legacy WorkingDir should be normalized away, got %q", cfg.API.WorkingDir)
+	}
+}
+
+func TestMarshalConfigWritesDefaultWorkDir(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.API.WorkingDir = "/tmp/legacy-project"
+
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal marshaled config: %v", err)
+	}
+	if got["defaultWorkDir"] != "/tmp/legacy-project" {
+		t.Fatalf("defaultWorkDir = %#v, want /tmp/legacy-project; json=%s", got["defaultWorkDir"], string(data))
+	}
+	if _, ok := got["workDir"]; ok {
+		t.Fatalf("legacy workDir should not be emitted: %s", string(data))
 	}
 }
 
@@ -352,6 +387,16 @@ func TestInitConfig_WritesFlatTemplate(t *testing.T) {
 	}
 	if !strings.Contains(text, `"auth": {`) {
 		t.Fatalf("generated config missing auth block:\n%s", text)
+	}
+	if !strings.Contains(text, `"defaultWorkDir":`) || strings.Contains(text, `"workDir":`) {
+		t.Fatalf("generated config should use defaultWorkDir instead of legacy workDir:\n%s", text)
+	}
+	var generated map[string]any
+	if err := json.Unmarshal(data, &generated); err != nil {
+		t.Fatalf("decode generated config: %v", err)
+	}
+	if _, ok := generated["allowedWorkDirs"]; ok {
+		t.Fatalf("generated config should leave selectable workdirs unrestricted by default:\n%s", text)
 	}
 	if strings.Contains(text, `"api": {`) {
 		t.Fatalf("generated config should prefer flat schema, got legacy api block:\n%s", text)
@@ -589,6 +634,65 @@ func TestHandleStatus_ReturnsRuntimeSummary(t *testing.T) {
 	}
 	if len(got.Channels) != 3 || !got.Channels[0].Enabled || got.Channels[2].Name != "websocket" {
 		t.Fatalf("channels = %#v", got.Channels)
+	}
+}
+
+func TestHandleStatsSummaryReturnsStatsSummary(t *testing.T) {
+	sessionDir := t.TempDir()
+	mgr := session.New("/tmp/stats-project", sessionDir)
+	if err := mgr.InitWithID("stats-session"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	if err := mgr.RecordUsage("openai", "serve", "gpt-test", 11, 7, 18, 120); err != nil {
+		t.Fatalf("record usage: %v", err)
+	}
+
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/summary", nil)
+	w := httptest.NewRecorder()
+	rt.handleStats(sessionDir).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	var got stats.Summary
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.TotalRequests != 1 || got.InputTokens != 11 || got.OutputTokens != 7 || got.TotalTokens != 18 {
+		t.Fatalf("summary = %#v", got)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/stats/by-model", nil)
+	w = httptest.NewRecorder()
+	rt.handleStats(sessionDir).ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("by-model status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	var byModel []stats.Aggregate
+	if err := json.NewDecoder(w.Body).Decode(&byModel); err != nil {
+		t.Fatalf("decode by-model response: %v", err)
+	}
+	if len(byModel) != 1 || byModel[0].Model != "gpt-test" || byModel[0].TotalTokens != 18 {
+		t.Fatalf("by-model = %#v", byModel)
+	}
+}
+
+func TestHandleStatsSummaryMissingDBReturnsZeroSummary(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/summary", nil)
+	w := httptest.NewRecorder()
+	rt.handleStats(t.TempDir()).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	var got stats.Summary
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.TotalRequests != 0 || got.TotalTokens != 0 {
+		t.Fatalf("summary = %#v", got)
 	}
 }
 
@@ -1140,14 +1244,14 @@ func TestHandleWebUIReflectsCurrentConfig(t *testing.T) {
 	}
 }
 
-func TestHandleBrowseRestrictsToWorkingDirByDefault(t *testing.T) {
+func TestHandleBrowseUsesDefaultWorkDirAsStartWithoutAllowlist(t *testing.T) {
 	workDir := t.TempDir()
 	outside := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(workDir, "child"), 0700); err != nil {
 		t.Fatalf("create child: %v", err)
 	}
 	cfg := DefaultConfig()
-	cfg.API.WorkingDir = workDir
+	cfg.API.DefaultWorkDir = workDir
 	rt := &channelRuntime{cfg: cfg}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/browse", nil)
@@ -1167,8 +1271,8 @@ func TestHandleBrowseRestrictsToWorkingDirByDefault(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
 		t.Fatalf("decode browse response: %v", err)
 	}
-	if got.Path != workDir || got.Parent != workDir {
-		t.Fatalf("browse root path=%q parent=%q, want both %q", got.Path, got.Parent, workDir)
+	if got.Path != workDir {
+		t.Fatalf("browse root path=%q, want %q", got.Path, workDir)
 	}
 	if len(got.Entries) != 1 || got.Entries[0].Name != "child" {
 		t.Fatalf("entries = %#v", got.Entries)
@@ -1177,8 +1281,8 @@ func TestHandleBrowseRestrictsToWorkingDirByDefault(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(outside), nil)
 	w = httptest.NewRecorder()
 	rt.handleBrowse(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("outside status = %d, want 403; body = %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK {
+		t.Fatalf("outside status = %d, want 200 without allowlist; body = %s", w.Code, w.Body.String())
 	}
 
 	linkPath := filepath.Join(workDir, "outside-link")
@@ -1188,8 +1292,8 @@ func TestHandleBrowseRestrictsToWorkingDirByDefault(t *testing.T) {
 		req = httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(linkPath), nil)
 		w = httptest.NewRecorder()
 		rt.handleBrowse(w, req)
-		if w.Code != http.StatusForbidden {
-			t.Fatalf("symlink outside status = %d, want 403; body = %s", w.Code, w.Body.String())
+		if w.Code != http.StatusOK {
+			t.Fatalf("symlink outside status = %d, want 200 without allowlist; body = %s", w.Code, w.Body.String())
 		}
 	}
 }
@@ -1200,7 +1304,7 @@ func TestHandleBrowseUsesAllowedWorkDirs(t *testing.T) {
 		t.Fatalf("create repo: %v", err)
 	}
 	cfg := DefaultConfig()
-	cfg.API.WorkingDir = t.TempDir()
+	cfg.API.DefaultWorkDir = t.TempDir()
 	allowed := []string{allowedRoot}
 	cfg.API.AllowedWorkDirs = &allowed
 	rt := &channelRuntime{cfg: cfg}
@@ -1421,7 +1525,7 @@ func TestBuildConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.API.Provider = "openai"
 	cfg.API.Model = "gpt-4o"
-	cfg.API.WorkingDir = "/tmp/project"
+	cfg.API.DefaultWorkDir = "/tmp/project"
 	cfg.API.Sandbox.Enabled = true
 	cfg.API.EnableWebSearch = true
 	cfg.API.EnableBrowser = true

@@ -124,6 +124,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	defer sess.Unlock()
 	sess.Touch()
 	runID := newRunID()
+	sess.SetRunning(true)
+	defer func() {
+		sess.SetRunning(false)
+		s.publishSessionStreamDone(sess.ID)
+	}()
 	if err := s.applySessionToolOptions(sess, req.XTools, runID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 		return
@@ -345,7 +350,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 		switch ev.Type {
 		case agent.EventTextDelta:
 			if transcript {
-				sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent(ev.TextDelta))
+				s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent(ev.TextDelta))
 			}
 			sse.WriteContentDelta(ev.TextDelta)
 
@@ -357,7 +362,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			}
 			xToolCalls = append(xToolCalls, XToolCall{Name: name, Args: ev.ToolArgs, Status: "running"})
 			if transcript {
-				sse.WriteTranscriptEvent(messageTranscriptEvent(transcriptToolCallEntry(name, callID, ev)))
+				s.writeTranscriptEvent(sse, sessionID, messageTranscriptEvent(transcriptToolCallEntry(name, callID, ev)))
 			} else {
 				switch toolMode {
 				case "content":
@@ -400,7 +405,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			}
 
 			if transcript {
-				sse.WriteTranscriptEvent(messageTranscriptEvent(transcriptToolResultEntry(name, ev, status)))
+				s.writeTranscriptEvent(sse, sessionID, messageTranscriptEvent(transcriptToolResultEntry(name, ev, status)))
 			} else {
 				switch toolMode {
 				case "content":
@@ -422,6 +427,8 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			if ev.Usage != nil {
 				totalUsage.PromptTokens += ev.Usage.TotalInputTokens()
 				totalUsage.CompletionTokens += ev.Usage.Output
+				totalUsage.CacheReadTokens += ev.Usage.CacheRead
+				totalUsage.CacheWriteTokens += ev.Usage.CacheWrite
 				totalUsage.TotalTokens = totalUsage.PromptTokens + totalUsage.CompletionTokens
 			}
 
@@ -432,7 +439,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 		case agent.EventError:
 			if ev.Error != nil {
 				if transcript {
-					sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent("\n\n[Error: " + ev.Error.Error() + "]"))
+					s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent("\n\n[Error: "+ev.Error.Error()+"]"))
 				}
 				sse.WriteError(ev.Error.Error())
 				return totalUsage, "failed", ev.Error.Error()
@@ -567,6 +574,8 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 			if ev.Usage != nil {
 				totalUsage.PromptTokens += ev.Usage.TotalInputTokens()
 				totalUsage.CompletionTokens += ev.Usage.Output
+				totalUsage.CacheReadTokens += ev.Usage.CacheRead
+				totalUsage.CacheWriteTokens += ev.Usage.CacheWrite
 				totalUsage.TotalTokens = totalUsage.PromptTokens + totalUsage.CompletionTokens
 			}
 
@@ -639,7 +648,7 @@ func (s *Server) writeCommandResponseStreaming(w http.ResponseWriter, result *Co
 	sse := NewSSEWriter(w, modelID, sessionID)
 	sse.WriteRoleDelta()
 	if transcript {
-		sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent(result.Message))
+		s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent(result.Message))
 	}
 	sse.WriteContentDelta(result.Message)
 	sse.WriteDone(&CompletionUsage{})

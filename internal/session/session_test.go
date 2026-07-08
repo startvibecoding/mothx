@@ -1337,6 +1337,29 @@ func TestSessionRunAndCapabilityEventsSaveListAndDelete(t *testing.T) {
 		t.Fatalf("capability event = %#v", capabilityEvents[0])
 	}
 
+	runEventsWithSeq, err := ListSessionRunEventsWithSeq(sessionDir, "events-session")
+	if err != nil {
+		t.Fatalf("ListSessionRunEventsWithSeq: %v", err)
+	}
+	if len(runEventsWithSeq) != 2 || runEventsWithSeq[0].Seq <= 0 || runEventsWithSeq[1].Seq <= runEventsWithSeq[0].Seq {
+		t.Fatalf("run events with seq = %#v", runEventsWithSeq)
+	}
+	runAfterFirst, err := ListSessionRunEventsAfter(sessionDir, "events-session", runEventsWithSeq[0].Seq, 10)
+	if err != nil {
+		t.Fatalf("ListSessionRunEventsAfter: %v", err)
+	}
+	if len(runAfterFirst) != 1 || runAfterFirst[0].Event.EventType != "finished" {
+		t.Fatalf("run events after first = %#v", runAfterFirst)
+	}
+
+	capabilityEventsWithSeq, err := ListSessionCapabilityEventsWithSeq(sessionDir, "events-session")
+	if err != nil {
+		t.Fatalf("ListSessionCapabilityEventsWithSeq: %v", err)
+	}
+	if len(capabilityEventsWithSeq) != 1 || capabilityEventsWithSeq[0].Seq <= 0 || capabilityEventsWithSeq[0].Event.Capability != "browser" {
+		t.Fatalf("capability events with seq = %#v", capabilityEventsWithSeq)
+	}
+
 	if err := DeleteSession(m.GetFile(), sessionDir); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
@@ -1353,5 +1376,43 @@ func TestSessionRunAndCapabilityEventsSaveListAndDelete(t *testing.T) {
 	}
 	if len(capabilityEvents) != 0 {
 		t.Fatalf("capability events after delete len = %d, want 0", len(capabilityEvents))
+	}
+}
+
+func TestListSessionMessagesWithSeqAndAfter(t *testing.T) {
+	sessionDir := t.TempDir()
+	m := New("/tmp/seq-project", sessionDir)
+	if err := m.InitWithID("seq-session"); err != nil {
+		t.Fatalf("InitWithID: %v", err)
+	}
+	firstID, err := m.AppendMessage(provider.NewUserMessage("first"))
+	if err != nil {
+		t.Fatalf("AppendMessage first: %v", err)
+	}
+	secondID, err := m.AppendMessage(provider.Message{Role: "assistant", Content: "second"})
+	if err != nil {
+		t.Fatalf("AppendMessage second: %v", err)
+	}
+
+	messages, err := ListSessionMessagesWithSeq(sessionDir, "seq-session")
+	if err != nil {
+		t.Fatalf("ListSessionMessagesWithSeq: %v", err)
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages len = %d, want 2: %#v", len(messages), messages)
+	}
+	if messages[0].EntryID != firstID || messages[0].Message.Content != "first" || messages[0].Seq <= 0 {
+		t.Fatalf("first sequenced message = %#v", messages[0])
+	}
+	if messages[1].EntryID != secondID || messages[1].Message.Content != "second" || messages[1].Seq <= messages[0].Seq {
+		t.Fatalf("second sequenced message = %#v", messages[1])
+	}
+
+	afterFirst, err := ListSessionMessagesAfter(sessionDir, "seq-session", messages[0].Seq, 10)
+	if err != nil {
+		t.Fatalf("ListSessionMessagesAfter: %v", err)
+	}
+	if len(afterFirst) != 1 || afterFirst[0].EntryID != secondID {
+		t.Fatalf("messages after first = %#v", afterFirst)
 	}
 }

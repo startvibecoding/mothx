@@ -16,6 +16,7 @@ export const memoryInfo = writable(null);
 export const memory = writable('');
 export const logs = writable([]);
 export const logsConnected = writable(false);
+export const statsSummary = writable(null);
 export const notice = writable('');
 export const error = writable('');
 export const currentSession = writable('');
@@ -113,7 +114,7 @@ export async function refreshAll() {
     settings.set(JSON.stringify(s, null, 2));
     memoryInfo.set(mem);
     memory.set(mem?.content || '');
-    await refreshModels();
+    await Promise.all([refreshModels(), refreshStatsSummary()]);
   } catch (err) {
     setError(err);
   }
@@ -122,6 +123,43 @@ export async function refreshAll() {
 export async function refreshSessions() {
   const data = await request('/api/sessions');
   sessions.set(data?.sessions || []);
+}
+
+export async function refreshStatsSummary() {
+  try {
+    statsSummary.set(await request('/api/stats/summary'));
+  } catch {
+    statsSummary.set(null);
+  }
+}
+
+function statsQuery(params = {}) {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(params || {})) {
+    if (value !== undefined && value !== null && value !== '') q.set(key, value);
+  }
+  const query = q.toString();
+  return query ? `?${query}` : '';
+}
+
+export async function getStatsSummary(params = {}) {
+  return request(`/api/stats/summary${statsQuery(params)}`);
+}
+
+export async function getStatsTimeSeries(params = {}) {
+  return request(`/api/stats/timeseries${statsQuery(params)}`);
+}
+
+export async function getStatsByProvider(params = {}) {
+  return request(`/api/stats/by-provider${statsQuery(params)}`);
+}
+
+export async function getStatsByModel(params = {}) {
+  return request(`/api/stats/by-model${statsQuery(params)}`);
+}
+
+export async function getStatsRecent(params = {}) {
+  return request(`/api/stats/recent${statsQuery(params)}`);
 }
 
 export async function getSessionMessages(id) {
