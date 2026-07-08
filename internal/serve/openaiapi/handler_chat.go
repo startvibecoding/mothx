@@ -12,12 +12,14 @@ import (
 	"strings"
 	"time"
 
+	agentpkg "github.com/startvibecoding/mothx/agent"
 	"github.com/startvibecoding/mothx/internal/a2a"
 	"github.com/startvibecoding/mothx/internal/agent"
 	browserfeature "github.com/startvibecoding/mothx/internal/browser"
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
+	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
@@ -350,9 +352,11 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 		switch ev.Type {
 		case agent.EventTextDelta:
 			if transcript {
-				s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent(ev.TextDelta))
+				s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent(ev.TextDelta, ev.AgentID))
 			}
-			sse.WriteContentDelta(ev.TextDelta)
+			if ev.AgentID == "" {
+				sse.WriteContentDelta(ev.TextDelta)
+			}
 
 		case agent.EventToolCall:
 			name, callID := resolveToolEvent(ev)
@@ -371,6 +375,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 					sse.WriteToolStatusEvent(ToolStatusEvent{
 						Tool:       name,
 						ToolCallID: callID,
+						AgentID:    string(ev.AgentID),
 						Status:     "running",
 						Args:       ev.ToolArgs,
 					})
@@ -414,6 +419,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 					sse.WriteToolStatusEvent(ToolStatusEvent{
 						Tool:       name,
 						ToolCallID: ev.ToolCallID,
+						AgentID:    string(ev.AgentID),
 						Status:     status,
 						Args:       tc.Args,
 						Summary:    summarizeToolStatusResult(ev.ToolResult),
@@ -433,13 +439,25 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			}
 
 		case agent.EventDone:
+			if ev.AgentID != "" {
+				if transcript {
+					s.writeTranscriptEvent(sse, sessionID, subAgentStatusTranscriptEvent(ev.AgentID, "done", ""))
+				}
+				continue
+			}
 			sse.WriteDone(&totalUsage)
 			return totalUsage, "completed", ""
 
 		case agent.EventError:
+			if ev.AgentID != "" {
+				if transcript && ev.Error != nil {
+					s.writeTranscriptEvent(sse, sessionID, subAgentStatusTranscriptEvent(ev.AgentID, "error", ev.Error.Error()))
+				}
+				continue
+			}
 			if ev.Error != nil {
 				if transcript {
-					s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent("\n\n[Error: "+ev.Error.Error()+"]"))
+					s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent("\n\n[Error: "+ev.Error.Error()+"]", ""))
 				}
 				sse.WriteError(ev.Error.Error())
 				return totalUsage, "failed", ev.Error.Error()
@@ -454,10 +472,11 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 	return totalUsage, "completed", ""
 }
 
-func assistantDeltaTranscriptEvent(text string) TranscriptStreamEvent {
+func assistantDeltaTranscriptEvent(text string, agentID agentpkg.AgentID) TranscriptStreamEvent {
 	return TranscriptStreamEvent{
 		Type: "assistant_delta",
 		Message: &SessionMessageEntry{
+			AgentID: string(agentID),
 			Role:    "assistant",
 			Content: text,
 		},
@@ -468,6 +487,19 @@ func messageTranscriptEvent(entry SessionMessageEntry) TranscriptStreamEvent {
 	return TranscriptStreamEvent{
 		Type:    "message",
 		Message: &entry,
+	}
+}
+
+func subAgentStatusTranscriptEvent(agentID agentpkg.AgentID, status string, summary string) TranscriptStreamEvent {
+	return TranscriptStreamEvent{
+		Type: "subagent_status",
+		Message: &SessionMessageEntry{
+			AgentID: string(agentID),
+			Role:    "status",
+			Content: status,
+			Summary: summary,
+			IsError: status == "error",
+		},
 	}
 }
 
@@ -488,6 +520,7 @@ func transcriptToolCallEntry(name, callID string, ev agent.Event) SessionMessage
 	}
 	return SessionMessageEntry{
 		Role:        "toolCall",
+		AgentID:     string(ev.AgentID),
 		ToolCallID:  callID,
 		ToolName:    name,
 		Arguments:   args,
@@ -504,6 +537,7 @@ func transcriptToolResultEntry(name string, ev agent.Event, status string) Sessi
 	}
 	return SessionMessageEntry{
 		Role:       "toolResult",
+		AgentID:    string(ev.AgentID),
 		ToolCallID: ev.ToolCallID,
 		ToolName:   name,
 		IsError:    isError,
@@ -534,7 +568,9 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 	for ev := range eventCh {
 		switch ev.Type {
 		case agent.EventTextDelta:
-			sb.WriteString(ev.TextDelta)
+			if ev.AgentID == "" {
+				sb.WriteString(ev.TextDelta)
+			}
 
 		case agent.EventToolCall:
 			name, callID := resolveToolEvent(ev)
@@ -566,7 +602,7 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 			tc.Error = ev.ToolError
 			delete(pendingTools, ev.ToolCallID)
 
-			if toolMode == "content" {
+			if toolMode == "content" && ev.AgentID == "" {
 				sb.WriteString(formatToolResult(tc, toolDetail))
 			}
 
@@ -580,6 +616,9 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 			}
 
 		case agent.EventError:
+			if ev.AgentID != "" {
+				continue
+			}
 			if ev.Error != nil {
 				writeError(w, http.StatusInternalServerError, ev.Error.Error(), "server_error")
 				return totalUsage, "failed", ev.Error.Error()
@@ -648,7 +687,7 @@ func (s *Server) writeCommandResponseStreaming(w http.ResponseWriter, result *Co
 	sse := NewSSEWriter(w, modelID, sessionID)
 	sse.WriteRoleDelta()
 	if transcript {
-		s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent(result.Message))
+		s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent(result.Message, ""))
 	}
 	sse.WriteContentDelta(result.Message)
 	sse.WriteDone(&CompletionUsage{})
@@ -702,6 +741,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 			if gwSess.MultiAgent || gwSess.DelegateMode || gwSess.Workflows {
 				gwSess.AgentMgr = s.newAgentManagerForSession(gwSess)
 			}
+			s.registerCronTool(gwSess)
 			if err := s.pool.Put(gwSess); err != nil {
 				return nil, err
 			}
@@ -746,6 +786,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 				if gwSess.MultiAgent || gwSess.DelegateMode || gwSess.Workflows {
 					gwSess.AgentMgr = s.newAgentManagerForSession(gwSess)
 				}
+				s.registerCronTool(gwSess)
 				if err := s.pool.Put(gwSess); err != nil {
 					return nil, err
 				}
@@ -802,6 +843,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 	if sess.MultiAgent || sess.DelegateMode || sess.Workflows {
 		sess.AgentMgr = s.newAgentManagerForSession(sess)
 	}
+	s.registerCronTool(sess)
 
 	if err := s.pool.Put(sess); err != nil {
 		return nil, err
@@ -893,6 +935,7 @@ func (s *Server) syncSessionTools(sess *APISession, refreshContext bool) error {
 	if sess == nil || sess.Registry == nil {
 		return nil
 	}
+	s.registerCronTool(sess)
 
 	if refreshContext {
 		if err := s.refreshSessionContext(sess); err != nil {
@@ -940,6 +983,17 @@ func (s *Server) syncSessionTools(sess *APISession, refreshContext bool) error {
 	}
 
 	return nil
+}
+
+func (s *Server) registerCronTool(sess *APISession) {
+	if sess == nil || sess.Registry == nil {
+		return
+	}
+	if s == nil || s.cronStore == nil {
+		sess.Registry.Remove("cron")
+		return
+	}
+	sess.Registry.Register(cron.NewCronTool(cron.NewSessionScopedStoreWithWorkDir(s.cronStore, sess.ID, sess.WorkDir), s.cronScheduler))
 }
 
 func removeSubAgentTools(registry *tools.Registry) {

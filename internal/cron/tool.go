@@ -27,7 +27,7 @@ func (t *CronTool) Name() string {
 }
 
 func (t *CronTool) Description() string {
-	return "Manage scheduled tasks (cron jobs). Create one-time or periodic background tasks that run via sub-agents."
+	return "Manage scheduled tasks (cron jobs) for the current session. Create one-time or periodic background tasks, list them, and delete or update them by ID or unique name."
 }
 
 func (t *CronTool) PromptSnippet() string {
@@ -36,10 +36,12 @@ func (t *CronTool) PromptSnippet() string {
 
 func (t *CronTool) PromptGuidelines() []string {
 	return []string{
-		"The `cron` tool manages scheduled background tasks that run via sub-agents.",
-		"Use `cron(action=\"list\")` to see existing tasks.",
-		"Use `cron(action=\"create\", name=\"...\", prompt=\"...\", schedule=\"@daily\")` for periodic tasks.",
-		"Use `cron(action=\"create\", name=\"...\", prompt=\"...\", oneshot=true)` for one-time tasks.",
+		"The `cron` tool manages scheduled background tasks bound to the current session.",
+		"Created tasks inherit the current session's working directory unless a work directory is set by the runtime.",
+		"Use `cron(action=\"list\")` to see this session's tasks.",
+		"Use `cron(action=\"create\", name=\"...\", prompt=\"...\", schedule=\"@daily\")` for periodic tasks in this session.",
+		"Use `cron(action=\"create\", name=\"...\", prompt=\"...\", oneshot=true)` for one-time tasks in this session.",
+		"Use `cron(action=\"delete\", id=\"...\")` or `cron(action=\"delete\", name=\"...\")` to delete a task.",
 		"Schedule formats: `@daily`, `@weekly`, `@monthly`, `@hourly`, `@every 30m`, `@every 2h`, or empty for one-shot.",
 		"Use `cron(action=\"run\", id=\"...\")` to trigger a task immediately.",
 	}
@@ -51,16 +53,16 @@ func (t *CronTool) Parameters() json.RawMessage {
 		"properties": {
 			"action": {
 				"type": "string",
-				"description": "Action: list, create, enable, disable, remove, run",
-				"enum": ["list", "create", "enable", "disable", "remove", "run"]
+				"description": "Action: list, create, enable, disable, remove/delete, run",
+				"enum": ["list", "create", "enable", "disable", "remove", "delete", "run"]
 			},
 			"id": {
 				"type": "string",
-				"description": "Job ID (required for enable, disable, remove, run)"
+				"description": "Job ID for enable, disable, delete/remove, or run. If omitted, name must uniquely identify the task."
 			},
 			"name": {
 				"type": "string",
-				"description": "Short task name (required for create)"
+				"description": "Short task name. Required for create; can identify an existing task for enable, disable, delete/remove, or run."
 			},
 			"prompt": {
 				"type": "string",
@@ -99,18 +101,22 @@ func (t *CronTool) Execute(ctx context.Context, params map[string]any) (tools.To
 		return t.executeCreate(name, prompt, schedule, oneShot, mode)
 	case "enable":
 		id, _ := params["id"].(string)
-		return t.executeSetEnabled(id, true)
+		name, _ := params["name"].(string)
+		return t.executeSetEnabled(id, name, true)
 	case "disable":
 		id, _ := params["id"].(string)
-		return t.executeSetEnabled(id, false)
-	case "remove":
+		name, _ := params["name"].(string)
+		return t.executeSetEnabled(id, name, false)
+	case "remove", "delete":
 		id, _ := params["id"].(string)
-		return t.executeRemove(id)
+		name, _ := params["name"].(string)
+		return t.executeRemove(id, name)
 	case "run":
 		id, _ := params["id"].(string)
-		return t.executeRun(id)
+		name, _ := params["name"].(string)
+		return t.executeRun(id, name)
 	default:
-		return tools.ToolResult{}, fmt.Errorf("unknown action: %s (use: list, create, enable, disable, remove, run)", action)
+		return tools.ToolResult{}, fmt.Errorf("unknown action: %s (use: list, create, enable, disable, remove/delete, run)", action)
 	}
 }
 
@@ -211,11 +217,8 @@ func scheduleStr(schedule string, oneShot bool) string {
 	return schedule
 }
 
-func (t *CronTool) executeSetEnabled(id string, enabled bool) (tools.ToolResult, error) {
-	if id == "" {
-		return tools.ToolResult{}, fmt.Errorf("id is required")
-	}
-	job, err := t.store.Get(id)
+func (t *CronTool) executeSetEnabled(id, name string, enabled bool) (tools.ToolResult, error) {
+	job, err := t.findJob(id, name)
 	if err != nil {
 		return tools.ToolResult{}, err
 	}
@@ -230,26 +233,20 @@ func (t *CronTool) executeSetEnabled(id string, enabled bool) (tools.ToolResult,
 	return tools.NewTextToolResult(fmt.Sprintf("✅ Cron job %s %s: %s", job.ID, action, job.Name)), nil
 }
 
-func (t *CronTool) executeRemove(id string) (tools.ToolResult, error) {
-	if id == "" {
-		return tools.ToolResult{}, fmt.Errorf("id is required")
-	}
-	job, err := t.store.Get(id)
+func (t *CronTool) executeRemove(id, name string) (tools.ToolResult, error) {
+	job, err := t.findJob(id, name)
 	if err != nil {
 		return tools.ToolResult{}, err
 	}
-	name := job.Name
-	if err := t.store.Delete(id); err != nil {
+	jobName := job.Name
+	if err := t.store.Delete(job.ID); err != nil {
 		return tools.ToolResult{}, fmt.Errorf("delete cron job: %w", err)
 	}
-	return tools.NewTextToolResult(fmt.Sprintf("🗑 Cron job removed: %s (%s)", id, name)), nil
+	return tools.NewTextToolResult(fmt.Sprintf("🗑 Cron job removed: %s (%s)", job.ID, jobName)), nil
 }
 
-func (t *CronTool) executeRun(id string) (tools.ToolResult, error) {
-	if id == "" {
-		return tools.ToolResult{}, fmt.Errorf("id is required")
-	}
-	job, err := t.store.Get(id)
+func (t *CronTool) executeRun(id, name string) (tools.ToolResult, error) {
+	job, err := t.findJob(id, name)
 	if err != nil {
 		return tools.ToolResult{}, err
 	}
@@ -259,6 +256,34 @@ func (t *CronTool) executeRun(id string) (tools.ToolResult, error) {
 		return tools.ToolResult{}, fmt.Errorf("update cron job: %w", err)
 	}
 	return tools.NewTextToolResult(fmt.Sprintf("▶ Cron job %s triggered: %s (will run on next scheduler tick)", job.ID, job.Name)), nil
+}
+
+func (t *CronTool) findJob(id, name string) (*CronJob, error) {
+	id = strings.TrimSpace(id)
+	name = strings.TrimSpace(name)
+	if id != "" {
+		return t.store.Get(id)
+	}
+	if name == "" {
+		return nil, fmt.Errorf("id or name is required")
+	}
+	jobs, err := t.store.List()
+	if err != nil {
+		return nil, fmt.Errorf("list cron jobs: %w", err)
+	}
+	var matches []CronJob
+	for _, job := range jobs {
+		if strings.EqualFold(job.Name, name) {
+			matches = append(matches, job)
+		}
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("cron job named %q not found", name)
+	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("cron job name %q is ambiguous; use id", name)
+	}
+	return &matches[0], nil
 }
 
 func truncateStr(s string, maxLen int) string {

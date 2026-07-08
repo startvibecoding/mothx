@@ -2,16 +2,18 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/cron"
 )
 
-// openCronStore opens the serve cron store file.
-func openCronStore() *cron.FileCronStore {
-	path := filepath.Join(config.ConfigDir(), "serve-cron.json")
-	return cron.NewFileCronStore(path)
+// openCronStore opens the shared SQLite cron store.
+func openCronStore() cron.CronStore {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return cron.NewSQLiteCronStore("")
+	}
+	return cron.NewSQLiteCronStore(settings.GetSessionDir())
 }
 
 // setCronEnabled enables or disables a cron job by ID.

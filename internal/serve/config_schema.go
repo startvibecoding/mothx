@@ -96,9 +96,8 @@ type rawWebUIConfig struct {
 }
 
 type rawCronConfig struct {
-	Enabled   *bool  `json:"enabled,omitempty"`
-	StorePath string `json:"storePath,omitempty"`
-	Interval  *int   `json:"interval,omitempty"`
+	Enabled  *bool `json:"enabled,omitempty"`
+	Interval *int  `json:"interval,omitempty"`
 }
 
 type rawMemoryConfig struct {

@@ -6,7 +6,7 @@ import (
 )
 
 func TestCronToolCreateOneShot(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
@@ -35,7 +35,7 @@ func TestCronToolCreateOneShot(t *testing.T) {
 }
 
 func TestCronToolCreatePeriodic(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
@@ -67,7 +67,7 @@ func TestCronToolCreatePeriodic(t *testing.T) {
 }
 
 func TestCronToolCreateDefaultOneShot(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	_, err := tool.Execute(context.Background(), map[string]any{
@@ -87,7 +87,7 @@ func TestCronToolCreateDefaultOneShot(t *testing.T) {
 }
 
 func TestCronToolList(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	// Empty list
@@ -105,7 +105,7 @@ func TestCronToolList(t *testing.T) {
 }
 
 func TestCronToolEnableDisable(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	job, _ := store.Create(CronJob{Name: "test", Prompt: "test", Enabled: true})
@@ -138,7 +138,7 @@ func TestCronToolEnableDisable(t *testing.T) {
 }
 
 func TestCronToolRemove(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	job, _ := store.Create(CronJob{Name: "test", Prompt: "test", Enabled: true})
@@ -157,8 +157,56 @@ func TestCronToolRemove(t *testing.T) {
 	}
 }
 
+func TestCronToolSessionScopedCreateAndDeleteByName(t *testing.T) {
+	base := NewSQLiteCronStore(t.TempDir())
+	current := NewSessionScopedStoreWithWorkDir(base, "session-a", "/tmp/session-a")
+	other := NewSessionScopedStore(base, "session-b")
+	tool := NewCronTool(current, nil)
+
+	if _, err := other.Create(CronJob{Name: "other", Prompt: "other", Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tool.Execute(context.Background(), map[string]any{
+		"action": "create",
+		"name":   "daily",
+		"prompt": "summarize this session",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	jobs, err := current.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jobs) != 1 || jobs[0].SessionID != "session-a" {
+		t.Fatalf("current session jobs = %#v", jobs)
+	}
+	if jobs[0].WorkDir != "/tmp/session-a" {
+		t.Fatalf("created job workDir = %q, want /tmp/session-a", jobs[0].WorkDir)
+	}
+	otherJobs, _ := other.List()
+	if len(otherJobs) != 1 || otherJobs[0].Name != "other" {
+		t.Fatalf("other session jobs = %#v", otherJobs)
+	}
+
+	if _, err := tool.Execute(context.Background(), map[string]any{
+		"action": "delete",
+		"name":   "daily",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	jobs, _ = current.List()
+	if len(jobs) != 0 {
+		t.Fatalf("expected current session task deleted, got %#v", jobs)
+	}
+	otherJobs, _ = other.List()
+	if len(otherJobs) != 1 {
+		t.Fatalf("other session task should remain, got %#v", otherJobs)
+	}
+}
+
 func TestCronToolMissingParams(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	// Create without name
@@ -189,7 +237,7 @@ func TestCronToolMissingParams(t *testing.T) {
 }
 
 func TestCronToolUnknownAction(t *testing.T) {
-	store := NewFileCronStore(t.TempDir() + "/cron.json")
+	store := NewSQLiteCronStore(t.TempDir())
 	tool := NewCronTool(store, nil)
 
 	_, err := tool.Execute(context.Background(), map[string]any{

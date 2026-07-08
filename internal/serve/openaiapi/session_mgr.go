@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	agentpkg "github.com/startvibecoding/mothx/agent"
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
@@ -68,6 +69,7 @@ type SessionMessageEntry struct {
 	Role        string                  `json:"role"`
 	Content     string                  `json:"content,omitempty"`
 	Contents    []provider.ContentBlock `json:"contents,omitempty"`
+	AgentID     string                  `json:"agentId,omitempty"`
 	ToolCallID  string                  `json:"toolCallId,omitempty"`
 	ToolName    string                  `json:"toolName,omitempty"`
 	Arguments   json.RawMessage         `json:"arguments,omitempty"`
@@ -85,6 +87,19 @@ type SessionToolResultDetail struct {
 	Content    string                  `json:"content,omitempty"`
 	Contents   []provider.ContentBlock `json:"contents,omitempty"`
 	IsError    bool                    `json:"isError,omitempty"`
+}
+
+// SessionSubAgentInfo is the WebUI view of a managed sub-agent.
+type SessionSubAgentInfo struct {
+	ID           string `json:"id"`
+	ParentID     string `json:"parentId,omitempty"`
+	Status       string `json:"status"`
+	Active       bool   `json:"active"`
+	MessageCount int    `json:"messageCount"`
+	LastResponse string `json:"lastResponse,omitempty"`
+	Error        string `json:"error,omitempty"`
+	StartedAt    string `json:"startedAt,omitempty"`
+	UpdatedAt    string `json:"updatedAt,omitempty"`
 }
 
 // SessionTaskPlan is the WebUI view of a plan tool call.
@@ -108,6 +123,9 @@ var ErrSessionToolResultNotFound = errors.New("session tool result not found")
 
 // ErrSessionNotFound is returned when a session cannot be found in memory or persistence.
 var ErrSessionNotFound = errors.New("session not found")
+
+// ErrSubAgentNotFound is returned when a sub-agent cannot be found in an active session.
+var ErrSubAgentNotFound = errors.New("sub-agent not found")
 
 // ErrInvalidCapability is returned when a capability patch contains an invalid value.
 var ErrInvalidCapability = errors.New("invalid capability value")
@@ -867,6 +885,85 @@ func (s *Server) GetSessionToolResult(id, toolCallID string) (*SessionToolResult
 		return detail, nil
 	}
 	return nil, ErrSessionToolResultNotFound
+}
+
+// GetSessionSubAgents returns sub-agent statuses for an active session.
+func (s *Server) GetSessionSubAgents(id string) ([]SessionSubAgentInfo, error) {
+	if s == nil || s.pool == nil {
+		return nil, ErrSessionNotFound
+	}
+	sess, err := s.pool.getExact(id)
+	if err != nil {
+		return nil, err
+	}
+	if sess == nil {
+		return nil, ErrSessionNotFound
+	}
+	if sess.AgentMgr == nil {
+		return []SessionSubAgentInfo{}, nil
+	}
+
+	statuses := sess.AgentMgr.Statuses()
+	out := make([]SessionSubAgentInfo, 0, len(statuses))
+	for _, st := range statuses {
+		if st.ParentID == "" {
+			continue
+		}
+		info := SessionSubAgentInfo{
+			ID:           string(st.ID),
+			ParentID:     string(st.ParentID),
+			Status:       st.State,
+			LastResponse: st.Result,
+			Error:        st.Error,
+		}
+		if info.Status == "" {
+			info.Status = "unknown"
+		}
+		if !st.StartedAt.IsZero() {
+			info.StartedAt = st.StartedAt.Format(time.RFC3339)
+		}
+		if !st.UpdatedAt.IsZero() {
+			info.UpdatedAt = st.UpdatedAt.Format(time.RFC3339)
+		}
+		if a, ok := sess.AgentMgr.Get(st.ID); ok {
+			info.Active = true
+			info.MessageCount = len(a.GetMessages())
+		}
+		out = append(out, info)
+	}
+	return out, nil
+}
+
+// GetSessionSubAgentMessages returns the in-memory transcript for a sub-agent.
+func (s *Server) GetSessionSubAgentMessages(id, agentID string) ([]SessionMessageEntry, error) {
+	if s == nil || s.pool == nil {
+		return nil, ErrSessionNotFound
+	}
+	sess, err := s.pool.getExact(id)
+	if err != nil {
+		return nil, err
+	}
+	if sess == nil {
+		return nil, ErrSessionNotFound
+	}
+	if sess.AgentMgr == nil || agentID == "" {
+		return nil, ErrSubAgentNotFound
+	}
+	a, ok := sess.AgentMgr.Get(agentpkg.AgentID(agentID))
+	if !ok {
+		if _, statusOK := sess.AgentMgr.Status(agentpkg.AgentID(agentID)); statusOK {
+			return []SessionMessageEntry{}, nil
+		}
+		return nil, ErrSubAgentNotFound
+	}
+	entries := sessionMessagesToEntries(agent.MessagesFromPublic(a.GetMessages()))
+	for i := range entries {
+		entries[i].AgentID = agentID
+		if entries[i].ID == "" {
+			entries[i].ID = fmt.Sprintf("%s:%d", agentID, i)
+		}
+	}
+	return entries, nil
 }
 
 // GetSessionRunEvents returns persisted run lifecycle events for a session.

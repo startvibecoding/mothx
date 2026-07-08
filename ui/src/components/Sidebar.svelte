@@ -17,7 +17,7 @@
     { key: 'chat', path: '/chat', label: 'nav.newChat', icon: 'edit', accent: true },
     { key: 'sessions', path: '/sessions', label: 'nav.sessions', icon: 'clock' },
     { key: 'stats', path: '/stats', label: 'nav.stats', icon: 'chart' },
-    { key: 'cron', path: '/cron', label: 'nav.cron', icon: 'timer', feature: 'cron' }
+    { key: 'cron', path: '/cron', label: 'nav.cron', icon: 'timer' }
   ];
 
   const secondaryNav = [

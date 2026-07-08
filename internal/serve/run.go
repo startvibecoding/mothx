@@ -59,6 +59,7 @@ type channelRuntime struct {
 	cronStore     cron.CronStore
 	cronStorePath string
 	cronScheduler *cron.Scheduler
+	sessionDir    string
 }
 
 type channelStatus struct {
@@ -72,6 +73,8 @@ type activeSessionManager interface {
 	DeleteActiveSession(id string) (bool, error)
 	GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error)
 	GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error)
+	GetSessionSubAgents(id string) ([]openaiapi.SessionSubAgentInfo, error)
+	GetSessionSubAgentMessages(id, agentID string) ([]openaiapi.SessionMessageEntry, error)
 	GetSessionRunEvents(id string) ([]openaiapi.SessionRunEventEntry, error)
 	GetSessionCapabilityEvents(id string) ([]openaiapi.SessionCapabilityEventEntry, error)
 	CapabilityOverview() openaiapi.CapabilityOverview
@@ -169,21 +172,23 @@ func Run(opts RunOptions, version string) error {
 	fmt.Fprintf(os.Stderr, "  Config: %s\n", path)
 
 	return openaiapi.Run(openaiapi.RunOptions{
-		Config:      &cfg.API,
-		DisableAPI:  !cfg.Features.OpenAIAPI,
-		Provider:    opts.Provider,
-		Model:       opts.Model,
-		WorkDir:     opts.WorkDir,
-		Sandbox:     opts.Sandbox,
-		MultiAgent:  opts.MultiAgent,
-		Delegate:    opts.Delegate,
-		Workflows:   opts.Workflows,
-		WebSearch:   opts.WebSearch,
-		Browser:     opts.Browser,
-		A2AMaster:   opts.A2AMaster,
-		Verbose:     opts.Verbose,
-		Debug:       opts.Debug,
-		ExtraRoutes: rt.routes(path),
+		Config:        &cfg.API,
+		DisableAPI:    !cfg.Features.OpenAIAPI,
+		Provider:      opts.Provider,
+		Model:         opts.Model,
+		WorkDir:       opts.WorkDir,
+		Sandbox:       opts.Sandbox,
+		MultiAgent:    opts.MultiAgent,
+		Delegate:      opts.Delegate,
+		Workflows:     opts.Workflows,
+		WebSearch:     opts.WebSearch,
+		Browser:       opts.Browser,
+		A2AMaster:     opts.A2AMaster,
+		CronStore:     rt.cronStore,
+		CronScheduler: rt.cronScheduler,
+		Verbose:       opts.Verbose,
+		Debug:         opts.Debug,
+		ExtraRoutes:   rt.routes(path),
 	}, version)
 }
 
@@ -283,13 +288,13 @@ func startChannels(cfg *Config, settings *config.Settings, version string) (*cha
 	applyRuntimeFeatures(cfg)
 
 	hCfg := buildConfigFromServeConfig(cfg)
-	cronStore := buildCronStore(hCfg)
+	cronStore := buildCronStore(hCfg, settings)
 
 	dispatcher, err := channels.NewDispatcher(hCfg, settings, version, cronStore, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create channel dispatcher: %w", err)
 	}
-	rt := &channelRuntime{cfg: cfg, version: version, dispatcher: dispatcher, cronStore: cronStore, cronStorePath: cronStorePath(hCfg)}
+	rt := &channelRuntime{cfg: cfg, version: version, dispatcher: dispatcher, cronStore: cronStore, cronStorePath: cronStorePath(settings), sessionDir: settings.GetSessionDir()}
 	rt.setupCronScheduler(hCfg)
 	rt.setupWebSocketRuntime(version)
 	rt.startPlatforms()
@@ -322,18 +327,23 @@ func buildConfigFromServeConfig(cfg *Config) *channels.Config {
 	return hCfg
 }
 
-func buildCronStore(hCfg *channels.Config) cron.CronStore {
+func buildCronStore(hCfg *channels.Config, settings *config.Settings) cron.CronStore {
 	if hCfg != nil && hCfg.Cron.Enabled {
-		return cron.NewFileCronStore(cronStorePath(hCfg))
+		sessionDir := ""
+		if settings != nil {
+			sessionDir = settings.GetSessionDir()
+		}
+		return cron.NewSQLiteCronStore(sessionDir)
 	}
 	return nil
 }
 
-func cronStorePath(hCfg *channels.Config) string {
-	if hCfg != nil && hCfg.Cron.StorePath != "" {
-		return hCfg.Cron.StorePath
+func cronStorePath(settings *config.Settings) string {
+	sessionDir := ""
+	if settings != nil {
+		sessionDir = settings.GetSessionDir()
 	}
-	return filepath.Join(config.ConfigDir(), "serve-cron.json")
+	return filepath.Join(sessionDir, "sessions.db")
 }
 
 func (rt *channelRuntime) setupCronScheduler(hCfg *channels.Config) {
@@ -341,15 +351,15 @@ func (rt *channelRuntime) setupCronScheduler(hCfg *channels.Config) {
 		fmt.Fprintf(os.Stderr, "  Cron: disabled\n")
 		return
 	}
-	if rt.cronStore == nil || rt.dispatcher == nil || rt.dispatcher.AgentManager() == nil {
-		fmt.Fprintf(os.Stderr, "  Cron: disabled (requires multi-agent)\n")
+	if rt.cronStore == nil || rt.dispatcher == nil || rt.dispatcher.EnsureAgentManager() == nil {
+		fmt.Fprintf(os.Stderr, "  Cron: disabled (agent runtime unavailable)\n")
 		return
 	}
 	interval := time.Duration(hCfg.Cron.Interval) * time.Second
 	if interval <= 0 {
 		interval = 30 * time.Second
 	}
-	rt.cronScheduler = cron.NewScheduler(rt.cronStore, rt.dispatcher.AgentManager(), interval)
+	rt.cronScheduler = cron.NewSchedulerWithSessionDir(rt.cronStore, rt.dispatcher.AgentManager(), interval, rt.sessionDir)
 	rt.dispatcher.SetCronScheduler(rt.cronScheduler)
 	rt.cronScheduler.Start()
 	fmt.Fprintf(os.Stderr, "  Cron: enabled\n")
@@ -377,13 +387,13 @@ func (rt *channelRuntime) syncCronRuntime() {
 	}
 
 	hCfg := buildConfigFromServeConfig(rt.cfg)
-	nextPath := cronStorePath(hCfg)
+	nextPath := filepath.Join(rt.sessionDir, "sessions.db")
 	if rt.cronStore == nil || rt.cronStorePath != nextPath {
 		rt.stopCronScheduler()
 		rt.cronStorePath = nextPath
-		rt.cronStore = buildCronStore(hCfg)
+		rt.cronStore = cron.NewSQLiteCronStore(rt.sessionDir)
 	}
-	if rt.cronStore == nil || rt.dispatcher == nil || rt.dispatcher.AgentManager() == nil {
+	if rt.cronStore == nil || rt.dispatcher == nil || rt.dispatcher.EnsureAgentManager() == nil {
 		rt.stopCronScheduler()
 		return
 	}
@@ -392,7 +402,7 @@ func (rt *channelRuntime) syncCronRuntime() {
 		if interval <= 0 {
 			interval = 30 * time.Second
 		}
-		rt.cronScheduler = cron.NewScheduler(rt.cronStore, rt.dispatcher.AgentManager(), interval)
+		rt.cronScheduler = cron.NewSchedulerWithSessionDir(rt.cronStore, rt.dispatcher.AgentManager(), interval, rt.sessionDir)
 		rt.dispatcher.SetCronScheduler(rt.cronScheduler)
 		rt.cronScheduler.Start()
 	}
@@ -847,6 +857,53 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 				return
 			}
 			msgs, err := sessions.GetSessionMessages(id)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "subagents" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			agents, err := sessions.GetSessionSubAgents(id)
+			if errors.Is(err, openaiapi.ErrSessionNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"subagents": agents})
+			return
+		}
+		if len(parts) == 4 && parts[1] == "subagents" && parts[3] == "messages" {
+			if r.Method != http.MethodGet {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			agentID, err := url.PathUnescape(parts[2])
+			if err != nil || agentID == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid sub-agent ID"})
+				return
+			}
+			msgs, err := sessions.GetSessionSubAgentMessages(id, agentID)
+			if errors.Is(err, openaiapi.ErrSessionNotFound) || errors.Is(err, openaiapi.ErrSubAgentNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 				return

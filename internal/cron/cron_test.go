@@ -1,16 +1,14 @@
 package cron
 
 import (
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 )
 
-func TestFileCronStoreCreate(t *testing.T) {
+func TestSQLiteCronStoreCreate(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	job, err := store.Create(CronJob{
 		Name:     "test job",
@@ -33,9 +31,9 @@ func TestFileCronStoreCreate(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreCreateDuplicate(t *testing.T) {
+func TestSQLiteCronStoreCreateDuplicate(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	store.Create(CronJob{ID: "j1", Name: "first"})
 	_, err := store.Create(CronJob{ID: "j1", Name: "duplicate"})
@@ -68,9 +66,9 @@ func TestNewCronIDConcurrentUnique(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreList(t *testing.T) {
+func TestSQLiteCronStoreList(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	store.Create(CronJob{Name: "job1"})
 	store.Create(CronJob{Name: "job2"})
@@ -85,9 +83,9 @@ func TestFileCronStoreList(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreGet(t *testing.T) {
+func TestSQLiteCronStoreGet(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	created, _ := store.Create(CronJob{ID: "j1", Name: "test"})
 
@@ -100,9 +98,9 @@ func TestFileCronStoreGet(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreGetNotFound(t *testing.T) {
+func TestSQLiteCronStoreGetNotFound(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	_, err := store.Get("nonexistent")
 	if err == nil {
@@ -110,9 +108,9 @@ func TestFileCronStoreGetNotFound(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreUpdate(t *testing.T) {
+func TestSQLiteCronStoreUpdate(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	store.Create(CronJob{ID: "j1", Name: "original"})
 
@@ -132,9 +130,9 @@ func TestFileCronStoreUpdate(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreUpdateNotFound(t *testing.T) {
+func TestSQLiteCronStoreUpdateNotFound(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	err := store.Update(CronJob{ID: "nonexistent"})
 	if err == nil {
@@ -142,9 +140,9 @@ func TestFileCronStoreUpdateNotFound(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreDelete(t *testing.T) {
+func TestSQLiteCronStoreDelete(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	store.Create(CronJob{ID: "j1", Name: "to delete"})
 
@@ -158,9 +156,9 @@ func TestFileCronStoreDelete(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreDeleteNotFound(t *testing.T) {
+func TestSQLiteCronStoreDeleteNotFound(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	err := store.Delete("nonexistent")
 	if err == nil {
@@ -168,15 +166,14 @@ func TestFileCronStoreDeleteNotFound(t *testing.T) {
 	}
 }
 
-func TestFileCronStorePersistence(t *testing.T) {
+func TestSQLiteCronStorePersistence(t *testing.T) {
 	tmp := t.TempDir()
-	path := filepath.Join(tmp, "cron.json")
 
-	store1 := NewFileCronStore(path)
+	store1 := NewSQLiteCronStore(tmp)
 	store1.Create(CronJob{ID: "j1", Name: "persistent", Prompt: "test"})
 
-	// Create a new store from the same file
-	store2 := NewFileCronStore(path)
+	// Create a new store from the same sessions.db root.
+	store2 := NewSQLiteCronStore(tmp)
 	got, err := store2.Get("j1")
 	if err != nil {
 		t.Fatalf("expected job to persist, got error: %v", err)
@@ -186,24 +183,11 @@ func TestFileCronStorePersistence(t *testing.T) {
 	}
 }
 
-func TestFileCronStoreInvalidFile(t *testing.T) {
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "invalid.json")
-	os.WriteFile(path, []byte("not json"), 0600)
-
-	// Should not panic, just return empty
-	store := NewFileCronStore(path)
-	jobs, _ := store.List()
-	if len(jobs) != 0 {
-		t.Errorf("expected 0 jobs from invalid file, got %d", len(jobs))
-	}
-}
-
 // --- Scheduler tests ---
 
 func TestSchedulerStartStop(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	// Create a mock manager (nil factory is ok for basic lifecycle tests)
 	sched := NewScheduler(store, nil, 1*time.Second)
@@ -231,7 +215,7 @@ func TestSchedulerStartStop(t *testing.T) {
 
 func TestSchedulerDefaultInterval(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 	sched := NewScheduler(store, nil, 0)
 
 	if sched.interval != 30*time.Second {
@@ -241,7 +225,7 @@ func TestSchedulerDefaultInterval(t *testing.T) {
 
 func TestSchedulerUpdateJobPreservesExistingFields(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 	store.Create(CronJob{ID: "j1", Name: "keep name", Schedule: "@daily", Enabled: true})
 
 	sched := NewScheduler(store, nil, time.Second)
@@ -357,7 +341,7 @@ func TestIsDueDisabled(t *testing.T) {
 
 func TestSchedulerCheckAndRunSkipsDisabledAndRunning(t *testing.T) {
 	tmp := t.TempDir()
-	store := NewFileCronStore(filepath.Join(tmp, "cron.json"))
+	store := NewSQLiteCronStore(tmp)
 
 	// Create disabled job
 	store.Create(CronJob{ID: "disabled", Name: "Disabled", Enabled: false})

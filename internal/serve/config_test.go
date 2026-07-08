@@ -2,7 +2,6 @@ package serve
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	configpkg "github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/cron"
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
@@ -23,6 +23,7 @@ type fakeActiveSessionManager struct {
 	sessions     []openaiapi.ActiveSessionInfo
 	messages     []openaiapi.SessionMessageEntry
 	toolResult   *openaiapi.SessionToolResultDetail
+	subagents    []openaiapi.SessionSubAgentInfo
 	runEvents    []openaiapi.SessionRunEventEntry
 	capEvents    []openaiapi.SessionCapabilityEventEntry
 	overview     openaiapi.CapabilityOverview
@@ -51,6 +52,14 @@ func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]openaiapi.Se
 func (f *fakeActiveSessionManager) GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error) {
 	f.toolResultID = toolCallID
 	return f.toolResult, f.err
+}
+
+func (f *fakeActiveSessionManager) GetSessionSubAgents(id string) ([]openaiapi.SessionSubAgentInfo, error) {
+	return append([]openaiapi.SessionSubAgentInfo(nil), f.subagents...), f.err
+}
+
+func (f *fakeActiveSessionManager) GetSessionSubAgentMessages(id, agentID string) ([]openaiapi.SessionMessageEntry, error) {
+	return append([]openaiapi.SessionMessageEntry(nil), f.messages...), f.err
 }
 
 func (f *fakeActiveSessionManager) GetSessionRunEvents(id string) ([]openaiapi.SessionRunEventEntry, error) {
@@ -106,6 +115,17 @@ func (f *fakeWebSocketRuntime) WebSocketHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)
 	})
+}
+
+func TestDefaultConfigEnablesCronWithoutMultiAgent(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if !cfg.Features.Cron || !cfg.Cron.Enabled {
+		t.Fatalf("cron should be enabled by default, features=%#v cron=%#v", cfg.Features, cfg.Cron)
+	}
+	if cfg.Features.MultiAgent || cfg.API.EnableSubAgents {
+		t.Fatalf("multi-agent should be disabled by default, features=%#v api=%#v", cfg.Features, cfg.API)
+	}
 }
 
 func TestLoadConfigFrom_LegacyNestedSchema(t *testing.T) {
@@ -571,17 +591,15 @@ func TestHandleServeConfigPutSyncsWebSocketRuntime(t *testing.T) {
 	}
 }
 
-func TestHandleServeConfigPutSyncsCronStorePath(t *testing.T) {
+func TestHandleServeConfigPutKeepsSQLiteCronStore(t *testing.T) {
 	dir := t.TempDir()
-	oldPath := filepath.Join(dir, "old-cron.json")
-	newPath := filepath.Join(dir, "new-cron.json")
+	dbPath := filepath.Join(dir, "sessions.db")
 	cfg := DefaultConfig()
 	cfg.Features.Cron = true
 	cfg.Cron.Enabled = true
-	cfg.Cron.StorePath = oldPath
-	rt := &channelRuntime{cfg: cfg, cronStore: cron.NewFileCronStore(oldPath), cronStorePath: oldPath}
+	rt := &channelRuntime{cfg: cfg, cronStore: cron.NewSQLiteCronStore(dir), cronStorePath: dbPath, sessionDir: dir}
 
-	body := fmt.Sprintf(`{"features":{"cron":true},"cron":{"enabled":true,"storePath":%q}}`, newPath)
+	body := `{"features":{"cron":true},"cron":{"enabled":true}}`
 	req := httptest.NewRequest(http.MethodPut, "/api/serve/config", strings.NewReader(body))
 	w := httptest.NewRecorder()
 	rt.handleServeConfig(filepath.Join(dir, "serve.json")).ServeHTTP(w, req)
@@ -589,8 +607,8 @@ func TestHandleServeConfigPutSyncsCronStorePath(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
-	if rt.cronStorePath != newPath {
-		t.Fatalf("cronStorePath = %q, want %q", rt.cronStorePath, newPath)
+	if rt.cronStorePath != dbPath {
+		t.Fatalf("cronStorePath = %q, want %q", rt.cronStorePath, dbPath)
 	}
 	if rt.cronStore == nil {
 		t.Fatal("cron store should be available after config update")
@@ -1048,14 +1066,20 @@ func TestHandleCronDisabled(t *testing.T) {
 }
 
 func TestHandleCronCreateListUpdateDelete(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "serve-cron.json")
+	sessionDir := t.TempDir()
+	path := filepath.Join(sessionDir, "sessions.db")
+	sessionID := "cron-session"
+	sessionWorkDir := t.TempDir()
+	mgr := session.New(sessionWorkDir, sessionDir)
+	if err := mgr.InitWithID(sessionID); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
 	cfg := DefaultConfig()
 	cfg.Features.Cron = true
 	cfg.Cron.Enabled = true
-	cfg.Cron.StorePath = path
-	rt := &channelRuntime{cfg: cfg, cronStore: cron.NewFileCronStore(path), cronStorePath: path}
+	rt := &channelRuntime{cfg: cfg, cronStore: cron.NewSQLiteCronStore(sessionDir), cronStorePath: path, sessionDir: sessionDir}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/cron", strings.NewReader(`{"name":"daily","prompt":"summarize","schedule":"@daily","mode":"agent"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/cron", strings.NewReader(`{"sessionId":"cron-session","name":"daily","prompt":"summarize","schedule":"@daily","mode":"agent"}`))
 	w := httptest.NewRecorder()
 	rt.handleCron(w, req)
 
@@ -1071,8 +1095,11 @@ func TestHandleCronCreateListUpdateDelete(t *testing.T) {
 	if created.Job.ID == "" || created.Job.OneShot || created.Job.NextRun.IsZero() || created.Job.Mode != "agent" {
 		t.Fatalf("created job = %#v", created.Job)
 	}
+	if created.Job.WorkDir != sessionWorkDir {
+		t.Fatalf("created job workDir = %q, want %q", created.Job.WorkDir, sessionWorkDir)
+	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/cron", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/cron?sessionId="+sessionID, nil)
 	w = httptest.NewRecorder()
 	rt.handleCron(w, req)
 
@@ -1087,7 +1114,7 @@ func TestHandleCronCreateListUpdateDelete(t *testing.T) {
 		t.Fatalf("cron status = %#v", status)
 	}
 
-	req = httptest.NewRequest(http.MethodPatch, "/api/cron/"+created.Job.ID, strings.NewReader(`{"enabled":false}`))
+	req = httptest.NewRequest(http.MethodPatch, "/api/cron/"+created.Job.ID+"?sessionId="+sessionID, strings.NewReader(`{"enabled":false}`))
 	w = httptest.NewRecorder()
 	rt.handleCronByID(w, req)
 
@@ -1102,7 +1129,7 @@ func TestHandleCronCreateListUpdateDelete(t *testing.T) {
 		t.Fatalf("job should be disabled: %#v", updated)
 	}
 
-	req = httptest.NewRequest(http.MethodDelete, "/api/cron/"+created.Job.ID, nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/cron/"+created.Job.ID+"?sessionId="+sessionID, nil)
 	w = httptest.NewRecorder()
 	rt.handleCronByID(w, req)
 
@@ -1119,14 +1146,14 @@ func TestHandleCronCreateListUpdateDelete(t *testing.T) {
 }
 
 func TestHandleCronCreateRejectsInvalidSchedule(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "serve-cron.json")
+	sessionDir := t.TempDir()
+	path := filepath.Join(sessionDir, "sessions.db")
 	cfg := DefaultConfig()
 	cfg.Features.Cron = true
 	cfg.Cron.Enabled = true
-	cfg.Cron.StorePath = path
-	rt := &channelRuntime{cfg: cfg, cronStore: cron.NewFileCronStore(path), cronStorePath: path}
+	rt := &channelRuntime{cfg: cfg, cronStore: cron.NewSQLiteCronStore(sessionDir), cronStorePath: path, sessionDir: sessionDir}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/cron", strings.NewReader(`{"name":"bad","prompt":"run","schedule":"never"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/cron", strings.NewReader(`{"sessionId":"cron-session","name":"bad","prompt":"run","schedule":"never"}`))
 	w := httptest.NewRecorder()
 	rt.handleCron(w, req)
 
@@ -1541,7 +1568,6 @@ func TestBuildConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 	cfg.Channels.Feishu.AppID = "app-id"
 	cfg.Channels.Feishu.AppSecret = "secret"
 	cfg.Cron.Enabled = true
-	cfg.Cron.StorePath = "/tmp/cron.json"
 	cfg.Memory.Enabled = false
 	cfg.Memory.Path = "/tmp/memory.md"
 	cfg.Agent.MaxTurns = 33
@@ -1590,12 +1616,14 @@ func TestBuildConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 }
 
 func TestBuildCronStoreHonorsCronFeature(t *testing.T) {
-	disabled := buildCronStore(&channels.Config{Cron: channels.CronConfig{Enabled: false}})
+	settings := configpkg.DefaultSettings()
+	settings.SessionDir = t.TempDir()
+	disabled := buildCronStore(&channels.Config{Cron: channels.CronConfig{Enabled: false}}, settings)
 	if disabled != nil {
 		t.Fatal("cron store should be nil when cron is disabled")
 	}
 
-	enabled := buildCronStore(&channels.Config{Cron: channels.CronConfig{Enabled: true, StorePath: filepath.Join(t.TempDir(), "cron.json")}})
+	enabled := buildCronStore(&channels.Config{Cron: channels.CronConfig{Enabled: true}}, settings)
 	if enabled == nil {
 		t.Fatal("cron store should be created when cron is enabled")
 	}

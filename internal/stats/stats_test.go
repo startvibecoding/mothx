@@ -277,8 +277,8 @@ func TestMigrationFromOldDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema_migrations table should exist after migration: %v", err)
 	}
-	if migrationCount != 8 {
-		t.Errorf("expected 8 migrations recorded, got %d", migrationCount)
+	if migrationCount != 9 {
+		t.Errorf("expected 9 migrations recorded, got %d", migrationCount)
 	}
 
 	// Verify a specific migration was recorded
@@ -315,6 +315,11 @@ func TestMigrationFromOldDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Old sessions table should still exist: %v", err)
 	}
+	var cronTable string
+	err = sdb.db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='cron_jobs'").Scan(&cronTable)
+	if err != nil {
+		t.Fatalf("cron_jobs table should exist after migration: %v", err)
+	}
 }
 
 // TestIdempotentMigrations verifies that calling ApplyMigrations multiple
@@ -339,8 +344,8 @@ func TestIdempotentMigrations(t *testing.T) {
 
 	var count1 int
 	db1.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count1)
-	if count1 != 8 {
-		t.Errorf("expected 8 migrations after first open, got %d", count1)
+	if count1 != 9 {
+		t.Errorf("expected 9 migrations after first open, got %d", count1)
 	}
 	db1.Close()
 
@@ -353,7 +358,7 @@ func TestIdempotentMigrations(t *testing.T) {
 
 	var count2 int
 	db2.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count2)
-	if count2 != 8 {
-		t.Errorf("expected 8 migrations after second open (no re-apply), got %d", count2)
+	if count2 != 9 {
+		t.Errorf("expected 9 migrations after second open (no re-apply), got %d", count2)
 	}
 }

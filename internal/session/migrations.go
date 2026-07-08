@@ -123,6 +123,32 @@ var migrations = []migration{
 		CREATE INDEX IF NOT EXISTS idx_session_capability_events_run_id ON session_capability_events(run_id);
 		CREATE INDEX IF NOT EXISTS idx_session_capability_events_capability ON session_capability_events(capability);`,
 	},
+	{
+		Name: "009_create_cron_jobs_table",
+		SQL: `CREATE TABLE IF NOT EXISTS cron_jobs (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL DEFAULT '',
+			name TEXT NOT NULL DEFAULT '',
+			prompt TEXT NOT NULL DEFAULT '',
+			schedule TEXT NOT NULL DEFAULT '',
+			oneshot INTEGER NOT NULL DEFAULT 0,
+			mode TEXT NOT NULL DEFAULT 'yolo',
+			work_dir TEXT NOT NULL DEFAULT '',
+			a2a_target TEXT NOT NULL DEFAULT '',
+			a2a_token TEXT NOT NULL DEFAULT '',
+			enabled INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			last_run TEXT NOT NULL DEFAULT '',
+			next_run TEXT NOT NULL DEFAULT '',
+			run_count INTEGER NOT NULL DEFAULT 0,
+			last_status TEXT NOT NULL DEFAULT '',
+			last_error TEXT NOT NULL DEFAULT ''
+		);
+		CREATE INDEX IF NOT EXISTS idx_cron_jobs_session_id ON cron_jobs(session_id);
+		CREATE INDEX IF NOT EXISTS idx_cron_jobs_enabled ON cron_jobs(enabled);
+		CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run);
+		CREATE INDEX IF NOT EXISTS idx_cron_jobs_created_at ON cron_jobs(created_at);`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

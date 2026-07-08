@@ -133,9 +133,6 @@ func applyRawConfig(cfg *Config, raw *rawConfig) {
 		if raw.Cron.Enabled != nil {
 			cfg.Cron.Enabled = *raw.Cron.Enabled
 		}
-		if raw.Cron.StorePath != "" {
-			cfg.Cron.StorePath = raw.Cron.StorePath
-		}
 		if raw.Cron.Interval != nil {
 			cfg.Cron.Interval = *raw.Cron.Interval
 		}
@@ -318,7 +315,7 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 		},
 		WebUI:       &rawWebUIConfig{Enabled: &webUIEnabled, Dir: c.WebUI.Dir},
 		LobsterMode: c.LobsterMode,
-		Cron:        &rawCronConfig{Enabled: &cronEnabled, StorePath: c.Cron.StorePath, Interval: &cronInterval},
+		Cron:        &rawCronConfig{Enabled: &cronEnabled, Interval: &cronInterval},
 		Memory:      &rawMemoryConfig{Enabled: &memoryStoreEnabled, Path: c.Memory.Path},
 		Security:    &rawSecurityConfig{SmartApprovals: &securitySmartApprovals, AllowedWorkDirs: &c.Security.AllowedWorkDirs},
 		Hooks:       &rawHooksConfig{PreToolCall: c.Hooks.PreToolCall, PostToolCall: c.Hooks.PostToolCall},

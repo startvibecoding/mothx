@@ -36,8 +36,8 @@ export const features = derived(status, ($s) => ({
   api: $s?.features?.openaiAPI !== false,
   webUI: $s?.features?.webUI !== false,
   websocket: $s?.features?.websocket === true,
-  cron: $s?.features?.cron === true,
-  memory: $s?.features?.memory === true,
+  cron: $s?.features?.cron !== false,
+  memory: $s?.features?.memory !== false,
   multiAgent: $s?.features?.multiAgent === true,
   delegate: $s?.features?.delegate === true,
   webSearch: $s?.features?.webSearch === true,
@@ -179,6 +179,28 @@ export async function getSessionToolResult(id, toolCallID) {
   );
 }
 
+export async function getSessionSubAgents(id) {
+  if (!id) return [];
+  try {
+    const data = await request(`/api/sessions/${encodeURIComponent(id)}/subagents`);
+    return data?.subagents || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getSessionSubAgentMessages(id, agentID) {
+  if (!id || !agentID) return [];
+  try {
+    const data = await request(
+      `/api/sessions/${encodeURIComponent(id)}/subagents/${encodeURIComponent(agentID)}/messages`
+    );
+    return data?.messages || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function getSessionRunEvents(id) {
   if (!id) return [];
   try {
@@ -199,8 +221,9 @@ export async function getSessionCapabilityEvents(id) {
   }
 }
 
-export async function refreshCron() {
-  cronInfo.set(await request('/api/cron'));
+export async function refreshCron(sessionId = '') {
+  const query = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
+  cronInfo.set(await request(`/api/cron${query}`));
 }
 
 export async function refreshModels() {

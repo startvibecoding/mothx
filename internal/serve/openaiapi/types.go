@@ -216,6 +216,7 @@ type ChatCompletionChunk struct {
 type ToolStatusEvent struct {
 	Tool       string         `json:"tool"`
 	ToolCallID string         `json:"toolCallId,omitempty"`
+	AgentID    string         `json:"agentId,omitempty"`
 	Status     string         `json:"status"` // "running", "completed", "failed"
 	Args       map[string]any `json:"args,omitempty"`
 	Summary    string         `json:"summary,omitempty"`

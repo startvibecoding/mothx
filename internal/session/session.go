@@ -180,6 +180,41 @@ func openExistingSessionDB(sessionDir string) (*sql.DB, bool, error) {
 	return db, true, nil
 }
 
+// OpenRootDB opens the shared sessions.db for a session root directory and
+// applies all pending migrations.
+func OpenRootDB(sessionDir string) (*sql.DB, error) {
+	if sessionDir == "" {
+		sessionDir = platform.SessionDir()
+	}
+	dbPath := filepath.Join(sessionDir, "sessions.db")
+
+	dbLock.Lock()
+	defer dbLock.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		return nil, fmt.Errorf("create db dir: %w", err)
+	}
+	db, ok := cachedDBs[dbPath]
+	if !ok {
+		var err error
+		db, err = sql.Open("sqlite", dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("open sqlite db: %w", err)
+		}
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+		db.SetConnMaxLifetime(0)
+		_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
+		_, _ = db.Exec("PRAGMA journal_mode = WAL;")
+		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
+		cachedDBs[dbPath] = db
+	}
+	if err := ApplyMigrations(db); err != nil {
+		return nil, fmt.Errorf("apply migrations: %w", err)
+	}
+	return db, nil
+}
+
 func parseSessionTimestamp(timestampStr string) time.Time {
 	ts, _ := time.Parse(time.RFC3339Nano, timestampStr)
 	if ts.IsZero() {

@@ -161,7 +161,7 @@ Project skills load automatically from `.skills/` without extra configuration.
 
 ## Cron Foundation
 
-MothX has an internal cron infrastructure (`internal/cron` package) and TUI command entry points. The cron store persists jobs to `~/.vibecoding/cron.json` and the scheduler checks for due jobs on a 30-second interval.
+MothX has an internal cron infrastructure (`internal/cron` package) and TUI command entry points. The cron store persists session-bound jobs to the `cron_jobs` table in `sessions.db`, and the scheduler checks for due jobs on a 30-second interval.
 
 ### `/cron` TUI Commands
 

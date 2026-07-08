@@ -160,7 +160,7 @@ EOF
 
 ## Cron 基础设施
 
-MothX 已有内部 cron 基础设施（`internal/cron` 包）和 TUI 命令入口。Cron 存储将任务持久化到 `~/.vibecoding/cron.json`，调度器每 30 秒检查一次到期任务。
+MothX 已有内部 cron 基础设施（`internal/cron` 包）和 TUI 命令入口。Cron 存储将 session 绑定任务持久化到 `sessions.db` 的 `cron_jobs` 表，调度器每 30 秒检查一次到期任务。
 
 ### `/cron` TUI 命令
 

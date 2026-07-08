@@ -338,9 +338,9 @@ Feishu, and WebSocket.
 
 ### 7. Cron Scheduler
 
-The `internal/cron` package provides a file-backed cron store and scheduler that
-can execute jobs through sub-agents or remote A2A servers. The TUI exposes `/cron`
-command entry points in multi-agent mode.
+The `internal/cron` package provides a `sessions.db`-backed cron store and
+scheduler. Jobs are stored in the `cron_jobs` table, bound to sessions, and can
+execute through agent tools or remote A2A servers.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -348,8 +348,8 @@ command entry points in multi-agent mode.
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌──────────────────┐                                       │
-│  │  CronStore       │ ← cron.json persistence               │
-│  │  (FileCronStore) │                                       │
+│  │  CronStore       │ ← sessions.db / cron_jobs             │
+│  │  (SQLiteCronStore)                                      │
 │  └────────┬─────────┘                                       │
 │           │                                                 │
 │           ▼                                                 │
@@ -498,7 +498,7 @@ Key TUI behaviors:
 | `a2a-list.json` | `~/.mothx/` or `.mothx/` | A2A Master remote agent list |
 | `mcp.json` | `~/.mothx/` or `.mothx/` | MCP server configuration |
 | `memory.md` | project root or `~/.mothx/` | Persistent memory |
-| `serve-cron.json` | `~/.mothx/` | Serve cron job persistence |
+| `sessions.db` | session directory | Sessions, stats, events, and session-bound cron jobs |
 
 ## Data Flow
 

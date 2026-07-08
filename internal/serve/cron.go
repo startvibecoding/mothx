@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/startvibecoding/mothx/internal/cron"
+	"github.com/startvibecoding/mothx/internal/session"
 )
 
 type cronAPIResponse struct {
@@ -19,6 +21,7 @@ type cronAPIResponse struct {
 }
 
 type cronJobRequest struct {
+	SessionID *string `json:"sessionId,omitempty"`
 	Name      *string `json:"name,omitempty"`
 	Prompt    *string `json:"prompt,omitempty"`
 	Schedule  *string `json:"schedule,omitempty"`
@@ -33,7 +36,7 @@ type cronJobRequest struct {
 func (rt *channelRuntime) handleCron(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		rt.writeCronStatus(w)
+		rt.writeCronStatus(w, r)
 	case http.MethodPost:
 		rt.handleCronCreate(w, r)
 	default:
@@ -52,14 +55,14 @@ func (rt *channelRuntime) handleCronByID(w http.ResponseWriter, r *http.Request)
 	case http.MethodPatch, http.MethodPut:
 		rt.handleCronUpdate(w, r, id)
 	case http.MethodDelete:
-		rt.handleCronDelete(w, id)
+		rt.handleCronDelete(w, r, id)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (rt *channelRuntime) writeCronStatus(w http.ResponseWriter) {
-	jobs, err := rt.listCronJobs()
+func (rt *channelRuntime) writeCronStatus(w http.ResponseWriter, r *http.Request) {
+	jobs, err := rt.listCronJobs(cronSessionIDFromRequest(r, cronJobRequest{}))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -92,14 +95,20 @@ func (rt *channelRuntime) handleCronCreate(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "prompt is required"})
 		return
 	}
+	sessionID := cronSessionIDFromRequest(r, req)
+	if sessionID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "sessionId is required"})
+		return
+	}
 
 	job := cron.CronJob{
-		Name:     strings.TrimSpace(*req.Name),
-		Prompt:   *req.Prompt,
-		Enabled:  true,
-		Mode:     "yolo",
-		WorkDir:  rt.cfg.API.GetWorkDir(),
-		Schedule: "",
+		SessionID: sessionID,
+		Name:      strings.TrimSpace(*req.Name),
+		Prompt:    *req.Prompt,
+		Enabled:   true,
+		Mode:      "yolo",
+		WorkDir:   rt.cronWorkDirForSession(sessionID),
+		Schedule:  "",
 	}
 	if req.Enabled != nil {
 		job.Enabled = *req.Enabled
@@ -107,7 +116,7 @@ func (rt *channelRuntime) handleCronCreate(w http.ResponseWriter, r *http.Reques
 	if req.Mode != nil && strings.TrimSpace(*req.Mode) != "" {
 		job.Mode = strings.TrimSpace(*req.Mode)
 	}
-	if req.WorkDir != nil {
+	if req.WorkDir != nil && strings.TrimSpace(*req.WorkDir) != "" {
 		job.WorkDir = strings.TrimSpace(*req.WorkDir)
 	}
 	if req.Schedule != nil {
@@ -179,6 +188,13 @@ func (rt *channelRuntime) handleCronUpdate(w http.ResponseWriter, r *http.Reques
 	if req.Enabled != nil {
 		job.Enabled = *req.Enabled
 	}
+	if sessionID := cronSessionIDFromRequest(r, req); sessionID != "" {
+		if job.SessionID != "" && job.SessionID != sessionID {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "cron job not found in this session"})
+			return
+		}
+		job.SessionID = sessionID
+	}
 	if strings.TrimSpace(job.Name) == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
 		return
@@ -199,11 +215,14 @@ func (rt *channelRuntime) handleCronUpdate(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"job": job})
 }
 
-func (rt *channelRuntime) handleCronDelete(w http.ResponseWriter, id string) {
+func (rt *channelRuntime) handleCronDelete(w http.ResponseWriter, r *http.Request, id string) {
 	store := rt.ensureCronStore()
 	if store == nil {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "cron is disabled"})
 		return
+	}
+	if sessionID := cronSessionIDFromRequest(r, cronJobRequest{}); sessionID != "" {
+		store = cron.NewSessionScopedStore(store, sessionID)
 	}
 	if err := store.Delete(id); err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
@@ -212,10 +231,13 @@ func (rt *channelRuntime) handleCronDelete(w http.ResponseWriter, id string) {
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "deleted": true})
 }
 
-func (rt *channelRuntime) listCronJobs() ([]cron.CronJob, error) {
+func (rt *channelRuntime) listCronJobs(sessionID string) ([]cron.CronJob, error) {
 	store := rt.ensureCronStore()
 	if store == nil {
 		return []cron.CronJob{}, nil
+	}
+	if sessionID != "" {
+		store = cron.NewSessionScopedStore(store, sessionID)
 	}
 	jobs, err := store.List()
 	if err != nil {
@@ -230,16 +252,25 @@ func (rt *channelRuntime) listCronJobs() ([]cron.CronJob, error) {
 	return jobs, nil
 }
 
+func cronSessionIDFromRequest(r *http.Request, req cronJobRequest) string {
+	if req.SessionID != nil {
+		return strings.TrimSpace(*req.SessionID)
+	}
+	if r == nil {
+		return ""
+	}
+	return strings.TrimSpace(r.URL.Query().Get("sessionId"))
+}
+
 func (rt *channelRuntime) ensureCronStore() cron.CronStore {
 	if rt == nil || rt.cfg == nil || !rt.cronEnabled() {
 		return nil
 	}
-	hCfg := buildConfigFromServeConfig(rt.cfg)
-	nextPath := cronStorePath(hCfg)
+	nextPath := filepath.Join(rt.sessionDir, "sessions.db")
 	if rt.cronStore == nil || rt.cronStorePath != nextPath {
 		rt.stopCronScheduler()
 		rt.cronStorePath = nextPath
-		rt.cronStore = buildCronStore(hCfg)
+		rt.cronStore = cron.NewSQLiteCronStore(rt.sessionDir)
 	}
 	return rt.cronStore
 }
@@ -258,7 +289,21 @@ func (rt *channelRuntime) cronPath() string {
 	if rt.cfg == nil {
 		return ""
 	}
-	return cronStorePath(buildConfigFromServeConfig(rt.cfg))
+	return filepath.Join(rt.sessionDir, "sessions.db")
+}
+
+func (rt *channelRuntime) cronWorkDirForSession(sessionID string) string {
+	if rt != nil && sessionID != "" && rt.sessionDir != "" {
+		if mgr, err := session.OpenByIDExact(rt.sessionDir, sessionID); err == nil {
+			if header := mgr.GetHeader(); header != nil && header.Cwd != "" {
+				return header.Cwd
+			}
+		}
+	}
+	if rt != nil && rt.cfg != nil {
+		return rt.cfg.API.GetWorkDir()
+	}
+	return ""
 }
 
 func normalizeCronJobSchedule(job *cron.CronJob) error {

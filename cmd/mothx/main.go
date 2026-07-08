@@ -81,6 +81,7 @@ type cliFlags struct {
 	multiAgent      bool
 	delegate        bool
 	workflows       bool
+	cron            bool
 	webSearch       bool
 	browser         bool
 	initServe       bool
@@ -163,6 +164,7 @@ func registerRootFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	registerSharedExecutionFlags(fs, flags, "Enable configured web search provider for this run")
 	fs.BoolVar(&flags.initServe, "init-serve", false, "Create serve.json config template")
 	fs.BoolVar(&flags.force, "force", false, "Force overwrite existing files (used with --init-*)")
+	fs.BoolVar(&flags.cron, "cron", false, "Enable scheduled task management (cron tool)")
 	fs.BoolVar(&flags.enableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
 	fs.BoolVar(&flags.initA2AMaster, "init-a2a-master-config", false, "Create a2a-list.json config template")
 }
@@ -206,6 +208,7 @@ func (f *cliFlags) runOptions() runOptions {
 		multiAgent:      f.multiAgent,
 		delegate:        f.delegate,
 		workflows:       f.workflows,
+		cron:            f.cron,
 		webSearch:       f.webSearch,
 		browser:         f.browser,
 		enableA2AMaster: f.enableA2AMaster,
@@ -267,6 +270,7 @@ type runOptions struct {
 	multiAgent      bool
 	delegate        bool
 	workflows       bool
+	cron            bool
 	webSearch       bool
 	browser         bool
 	enableA2AMaster bool
@@ -350,7 +354,11 @@ func run(args []string, opts runOptions) error {
 	defer mcpCleanup()
 
 	extraContext := contextFiles.context + skillSetup.context
-	runtime, err := setupAgentRuntime(p, model, settings, opts, registry, sbMgr, extraContext, ruleContent, skillSetup.manager)
+	sessionID := ""
+	if sessionSetup.manager != nil && sessionSetup.manager.GetHeader() != nil {
+		sessionID = sessionSetup.manager.GetHeader().ID
+	}
+	runtime, err := setupAgentRuntime(p, model, settings, opts, registry, sbMgr, extraContext, ruleContent, skillSetup.manager, sessionID, cwd)
 	if err != nil {
 		return err
 	}
@@ -599,7 +607,7 @@ func setupSession(cwd string, settings *config.Settings, opts runOptions) (sessi
 		}
 		return sessionSetup{manager: sess, info: fmt.Sprintf("📂 Resumed session: %s", sess.GetHeader().ID)}, nil
 	default:
-		if !opts.print {
+		if !opts.print && !opts.cron {
 			return sessionSetup{}, nil
 		}
 		sess := session.New(cwd, sessionDir)
@@ -675,7 +683,7 @@ func registerA2AMasterTool(registry *tools.Registry, opts runOptions) error {
 	return nil
 }
 
-func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, ruleContent string, skillsMgr *skills.Manager) (runtimeSetup, error) {
+func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, ruleContent string, skillsMgr *skills.Manager, sessionID string, workDir string) (runtimeSetup, error) {
 	allow := config.LoadAllow()
 	factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, ruleContent, skillsMgr, compactionSettingsFromConfig(settings), nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
@@ -692,9 +700,11 @@ func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *con
 
 	if opts.multiAgent {
 		agent.RegisterSubAgentTools(registry, agentMgr)
-		cronPath := filepath.Join(config.ConfigDir(), "cron.json")
-		runtime.cronStore = cron.NewFileCronStore(cronPath)
-		runtime.cronScheduler = cron.NewScheduler(runtime.cronStore, agentMgr, 30*time.Second)
+	}
+	if opts.cron {
+		globalStore := cron.NewSQLiteCronStore(settings.GetSessionDir())
+		runtime.cronStore = cron.NewSessionScopedStoreWithWorkDir(globalStore, sessionID, workDir)
+		runtime.cronScheduler = cron.NewSchedulerWithSessionDir(globalStore, agentMgr, 30*time.Second, settings.GetSessionDir())
 		runtime.cronScheduler.Start()
 		runtime.cleanup = runtime.cronScheduler.Stop
 		registry.Register(cron.NewCronTool(runtime.cronStore, runtime.cronScheduler))
@@ -739,6 +749,9 @@ func logRuntimeModes(opts runOptions) {
 	}
 	if opts.workflows {
 		fmt.Fprintf(os.Stderr, "Workflow mode enabled\n")
+	}
+	if opts.cron {
+		fmt.Fprintf(os.Stderr, "Cron mode enabled\n")
 	}
 }
 

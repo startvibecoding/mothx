@@ -19,6 +19,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Agent.MaxTurns != 90 {
 		t.Errorf("expected max_turns=90, got %d", cfg.Agent.MaxTurns)
 	}
+	if !cfg.Cron.Enabled {
+		t.Error("expected cron enabled by default")
+	}
+	if cfg.MultiAgent {
+		t.Error("expected multi_agent disabled by default")
+	}
 }
 
 func TestGetDefaultProvider(t *testing.T) {
@@ -93,16 +99,12 @@ func TestGetPlatformWorkDir(t *testing.T) {
 func TestCronConfig(t *testing.T) {
 	cfg := &Config{
 		Cron: CronConfig{
-			Enabled:   true,
-			StorePath: "/tmp/cron.json",
-			Interval:  60,
+			Enabled:  true,
+			Interval: 60,
 		},
 	}
 	if !cfg.Cron.Enabled {
 		t.Error("expected cron enabled")
-	}
-	if cfg.Cron.StorePath != "/tmp/cron.json" {
-		t.Errorf("expected /tmp/cron.json, got %s", cfg.Cron.StorePath)
 	}
 	if cfg.Cron.Interval != 60 {
 		t.Errorf("expected interval 60, got %d", cfg.Cron.Interval)

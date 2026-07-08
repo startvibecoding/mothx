@@ -18,6 +18,7 @@ import (
 	browserfeature "github.com/startvibecoding/mothx/internal/browser"
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
+	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/debugpprof"
 	"github.com/startvibecoding/mothx/internal/provider"
 	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
@@ -28,22 +29,24 @@ import (
 
 // RunOptions controls the OpenAI-compatible API runtime used by serve.
 type RunOptions struct {
-	Config      *Config
-	DisableAPI  bool
-	Port        string
-	Provider    string
-	Model       string
-	WorkDir     string
-	Sandbox     bool
-	MultiAgent  bool
-	Delegate    bool
-	Workflows   bool
-	WebSearch   bool
-	Browser     bool
-	A2AMaster   bool
-	Verbose     bool
-	Debug       bool
-	ExtraRoutes func(*Server, *http.ServeMux)
+	Config        *Config
+	DisableAPI    bool
+	Port          string
+	Provider      string
+	Model         string
+	WorkDir       string
+	Sandbox       bool
+	MultiAgent    bool
+	Delegate      bool
+	Workflows     bool
+	WebSearch     bool
+	Browser       bool
+	A2AMaster     bool
+	CronStore     cron.CronStore
+	CronScheduler *cron.Scheduler
+	Verbose       bool
+	Debug         bool
+	ExtraRoutes   func(*Server, *http.ServeMux)
 }
 
 // Server is the OpenAI-compatible API HTTP server.
@@ -55,13 +58,15 @@ type Server struct {
 	allow    *config.AllowConfig
 	version  string
 
-	provider     provider.Provider
-	providerName string // user-configured vendor name (e.g. "longcat")
-	model        *provider.Model
-	sandboxMgr   *sandbox.Manager
-	skillsMgr    *skills.Manager
-	pool         *SessionPool
-	streamHub    *sessionStreamHub
+	provider      provider.Provider
+	providerName  string // user-configured vendor name (e.g. "longcat")
+	model         *provider.Model
+	sandboxMgr    *sandbox.Manager
+	skillsMgr     *skills.Manager
+	pool          *SessionPool
+	streamHub     *sessionStreamHub
+	cronStore     cron.CronStore
+	cronScheduler *cron.Scheduler
 
 	extraContext      string
 	defaultSessionIDs map[string]string // key: workDir, used when x_session_id is empty
@@ -178,6 +183,8 @@ func Run(opts RunOptions, version string) error {
 		skillsMgr:         skillsMgr,
 		pool:              pool,
 		streamHub:         newSessionStreamHub(),
+		cronStore:         opts.CronStore,
+		cronScheduler:     opts.CronScheduler,
 		extraContext:      extraContext,
 		defaultSessionIDs: make(map[string]string),
 	}

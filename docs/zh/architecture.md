@@ -330,8 +330,8 @@ A2A Master 模式通过 `--enable-a2a-master` 启用，加载 `a2a-list.json`
 
 ### 7. Cron 调度器
 
-`internal/cron` 包提供文件持久化的 cron store 和 scheduler，可通过子 Agent
-或远程 A2A Server 执行任务。TUI 在多 Agent 模式下暴露 `/cron` 命令入口。
+`internal/cron` 包提供基于 `sessions.db` 的 cron store 和 scheduler，任务写入
+`cron_jobs` 表并绑定到 session，可通过 Agent 工具或远程 A2A Server 执行任务。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -339,8 +339,8 @@ A2A Master 模式通过 `--enable-a2a-master` 启用，加载 `a2a-list.json`
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  ┌──────────────────┐                                       │
-│  │  CronStore       │ ← cron.json 持久化                     │
-│  │  (FileCronStore) │                                       │
+│  │  CronStore       │ ← sessions.db / cron_jobs              │
+│  │  (SQLiteCronStore)                                      │
 │  └────────┬─────────┘                                       │
 │           │                                                 │
 │           ▼                                                 │
@@ -488,7 +488,7 @@ A2A Master 模式通过 `--enable-a2a-master` 启用，加载 `a2a-list.json`
 | `a2a-list.json` | `~/.mothx/` 或 `.mothx/` | A2A Master 远程 agent 列表 |
 | `mcp.json` | `~/.mothx/` 或 `.mothx/` | MCP 服务器配置 |
 | `memory.md` | 项目根目录或 `~/.mothx/` | 持久化记忆 |
-| `serve-cron.json` | `~/.mothx/` | Serve 定时任务持久化 |
+| `sessions.db` | session 目录 | 会话、统计、事件和 session 绑定定时任务 |
 
 ## 数据流
 

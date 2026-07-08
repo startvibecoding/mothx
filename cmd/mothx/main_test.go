@@ -175,6 +175,9 @@ func TestRootParsesWorkflowFlagIndependently(t *testing.T) {
 	if got.multiAgent {
 		t.Fatal("did not expect workflows to enable multi-agent")
 	}
+	if got.cron {
+		t.Fatal("did not expect workflows to enable cron")
+	}
 }
 
 func TestRootMultiAgentDoesNotEnableWorkflows(t *testing.T) {
@@ -200,6 +203,38 @@ func TestRootMultiAgentDoesNotEnableWorkflows(t *testing.T) {
 	}
 	if got.workflows {
 		t.Fatal("did not expect multi-agent to enable workflows")
+	}
+	if got.cron {
+		t.Fatal("did not expect multi-agent to enable cron")
+	}
+}
+
+func TestRootCronFlagDoesNotEnableMultiAgent(t *testing.T) {
+	var got runOptions
+
+	cmd := newRootCommand(
+		func(args []string, opts runOptions) error {
+			got = opts
+			return nil
+		},
+		func(acp.RunOptions) error {
+			t.Fatal("unexpected ACP command execution")
+			return nil
+		},
+	)
+	cmd.SetArgs([]string{"--cron", "-P", "scheduled task"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute command: %v", err)
+	}
+	if !got.cron {
+		t.Fatal("expected cron flag")
+	}
+	if got.multiAgent {
+		t.Fatal("did not expect cron to enable multi-agent")
+	}
+	if got.workflows {
+		t.Fatal("did not expect cron to enable workflows")
 	}
 }
 

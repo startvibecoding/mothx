@@ -130,39 +130,55 @@ func NewDispatcher(cfg *Config, settings *config.Settings, version string, cronS
 		pendingApprovals: make(map[string]chan bool),
 	}
 
-	// Multi-agent mode: create AgentFactory and AgentManager
-	if cfg.MultiAgent {
-		compactionSettings := ctxpkg.CompactionSettings{
-			Enabled:          settings.Compaction.Enabled,
-			ReserveTokens:    settings.Compaction.ReserveTokens,
-			KeepRecentTokens: settings.Compaction.KeepRecentTokens,
-			Tokenizer:        settings.Compaction.Tokenizer,
-			TokenizerModel:   settings.Compaction.TokenizerModel,
-			Template:         settings.Compaction.Template,
-		}
-		if compactionSettings.ReserveTokens == 0 {
-			compactionSettings.ReserveTokens = 16384
-		}
-		if compactionSettings.KeepRecentTokens == 0 {
-			compactionSettings.KeepRecentTokens = 20000
-		}
-
-		// Extra context will be loaded per-session in resolveSession; use empty here
-		factory := agent.NewAgentFactoryWithOptions(p, model, settings, sandbox.NewManager("."), "", "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
-			MultiAgentEnabled: true,
-			Allow:             d.allow,
-		})
-		d.agentMgr = agent.NewAgentManager(factory)
+	if cfg.MultiAgent || cronStore != nil {
+		d.ensureAgentManager()
 	}
 
 	return d, nil
 }
 
-// AgentManager returns the dispatcher agent manager when multi-agent mode is enabled.
+// AgentManager returns the dispatcher agent manager used by sub-agents and cron.
 func (d *Dispatcher) AgentManager() *agent.AgentManager {
 	if d == nil {
 		return nil
 	}
+	return d.agentMgr
+}
+
+// EnsureAgentManager creates the dispatcher agent manager if it is not already available.
+func (d *Dispatcher) EnsureAgentManager() *agent.AgentManager {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.ensureAgentManager()
+}
+
+func (d *Dispatcher) ensureAgentManager() *agent.AgentManager {
+	if d.agentMgr != nil {
+		return d.agentMgr
+	}
+	compactionSettings := ctxpkg.CompactionSettings{
+		Enabled:          d.settings.Compaction.Enabled,
+		ReserveTokens:    d.settings.Compaction.ReserveTokens,
+		KeepRecentTokens: d.settings.Compaction.KeepRecentTokens,
+		Tokenizer:        d.settings.Compaction.Tokenizer,
+		TokenizerModel:   d.settings.Compaction.TokenizerModel,
+		Template:         d.settings.Compaction.Template,
+	}
+	if compactionSettings.ReserveTokens == 0 {
+		compactionSettings.ReserveTokens = 16384
+	}
+	if compactionSettings.KeepRecentTokens == 0 {
+		compactionSettings.KeepRecentTokens = 20000
+	}
+
+	factory := agent.NewAgentFactoryWithOptions(d.provider, d.model, d.settings, sandbox.NewManager("."), "", "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
+		MultiAgentEnabled: true,
+		Allow:             d.allow,
+	})
+	d.agentMgr = agent.NewAgentManager(factory)
 	return d.agentMgr
 }
 
@@ -311,14 +327,18 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*ChannelSession, e
 	memStore := memory.NewStore(d.cfg.Memory.Path, workDir)
 	reg.Register(memory.NewMemoryTool(memStore))
 
-	// Register subagent tools when multi-agent mode is enabled
-	if d.agentMgr != nil {
+	// Register subagent tools when multi-agent mode is enabled.
+	if d.multiAgent && d.agentMgr != nil {
 		agent.RegisterSubAgentTools(reg, d.agentMgr)
 	}
 
 	// Register cron tool when cron store is available
 	if d.cronStore != nil {
-		reg.Register(cron.NewCronTool(d.cronStore, d.scheduler))
+		sessionID := ""
+		if header := mgr.GetHeader(); header != nil {
+			sessionID = header.ID
+		}
+		reg.Register(cron.NewCronTool(cron.NewSessionScopedStoreWithWorkDir(d.cronStore, sessionID, workDir), d.scheduler))
 	}
 
 	// Load and connect MCP servers

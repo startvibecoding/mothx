@@ -12,16 +12,18 @@ import (
 	"time"
 
 	"github.com/startvibecoding/mothx/internal/agent"
+	"github.com/startvibecoding/mothx/internal/session"
 )
 
 // Scheduler checks for due cron jobs and executes them via sub-agents.
 type Scheduler struct {
-	store    CronStore
-	manager  *agent.AgentManager
-	interval time.Duration
-	quit     chan struct{}
-	running  bool
-	mu       sync.Mutex
+	store      CronStore
+	manager    *agent.AgentManager
+	interval   time.Duration
+	sessionDir string
+	quit       chan struct{}
+	running    bool
+	mu         sync.Mutex
 }
 
 var a2aHTTPClient = &http.Client{Timeout: 30 * time.Second}
@@ -30,14 +32,21 @@ const maxA2AResponseBytes = 1 << 20
 
 // NewScheduler creates a new cron scheduler.
 func NewScheduler(store CronStore, manager *agent.AgentManager, interval time.Duration) *Scheduler {
+	return NewSchedulerWithSessionDir(store, manager, interval, "")
+}
+
+// NewSchedulerWithSessionDir creates a scheduler that can attach scheduled
+// local runs to existing sessions by session ID.
+func NewSchedulerWithSessionDir(store CronStore, manager *agent.AgentManager, interval time.Duration, sessionDir string) *Scheduler {
 	if interval <= 0 {
 		interval = 30 * time.Second
 	}
 	return &Scheduler{
-		store:    store,
-		manager:  manager,
-		interval: interval,
-		quit:     make(chan struct{}),
+		store:      store,
+		manager:    manager,
+		interval:   interval,
+		sessionDir: sessionDir,
+		quit:       make(chan struct{}),
 	}
 }
 
@@ -142,9 +151,22 @@ func (s *Scheduler) executeJob(job CronJob) {
 	} else {
 		// Local agent mode
 		multiAgentPrompt := false
+		var sess *session.Manager
+		workDir := job.WorkDir
+		if job.SessionID != "" && s.sessionDir != "" {
+			if opened, err := session.OpenByIDExact(s.sessionDir, job.SessionID); err == nil {
+				sess = opened
+				if workDir == "" {
+					if header := opened.GetHeader(); header != nil && header.Cwd != "" {
+						workDir = header.Cwd
+					}
+				}
+			}
+		}
 		a, err := s.manager.Create(agent.AgentOptions{
 			Mode:       job.Mode,
-			WorkDir:    job.WorkDir,
+			WorkDir:    workDir,
+			Session:    sess,
 			MultiAgent: &multiAgentPrompt,
 		})
 		if err != nil {

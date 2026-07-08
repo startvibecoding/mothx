@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/messaging"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/sandbox"
@@ -49,6 +50,47 @@ func (p *recordingChannelProvider) GetModel(id string) *provider.Model {
 		}
 	}
 	return nil
+}
+
+func TestResolveSessionCronOnlyDoesNotExposeSubAgentTools(t *testing.T) {
+	workDir := t.TempDir()
+	settings := config.DefaultSettings()
+	settings.SessionDir = t.TempDir()
+	cfg := DefaultConfig()
+	cfg.WorkDir = workDir
+	cfg.MultiAgent = false
+	cfg.Cron.Enabled = true
+
+	store := cron.NewSQLiteCronStore(t.TempDir())
+	p := newRecordingChannelProvider()
+	d := &Dispatcher{
+		cfg:        cfg,
+		settings:   settings,
+		allow:      &config.AllowConfig{},
+		sessionDir: settings.SessionDir,
+		security:   NewSecurity(cfg),
+		hooksMgr:   hooks.NewManager("", ""),
+		provider:   p,
+		model:      p.models[0],
+		cronStore:  store,
+		sessions:   make(map[string]*ChannelSession),
+	}
+
+	if d.EnsureAgentManager() == nil {
+		t.Fatal("cron should be able to initialize an agent manager without multi-agent")
+	}
+	sess, err := d.resolveSession("ws", "test-user")
+	if err != nil {
+		t.Fatalf("resolve session: %v", err)
+	}
+	if _, ok := sess.Registry.Get("cron"); !ok {
+		t.Fatal("cron-only session should expose cron tool")
+	}
+	for _, name := range []string{"subagent_spawn", "subagent_status", "subagent_send", "subagent_destroy"} {
+		if _, ok := sess.Registry.Get(name); ok {
+			t.Fatalf("cron-only session should not expose %s", name)
+		}
+	}
 }
 
 func TestBuildAgentLoadsReplayState(t *testing.T) {

@@ -73,9 +73,8 @@ type WebhookRoute struct {
 
 // CronConfig defines cron scheduler settings.
 type CronConfig struct {
-	Enabled   bool   `json:"enabled"`
-	StorePath string `json:"store_path,omitempty"`
-	Interval  int    `json:"interval,omitempty"` // seconds between checks (default 30)
+	Enabled  bool `json:"enabled"`
+	Interval int  `json:"interval,omitempty"` // seconds between checks (default 30)
 }
 
 // MemoryConfig defines persistent memory settings.

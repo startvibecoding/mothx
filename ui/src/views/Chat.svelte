@@ -15,6 +15,8 @@
     refreshStatsSummary,
     getSessionMessages,
     getSessionToolResult,
+    getSessionSubAgents,
+    getSessionSubAgentMessages,
     getSessionRunEvents,
     getSessionCapabilityEvents,
     sessionToolOptions,
@@ -50,6 +52,13 @@
   let optimisticRunEventID = '';
   let sessionToolKey = '__new__';
   let sessionTools = sessionToolsFor({}, sessionToolKey);
+  let subAgents = [];
+  let subAgentTranscripts = {};
+  let showSubAgentModal = false;
+  let selectedSubAgentID = '';
+  let subAgentModalMessages = [];
+  let subAgentModalLoading = false;
+  let subAgentModalError = '';
 
   const suggestions = [
     'chat.suggestion.projectSummary',
@@ -87,6 +96,9 @@
       stopSessionStream();
       sessionHistoryLoadedFor = '';
       resetSessionStreamCursor();
+      subAgents = [];
+      subAgentTranscripts = {};
+      closeSubAgentModal();
       if (nextSession === '') {
         sessionCreated = false;
         workDir = '';
@@ -119,6 +131,7 @@
       }
       chatEvents = []; // reset tool events for new session view
       await loadSessionEvents(id);
+      await loadSubAgents(id);
       sessionHistoryLoadedFor = id;
       updateSessionStreamCursorFromState();
       scrollChatToBottom({ force: true });
@@ -136,6 +149,7 @@
   $: sessionTools = sessionToolsFor($sessionToolOptions, sessionToolKey, activeSession || $features);
   $: recentTools = chatEvents.slice(-6).reverse();
   $: sessionEventSummary = buildSessionEventSummary(sessionRunEvents, sessionCapabilityEvents, activeSessionWorkDir, $selectedModel);
+  $: subAgentSummary = buildSubAgentSummary(subAgents);
   $: modelOptions = $models;
   $: activeModel = modelOptions.find((m) => m.id === $selectedModel);
   $: selectedModelSupportsImages = (activeModel?.input || []).includes('image');
@@ -260,6 +274,9 @@
       }
       if ($currentSession) {
         try { await loadSessionMessages($currentSession); } catch {
+          // opportunistic
+        }
+        try { await loadSubAgents($currentSession); } catch {
           // opportunistic
         }
       }
@@ -413,6 +430,92 @@
     }
   }
 
+  async function loadSubAgents(id) {
+    if (!id) {
+      subAgents = [];
+      return;
+    }
+    const agents = await getSessionSubAgents(id);
+    if (id !== $currentSession) return;
+    subAgents = mergeSubAgents(subAgents, agents || []);
+    if (showSubAgentModal) {
+      if (!selectedSubAgentID && subAgents.length > 0) {
+        selectedSubAgentID = subAgents[0].id;
+      }
+      if (selectedSubAgentID) {
+        await loadSubAgentMessages(selectedSubAgentID);
+      }
+    }
+  }
+
+  function mergeSubAgents(existing = [], incoming = []) {
+    const byID = new Map();
+    for (const item of existing) {
+      if (item?.id) byID.set(item.id, item);
+    }
+    for (const item of incoming) {
+      if (!item?.id) continue;
+      byID.set(item.id, { ...byID.get(item.id), ...item });
+    }
+    return Array.from(byID.values()).sort((a, b) => {
+      const left = Date.parse(a.startedAt || a.updatedAt || '') || 0;
+      const right = Date.parse(b.startedAt || b.updatedAt || '') || 0;
+      if (left !== right) return left - right;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  }
+
+  async function loadSubAgentMessages(agentID) {
+    if (!$currentSession || !agentID) {
+      subAgentModalMessages = [];
+      return;
+    }
+    subAgentModalLoading = true;
+    subAgentModalError = '';
+    try {
+      const msgs = await getSessionSubAgentMessages($currentSession, agentID);
+      if (agentID !== selectedSubAgentID) return;
+      const normalized = (msgs || []).map(normalizeSessionMessage).filter(Boolean);
+      const live = subAgentTranscripts[agentID] || [];
+      subAgentModalMessages = mergeMessageLists(normalized, live);
+    } catch (err) {
+      subAgentModalError = err instanceof Error ? err.message : String(err || '');
+      subAgentModalMessages = subAgentTranscripts[agentID] || [];
+    } finally {
+      subAgentModalLoading = false;
+    }
+  }
+
+  function mergeMessageLists(base = [], live = []) {
+    let out = [...base];
+    for (const item of live) {
+      out = upsertMessageInList(out, item);
+    }
+    return out;
+  }
+
+  function openSubAgentModal(agentID = '') {
+    selectedSubAgentID = agentID || selectedSubAgentID || subAgents[0]?.id || '';
+    showSubAgentModal = true;
+    if ($currentSession) {
+      loadSubAgents($currentSession).catch(() => {});
+    }
+    if (selectedSubAgentID) {
+      loadSubAgentMessages(selectedSubAgentID).catch(() => {});
+    }
+  }
+
+  function closeSubAgentModal() {
+    showSubAgentModal = false;
+    subAgentModalError = '';
+  }
+
+  function selectSubAgent(agentID) {
+    selectedSubAgentID = agentID;
+    subAgentModalMessages = subAgentTranscripts[agentID] || [];
+    loadSubAgentMessages(agentID).catch(() => {});
+  }
+
   function beginOptimisticRunEvent() {
     const id = `local-run-${Date.now()}`;
     const runID = `local_${Date.now()}`;
@@ -563,6 +666,7 @@
       sessionStreamCompletedFor = id;
       refreshSessions().catch(() => {});
       loadSessionMessages(id).catch(() => {});
+      loadSubAgents(id).catch(() => {});
       refreshStatsSummary().catch(() => {});
       return;
     }
@@ -629,6 +733,39 @@
       matchingRuns: matchingRuns.length,
       ...totals
     };
+  }
+
+  function buildSubAgentSummary(agents = []) {
+    const list = (agents || []).filter((item) => item?.id);
+    const running = list.filter((item) => item.status === 'running' || item.status === 'ready').length;
+    const failed = list.filter((item) => item.status === 'error' || item.status === 'failed').length;
+    const done = list.filter((item) => item.status === 'done' || item.status === 'destroyed').length;
+    return {
+      visible: list.length > 0,
+      count: list.length,
+      running,
+      failed,
+      done,
+      label: running > 0
+        ? $t('chat.subagents.running', { count: running, total: list.length })
+        : failed > 0
+          ? $t('chat.subagents.failed', { count: failed, total: list.length })
+          : $t('chat.subagents.done', { count: done || list.length, total: list.length })
+    };
+  }
+
+  function subAgentStateClass(agent) {
+    if (!agent) return 'done';
+    if (agent.status === 'error' || agent.status === 'failed') return 'error';
+    if (agent.status === 'running' || agent.status === 'ready') return 'running';
+    return 'done';
+  }
+
+  function subAgentStatusLabel(status) {
+    if (status === 'running' || status === 'ready') return $t('common.running');
+    if (status === 'error' || status === 'failed') return $t('common.failed');
+    if (status === 'destroyed') return $t('chat.subagents.destroyed');
+    return $t('common.completed');
   }
 
   function mergeRunEvents(events = []) {
@@ -746,6 +883,7 @@
           id: message.id,
           seq: message.seq,
           role: 'plan',
+          agentId: message.agentId,
           toolCallId: message.toolCallId,
           toolName: message.toolName,
           plan
@@ -755,6 +893,7 @@
         id: message.id,
         seq: message.seq,
         role: 'toolCall',
+        agentId: message.agentId,
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
         arguments: message.arguments,
@@ -768,6 +907,7 @@
         id: message.id,
         seq: message.seq,
         role: 'toolResult',
+        agentId: message.agentId,
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
         summary: message.summary || $t('chat.tool.result'),
@@ -793,6 +933,7 @@
       id: message.id,
       seq: message.seq,
       role: message.role,
+      agentId: message.agentId,
       content: message.content || textFromContents(message.contents),
       images
     };
@@ -868,7 +1009,9 @@
       readLines: parseReadResult(content),
       lsEntries: parseLsResult(content),
       grepMatches: parseGrepResult(content),
-      bashResult: parseBashResult(content)
+      bashResult: parseBashResult(content),
+      browserResult: parseBrowserResult(content),
+      subAgentResult: parseSubAgentResult(content)
     };
   }
 
@@ -997,6 +1140,64 @@
         invalidArguments
       };
     }
+    if (name === 'browser') {
+      const details = [];
+      const action = String(value.action || '').trim();
+      if (value.selector) details.push($t('chat.tool.browser.selector', { selector: value.selector }));
+      if (value.outputPath) details.push($t('chat.tool.browser.output', { path: value.outputPath }));
+      if (value.fullPage) details.push($t('chat.tool.browser.fullPage'));
+      if (value.interactive) details.push($t('chat.tool.browser.interactive'));
+      if (value.width || value.height) details.push($t('chat.tool.browser.viewport', { width: value.width || '?', height: value.height || '?' }));
+      if (value.viewportWidth || value.viewportHeight) details.push($t('chat.tool.browser.viewport', { width: value.viewportWidth || '?', height: value.viewportHeight || '?' }));
+      if (value.format) details.push(String(value.format));
+      return {
+        kind: 'browser',
+        label: $t('chat.tool.browser.label'),
+        target: browserTarget(value) || $t('chat.tool.browser.missing'),
+        details,
+        action,
+        selector: value.selector || '',
+        url: value.url || '',
+        value: value.value ?? value.text ?? value.key ?? '',
+        expression: value.expression || '',
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'delegate_subagent' || name === 'subagent_spawn') {
+      const details = [];
+      if (value.mode) details.push($t('chat.tool.subagent.mode', { mode: value.mode }));
+      if (value.work_dir) details.push($t('chat.tool.subagent.workDir', { path: value.work_dir }));
+      if (Array.isArray(value.tools) && value.tools.length > 0) details.push($t('chat.tool.subagent.tools', { tools: value.tools.join(', ') }));
+      if (value.max_iterations) details.push($t('chat.tool.subagent.maxIterations', { count: value.max_iterations }));
+      return {
+        kind: 'subagent-task',
+        label: name === 'delegate_subagent' ? $t('chat.tool.subagent.delegate') : $t('chat.tool.subagent.spawn'),
+        target: compactText(value.task || $t('chat.tool.subagent.taskMissing'), 140),
+        details,
+        task: value.task || '',
+        raw: args,
+        invalidArguments
+      };
+    }
+    if (name === 'subagent_status' || name === 'subagent_destroy' || name === 'subagent_send') {
+      const details = [];
+      if (name === 'subagent_send' && value.message) details.push(compactText(value.message, 120));
+      return {
+        kind: 'subagent-handle',
+        label: name === 'subagent_status'
+          ? $t('chat.tool.subagent.status')
+          : name === 'subagent_destroy'
+            ? $t('chat.tool.subagent.destroy')
+            : $t('chat.tool.subagent.send'),
+        target: value.handle || $t('chat.tool.subagent.handleMissing'),
+        details,
+        handle: value.handle || '',
+        message: value.message || '',
+        raw: args,
+        invalidArguments
+      };
+    }
     return {
       kind: 'generic',
       label: name,
@@ -1016,12 +1217,37 @@
     return String(text).split('\n').length;
   }
 
+  function compactText(text = '', limit = 120) {
+    const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+    if (normalized.length <= limit) return normalized;
+    return `${normalized.slice(0, Math.max(0, limit - 1))}...`;
+  }
+
+  function browserTarget(value = {}) {
+    return value.url
+      || value.selector
+      || value.outputPath
+      || value.text
+      || value.value
+      || value.key
+      || value.attr
+      || value.targetId
+      || value.session
+      || '';
+  }
+
   function toolResultKind(toolName, content) {
     if (toolName === 'read' && parseReadResult(content).length > 0) return 'read';
     if (toolName === 'ls' && (parseLsResult(content).length > 0 || content === '(empty directory)')) return 'ls';
     if (toolName === 'grep' && (parseGrepResult(content).matches.length > 0 || content === '(no matches found)')) return 'grep';
     if (toolName === 'bash' && parseBashResult(content)) return 'bash';
+    if (toolName === 'browser') return 'browser';
+    if (isSubAgentTool(toolName)) return 'subagent';
     return 'text';
+  }
+
+  function isSubAgentTool(toolName) {
+    return ['delegate_subagent', 'subagent_spawn', 'subagent_status', 'subagent_send', 'subagent_destroy'].includes(toolName);
   }
 
   function parseReadResult(content = '') {
@@ -1098,6 +1324,33 @@
     };
   }
 
+  function parseBrowserResult(content = '') {
+    const text = String(content || '').trim();
+    if (!text) return null;
+    const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+    const first = lines[0] || '';
+    const titleLine = lines.find((line) => line.toLowerCase().startsWith('title:'));
+    const urlLine = lines.find((line) => line.toLowerCase().startsWith('url:'));
+    return {
+      status: first,
+      title: titleLine ? titleLine.replace(/^title:\s*/i, '') : '',
+      url: urlLine ? urlLine.replace(/^url:\s*/i, '') : '',
+      content: text
+    };
+  }
+
+  function parseSubAgentResult(content = '') {
+    const text = String(content || '').trim();
+    if (!text) return null;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {
+      // fall through to plain text
+    }
+    return { result: text };
+  }
+
   function parseTaggedSections(content = '') {
     const sections = { __prefix: [] };
     let current = '__prefix';
@@ -1119,6 +1372,11 @@
 
   function handleToolStatusEvent(item) {
     chatEvents = [...chatEvents.slice(-49), { type: 'tool', ...item }];
+    if (item?.agentId) {
+      applySubAgentToolStatus(item);
+      scrollChatToBottom();
+      return;
+    }
     if (!item?.tool || !item?.status) {
       scrollChatToBottom();
       return;
@@ -1172,6 +1430,117 @@
     scrollChatToBottom();
   }
 
+  function upsertMessageInList(list, next) {
+    if (!next) return list;
+    if (next.id) {
+      const existing = list.findIndex((m) => m.id === next.id);
+      if (existing >= 0) {
+        const copy = [...list];
+        copy[existing] = { ...copy[existing], ...next };
+        return copy;
+      }
+    }
+    if (next.role === 'toolCall' || next.role === 'plan') {
+      const toolCallId = next.toolCallId || '';
+      const existing = toolCallId ? list.findIndex((m) => m.toolCallId === toolCallId && (m.role === 'toolCall' || m.role === 'plan')) : -1;
+      if (existing >= 0) {
+        const copy = [...list];
+        copy[existing] = { ...copy[existing], ...next };
+        return copy;
+      }
+    }
+    if (next.role === 'toolResult') {
+      const toolCallId = next.toolCallId || '';
+      const existing = toolCallId ? list.findIndex((m) => m.role === 'toolResult' && m.toolCallId === toolCallId) : -1;
+      if (existing >= 0) {
+        const copy = [...list];
+        copy[existing] = { ...copy[existing], ...next };
+        return copy;
+      }
+      const callIdx = toolCallId ? list.findIndex((m) => m.toolCallId === toolCallId && (m.role === 'toolCall' || m.role === 'plan')) : -1;
+      if (callIdx >= 0) {
+        return [...list.slice(0, callIdx + 1), next, ...list.slice(callIdx + 1)];
+      }
+    }
+    return [...list, next];
+  }
+
+  function applySubAgentTranscriptMessage(message, type = 'message') {
+    const agentID = message?.agentId || '';
+    if (!agentID) return false;
+    ensureSubAgent(agentID, { status: 'running' });
+    const current = subAgentTranscripts[agentID] || [];
+    if (type === 'assistant_delta') {
+      const delta = message.content || '';
+      if (!delta) return true;
+      const next = [...current];
+      const last = next[next.length - 1];
+      if (last?.role === 'assistant') {
+        next[next.length - 1] = { ...last, content: `${last.content || ''}${delta}` };
+      } else {
+        next.push({ role: 'assistant', agentId: agentID, content: delta });
+      }
+      subAgentTranscripts = { ...subAgentTranscripts, [agentID]: next };
+    } else {
+      const normalized = normalizeSessionMessage(message);
+      if (normalized) {
+        subAgentTranscripts = {
+          ...subAgentTranscripts,
+          [agentID]: upsertMessageInList(current, normalized)
+        };
+      }
+    }
+    if (showSubAgentModal && selectedSubAgentID === agentID) {
+      subAgentModalMessages = subAgentTranscripts[agentID] || [];
+    }
+    return true;
+  }
+
+  function applySubAgentToolStatus(item) {
+    const agentID = item?.agentId || '';
+    if (!agentID) return;
+    ensureSubAgent(agentID, { status: item.status === 'failed' ? 'error' : 'running' });
+    if (item.status === 'running') {
+      applySubAgentTranscriptMessage({
+        role: 'toolCall',
+        agentId: agentID,
+        toolCallId: item.toolCallId || '',
+        toolName: item.tool,
+        arguments: item.args
+      });
+    } else {
+      applySubAgentTranscriptMessage({
+        role: 'toolResult',
+        agentId: agentID,
+        toolCallId: item.toolCallId || '',
+        toolName: item.tool,
+        summary: item.summary || (item.status === 'failed' ? $t('chat.tool.failed') : $t('chat.tool.completed')),
+        isError: item.isError || item.status === 'failed',
+        hasDetail: false
+      });
+    }
+  }
+
+  function ensureSubAgent(agentID, patch = {}) {
+    if (!agentID) return;
+    const idx = subAgents.findIndex((item) => item.id === agentID);
+    const now = new Date().toISOString();
+    if (idx >= 0) {
+      subAgents[idx] = { ...subAgents[idx], updatedAt: now, ...patch };
+      subAgents = subAgents;
+      return;
+    }
+    subAgents = [...subAgents, {
+      id: agentID,
+      status: patch.status || 'running',
+      active: true,
+      messageCount: 0,
+      startedAt: now,
+      updatedAt: now,
+      ...patch
+    }];
+  }
+
   function upsertTranscriptToolCall(next) {
     const toolCallId = next.toolCallId || '';
     const idx = toolCallId ? messages.findIndex((m) => m.toolCallId === toolCallId && (m.role === 'toolCall' || m.role === 'plan')) : -1;
@@ -1217,6 +1586,7 @@
   function upsertStreamingToolCall(item) {
     const message = {
       role: 'toolCall',
+      agentId: item.agentId || '',
       toolCallId: item.toolCallId || '',
       toolName: item.tool,
       arguments: item.args
@@ -1228,6 +1598,7 @@
     if (item.tool === 'plan' && item.status !== 'failed' && !item.isError) return;
     const message = {
       role: 'toolResult',
+      agentId: item.agentId || '',
       toolCallId: item.toolCallId || '',
       toolName: item.tool,
       summary: item.summary || (item.status === 'failed' ? $t('chat.tool.failed') : $t('chat.tool.completed')),
@@ -1293,6 +1664,20 @@
     }
     const message = item?.message;
     if (!message) return;
+    if (message.agentId) {
+      if (item.type === 'subagent_status') {
+        ensureSubAgent(message.agentId, {
+          status: message.content === 'error' ? 'error' : 'done',
+          error: message.summary || ''
+        });
+        if (showSubAgentModal && selectedSubAgentID === message.agentId) {
+          subAgentModalMessages = subAgentTranscripts[message.agentId] || [];
+        }
+        return;
+      }
+      applySubAgentTranscriptMessage(message, item.type);
+      return;
+    }
     if (item.type === 'assistant_delta') {
       appendAssistantDelta(message.content || '');
       return;
@@ -1316,6 +1701,14 @@
 </script>
 
 <section class="chat-view">
+  {#if subAgentSummary.visible}
+    <button type="button" class="subagent-strip" on:click={() => openSubAgentModal()}>
+      <span class="dot {subAgentSummary.failed > 0 ? 'error' : subAgentSummary.running > 0 ? 'running' : 'done'}"></span>
+      <strong>{$t('chat.subagents.title')}</strong>
+      <span>{subAgentSummary.label}</span>
+      <em>{$t('chat.subagents.open')}</em>
+    </button>
+  {/if}
   <div class="chat-scroll" bind:this={chatScroll} on:scroll={handleChatScroll}>
     {#if messages.length === 0 && !busy}
       <div class="welcome">
@@ -1458,7 +1851,56 @@
                     {#if msg.callView.maxResults !== ''}
                       <div class="find-row">
                         <span>{$t('chat.tool.find.resultLimit')}</span>
-                        <code>{msg.callView.maxResults}</code>
+                      <code>{msg.callView.maxResults}</code>
+                    </div>
+                  {/if}
+                  </div>
+                {:else if msg.callView?.kind === 'browser'}
+                  <div class="browser-call">
+                    <div class="find-row">
+                      <span>{$t('chat.tool.browser.action')}</span>
+                      <code>{msg.callView.action || $t('chat.tool.browser.missing')}</code>
+                    </div>
+                    {#if msg.callView.url}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.browser.url')}</span>
+                        <code>{msg.callView.url}</code>
+                      </div>
+                    {/if}
+                    {#if msg.callView.selector}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.browser.selectorLabel')}</span>
+                        <code>{msg.callView.selector}</code>
+                      </div>
+                    {/if}
+                    {#if msg.callView.value}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.browser.value')}</span>
+                        <code>{msg.callView.value}</code>
+                      </div>
+                    {/if}
+                    {#if msg.callView.expression}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.browser.expression')}</span>
+                        <code>{msg.callView.expression}</code>
+                      </div>
+                    {/if}
+                  </div>
+                {:else if msg.callView?.kind === 'subagent-task'}
+                  <div class="subagent-call">
+                    <span>{$t('chat.tool.subagent.task')}</span>
+                    <p>{msg.callView.task || msg.callView.target}</p>
+                  </div>
+                {:else if msg.callView?.kind === 'subagent-handle'}
+                  <div class="subagent-call compact">
+                    <div class="find-row">
+                      <span>{$t('chat.tool.subagent.handle')}</span>
+                      <code>{msg.callView.handle || $t('chat.tool.subagent.handleMissing')}</code>
+                    </div>
+                    {#if msg.callView.message}
+                      <div class="find-row">
+                        <span>{$t('chat.tool.subagent.message')}</span>
+                        <code>{msg.callView.message}</code>
                       </div>
                     {/if}
                   </div>
@@ -1489,7 +1931,41 @@
                 {:else if msg.detailError}
                   <p class="error-text">{msg.detailError}</p>
                 {:else if msg.detailLoaded}
-                  {#if msg.detail?.kind === 'bash' && msg.detail.bashResult}
+                  {#if msg.detail?.kind === 'browser' && msg.detail.browserResult}
+                    <div class="browser-result">
+                      <div class="browser-result-head">
+                        <strong>{msg.detail.browserResult.status}</strong>
+                        {#if msg.detail.browserResult.title}<span>{msg.detail.browserResult.title}</span>{/if}
+                      </div>
+                      {#if msg.detail.browserResult.url}
+                        <code>{msg.detail.browserResult.url}</code>
+                      {/if}
+                      {#if !msg.detail.browserResult.title && !msg.detail.browserResult.url && msg.detail.browserResult.content}
+                        <pre>{msg.detail.browserResult.content}</pre>
+                      {/if}
+                    </div>
+                  {:else if msg.detail?.kind === 'subagent' && msg.detail.subAgentResult}
+                    <div class="subagent-result">
+                      {#if msg.detail.subAgentResult.handle}
+                        <div><span>{$t('chat.tool.subagent.handle')}</span><code>{msg.detail.subAgentResult.handle}</code></div>
+                      {/if}
+                      {#if msg.detail.subAgentResult.status}
+                        <div><span>{$t('chat.tool.subagent.statusLabel')}</span><strong>{msg.detail.subAgentResult.status}</strong></div>
+                      {/if}
+                      {#if msg.detail.subAgentResult.duration}
+                        <div><span>{$t('chat.tool.subagent.duration')}</span><code>{msg.detail.subAgentResult.duration}</code></div>
+                      {/if}
+                      {#if msg.detail.subAgentResult.tool_calls !== undefined}
+                        <div><span>{$t('chat.tool.subagent.toolCalls')}</span><code>{msg.detail.subAgentResult.tool_calls}</code></div>
+                      {/if}
+                      {#if msg.detail.subAgentResult.error}
+                        <p class="error-text">{msg.detail.subAgentResult.error}</p>
+                      {/if}
+                      {#if msg.detail.subAgentResult.result || msg.detail.subAgentResult.last_response || msg.detail.subAgentResult.partial_result}
+                        <pre>{msg.detail.subAgentResult.result || msg.detail.subAgentResult.last_response || msg.detail.subAgentResult.partial_result}</pre>
+                      {/if}
+                    </div>
+                  {:else if msg.detail?.kind === 'bash' && msg.detail.bashResult}
                     <div class="bash-result">
                       <div class="bash-meta">
                         {#if msg.detail.bashResult.runtime}<span>{msg.detail.bashResult.runtime}</span>{/if}
@@ -1716,3 +2192,69 @@
 </section>
 
 <DirBrowser bind:open={showBrowser} on:select={onDirSelect} on:close={() => (showBrowser = false)} />
+
+{#if showSubAgentModal}
+  <div class="subagent-overlay" role="dialog" aria-modal="true" aria-label={$t('chat.subagents.history')}>
+    <div class="subagent-modal">
+      <header>
+        <div>
+          <strong>{$t('chat.subagents.history')}</strong>
+          <span>{$t('chat.subagents.subtitle', { count: subAgents.length })}</span>
+        </div>
+        <button type="button" class="ghost sm" on:click={closeSubAgentModal}>{$t('common.close')}</button>
+      </header>
+      <div class="subagent-modal-body">
+        <aside class="subagent-list">
+          {#each subAgents as agent}
+            <button
+              type="button"
+              class:active={agent.id === selectedSubAgentID}
+              on:click={() => selectSubAgent(agent.id)}
+            >
+              <span class="dot {subAgentStateClass(agent)}"></span>
+              <strong>{shortID(agent.id)}</strong>
+              <em>{subAgentStatusLabel(agent.status)}</em>
+              {#if agent.messageCount}<small>{agent.messageCount}</small>{/if}
+            </button>
+          {/each}
+        </aside>
+        <section class="subagent-history">
+          {#if subAgentModalLoading}
+            <p class="pending-text">{$t('chat.subagents.loading')}</p>
+          {:else if subAgentModalError}
+            <p class="error-text">{subAgentModalError}</p>
+          {:else if subAgentModalMessages.length === 0}
+            <p class="pending-text">{$t('chat.subagents.empty')}</p>
+          {:else}
+            {#each subAgentModalMessages as item}
+              <article class="subagent-msg {item.role}">
+                <div class="meta">
+                  <strong>{item.role === 'assistant' ? 'assistant' : item.role}</strong>
+                  {#if item.toolName}<span>{item.toolName}</span>{/if}
+                </div>
+                {#if item.role === 'assistant'}
+                  <div class="markdown">{@html markdownToHTML(item.content || '')}</div>
+                {:else if item.role === 'user'}
+                  <p>{item.content}</p>
+                {:else if item.role === 'toolCall'}
+                  <div class="tool-mini">
+                    <strong>{item.callView?.label || item.toolName}</strong>
+                    {#if item.callView?.target}<span>{item.callView.target}</span>{/if}
+                  </div>
+                {:else if item.role === 'toolResult'}
+                  <div class="tool-mini">
+                    <span class="dot {item.isError ? 'error' : 'done'}"></span>
+                    <strong>{item.toolName}</strong>
+                    <span>{item.summary}</span>
+                  </div>
+                {:else}
+                  <pre>{item.content || formatArgs(item.arguments)}</pre>
+                {/if}
+              </article>
+            {/each}
+          {/if}
+        </section>
+      </div>
+    </div>
+  </div>
+{/if}

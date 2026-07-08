@@ -338,6 +338,23 @@ func (m *AgentManager) Status(id agentpkg.AgentID) (ManagedAgentStatus, bool) {
 	return st, ok
 }
 
+// Statuses returns a sorted copy of all tracked agent statuses.
+func (m *AgentManager) Statuses() []ManagedAgentStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	statuses := make([]ManagedAgentStatus, 0, len(m.statuses))
+	for _, st := range m.statuses {
+		statuses = append(statuses, st)
+	}
+	sort.Slice(statuses, func(i, j int) bool {
+		if !statuses[i].StartedAt.Equal(statuses[j].StartedAt) {
+			return statuses[i].StartedAt.Before(statuses[j].StartedAt)
+		}
+		return statuses[i].ID < statuses[j].ID
+	})
+	return statuses
+}
+
 // List returns all agent IDs.
 func (m *AgentManager) List() []agentpkg.AgentID {
 	m.mu.RLock()

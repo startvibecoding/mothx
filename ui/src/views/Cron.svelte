@@ -1,20 +1,31 @@
 <script>
-  import { cronInfo, refreshCron, setError, setNotice, clearBanners } from '../lib/stores.js';
+  import { cronInfo, currentSession, refreshCron, setError, setNotice, clearBanners } from '../lib/stores.js';
   import { postJSON, patchJSON, del } from '../lib/api.js';
   import { shortID, scheduleLabel, formatDateTime } from '../lib/format.js';
   import { t } from '../lib/preferences.js';
 
   let form = { name: '', prompt: '', schedule: '', oneshot: false, mode: 'yolo' };
+  let lastLoadedSession = '';
 
   $: info = $cronInfo;
   $: disabled = info?.enabled === false;
+  $: sessionID = $currentSession || '';
   $: jobs = info?.jobs || [];
+  $: if (sessionID && sessionID !== lastLoadedSession) {
+    lastLoadedSession = sessionID;
+    refreshCron(sessionID);
+  }
 
   async function create() {
     if (!form.name.trim() || !form.prompt.trim()) return;
+    if (!sessionID) {
+      setError('sessionId is required');
+      return;
+    }
     clearBanners();
     try {
       await postJSON('/api/cron', {
+        sessionId: sessionID,
         name: form.name.trim(),
         prompt: form.prompt,
         schedule: form.schedule.trim(),
@@ -23,17 +34,25 @@
       });
       form = { name: '', prompt: '', schedule: '', oneshot: false, mode: 'yolo' };
       setNotice($t('cron.created'));
-      await refreshCron();
+      await refreshCron(sessionID);
     } catch (err) {
       setError(err);
     }
   }
 
+  async function refreshCurrentCron() {
+    await refreshCron(sessionID);
+  }
+
+  function sessionQuery() {
+    return sessionID ? `?sessionId=${encodeURIComponent(sessionID)}` : '';
+  }
+
   async function toggle(id, enabled) {
     clearBanners();
     try {
-      await patchJSON(`/api/cron/${encodeURIComponent(id)}`, { enabled });
-      await refreshCron();
+      await patchJSON(`/api/cron/${encodeURIComponent(id)}${sessionQuery()}`, { enabled });
+      await refreshCron(sessionID);
     } catch (err) {
       setError(err);
     }
@@ -42,9 +61,9 @@
   async function remove(id) {
     clearBanners();
     try {
-      await del(`/api/cron/${encodeURIComponent(id)}`);
+      await del(`/api/cron/${encodeURIComponent(id)}${sessionQuery()}`);
       setNotice($t('cron.deleted', { id: shortID(id) }));
-      await refreshCron();
+      await refreshCron(sessionID);
     } catch (err) {
       setError(err);
     }
@@ -57,7 +76,7 @@
       {disabled ? $t('common.disabledState') : info?.running ? $t('common.running') : $t('common.idle')}
       {#if info?.path}<span class="hint">{info.path}</span>{/if}
     </div>
-    <button type="button" class="ghost" on:click={refreshCron}>{$t('common.refresh')}</button>
+    <button type="button" class="ghost" on:click={refreshCurrentCron}>{$t('common.refresh')}</button>
   </div>
 
   <div class="page-body">
@@ -66,36 +85,36 @@
       <form class="form-grid" on:submit|preventDefault={create}>
         <label>
           <span>{$t('cron.name')}</span>
-          <input bind:value={form.name} disabled={disabled} placeholder={$t('cron.namePlaceholder')} />
+          <input bind:value={form.name} disabled={disabled || !sessionID} placeholder={$t('cron.namePlaceholder')} />
         </label>
         <label>
           <span>{$t('cron.schedule')}</span>
           <input
             bind:value={form.schedule}
-            disabled={disabled || form.oneshot}
+            disabled={disabled || !sessionID || form.oneshot}
             placeholder={$t('cron.schedulePlaceholder')}
           />
         </label>
         <label>
           <span>{$t('cron.mode')}</span>
-          <select bind:value={form.mode} disabled={disabled}>
+          <select bind:value={form.mode} disabled={disabled || !sessionID}>
             <option value="yolo">yolo</option>
             <option value="agent">agent</option>
           </select>
         </label>
         <label class="checkbox">
-          <input type="checkbox" bind:checked={form.oneshot} disabled={disabled} />
+          <input type="checkbox" bind:checked={form.oneshot} disabled={disabled || !sessionID} />
           <span>{$t('cron.oneshot')}</span>
         </label>
         <label class="full">
           <span>Prompt</span>
-          <textarea bind:value={form.prompt} disabled={disabled} rows="4" placeholder={$t('cron.promptPlaceholder')}></textarea>
+          <textarea bind:value={form.prompt} disabled={disabled || !sessionID} rows="4" placeholder={$t('cron.promptPlaceholder')}></textarea>
         </label>
         <div class="form-actions">
           <button
             type="submit"
             class="primary"
-            disabled={disabled || !form.name.trim() || !form.prompt.trim()}
+            disabled={disabled || !sessionID || !form.name.trim() || !form.prompt.trim()}
           >
             {$t('common.create')}
           </button>
