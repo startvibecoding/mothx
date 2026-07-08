@@ -686,6 +686,9 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "deepseek.v3.2", Name: "DeepSeek V3.2", ContextWindow: 131072, MaxTokens: 16384, Input: []string{"text"}},
 		{ID: "deepseek.r1-v1:0", Name: "DeepSeek R1", Reasoning: true, ContextWindow: 131072, MaxTokens: 16384, Input: []string{"text"}},
 	}},
+	"stepfun": {BaseURL: "https://api.stepfun.com/step_plan/v1", APIKey: "${STEPFUN_API_KEY}", API: "openai-chat", Models: []ModelConfig{
+		{ID: "step-3.7-flash", Name: "Step 3.7 Flash", ContextWindow: 262144, MaxTokens: 16384, Input: []string{"text", "image"}},
+	}},
 }
 
 func DefaultSettings() *Settings {

@@ -1,6 +1,76 @@
 # Changelog
 
 
+## v1.1.61
+
+### ✨ Features
+
+- **Web UI Internationalization & Theme Support**
+  - Added a complete i18n system for the Web UI with Chinese/English language switching.
+  - Added a preference controls panel (`PreferenceControls`) for adjusting language and theme.
+  - Replaced all hardcoded strings across views and components with translation keys.
+  - Added a CSS variable-driven theme system supporting Dark/Light theme switching.
+
+- **Web UI Tool Calls & Plan Card Rendering**
+  - The Web UI chat interface now renders tool calls, tool results, and plan cards.
+  - Tool calls are displayed as running/completed status chips; tool results are collapsible (summary shows first line, click to fetch full output on demand).
+  - Plan tool invocations render as a live-updating todo checklist.
+  - Backend added `/api/sessions/:id/tool-results/:callId` endpoint for lazy-loading full tool output.
+  - `ListActiveSessions` now also returns historical sessions so the Sessions page shows all persisted conversations.
+
+- **Richer Tool Status Streaming in Serve Mode**
+  - SSE streaming events now carry richer tool status information, enabling the frontend to display real-time tool execution progress.
+  - Tool status events include tool name, arguments, and execution results.
+
+- **Debug Mode pprof Server**
+  - Added `--debug` flag to start a local pprof profiling server across all entry points (CLI, TUI, Serve, ACP, A2A).
+
+- **Speedtest Command**
+  - Added `vibecoding speedtest` CLI subcommand for testing model response speed.
+
+- **New StepFun Vendor Support**
+  - Added `stepfun` vendor with Base URL `https://api.stepfun.com/step_plan/v1` using OpenAI-compatible protocol.
+  - Added `step-3.7-flash` model with 256K context window and multimodal (text + image) input support.
+
+- **Multimodal Image Input**
+  - Serve mode now supports multimodal (image) input; images can be uploaded via API for conversations.
+  - Improved session persistence to correctly store multimodal messages.
+
+- **Serve init-config Subcommand**
+  - Added `mothx serve init-config` subcommand for initializing global and project-level `serve.json` configuration.
+
+### 🔧 Improvements
+
+- **TUI Input Queue On-Demand Start**
+  - Input queue ticker now starts on demand and stops when idle, reducing unnecessary CPU usage.
+
+- **Split-Paste Coalescing Configurable**
+  - Split-paste event coalescing is now configurable via test parameters, facilitating unit test verification.
+
+### 🔒 Security
+
+- **Browse API Restriction**
+  - Browse API is now restricted to `allowedWorkDirs` whitelist directories, rejecting out-of-bounds access.
+  - Auth requests without tokens are now rejected to prevent unauthorized access.
+
+- **Code Scanning Fix**
+  - Fixed a potentially unsafe quoting issue (Code Scanning Alert #3).
+
+### 🔄 Refactors
+
+- **Merged Gateway & Hermes into Unified Serve Mode**
+  - Removed `internal/gateway` and `internal/hermes` packages, merged into the unified `internal/serve/` architecture.
+  - Removed `gateway`/`hermes` subcommands from CLI entry points.
+  - Added `internal/serve/openaiapi` (OpenAI-compatible API runtime), `internal/serve/channels` (message channel dispatcher), `internal/serve/ws` (WebSocket channel runtime).
+  - Removed Hermes built-in terminal WebSocket client.
+
+- **WebUI Component Split**
+  - Split monolithic `App.svelte` into separate components, views, and lib modules for improved maintainability.
+
+### 📦 Dependencies
+
+- Bumped `golang.org/x/image` from v0.36.0 to v0.41.0.
+
 ## v1.1.60
 
 ### ✨ Features

@@ -1,6 +1,76 @@
 # 更新日志
 
 
+## v1.1.61
+
+### ✨ 新功能
+
+- **Web UI 国际化与主题支持**
+  - 新增完整的 Web UI 国际化（i18n）系统，支持中英文切换。
+  - 新增偏好设置面板（`PreferenceControls`），可调整语言和主题。
+  - 全面替换所有视图和组件中的硬编码字符串为翻译键。
+  - 新增 CSS 变量驱动的主题系统，支持 Dark/Light 主题切换。
+
+- **Web UI 工具调用与计划卡片渲染**
+  - Web UI 聊天界面现在可以渲染工具调用、工具结果和计划（plan）卡片。
+  - 工具调用以运行中/已完成状态标签展示，工具结果支持折叠/展开（摘要显示首行，点击按需加载完整输出）。
+  - 计划工具调用渲染为可实时更新的待办清单。
+  - 后端新增 `/api/sessions/:id/tool-results/:callId` 端点，支持按需加载完整工具输出。
+  - `ListActiveSessions` 现在同时返回历史会话，Sessions 页面可展示所有持久化对话。
+
+- **Serve 模式更丰富的工具状态流**
+  - SSE 流式事件现在携带更丰富的工具状态信息，前端可实时展示工具执行进度。
+  - 工具状态事件包含工具名称、参数和执行结果。
+
+- **调试模式 pprof 服务器**
+  - 新增 `--debug` 标志，在所有入口（CLI、TUI、Serve、ACP、A2A）上启动本地 pprof 性能分析服务器。
+
+- **Speedtest 命令**
+  - 新增 `vibecoding speedtest` CLI 子命令，用于测试模型响应速度。
+
+- **新增阶跃星辰厂商支持**
+  - 新增 `stepfun` 厂商，Base URL `https://api.stepfun.com/step_plan/v1`，OpenAI 兼容协议。
+  - 新增 `step-3.7-flash` 模型，256K 上下文，支持多模态（text + image）输入。
+
+- **多模态图片输入**
+  - Serve 模式现在支持多模态（图片）输入，可通过 API 上传图片进行对话。
+  - 改进了会话持久化，确保多模态消息正确存储。
+
+- **Serve init-config 子命令**
+  - 新增 `mothx serve init-config` 子命令，支持初始化全局和项目级 `serve.json` 配置。
+
+### 🔧 改进
+
+- **TUI 输入队列按需启动**
+  - 输入队列定时器改为按需启动，空闲时自动停止，减少不必要的 CPU 占用。
+
+- **粘贴合并可配置化**
+  - 分割粘贴事件合并（split-paste coalescing）现在可通过测试参数配置，便于单元测试验证。
+
+### 🔒 安全
+
+- **Browse API 限制**
+  - Browse API 现在限制在 `allowedWorkDirs` 白名单目录内，拒绝越界访问。
+  - 无 token 时拒绝认证请求，避免未授权访问。
+
+- **代码扫描修复**
+  - 修复了潜在的不安全引号问题（Code Scanning Alert #3）。
+
+### 🔄 重构
+
+- **Gateway 与 Hermes 合并为统一 Serve 模式**
+  - 移除 `internal/gateway` 和 `internal/hermes` 包，合并到统一的 `internal/serve/` 架构中。
+  - CLI 入口点移除 `gateway`/`hermes` 子命令。
+  - 新增 `internal/serve/openaiapi`（OpenAI 兼容 API 运行时）、`internal/serve/channels`（消息通道调度）、`internal/serve/ws`（WebSocket 通道运行时）。
+  - 移除 Hermes 内置终端 WebSocket 客户端。
+
+- **WebUI 组件拆分**
+  - 将单体 `App.svelte` 拆分为独立的组件（components）、视图（views）和工具库（lib），提升可维护性。
+
+### 📦 依赖
+
+- 升级 `golang.org/x/image` 从 v0.36.0 到 v0.41.0。
+
 ## v1.1.60
 
 ### ✨ 新功能

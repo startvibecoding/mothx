@@ -14,7 +14,7 @@
 | **OpenAI** | GPT-4o, o1, etc. | OpenAI Chat |
 | **Anthropic** | Claude Sonnet, Opus, etc. | Anthropic Messages |
 | **LongCat** | LongCat-2.0 (1M context, 128K output) | OpenAI Chat / Anthropic Messages |
-| **Vendor Adapters** | Google Gemini, Google Vertex, Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock, Z.AI, and more | OpenAI Chat or Anthropic Messages |
+| **Vendor Adapters** | Google Gemini, Google Vertex, Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, StepFun, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock, Z.AI, LongCat, and more | OpenAI Chat or Anthropic Messages |
 | **Custom** | Any compatible model | Generic OpenAI Chat or Anthropic Messages fallback |
 
 ### Quick Switch
@@ -34,7 +34,7 @@ mothx --provider anthropic --model claude-3-5-sonnet-20241022
 
 MothX supports 25+ vendor adapters, including:
 
-- **China**: Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, Z.AI, LongCat
+- **China**: Xiaomi, Volcengine/Doubao, Kimi, MiniMax, Seed, Qianfan, Bailian, Gitee, StepFun, Z.AI, LongCat
 - **International**: Google Gemini, Google Vertex, OpenRouter, Together, Groq, Fireworks, Mistral, GitHub Copilot, Cloudflare AI Gateway, Cloudflare Workers AI, Amazon Bedrock
 
 No additional configuration needed — just set the API key and start using.

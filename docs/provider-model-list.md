@@ -911,6 +911,16 @@
 |------|---------|-----------|------|------|
 | hy3-preview | 262K | 64K | **是** | text |
 
+### 38. 阶跃星辰（StepFun）
+
+- **BaseURL**: `https://api.stepfun.com/step_plan/v1`
+- **API**: `openai-chat`
+- **API Key**: `${STEPFUN_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| step-3.7-flash | 256K | 16K | 否 | text,image |
+
 ---
 
 ## 按供应商分类的 Quick Reference
@@ -953,6 +963,7 @@
 | LongCat | `longcat` | openai-chat/anthropic | - | 1 |
 | 腾讯混元 | `tencent-hy-plan` | openai-chat/anthropic | - | 1 |
 | 百度千帆 | `qianfan` | openai-chat | - | 4 |
+| 阶跃星辰 | `stepfun` | openai-chat | - | 1 |
 
 ---
 

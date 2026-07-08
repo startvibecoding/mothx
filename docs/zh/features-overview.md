@@ -13,7 +13,7 @@
 | **DeepSeek**（默认） | deepseek-v4-flash, deepseek-v4-pro | OpenAI Chat / Anthropic Messages |
 | **OpenAI** | GPT-4o, o1 等 | OpenAI Chat |
 | **Anthropic** | Claude Sonnet, Opus 等 | Anthropic Messages |
-| **厂商适配器** | Google Gemini、Google Vertex、小米、火山引擎/豆包、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、OpenRouter、Together、Groq、Fireworks、Mistral、GitHub Copilot、Cloudflare AI Gateway、Cloudflare Workers AI、Amazon Bedrock、Z.AI、LongCat 等 | OpenAI Chat 或 Anthropic Messages |
+| **厂商适配器** | Google Gemini、Google Vertex、小米、火山引擎/豆包、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、阶跃星辰、OpenRouter、Together、Groq、Fireworks、Mistral、GitHub Copilot、Cloudflare AI Gateway、Cloudflare Workers AI、Amazon Bedrock、Z.AI、LongCat 等 | OpenAI Chat 或 Anthropic Messages |
 | **自定义** | 任何兼容模型 | 通用 OpenAI Chat 或 Anthropic Messages fallback |
 
 ### 快速切换
@@ -33,7 +33,7 @@ mothx --provider anthropic --model claude-3-5-sonnet-20241022
 
 MothX 支持 25+ 厂商适配器，包括：
 
-- **国内**：小米、火山引擎/豆包、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、Z.AI、LongCat
+- **国内**：小米、火山引擎/豆包、Kimi、MiniMax、Seed、Qianfan、Bailian、Gitee、阶跃星辰、Z.AI、LongCat
 - **国际**：Google Gemini、Google Vertex、OpenRouter、Together、Groq、Fireworks、Mistral、GitHub Copilot、Cloudflare AI Gateway、Cloudflare Workers AI、Amazon Bedrock
 
 无需额外配置，只需设置 API 密钥即可使用。
