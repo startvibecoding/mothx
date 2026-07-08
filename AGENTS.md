@@ -158,6 +158,7 @@ When changing code, prefer the least risky approach that satisfies the request.
 - Keep only active streaming content in the managed Bubble Tea view. Completed user/assistant/tool/status blocks should leave the live view after they are printed so mouse scrolling and terminal selection use the terminal's own scrollback.
 - Show a visible tool "running" line before the final result line, rather than overwriting a single tool entry in place.
 - In auth/settings dialogs, clear stale `ParamField` / `ParamFieldKey` when changing views. Menu navigation and toggle fields must not leave input mode active for the next view.
+- In `/auth` model lists, `Backspace` / `Delete` on a model row deletes that model. Keep deletion scoped to model rows only; action rows like `+ Add Model` and `Done` must not delete anything.
 
 ## Provider and Model Reference
 
