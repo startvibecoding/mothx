@@ -16,6 +16,7 @@
   } from '../lib/stores.js';
   import { shortID, toolStateClass, formatArgs } from '../lib/format.js';
   import DirBrowser from '../components/DirBrowser.svelte';
+  import { t } from '../lib/preferences.js';
 
   let prompt = '';
   let messages = [];
@@ -29,14 +30,14 @@
   let imageUploads = [];
 
   const suggestions = [
-    '阅读当前项目并总结核心模块和调用链',
-    '审查最近的代码改动，列出潜在回归风险',
-    '帮我为这个 Go 包补充关键单元测试',
-    '定位测试失败原因并给出最小修复方案',
-    '重构这段代码，保持行为不变并降低复杂度',
-    '检查配置文件和启动参数是否存在冲突',
-    '为新增功能整理一份简洁的 README 说明',
-    '生成一个安全的多 Agent 任务拆解方案'
+    'chat.suggestion.projectSummary',
+    'chat.suggestion.reviewChanges',
+    'chat.suggestion.addTests',
+    'chat.suggestion.fixTests',
+    'chat.suggestion.refactor',
+    'chat.suggestion.configAudit',
+    'chat.suggestion.readme',
+    'chat.suggestion.multiAgent'
   ];
 
   // Reset or load state when the selected session changes.
@@ -112,11 +113,11 @@
     const outgoingImages = imageUploads;
     if ((!outgoing && outgoingImages.length === 0) || !apiEnabled) return;
     if (outgoingImages.length > 0 && !selectedModelSupportsImages) {
-      setError('当前模型不支持图片输入');
+      setError($t('chat.error.modelNoImages'));
       return;
     }
     if (isNewSession && !workDir.trim()) {
-      setError('请先填写工作目录');
+      setError($t('chat.error.needWorkDir'));
       return;
     }
     busy = true;
@@ -161,7 +162,7 @@
       await readSSE(res.body, handleStreamEvent);
       sessionCreated = true;
     } catch (err) {
-      if (err?.name === 'AbortError') setNotice('已停止请求。');
+      if (err?.name === 'AbortError') setNotice($t('chat.notice.stopped'));
       else setError(err);
     } finally {
       busy = false;
@@ -194,7 +195,7 @@
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
     if (!selectedModelSupportsImages) {
-      setError('当前模型不支持图片输入');
+      setError($t('chat.error.modelNoImages'));
       event.target.value = '';
       return;
     }
@@ -210,7 +211,7 @@
 
   function readImageFile(file) {
     if (!file.type.startsWith('image/')) {
-      throw new Error(`不支持的文件类型：${file.name}`);
+      throw new Error($t('chat.error.unsupportedFileType', { name: file.name }));
     }
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -220,7 +221,7 @@
         size: file.size,
         dataUrl: String(reader.result || '')
       });
-      reader.onerror = () => reject(new Error(`读取图片失败：${file.name}`));
+      reader.onerror = () => reject(new Error($t('chat.error.imageReadFailed', { name: file.name })));
       reader.readAsDataURL(file);
     });
   }
@@ -278,7 +279,7 @@
         role: 'toolResult',
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
-        summary: message.summary || '工具结果',
+        summary: message.summary || $t('chat.tool.result'),
         isError: message.isError,
         hasDetail: message.hasDetail,
         detailLoaded: false,
@@ -328,10 +329,10 @@
 
   function planStatusLabel(status) {
     switch (status) {
-      case 'done': return '完成';
-      case 'running': return '进行中';
-      case 'failed': return '失败';
-      default: return '待处理';
+      case 'done': return $t('chat.plan.done');
+      case 'running': return $t('chat.plan.running');
+      case 'failed': return $t('chat.plan.failed');
+      default: return $t('chat.plan.pending');
     }
   }
 
@@ -346,7 +347,7 @@
       msg.detail = normalizeToolResultDetail(detail);
       msg.detailLoaded = true;
     } catch (err) {
-      msg.detailError = err instanceof Error ? err.message : String(err || '加载失败');
+      msg.detailError = err instanceof Error ? err.message : String(err || $t('chat.tool.detailLoadFailed'));
     } finally {
       msg.detailLoading = false;
       messages = messages;
@@ -383,15 +384,15 @@
     const value = isPlainObject(args) ? args : {};
     if (name === 'read') {
       const details = [];
-      if (value.offset) details.push(`从第 ${value.offset} 行`);
-      if (value.limit) details.push(`最多 ${value.limit} 行`);
-      if (value.imageMode) details.push(`图片模式 ${value.imageMode}`);
-      if (value.maxLongEdge) details.push(`最长边 ${value.maxLongEdge}px`);
-      if (value.crop) details.push(`裁剪 ${value.crop.width || 0}x${value.crop.height || 0}+${value.crop.x || 0}+${value.crop.y || 0}`);
+      if (value.offset) details.push($t('chat.tool.read.offset', { offset: value.offset }));
+      if (value.limit) details.push($t('chat.tool.read.limit', { limit: value.limit }));
+      if (value.imageMode) details.push($t('chat.tool.read.imageMode', { mode: value.imageMode }));
+      if (value.maxLongEdge) details.push($t('chat.tool.read.maxLongEdge', { value: value.maxLongEdge }));
+      if (value.crop) details.push($t('chat.tool.read.crop', { value: `${value.crop.width || 0}x${value.crop.height || 0}+${value.crop.x || 0}+${value.crop.y || 0}` }));
       return {
         kind: 'read',
-        label: '读取文件',
-        target: value.path || '(未指定文件)',
+        label: $t('chat.tool.read.label'),
+        target: value.path || $t('chat.tool.read.missing'),
         details,
         raw: args,
         invalidArguments
@@ -400,7 +401,7 @@
     if (name === 'ls') {
       return {
         kind: 'ls',
-        label: '列出目录',
+        label: $t('chat.tool.ls.label'),
         target: value.path || '.',
         details: [],
         raw: args,
@@ -411,11 +412,11 @@
       const details = [];
       if (value.path) details.push(value.path);
       if (value.include) details.push(`include ${value.include}`);
-      if (value.maxResults) details.push(`最多 ${value.maxResults} 条`);
+      if (value.maxResults) details.push($t('chat.tool.grep.maxResults', { count: value.maxResults }));
       return {
         kind: 'grep',
-        label: '搜索文本',
-        target: value.pattern || '(未指定 pattern)',
+        label: $t('chat.tool.grep.label'),
+        target: value.pattern || $t('chat.tool.grep.missing'),
         details,
         raw: args,
         invalidArguments
@@ -423,14 +424,14 @@
     }
     if (name === 'bash') {
       const details = [];
-      if (value.async) details.push('后台运行');
+      if (value.async) details.push($t('chat.tool.bash.async'));
       if (value.timeout !== undefined && value.timeout !== null) {
-        details.push(Number(value.timeout) === 0 ? '无工具超时' : `超时 ${value.timeout}s`);
+        details.push(Number(value.timeout) === 0 ? $t('chat.tool.bash.noTimeout') : $t('chat.tool.bash.timeout', { seconds: value.timeout }));
       }
       return {
         kind: 'bash',
-        label: '执行命令',
-        target: value.command || '(未指定命令)',
+        label: $t('chat.tool.bash.label'),
+        target: value.command || $t('chat.tool.bash.missing'),
         details,
         raw: args,
         invalidArguments
@@ -602,7 +603,7 @@
       role: 'toolResult',
       toolCallId,
       toolName: item.tool,
-      summary: item.summary || (item.status === 'failed' ? '工具执行失败' : '工具执行完成'),
+      summary: item.summary || (item.status === 'failed' ? $t('chat.tool.failed') : $t('chat.tool.completed')),
       isError: item.isError || item.status === 'failed',
       hasDetail: Boolean(item.hasDetail && toolCallId),
       detailLoaded: false,
@@ -678,16 +679,16 @@
   <div class="chat-scroll">
     {#if messages.length === 0 && !busy}
       <div class="welcome">
-        <h2>有什么我能帮你的吗？</h2>
+        <h2>{$t('chat.welcome')}</h2>
         <div class="suggestions">
-          {#each suggestions as text}
+          {#each suggestions as key}
             <button
               type="button"
               class="chip"
               disabled={!apiEnabled || (isNewSession && !workDir.trim())}
-              on:click={() => pick(text)}
+              on:click={() => pick($t(key))}
             >
-              {text}
+              {$t(key)}
             </button>
           {/each}
         </div>
@@ -698,7 +699,7 @@
           {#if msg.role === 'user'}
             <article class="msg user">
               <div class="meta">
-                <strong>你</strong>
+                <strong>{$t('chat.you')}</strong>
                 <span>{shortID($currentSession)}</span>
               </div>
               <p>{msg.content}</p>
@@ -714,18 +715,18 @@
             <article class="msg assistant">
               <div class="meta">
                 <strong>MothX</strong>
-                <span>{busy && idx === messages.length - 1 ? '生成中' : '完成'}</span>
+                <span>{busy && idx === messages.length - 1 ? $t('chat.generating') : $t('common.completed')}</span>
               </div>
               {#if msg.content}
                 <div class="markdown">{@html markdownToHTML(msg.content)}</div>
               {:else if busy && idx === messages.length - 1}
-                <p class="pending-text">正在等待模型响应…</p>
+                <p class="pending-text">{$t('chat.waitingModel')}</p>
               {/if}
             </article>
           {:else if msg.role === 'plan'}
             <article class="msg plan-card">
               <div class="meta">
-                <strong>任务计划</strong>
+                <strong>{$t('chat.plan')}</strong>
                 {#if msg.toolCallId}<span>{shortID(msg.toolCallId)}</span>{/if}
               </div>
               <section class="todo-plan">
@@ -749,7 +750,7 @@
           {:else if msg.role === 'toolCall'}
             <article class="msg tool-call">
               <div class="meta">
-                <strong>工具调用</strong>
+                <strong>{$t('chat.toolCall')}</strong>
                 <span>{msg.toolName}</span>
               </div>
               <div class="tool-call-body">
@@ -770,7 +771,7 @@
                 {/if}
                 {#if msg.callView?.kind !== 'generic' && msg.arguments}
                   <details class="tool-raw">
-                    <summary>参数 JSON</summary>
+                    <summary>{$t('chat.argsJson')}</summary>
                     <pre>{formatArgs(msg.arguments)}</pre>
                   </details>
                 {:else if msg.arguments}
@@ -786,11 +787,11 @@
                 <summary>
                   <span class="dot {msg.isError ? 'error' : 'done'}"></span>
                   <strong>{msg.toolName}</strong>
-                  <span>{msg.isError ? '失败' : '完成'}</span>
+                  <span>{msg.isError ? $t('common.failed') : $t('common.completed')}</span>
                   <em>{msg.summary}</em>
                 </summary>
                 {#if msg.detailLoading}
-                  <p class="pending-text">正在加载工具结果…</p>
+                  <p class="pending-text">{$t('chat.loadingToolResult')}</p>
                 {:else if msg.detailError}
                   <p class="error-text">{msg.detailError}</p>
                 {:else if msg.detailLoaded}
@@ -876,7 +877,7 @@
         {/each}
         {#if recentTools.length > 0}
           <aside class="tool-feed">
-            <div class="tf-head"><span>工具事件</span><strong>{chatEvents.length}</strong></div>
+            <div class="tf-head"><span>{$t('chat.toolEvents')}</span><strong>{chatEvents.length}</strong></div>
             {#each recentTools as item}
               <details class="tool-item" open={item.status === 'running'}>
                 <summary>
@@ -904,20 +905,20 @@
           <span class="dir-display">
             <span class="ico">📁</span>
             <span class="dir-path-text">{workDir}</span>
-            <button type="button" class="ghost sm" on:click={() => (workDir = '')}>清除</button>
+            <button type="button" class="ghost sm" on:click={() => (workDir = '')}>{$t('chat.clearWorkDir')}</button>
           </span>
         {/if}
         <button type="button" class="dir-btn" on:click={() => (showBrowser = true)}>
           <span class="ico">📂</span>
-          {workDir ? '更换目录' : '选择工作目录'}
+          {workDir ? $t('chat.changeWorkDir') : $t('chat.selectWorkDir')}
         </button>
       </div>
     {:else if $currentSession}
       <div class="composer-session-info">
-        <span class="session-badge">会话</span>
+        <span class="session-badge">{$t('chat.session')}</span>
         <span class="session-id">{shortID($currentSession)}</span>
         {#if activeSessionWorkDir}<span class="session-dir">{activeSessionWorkDir}</span>{/if}
-        <button type="button" class="ghost sm" on:click={resetSession}>新建会话</button>
+        <button type="button" class="ghost sm" on:click={resetSession}>{$t('chat.newSession')}</button>
       </div>
     {/if}
     <div class="composer-row">
@@ -928,7 +929,7 @@
               <img src={image.dataUrl} alt={image.name} />
               <span title={image.name}>{image.name}</span>
               <em>{formatImageSize(image.size)}</em>
-              <button type="button" aria-label="移除图片" on:click={() => removeImage(idx)}>×</button>
+              <button type="button" aria-label={$t('chat.removeImage')} on:click={() => removeImage(idx)}>×</button>
             </div>
           {/each}
         </div>
@@ -936,7 +937,7 @@
       <textarea
         bind:value={prompt}
         on:keydown={handleKeydown}
-        placeholder={!apiEnabled ? 'OpenAI API 已禁用' : (isNewSession && !workDir.trim()) ? '请先填写工作目录…' : '发消息…'}
+        placeholder={!apiEnabled ? $t('chat.apiDisabled') : (isNewSession && !workDir.trim()) ? $t('chat.error.needWorkDir') : $t('chat.messagePlaceholder')}
         disabled={!apiEnabled}
         rows="1"
       ></textarea>
@@ -956,8 +957,8 @@
             type="button"
             class="icon-btn"
             disabled={!apiEnabled || busy}
-            title="上传图片"
-            aria-label="上传图片"
+            title={$t('chat.uploadImage')}
+            aria-label={$t('chat.uploadImage')}
             on:click={() => imageInput?.click()}
           >
             📎
@@ -966,10 +967,10 @@
         <select
           bind:value={$selectedModel}
           disabled={!apiEnabled || modelOptions.length === 0}
-          aria-label="选择模型"
+          aria-label={$t('chat.selectModel')}
         >
           {#if modelOptions.length === 0}
-            <option value="default">默认模型</option>
+            <option value="default">{$t('chat.defaultModel')}</option>
           {:else}
             {#each modelOptions as m}
               <option value={m.id}>{m.id}</option>
@@ -979,7 +980,7 @@
       </div>
       <div class="right">
         {#if busy}
-          <button type="button" class="ghost" on:click={stop}>停止</button>
+          <button type="button" class="ghost" on:click={stop}>{$t('common.stop')}</button>
         {/if}
         <button
           type="button"
@@ -987,7 +988,7 @@
           disabled={busy || (!prompt.trim() && imageUploads.length === 0) || !apiEnabled || (isNewSession && !workDir.trim())}
           on:click={sendPrompt}
         >
-          {busy ? '发送中' : '发送'}
+          {busy ? $t('chat.sending') : $t('chat.send')}
         </button>
       </div>
     </div>

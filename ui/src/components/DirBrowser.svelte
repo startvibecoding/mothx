@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { request } from '../lib/api.js';
+  import { t } from '../lib/preferences.js';
 
   export let open = false;
 
@@ -59,15 +60,15 @@
 </script>
 
 {#if open}
-  <div class="dir-overlay" on:keydown={handleKeydown} role="dialog" aria-modal="true" aria-label="选择工作目录" tabindex="-1">
+  <div class="dir-overlay" on:keydown={handleKeydown} role="dialog" aria-modal="true" aria-label={$t('dirBrowser.title')} tabindex="-1">
     <div class="dir-modal">
       <div class="dir-header">
-        <h3>选择工作目录</h3>
+        <h3>{$t('dirBrowser.title')}</h3>
         <button type="button" class="ghost" on:click={close}>✕</button>
       </div>
 
       <div class="dir-nav">
-        <button type="button" class="ghost" on:click={goUp} disabled={parentPath === currentPath || !parentPath}>↑ 上级</button>
+        <button type="button" class="ghost" on:click={goUp} disabled={parentPath === currentPath || !parentPath}>↑ {$t('dirBrowser.up')}</button>
         <div class="dir-path">
           <span class="ico">📁</span>
           <span class="path-text">{currentPath}</span>
@@ -76,11 +77,11 @@
 
       <div class="dir-list">
         {#if loading}
-          <p class="empty">加载中…</p>
+          <p class="empty">{$t('dirBrowser.loading')}</p>
         {:else if error}
           <p class="empty dir-error">{error}</p>
         {:else if entries.length === 0}
-          <p class="empty">无子目录</p>
+          <p class="empty">{$t('dirBrowser.empty')}</p>
         {:else}
           {#each entries as entry (entry.path)}
             <button
@@ -96,8 +97,8 @@
       </div>
 
       <div class="dir-footer">
-        <button type="button" class="ghost" on:click={close}>取消</button>
-        <button type="button" class="primary" on:click={select}>选择此目录</button>
+        <button type="button" class="ghost" on:click={close}>{$t('dirBrowser.cancel')}</button>
+        <button type="button" class="primary" on:click={select}>{$t('dirBrowser.select')}</button>
       </div>
     </div>
   </div>

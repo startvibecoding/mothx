@@ -2,19 +2,21 @@
   import { sessions, currentSession, features } from '../lib/stores.js';
   import { route, navigate } from '../lib/router.js';
   import { shortID } from '../lib/format.js';
+  import { t } from '../lib/preferences.js';
+  import PreferenceControls from './PreferenceControls.svelte';
 
   let searchTerm = '';
 
   const primaryNav = [
-    { key: 'chat', path: '/chat', label: '新对话', icon: 'edit', accent: true },
-    { key: 'sessions', path: '/sessions', label: '历史对话', icon: 'clock' },
-    { key: 'cron', path: '/cron', label: '定时任务', icon: 'timer', feature: 'cron' },
-    { key: 'channels', path: '/channels', label: '通道', icon: 'plug' },
-    { key: 'logs', path: '/logs', label: '日志', icon: 'stream' }
+    { key: 'chat', path: '/chat', label: 'nav.newChat', icon: 'edit', accent: true },
+    { key: 'sessions', path: '/sessions', label: 'nav.sessions', icon: 'clock' },
+    { key: 'cron', path: '/cron', label: 'nav.cron', icon: 'timer', feature: 'cron' },
+    { key: 'channels', path: '/channels', label: 'nav.channels', icon: 'plug' },
+    { key: 'logs', path: '/logs', label: 'nav.logs', icon: 'stream' }
   ];
 
   const secondaryNav = [
-    { key: 'settings', path: '/settings', label: '设置', icon: 'settings' }
+    { key: 'settings', path: '/settings', label: 'nav.settings', icon: 'settings' }
   ];
 
   $: filteredSessions = filterSessions($sessions, searchTerm);
@@ -54,19 +56,19 @@
     <span class="ico" aria-hidden="true">🔍</span>
     <input
       bind:value={searchTerm}
-      placeholder="搜索会话..."
-      aria-label="搜索会话"
+      placeholder={$t('sidebar.search')}
+      aria-label={$t('sidebar.search')}
     />
     <kbd>⌘K</kbd>
   </div>
 
   <button class="new-chat" on:click={openNewChat}>
     <span class="ico" aria-hidden="true">✎</span>
-    <span class="label">新对话</span>
+    <span class="label">{$t('nav.newChat')}</span>
     <kbd>⇧ ⌘K</kbd>
   </button>
 
-  <nav class="side-nav" aria-label="主导航">
+  <nav class="side-nav" aria-label={$t('nav.sessions')}>
     {#each primaryNav.slice(1) as item}
       <button
         type="button"
@@ -76,7 +78,7 @@
         on:click={() => navigate(item.path)}
       >
         <span class="ico ico-{item.icon}" aria-hidden="true"></span>
-        <span class="label">{item.label}</span>
+        <span class="label">{$t(item.label)}</span>
       </button>
     {/each}
 
@@ -90,20 +92,20 @@
         on:click={() => navigate(item.path)}
       >
         <span class="ico ico-{item.icon}" aria-hidden="true"></span>
-        <span class="label">{item.label}</span>
+        <span class="label">{$t(item.label)}</span>
       </button>
     {/each}
   </nav>
 
-  <section class="side-history" aria-label="历史对话">
+  <section class="side-history" aria-label={$t('sidebar.history')}>
     <div class="side-history-head">
-      <span>历史对话</span>
+      <span>{$t('sidebar.history')}</span>
       <button
         type="button"
         class="link-btn"
         on:click={() => navigate('/sessions')}
       >
-        全部
+        {$t('sidebar.all')}
       </button>
     </div>
     <div class="side-history-list">
@@ -114,7 +116,7 @@
         on:click={() => openSession('')}
       >
         <span class="dot" aria-hidden="true"></span>
-        <span class="text">默认会话</span>
+        <span class="text">{$t('sidebar.defaultSession')}</span>
       </button>
       {#each recentSessions as session (session.id)}
         <button
@@ -132,18 +134,21 @@
         </button>
       {/each}
       {#if recentSessions.length === 0 && !searchTerm}
-        <p class="empty">暂无历史</p>
+        <p class="empty">{$t('sidebar.noHistory')}</p>
       {:else if recentSessions.length === 0 && searchTerm}
-        <p class="empty">未匹配到会话</p>
+        <p class="empty">{$t('sidebar.noMatches')}</p>
       {/if}
     </div>
   </section>
 
   <div class="side-footer">
-    <div class="avatar" aria-hidden="true">Mx</div>
-    <div class="who">
-      <strong>MothX</strong>
-      <span>本地运行</span>
+    <PreferenceControls />
+    <div class="side-identity">
+      <div class="avatar" aria-hidden="true">Mx</div>
+      <div class="who">
+        <strong>{$t('app.name')}</strong>
+        <span>{$t('app.local')}</span>
+      </div>
     </div>
   </div>
 </aside>

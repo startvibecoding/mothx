@@ -1,7 +1,7 @@
 <script>
   import { serveConfig, setError, setNotice, clearBanners } from '../../lib/stores.js';
   import { putJSON } from '../../lib/api.js';
-  import { navigate } from '../../lib/router.js';
+  import { t } from '../../lib/preferences.js';
 
   let workingDir = '';
   let allowedWorkDirs = [];
@@ -38,7 +38,7 @@
       cfg.gateway.allowedWorkDirs = filtered.length > 0 ? filtered : undefined;
       const saved = await putJSON('/api/serve/config', cfg);
       serveConfig.set(JSON.stringify(saved, null, 2));
-      setNotice('工作目录配置已保存。');
+      setNotice($t('settings.workdir.saved'));
     } catch (err) {
       setError(err);
     }
@@ -55,20 +55,20 @@
 <div class="card">
   <div class="card-head">
     <div>
-      <h3>工作目录</h3>
-      <span class="hint">gateway.workingDir — Agent 的默认工作目录</span>
+      <h3>{$t('settings.workdir.title')}</h3>
+      <span class="hint">{$t('settings.workdir.mainHint')}</span>
     </div>
-    <button type="button" class="primary" on:click={save}>保存</button>
+    <button type="button" class="primary" on:click={save}>{$t('common.save')}</button>
   </div>
   <div class="form-body">
     <label>
-      <span>默认工作目录</span>
+      <span>{$t('settings.workdir.default')}</span>
       <input
         bind:value={workingDir}
         on:keydown={handleKeydown}
         placeholder="/home/user/projects"
       />
-      <span class="hint">Agent 执行命令时的默认 cwd。留空则使用进程当前目录。</span>
+      <span class="hint">{$t('settings.workdir.defaultHint')}</span>
     </label>
   </div>
 </div>
@@ -76,18 +76,18 @@
 <div class="card">
   <div class="card-head">
     <div>
-      <h3>允许的工作目录</h3>
-      <span class="hint">gateway.allowedWorkDirs — 安全白名单</span>
+      <h3>{$t('settings.workdir.allowed')}</h3>
+      <span class="hint">{$t('settings.workdir.allowedHint')}</span>
     </div>
     <div class="card-head-actions">
-      <button type="button" class="sm" on:click={addAllowed}>+ 添加</button>
-      <button type="button" class="primary" on:click={save}>保存</button>
+      <button type="button" class="sm" on:click={addAllowed}>+ {$t('common.add')}</button>
+      <button type="button" class="primary" on:click={save}>{$t('common.save')}</button>
     </div>
   </div>
   <div class="form-body">
     {#if allowedWorkDirs.length === 0}
       <p class="empty">
-        未配置白名单。未配置时，Agent 可以切换到任意目录（仅受 sandbox 限制）。
+        {$t('settings.workdir.noWhitelist')}
       </p>
     {:else}
       <div class="dir-list">
@@ -101,7 +101,7 @@
             <button
               type="button"
               class="ghost danger"
-              title="移除"
+              title={$t('common.remove')}
               on:click={() => removeAllowed(i)}
             >
               ×
@@ -111,7 +111,7 @@
       </div>
     {/if}
     <p class="hint">
-      设为空数组 <code>[]</code> 表示禁止 Agent 覆盖工作目录。设为 <code>null</code>（删除整个字段）表示不限制。
+      {$t('settings.workdir.arrayHint')}
     </p>
   </div>
 </div>

@@ -11,6 +11,7 @@
   import Settings from './views/Settings.svelte';
   import { route, navigate } from './lib/router.js';
   import { refreshAll, disconnectLogs } from './lib/stores.js';
+  import { t } from './lib/preferences.js';
 
   onMount(() => {
     refreshAll();
@@ -40,7 +41,7 @@
         <Settings />
       {:else}
         <section class="page">
-          <p class="empty">未知的页面：{$route.path}</p>
+          <p class="empty">{$t('app.unknownPage')}: {$route.path}</p>
         </section>
       {/if}
     </div>

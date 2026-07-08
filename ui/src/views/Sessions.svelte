@@ -3,6 +3,7 @@
   import { del } from '../lib/api.js';
   import { navigate } from '../lib/router.js';
   import { shortID } from '../lib/format.js';
+  import { t } from '../lib/preferences.js';
 
   let filter = '';
 
@@ -26,7 +27,7 @@
     try {
       await del(`/api/sessions/${encodeURIComponent(id)}`);
       if ($currentSession === id) currentSession.set('');
-      setNotice(`会话 ${shortID(id)} 已删除`);
+      setNotice($t('sessions.deleted', { id: shortID(id) }));
       await refreshSessions();
     } catch (err) {
       setError(err);
@@ -39,19 +40,19 @@
     <input
       class="filter"
       bind:value={filter}
-      placeholder="过滤会话（ID / 工作目录 / 标题）"
+      placeholder={$t('sessions.filter')}
     />
-    <button type="button" class="ghost" on:click={refreshSessions}>刷新</button>
+    <button type="button" class="ghost" on:click={refreshSessions}>{$t('common.refresh')}</button>
   </div>
 
   <div class="page-body">
     <table class="table">
       <thead>
         <tr>
-          <th>会话</th>
-          <th>工作目录</th>
-          <th>状态</th>
-          <th class="num">消息数</th>
+          <th>{$t('sessions.session')}</th>
+          <th>{$t('sessions.workDir')}</th>
+          <th>{$t('sessions.status')}</th>
+          <th class="num">{$t('sessions.messageCount')}</th>
           <th></th>
         </tr>
       </thead>
@@ -68,17 +69,17 @@
               {/if}
             </td>
             <td class="wd">{s.workDir || '—'}</td>
-            <td>{s.active ? '运行中' : '历史'}</td>
+            <td>{s.active ? $t('sessions.active') : $t('sessions.history')}</td>
             <td class="num">{s.messageCount || 0}</td>
             <td class="actions">
-              <button type="button" class="ghost" on:click={() => open(s.id)}>打开</button>
-              <button type="button" class="danger" on:click={() => remove(s.id)}>删除</button>
+              <button type="button" class="ghost" on:click={() => open(s.id)}>{$t('common.open')}</button>
+              <button type="button" class="danger" on:click={() => remove(s.id)}>{$t('common.delete')}</button>
             </td>
           </tr>
         {/each}
         {#if filtered.length === 0}
           <tr>
-            <td colspan="5" class="empty-cell">没有可显示的会话</td>
+            <td colspan="5" class="empty-cell">{$t('sessions.empty')}</td>
           </tr>
         {/if}
       </tbody>

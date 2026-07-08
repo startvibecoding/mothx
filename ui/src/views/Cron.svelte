@@ -2,6 +2,7 @@
   import { cronInfo, refreshCron, setError, setNotice, clearBanners } from '../lib/stores.js';
   import { postJSON, patchJSON, del } from '../lib/api.js';
   import { shortID, scheduleLabel, formatDateTime } from '../lib/format.js';
+  import { t } from '../lib/preferences.js';
 
   let form = { name: '', prompt: '', schedule: '', oneshot: false, mode: 'yolo' };
 
@@ -21,7 +22,7 @@
         mode: form.mode
       });
       form = { name: '', prompt: '', schedule: '', oneshot: false, mode: 'yolo' };
-      setNotice('已创建定时任务');
+      setNotice($t('cron.created'));
       await refreshCron();
     } catch (err) {
       setError(err);
@@ -42,7 +43,7 @@
     clearBanners();
     try {
       await del(`/api/cron/${encodeURIComponent(id)}`);
-      setNotice(`已删除任务 ${shortID(id)}`);
+      setNotice($t('cron.deleted', { id: shortID(id) }));
       await refreshCron();
     } catch (err) {
       setError(err);
@@ -53,30 +54,30 @@
 <section class="page">
   <div class="page-toolbar">
     <div class="status-tag" class:muted={disabled}>
-      {disabled ? '已禁用' : info?.running ? '运行中' : '空闲'}
+      {disabled ? $t('common.disabledState') : info?.running ? $t('common.running') : $t('common.idle')}
       {#if info?.path}<span class="hint">{info.path}</span>{/if}
     </div>
-    <button type="button" class="ghost" on:click={refreshCron}>刷新</button>
+    <button type="button" class="ghost" on:click={refreshCron}>{$t('common.refresh')}</button>
   </div>
 
   <div class="page-body">
     <div class="card">
-      <div class="card-head"><h3>新建任务</h3></div>
+      <div class="card-head"><h3>{$t('cron.newTask')}</h3></div>
       <form class="form-grid" on:submit|preventDefault={create}>
         <label>
-          <span>名称</span>
-          <input bind:value={form.name} disabled={disabled} placeholder="每日总结" />
+          <span>{$t('cron.name')}</span>
+          <input bind:value={form.name} disabled={disabled} placeholder={$t('cron.namePlaceholder')} />
         </label>
         <label>
-          <span>调度表达式</span>
+          <span>{$t('cron.schedule')}</span>
           <input
             bind:value={form.schedule}
             disabled={disabled || form.oneshot}
-            placeholder="@daily 或 0 9 * * *"
+            placeholder={$t('cron.schedulePlaceholder')}
           />
         </label>
         <label>
-          <span>模式</span>
+          <span>{$t('cron.mode')}</span>
           <select bind:value={form.mode} disabled={disabled}>
             <option value="yolo">yolo</option>
             <option value="agent">agent</option>
@@ -84,11 +85,11 @@
         </label>
         <label class="checkbox">
           <input type="checkbox" bind:checked={form.oneshot} disabled={disabled} />
-          <span>一次性执行</span>
+          <span>{$t('cron.oneshot')}</span>
         </label>
         <label class="full">
           <span>Prompt</span>
-          <textarea bind:value={form.prompt} disabled={disabled} rows="4" placeholder="要执行的指令…"></textarea>
+          <textarea bind:value={form.prompt} disabled={disabled} rows="4" placeholder={$t('cron.promptPlaceholder')}></textarea>
         </label>
         <div class="form-actions">
           <button
@@ -96,14 +97,14 @@
             class="primary"
             disabled={disabled || !form.name.trim() || !form.prompt.trim()}
           >
-            创建
+            {$t('common.create')}
           </button>
         </div>
       </form>
     </div>
 
     <div class="card">
-      <div class="card-head"><h3>任务列表</h3><span class="hint">共 {jobs.length} 项</span></div>
+      <div class="card-head"><h3>{$t('cron.list')}</h3><span class="hint">{$t('common.items', { count: jobs.length })}</span></div>
       <div class="cron-list">
         {#each jobs as job (job.id)}
           <div class="cron-row">
@@ -114,17 +115,17 @@
             <div class="cron-meta">
               <span class="tag">{scheduleLabel(job)}</span>
               <span class="tag">{job.mode || 'yolo'}</span>
-              <span>{job.run_count || 0} 次</span>
-              {#if job.next_run}<span>下次 {formatDateTime(job.next_run)}</span>{/if}
+              <span>{$t('common.times', { count: job.run_count || 0 })}</span>
+              {#if job.next_run}<span>{$t('common.next', { time: formatDateTime(job.next_run) })}</span>{/if}
               {#if job.last_status}<span class="tag">{job.last_status}</span>{/if}
             </div>
             <div class="cron-actions">
               {#if job.enabled}
-                <button type="button" class="ghost" on:click={() => toggle(job.id, false)}>停用</button>
+                <button type="button" class="ghost" on:click={() => toggle(job.id, false)}>{$t('common.disable')}</button>
               {:else}
-                <button type="button" class="ghost" on:click={() => toggle(job.id, true)}>启用</button>
+                <button type="button" class="ghost" on:click={() => toggle(job.id, true)}>{$t('common.enable')}</button>
               {/if}
-              <button type="button" class="danger" on:click={() => remove(job.id)}>删除</button>
+              <button type="button" class="danger" on:click={() => remove(job.id)}>{$t('common.delete')}</button>
             </div>
             {#if job.last_error}
               <code class="cron-error">{job.last_error}</code>
@@ -132,7 +133,7 @@
           </div>
         {/each}
         {#if jobs.length === 0}
-          <p class="empty">暂无任务</p>
+          <p class="empty">{$t('cron.empty')}</p>
         {/if}
       </div>
     </div>

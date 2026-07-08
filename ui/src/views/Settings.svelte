@@ -6,14 +6,15 @@
   import SettingsMemory from './settings/Memory.svelte';
   import SettingsFeatures from './settings/Features.svelte';
   import SettingsWorkDir from './settings/WorkDir.svelte';
+  import { t } from '../lib/preferences.js';
 
   const tabs = [
-    { key: '', label: '概览' },
-    { key: 'serve', label: 'Serve 配置' },
-    { key: 'workdir', label: '工作目录' },
-    { key: 'app', label: '应用设置' },
-    { key: 'memory', label: 'Memory' },
-    { key: 'features', label: '功能开关' }
+    { key: '', label: 'settings.tabs.overview' },
+    { key: 'serve', label: 'settings.tabs.serve' },
+    { key: 'workdir', label: 'settings.tabs.workdir' },
+    { key: 'app', label: 'settings.tabs.app' },
+    { key: 'memory', label: 'settings.tabs.memory' },
+    { key: 'features', label: 'settings.tabs.features' }
   ];
 
   $: activeTab = $route.sub || '';
@@ -24,14 +25,14 @@
 </script>
 
 <section class="page settings-page">
-  <nav class="sub-tabs" aria-label="设置分组">
+  <nav class="sub-tabs" aria-label={$t('nav.settings')}>
     {#each tabs as tab}
       <button
         type="button"
         class:active={activeTab === tab.key}
         on:click={() => open(tab.key)}
       >
-        {tab.label}
+        {$t(tab.label)}
       </button>
     {/each}
   </nav>
@@ -50,7 +51,7 @@
     {:else if activeTab === 'features'}
       <SettingsFeatures />
     {:else}
-      <p class="empty">未知的设置分组</p>
+      <p class="empty">{$t('settings.unknown')}</p>
     {/if}
   </div>
 </section>

@@ -1,6 +1,7 @@
 <script>
   import { logs, logsConnected, connectLogs, disconnectLogs } from '../lib/stores.js';
   import { formatTime, formatLogMessage } from '../lib/format.js';
+  import { t } from '../lib/preferences.js';
 
   let filter = '';
   $: filtered = filterLogs($logs, filter).slice(-500).reverse();
@@ -20,13 +21,13 @@
 
 <section class="page">
   <div class="page-toolbar">
-    <input class="filter" bind:value={filter} placeholder="过滤日志内容" />
+    <input class="filter" bind:value={filter} placeholder={$t('logs.filter')} />
     {#if $logsConnected}
-      <button type="button" class="ghost" on:click={disconnectLogs}>断开</button>
+      <button type="button" class="ghost" on:click={disconnectLogs}>{$t('logs.disconnect')}</button>
     {:else}
-      <button type="button" class="ghost" on:click={connectLogs}>连接</button>
+      <button type="button" class="ghost" on:click={connectLogs}>{$t('logs.connect')}</button>
     {/if}
-    <button type="button" class="ghost" on:click={clearLogs}>清空</button>
+    <button type="button" class="ghost" on:click={clearLogs}>{$t('common.clear')}</button>
   </div>
 
   <div class="page-body">
@@ -40,7 +41,7 @@
           </div>
         {/each}
         {#if filtered.length === 0}
-          <p class="empty">暂无日志</p>
+          <p class="empty">{$t('logs.empty')}</p>
         {/if}
       </div>
     </div>

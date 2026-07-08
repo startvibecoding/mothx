@@ -1,6 +1,7 @@
 <script>
   import { settings, setError, setNotice, clearBanners } from '../../lib/stores.js';
   import { putJSON } from '../../lib/api.js';
+  import { t } from '../../lib/preferences.js';
 
   async function save() {
     clearBanners();
@@ -8,7 +9,7 @@
       const parsed = JSON.parse($settings);
       const saved = await putJSON('/api/settings', parsed);
       settings.set(JSON.stringify(saved, null, 2));
-      setNotice('应用设置已保存。');
+      setNotice($t('settings.app.saved'));
     } catch (err) {
       setError(err);
     }
@@ -18,10 +19,10 @@
 <div class="card editor-card">
   <div class="card-head">
     <div>
-      <h3>应用设置</h3>
-      <span class="hint">/api/settings — Providers / Approval / Context 等</span>
+      <h3>{$t('settings.tabs.app')}</h3>
+      <span class="hint">{$t('settings.app.hint')}</span>
     </div>
-    <button type="button" class="primary" on:click={save}>保存</button>
+    <button type="button" class="primary" on:click={save}>{$t('common.save')}</button>
   </div>
   <textarea class="code" bind:value={$settings} spellcheck="false"></textarea>
 </div>
