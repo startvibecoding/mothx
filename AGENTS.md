@@ -22,6 +22,9 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/provider/` — provider abstraction and implementations
 - `internal/provider/factory/` — shared provider/model construction from config
 - `internal/provider/vendor*.go` — vendor adapter registry and per-vendor defaults
+- `internal/provider/anthropic/` — full Anthropic provider implementation
+- `internal/provider/google/` — full Google Gemini provider implementation
+- `internal/provider/openai/` — full OpenAI provider implementation
 - `internal/sandbox/` — sandbox backends
 - `internal/session/` — SQLite session storage, schema migrations
 - `internal/skills/` — skills loading
@@ -30,10 +33,23 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/tui/` — terminal UI
 - `internal/acp/` — ACP / MCP related integration
 - `internal/a2a/` — A2A (Agent-to-Agent) protocol server and master mode
+- `internal/mcp/` — MCP (Model Context Protocol) server integration
+- `internal/cron/` — scheduled task management and cron tool
+- `internal/browser/` — browser automation tool (vibe-browser)
+- `internal/workflow/` — workflow engine (phases, tasks, skill integration)
+- `internal/platform/` — cross-platform compatibility (OS detection, busybox)
+- `internal/imageproc/` — image preprocessing for tool results
+- `internal/systeminit/` — shared prompt for /systeminit command
+- `internal/update/` — non-blocking version update detection
+- `internal/ua/` — user-agent string generation
+- `internal/util/` — utility functions
+- `internal/debugpprof/` — debug profiling HTTP server (pprof)
 - `internal/serve/` — unified server mode: OpenAI-compatible API, Web UI, channels, cron, memory, settings APIs
 - `internal/serve/openaiapi/` — OpenAI-compatible HTTP API runtime used by serve
 - `internal/serve/channels/` — WeChat/Feishu/WebSocket channel dispatcher used by serve
 - `internal/serve/ws/` — serve WebSocket channel runtime
+- `internal/serve/webhook/` — inbound webhook routing for serve channels
+- `internal/serve/hooks/` — hooks execution
 - `docs/` — documentation
 
 ## Architecture Notes
@@ -42,6 +58,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - Provider creation should go through `internal/provider/factory` so CLI and ACP keep the same behavior.
 - Vendor-specific behavior belongs in `internal/provider/vendor*.go` adapters and model `compat` flags, not in CLI/ACP wiring.
 - Each vendor that needs detection or defaults should have a separate `internal/provider/vendor_<name>.go` file.
+- Full provider implementations live in `internal/provider/anthropic/`, `internal/provider/google/`, and `internal/provider/openai/` subdirectories, containing substantial provider-specific logic (streaming, thinking, tool use).
 - Vendors without special behavior should fall back to the generic OpenAI-compatible or Anthropic-compatible provider based on `api` / base URL detection.
 - Do not change the settings JSON schema or the expected meaning of existing provider config fields when adding vendor support.
 - The agent loop builds a system prompt, sends messages, handles stream events, executes tools, and continues until completion.
@@ -64,7 +81,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - The API runtime reuses the same agent loop, provider factory, session, tools, sandbox, and skills as CLI/ACP — no separate agent logic.
 - Configuration lives in `serve.json` (global `~/.mothx/serve.json`, project `.mothx/serve.json`), separate from `settings.json`.
 - Project-level `.mothx/serve.json` overrides global, same pattern as `.mothx/settings.json`.
-- The API runtime supports slash commands (`/clear`, `/mode`, `/compact`, etc.) processed at the HTTP layer without invoking the LLM.
+- The API runtime supports slash commands processed at the HTTP layer without invoking the LLM: `/clear`, `/mode`, `/model`, `/defaultModel`, `/models`, `/sessions`, `/status`, `/compact`, `/delegate`, `/alloweditpath`, `/allowautoedit`, `/workflows`, `/skill`, `/skills`, `/rule`, `/help`.
 - Tool output visibility (`toolVisibility.mode` + `toolVisibility.detail`) is configurable: collapsed (default, one-line summary) or expanded (full code fences).
 - `edit`/`write` diffs and errors always show in full regardless of detail level.
 - When `x_session_id` is empty, the API runtime reuses a default session so consecutive requests share context.
@@ -75,7 +92,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 
 - `internal/serve/channels/` implements WeChat/Feishu/WebSocket channels with persistent agent sessions.
 - Channels reuse the same agent loop, provider factory, session, tools, sandbox, skills, and MCP as CLI/ACP.
-- Configuration lives in `serve.json`; channel-specific fields are under `features`, `channels`, `cron`, `memory`, `security`, `hooks`, and `agent`.
+- Configuration lives in `serve.json`; top-level fields are `api`, `features`, `channels`, `webUI`, `lobsterMode`, `cron`, `memory`, `security`, `hooks`, and `agent`.
 - Per-user channel sessions are stored under `<sessionDir>/channels/<platform>/<user_id>/`.
 - Default mode is `yolo` (not `agent`) — messaging platforms are unattended by nature.
 - `provider` / `model` in `serve.json` override settings.json; CLI `-p`/`-m` override `serve.json`.
@@ -124,6 +141,9 @@ Built-in tools include:
 - `grep`, `find`, `ls`
 - `plan`, `question` (TUI plan/agent modes only)
 - `skill_ref`
+- `a2a_dispatch` (dynamically registered when A2A is enabled)
+- `cron` (dynamically registered for scheduled task management)
+- `browser` (loaded as a skill via `vibe-browser`)
 
 `grep` and `find` are backed by pure-Go SDKs (`github.com/startvibecoding/go-ripgrep` and `github.com/startvibecoding/go-fd`). They work on all Go-supported architectures without external binary dependencies.
 
