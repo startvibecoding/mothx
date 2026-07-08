@@ -1208,8 +1208,8 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	if err := db2.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("schema_migrations should exist: %v", err)
 	}
-	if migrationCount != 6 {
-		t.Errorf("expected 6 migrations applied, got %d", migrationCount)
+	if migrationCount != 7 {
+		t.Errorf("expected 7 migrations applied, got %d", migrationCount)
 	}
 
 	// request_stats should exist
@@ -1225,5 +1225,46 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	}
 	if entryCount != 1 {
 		t.Errorf("expected 1 session header row after init, got %d", entryCount)
+	}
+}
+
+func TestSessionCapabilitiesSaveLoadAndDelete(t *testing.T) {
+	sessionDir := t.TempDir()
+	m := New("/tmp/caps-project", sessionDir)
+	if err := m.InitWithID("caps-session"); err != nil {
+		t.Fatalf("InitWithID: %v", err)
+	}
+
+	caps := SessionCapabilities{
+		SessionID:    "caps-session",
+		Mode:         "agent",
+		DelegateMode: true,
+		MultiAgent:   true,
+		Workflows:    true,
+		WebSearch:    true,
+		Browser:      true,
+		A2AMaster:    true,
+	}
+	if err := SaveSessionCapabilities(sessionDir, caps); err != nil {
+		t.Fatalf("SaveSessionCapabilities: %v", err)
+	}
+
+	loaded, ok, err := LoadSessionCapabilities(sessionDir, "caps-session")
+	if err != nil {
+		t.Fatalf("LoadSessionCapabilities: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected capabilities to be found")
+	}
+	if loaded.Mode != "agent" || !loaded.DelegateMode || !loaded.MultiAgent || !loaded.Workflows ||
+		!loaded.WebSearch || !loaded.Browser || !loaded.A2AMaster {
+		t.Fatalf("loaded capabilities = %#v", loaded)
+	}
+
+	if err := DeleteSession(m.GetFile(), sessionDir); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	if _, ok, err := LoadSessionCapabilities(sessionDir, "caps-session"); err != nil || ok {
+		t.Fatalf("capabilities after delete: ok=%v err=%v", ok, err)
 	}
 }

@@ -21,6 +21,10 @@ type fakeActiveSessionManager struct {
 	sessions     []openaiapi.ActiveSessionInfo
 	messages     []openaiapi.SessionMessageEntry
 	toolResult   *openaiapi.SessionToolResultDetail
+	overview     openaiapi.CapabilityOverview
+	caps         *openaiapi.SessionCapabilities
+	patch        openaiapi.SessionCapabilityPatch
+	capsID       string
 	toolResultID string
 	deletedID    string
 	deleted      bool
@@ -43,6 +47,21 @@ func (f *fakeActiveSessionManager) GetSessionMessages(id string) ([]openaiapi.Se
 func (f *fakeActiveSessionManager) GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error) {
 	f.toolResultID = toolCallID
 	return f.toolResult, f.err
+}
+
+func (f *fakeActiveSessionManager) CapabilityOverview() openaiapi.CapabilityOverview {
+	return f.overview
+}
+
+func (f *fakeActiveSessionManager) GetSessionCapabilities(id string) (*openaiapi.SessionCapabilities, error) {
+	f.capsID = id
+	return f.caps, f.err
+}
+
+func (f *fakeActiveSessionManager) PatchSessionCapabilities(id string, patch openaiapi.SessionCapabilityPatch) (*openaiapi.SessionCapabilities, error) {
+	f.capsID = id
+	f.patch = patch
+	return f.caps, f.err
 }
 
 type fakeWebSocketRuntime struct {
@@ -180,6 +199,9 @@ func TestLoadConfigFrom_FlatSchema(t *testing.T) {
 		"systemPromptMode": "ignore",
 		"requestTimeoutSeconds": 66,
 		"maxConcurrentRequests": 5,
+		"webSearch": true,
+		"browser": true,
+		"a2aMaster": true,
 		"agent": {"maxTurns": 12}
 	}`
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
@@ -232,6 +254,15 @@ func TestLoadConfigFrom_FlatSchema(t *testing.T) {
 	}
 	if cfg.API.RequestTimeoutSecs != 66 {
 		t.Fatalf("timeout = %d, want 66", cfg.API.RequestTimeoutSecs)
+	}
+	if !cfg.API.EnableWebSearch {
+		t.Fatal("webSearch should be enabled")
+	}
+	if !cfg.API.EnableBrowser {
+		t.Fatal("browser should be enabled")
+	}
+	if !cfg.API.EnableA2AMaster {
+		t.Fatal("a2aMaster should be enabled")
 	}
 	if cfg.API.MaxConcurrentReqs != 5 {
 		t.Fatalf("max concurrent = %d, want 5", cfg.API.MaxConcurrentReqs)
@@ -551,7 +582,7 @@ func TestHandleStatus_ReturnsRuntimeSummary(t *testing.T) {
 	}
 }
 
-func TestHandleSessions_ReturnsActiveSessions(t *testing.T) {
+func TestHandleSessions_ReturnsSessions(t *testing.T) {
 	rt := &channelRuntime{cfg: DefaultConfig()}
 	sessions := &fakeActiveSessionManager{
 		sessions: []openaiapi.ActiveSessionInfo{{ID: "s1", WorkDir: "/tmp/a"}},
@@ -571,6 +602,136 @@ func TestHandleSessions_ReturnsActiveSessions(t *testing.T) {
 		t.Fatalf("decode response: %v", err)
 	}
 	if len(got.Sessions) != 1 || got.Sessions[0].ID != "s1" || got.Sessions[0].WorkDir != "/tmp/a" {
+		t.Fatalf("sessions = %#v", got.Sessions)
+	}
+}
+
+func TestHandleSessions_ScopeActive(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		sessions: []openaiapi.ActiveSessionInfo{
+			{ID: "active", WorkDir: "/tmp/a", Active: true},
+			{ID: "history", WorkDir: "/tmp/b", Active: false},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions?scope=active", nil)
+	w := httptest.NewRecorder()
+	rt.handleSessions(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got struct {
+		Sessions []openaiapi.ActiveSessionInfo `json:"sessions"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got.Sessions) != 1 || got.Sessions[0].ID != "active" {
+		t.Fatalf("sessions = %#v", got.Sessions)
+	}
+}
+
+func TestHandleCapabilities_ReturnsOverview(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		overview: openaiapi.CapabilityOverview{
+			Modes: []string{"plan", "agent", "yolo"},
+			Features: map[string]openaiapi.CapabilityFeature{
+				"browser": {Available: true, Default: true},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/capabilities", nil)
+	w := httptest.NewRecorder()
+	rt.handleCapabilities(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got openaiapi.CapabilityOverview
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got.Modes) != 3 || !got.Features["browser"].Default {
+		t.Fatalf("overview = %#v", got)
+	}
+}
+
+func TestHandleSessionByID_GetCapabilities(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		caps: &openaiapi.SessionCapabilities{ID: "s1", Mode: "agent", Browser: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/s1/capabilities", nil)
+	w := httptest.NewRecorder()
+	rt.handleSessionByID(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if sessions.capsID != "s1" {
+		t.Fatalf("capsID = %q, want s1", sessions.capsID)
+	}
+	var got openaiapi.SessionCapabilities
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.ID != "s1" || got.Mode != "agent" || !got.Browser {
+		t.Fatalf("capabilities = %#v", got)
+	}
+}
+
+func TestHandleSessionByID_PatchCapabilities(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		caps: &openaiapi.SessionCapabilities{ID: "s1", Mode: "agent", Browser: true},
+	}
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/sessions/s1/capabilities", strings.NewReader(`{"mode":"agent","browser":true}`))
+	w := httptest.NewRecorder()
+	rt.handleSessionByID(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body = %s", w.Code, w.Body.String())
+	}
+	if sessions.capsID != "s1" {
+		t.Fatalf("capsID = %q, want s1", sessions.capsID)
+	}
+	if sessions.patch.Mode == nil || *sessions.patch.Mode != "agent" {
+		t.Fatalf("patch mode = %#v", sessions.patch.Mode)
+	}
+	if sessions.patch.Browser == nil || !*sessions.patch.Browser {
+		t.Fatalf("patch browser = %#v", sessions.patch.Browser)
+	}
+}
+
+func TestHandleSessionByID_ActiveAlias(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	sessions := &fakeActiveSessionManager{
+		sessions: []openaiapi.ActiveSessionInfo{
+			{ID: "active", WorkDir: "/tmp/a", Active: true},
+			{ID: "history", WorkDir: "/tmp/b", Active: false},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions/active", nil)
+	w := httptest.NewRecorder()
+	rt.handleSessionByID(sessions).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got struct {
+		Sessions []openaiapi.ActiveSessionInfo `json:"sessions"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got.Sessions) != 1 || got.Sessions[0].ID != "active" {
 		t.Fatalf("sessions = %#v", got.Sessions)
 	}
 }
@@ -1106,6 +1267,22 @@ func TestApplyOverridesPreservesMultiAgentFlagThroughFeatureSync(t *testing.T) {
 	}
 }
 
+func TestApplyOverridesEnablesExtendedRuntimeTools(t *testing.T) {
+	cfg := DefaultConfig()
+
+	applyOverrides(cfg, RunOptions{WebSearch: true, Browser: true, A2AMaster: true})
+
+	if !cfg.API.EnableWebSearch {
+		t.Fatal("web search should be enabled")
+	}
+	if !cfg.API.EnableBrowser {
+		t.Fatal("browser should be enabled")
+	}
+	if !cfg.API.EnableA2AMaster {
+		t.Fatal("A2A master should be enabled")
+	}
+}
+
 func TestApplyOverridesWebUIDirEnablesWebUI(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.WebUI.Enabled = false
@@ -1183,6 +1360,9 @@ func TestBuildConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 	cfg.API.Model = "gpt-4o"
 	cfg.API.WorkingDir = "/tmp/project"
 	cfg.API.Sandbox.Enabled = true
+	cfg.API.EnableWebSearch = true
+	cfg.API.EnableBrowser = true
+	cfg.API.EnableA2AMaster = true
 	cfg.Features.MultiAgent = true
 	cfg.Features.Wechat = false
 	cfg.Features.Feishu = true
@@ -1212,6 +1392,15 @@ func TestBuildConfigFromServeConfigAppliesFeatureGating(t *testing.T) {
 	}
 	if !hCfg.Sandbox {
 		t.Fatal("sandbox should be enabled")
+	}
+	if !hCfg.WebSearch {
+		t.Fatal("web search should be enabled")
+	}
+	if !hCfg.Browser {
+		t.Fatal("browser should be enabled")
+	}
+	if !hCfg.A2AMaster {
+		t.Fatal("A2A master should be enabled")
 	}
 	if !hCfg.MultiAgent {
 		t.Fatal("multi-agent should be enabled")

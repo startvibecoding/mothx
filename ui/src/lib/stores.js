@@ -21,13 +21,27 @@ export const error = writable('');
 export const currentSession = writable('');
 export const selectedModel = writable('default');
 
+const sessionToolStorageKey = 'mothx.webui.sessionTools';
+const defaultSessionTools = {
+  webSearch: false,
+  browser: false,
+  a2aMaster: false,
+  delegate: false,
+  multiAgent: false
+};
+export const sessionToolOptions = writable(loadSessionToolOptions());
+
 export const features = derived(status, ($s) => ({
   api: $s?.features?.openaiAPI !== false,
   webUI: $s?.features?.webUI !== false,
   websocket: $s?.features?.websocket === true,
   cron: $s?.features?.cron === true,
   memory: $s?.features?.memory === true,
-  multiAgent: $s?.features?.multiAgent === true
+  multiAgent: $s?.features?.multiAgent === true,
+  delegate: $s?.features?.delegate === true,
+  webSearch: $s?.features?.webSearch === true,
+  browser: $s?.features?.browser === true,
+  a2aMaster: $s?.features?.a2aMaster === true
 }));
 
 export const connectedChannels = derived(channels, ($c) =>
@@ -150,4 +164,58 @@ export async function refreshModels() {
     models.set([]);
     selectedModel.set('default');
   }
+}
+
+function loadSessionToolOptions() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(sessionToolStorageKey) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionToolOptions(value) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(sessionToolStorageKey, JSON.stringify(value || {}));
+}
+
+function normalizeSessionTools(value = {}) {
+  return {
+    webSearch: Boolean(value.webSearch),
+    browser: Boolean(value.browser),
+    a2aMaster: Boolean(value.a2aMaster),
+    delegate: Boolean(value.delegate ?? value.delegateMode),
+    multiAgent: Boolean(value.multiAgent)
+  };
+}
+
+export function sessionToolsFor(map, id, fallback = null) {
+  const key = id || '__new__';
+  const base = fallback ? normalizeSessionTools(fallback) : { ...defaultSessionTools };
+  return normalizeSessionTools({ ...base, ...(map?.[key] || {}) });
+}
+
+export function setSessionTools(id, value) {
+  const key = id || '__new__';
+  const normalized = normalizeSessionTools(value);
+  sessionToolOptions.update((prev) => {
+    const next = { ...(prev || {}), [key]: normalized };
+    saveSessionToolOptions(next);
+    return next;
+  });
+}
+
+export function moveSessionTools(fromID, toID) {
+  const from = fromID || '__new__';
+  const to = toID || '__new__';
+  if (!from || !to || from === to) return;
+  sessionToolOptions.update((prev) => {
+    if (!prev?.[from]) return prev || {};
+    const next = { ...(prev || {}), [to]: prev[from] };
+    delete next[from];
+    saveSessionToolOptions(next);
+    return next;
+  });
 }

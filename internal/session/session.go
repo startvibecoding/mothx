@@ -1087,6 +1087,7 @@ func DeleteSession(path string, sessionDir string) error {
 			}
 		}
 		if db != nil {
+			_, _ = db.Exec("DELETE FROM session_capabilities WHERE session_id = ?", sessionID)
 			_, _ = db.Exec("DELETE FROM entries WHERE session_id = ?", sessionID)
 			_, _ = db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
 		}
@@ -1105,6 +1106,107 @@ type SessionDetail struct {
 	ID           string
 	MessageCount int
 	Preview      string // first user message (truncated)
+}
+
+// SessionCapabilities stores persisted per-session runtime capability state.
+type SessionCapabilities struct {
+	SessionID    string
+	Mode         string
+	DelegateMode bool
+	MultiAgent   bool
+	Workflows    bool
+	WebSearch    bool
+	Browser      bool
+	A2AMaster    bool
+	UpdatedAt    time.Time
+}
+
+// LoadSessionCapabilities loads persisted capabilities for a session.
+func LoadSessionCapabilities(sessionDir, sessionID string) (*SessionCapabilities, bool, error) {
+	if sessionID == "" {
+		return nil, false, nil
+	}
+	db, ok, err := openExistingSessionDB(sessionDir)
+	if err != nil || !ok {
+		return nil, false, err
+	}
+
+	var caps SessionCapabilities
+	var delegateMode, multiAgent, workflows, webSearch, browser, a2aMaster int
+	var updatedAt string
+	err = db.QueryRow(`SELECT session_id, mode, delegate_mode, multi_agent, workflows, web_search, browser, a2a_master, updated_at
+		FROM session_capabilities WHERE session_id = ?`, sessionID).Scan(
+		&caps.SessionID,
+		&caps.Mode,
+		&delegateMode,
+		&multiAgent,
+		&workflows,
+		&webSearch,
+		&browser,
+		&a2aMaster,
+		&updatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	caps.DelegateMode = delegateMode != 0
+	caps.MultiAgent = multiAgent != 0
+	caps.Workflows = workflows != 0
+	caps.WebSearch = webSearch != 0
+	caps.Browser = browser != 0
+	caps.A2AMaster = a2aMaster != 0
+	caps.UpdatedAt = parseSessionTimestamp(updatedAt)
+	return &caps, true, nil
+}
+
+// SaveSessionCapabilities persists per-session runtime capability state.
+func SaveSessionCapabilities(sessionDir string, caps SessionCapabilities) error {
+	if caps.SessionID == "" {
+		return fmt.Errorf("session capability session ID is empty")
+	}
+	if sessionDir == "" {
+		sessionDir = platform.SessionDir()
+	}
+	m := &Manager{file: filepath.Join(sessionDir, caps.SessionID+".db"), sessionDir: sessionDir}
+	updatedAt := caps.UpdatedAt
+	if updatedAt.IsZero() {
+		updatedAt = time.Now()
+	}
+	return m.withDB(func(db *sql.DB) error {
+		_, err := db.Exec(`INSERT INTO session_capabilities
+			(session_id, mode, delegate_mode, multi_agent, workflows, web_search, browser, a2a_master, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(session_id) DO UPDATE SET
+				mode = excluded.mode,
+				delegate_mode = excluded.delegate_mode,
+				multi_agent = excluded.multi_agent,
+				workflows = excluded.workflows,
+				web_search = excluded.web_search,
+				browser = excluded.browser,
+				a2a_master = excluded.a2a_master,
+				updated_at = excluded.updated_at`,
+			caps.SessionID,
+			caps.Mode,
+			boolToInt(caps.DelegateMode),
+			boolToInt(caps.MultiAgent),
+			boolToInt(caps.Workflows),
+			boolToInt(caps.WebSearch),
+			boolToInt(caps.Browser),
+			boolToInt(caps.A2AMaster),
+			updatedAt.Format(time.RFC3339Nano),
+		)
+		return err
+	})
+}
+
+func boolToInt(v bool) int {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 // ListForDirDetailed lists sessions with details (ID, message count, preview).

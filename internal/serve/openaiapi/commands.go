@@ -97,6 +97,9 @@ func (s *Server) cmdMode(sess *APISession, parts []string) *CommandResult {
 		case "plan", "agent", "yolo":
 			if sess != nil {
 				sess.Mode = parts[1]
+				if err := s.persistSessionCapabilities(sess); err != nil {
+					return &CommandResult{Message: fmt.Sprintf("Failed to save mode: %v", err), Error: true}
+				}
 			}
 			return &CommandResult{Message: fmt.Sprintf("Mode: %s", strings.ToUpper(parts[1]))}
 		default:
@@ -327,35 +330,21 @@ func (s *Server) cmdDelegate(sess *APISession, parts []string) *CommandResult {
 	switch parts[1] {
 	case "on":
 		if sess.AgentMgr == nil {
-			compactionSettings := ctxpkg.CompactionSettings{
-				Enabled:          s.settings.Compaction.Enabled,
-				ReserveTokens:    s.settings.Compaction.ReserveTokens,
-				KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-				Tokenizer:        s.settings.Compaction.Tokenizer,
-				TokenizerModel:   s.settings.Compaction.TokenizerModel,
-				Template:         s.settings.Compaction.Template,
-			}
-			extraContext := sess.ExtraContext
-			if extraContext == "" {
-				extraContext = s.extraContext
-			}
-			skillsMgr := sess.SkillsMgr
-			if skillsMgr == nil {
-				skillsMgr = s.skillsMgr
-			}
-			factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
-				MultiAgentEnabled: true,
-				DelegateEnabled:   true,
-				Allow:             s.getAllow(),
-			})
-			sess.AgentMgr = agent.NewAgentManager(factory)
+			sess.DelegateMode = true
+			sess.AgentMgr = s.newAgentManagerForSession(sess)
 		}
 		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
 		sess.DelegateMode = true
+		if err := s.persistSessionCapabilities(sess); err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to save delegation mode: %v", err), Error: true}
+		}
 		return &CommandResult{Message: "Delegation mode: ON"}
 	case "off":
 		sess.Registry.Remove("delegate_subagent")
 		sess.DelegateMode = false
+		if err := s.persistSessionCapabilities(sess); err != nil {
+			return &CommandResult{Message: fmt.Sprintf("Failed to save delegation mode: %v", err), Error: true}
+		}
 		return &CommandResult{Message: "Delegation mode: OFF"}
 	default:
 		return &CommandResult{Message: "Usage: /delegate [on|off|status]", Error: true}
@@ -542,13 +531,14 @@ func parseRuleForce(parts []string) (bool, bool) {
 }
 
 func (s *Server) newAgentManagerForSession(sess *APISession) *agent.AgentManager {
+	runtimeSettings := s.settingsForSession(sess)
 	compactionSettings := ctxpkg.CompactionSettings{
-		Enabled:          s.settings.Compaction.Enabled,
-		ReserveTokens:    s.settings.Compaction.ReserveTokens,
-		KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-		Tokenizer:        s.settings.Compaction.Tokenizer,
-		TokenizerModel:   s.settings.Compaction.TokenizerModel,
-		Template:         s.settings.Compaction.Template,
+		Enabled:          runtimeSettings.Compaction.Enabled,
+		ReserveTokens:    runtimeSettings.Compaction.ReserveTokens,
+		KeepRecentTokens: runtimeSettings.Compaction.KeepRecentTokens,
+		Tokenizer:        runtimeSettings.Compaction.Tokenizer,
+		TokenizerModel:   runtimeSettings.Compaction.TokenizerModel,
+		Template:         runtimeSettings.Compaction.Template,
 	}
 	extraContext := sess.ExtraContext
 	if extraContext == "" {
@@ -558,7 +548,7 @@ func (s *Server) newAgentManagerForSession(sess *APISession) *agent.AgentManager
 	if skillsMgr == nil {
 		skillsMgr = s.skillsMgr
 	}
-	factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+	factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, runtimeSettings, s.sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
 		DelegateEnabled:   sess.DelegateMode || s.cfg.EnableDelegate,
 		WorkflowsEnabled:  sess.Workflows,

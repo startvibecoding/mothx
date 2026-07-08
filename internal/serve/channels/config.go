@@ -15,6 +15,9 @@ type Config struct {
 	DefaultProvider string         `json:"default_provider,omitempty"`
 	DefaultModel    string         `json:"default_model,omitempty"`
 	MultiAgent      bool           `json:"multi_agent,omitempty"`
+	WebSearch       bool           `json:"web_search,omitempty"`
+	Browser         bool           `json:"browser,omitempty"`
+	A2AMaster       bool           `json:"a2a_master,omitempty"`
 	Sandbox         bool           `json:"sandbox,omitempty"`
 	Wechat          WechatConfig   `json:"wechat"`
 	Feishu          FeishuConfig   `json:"feishu"`

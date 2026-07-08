@@ -91,6 +91,15 @@ func applyRawConfig(cfg *Config, raw *rawConfig) {
 	if raw.MaxConcurrentReqs != nil {
 		cfg.API.MaxConcurrentReqs = *raw.MaxConcurrentReqs
 	}
+	if raw.WebSearch != nil {
+		cfg.API.EnableWebSearch = *raw.WebSearch
+	}
+	if raw.Browser != nil {
+		cfg.API.EnableBrowser = *raw.Browser
+	}
+	if raw.A2AMaster != nil {
+		cfg.API.EnableA2AMaster = *raw.A2AMaster
+	}
 	if raw.Agent != nil {
 		if raw.Agent.MaxTurns != nil {
 			cfg.Agent.MaxTurns = *raw.Agent.MaxTurns
@@ -252,6 +261,9 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 	maxSessions := c.API.Session.MaxSessions
 	requestTimeoutSeconds := c.API.RequestTimeoutSecs
 	maxConcurrentRequests := c.API.MaxConcurrentReqs
+	webSearchEnabled := c.API.EnableWebSearch
+	browserEnabled := c.API.EnableBrowser
+	a2aMasterEnabled := c.API.EnableA2AMaster
 	agentMaxTurns := c.Agent.MaxTurns
 	agentBudgetPressure := c.Agent.BudgetPressure
 	agentContextPressure := c.Agent.ContextPressure
@@ -286,6 +298,9 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 		SystemPromptMode:   c.API.SystemPromptMode,
 		RequestTimeoutSecs: &requestTimeoutSeconds,
 		MaxConcurrentReqs:  &maxConcurrentRequests,
+		WebSearch:          &webSearchEnabled,
+		Browser:            &browserEnabled,
+		A2AMaster:          &a2aMasterEnabled,
 		Agent: &rawAgentConfig{
 			MaxTurns:                 &agentMaxTurns,
 			BudgetPressure:           &agentBudgetPressure,

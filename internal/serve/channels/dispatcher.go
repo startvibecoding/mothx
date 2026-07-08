@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/startvibecoding/mothx/internal/a2a"
 	"github.com/startvibecoding/mothx/internal/agent"
+	browserfeature "github.com/startvibecoding/mothx/internal/browser"
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
@@ -57,7 +59,9 @@ type Dispatcher struct {
 	scheduler *cron.Scheduler
 
 	// Sandbox mode
-	sandbox bool
+	sandbox   bool
+	browser   bool
+	a2aMaster bool
 
 	// Active sessions: key = "<platform-channel>/<user_id>"
 	sessions map[string]*ChannelSession
@@ -94,6 +98,9 @@ func (s *ChannelSession) Touch() { s.LastUsed = time.Now() }
 
 // NewDispatcher creates a dispatcher with the given configuration.
 func NewDispatcher(cfg *Config, settings *config.Settings, version string, cronStore cron.CronStore, scheduler *cron.Scheduler) (*Dispatcher, error) {
+	if cfg.WebSearch {
+		settings.WebSearch.Enabled = config.BoolPtr(true)
+	}
 	providerName := cfg.GetDefaultProvider(settings.DefaultProvider)
 	modelID := cfg.GetDefaultModel(settings.DefaultModel)
 
@@ -115,6 +122,8 @@ func NewDispatcher(cfg *Config, settings *config.Settings, version string, cronS
 		model:            model,
 		multiAgent:       cfg.MultiAgent,
 		sandbox:          cfg.Sandbox,
+		browser:          cfg.Browser,
+		a2aMaster:        cfg.A2AMaster,
 		cronStore:        cronStore,
 		scheduler:        scheduler,
 		sessions:         make(map[string]*ChannelSession),
@@ -291,6 +300,12 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*ChannelSession, e
 	}
 	reg := tools.NewRegistry(workDir, sbMgr.GetActive())
 	reg.RegisterDefaults()
+	if d.browser {
+		browserfeature.RegisterTool(reg)
+	}
+	if err := d.registerA2AMasterTool(reg); err != nil {
+		return nil, err
+	}
 
 	// Register memory tool
 	memStore := memory.NewStore(d.cfg.Memory.Path, workDir)
@@ -743,10 +758,52 @@ func (d *Dispatcher) buildExtraContext(workDir string) string {
 	}
 
 	skillsMgr := skills.NewManagerWithProjectDirs(d.settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(workDir))
+	if d.browser {
+		if _, _, err := browserfeature.EnsureProjectSkill(workDir); err != nil {
+			log.Printf("[channels] create browser skill: %v", err)
+		}
+	}
 	_ = skillsMgr.Load()
 	extra += skillsMgr.BuildAllSkillsContext()
+	if d.browser {
+		extra += skillsMgr.BuildSkillContext(browserfeature.SkillName)
+	}
 
 	return extra
+}
+
+func (d *Dispatcher) registerA2AMasterTool(registry *tools.Registry) error {
+	if !d.a2aMaster {
+		return nil
+	}
+	a2aListPath := a2a.ProjectAgentListConfigPath()
+	if _, err := os.Stat(a2aListPath); err != nil {
+		a2aListPath = a2a.AgentListConfigPath()
+	}
+	a2aListCfg, err := a2a.LoadAgentList(a2aListPath)
+	if err != nil {
+		return fmt.Errorf("load a2a-list.json: %w", err)
+	}
+	a2aMgr := a2a.NewA2AManager(a2aListCfg)
+	registry.Register(tools.NewA2ADispatchTool(&a2aDispatcherAdapter{mgr: a2aMgr}))
+	return nil
+}
+
+type a2aDispatcherAdapter struct {
+	mgr *a2a.A2AManager
+}
+
+func (a *a2aDispatcherAdapter) List() []tools.AgentEntry {
+	entries := a.mgr.List()
+	result := make([]tools.AgentEntry, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, tools.AgentEntry{Name: e.Name, URL: e.URL})
+	}
+	return result
+}
+
+func (a *a2aDispatcherAdapter) Dispatch(ctx context.Context, name, message string) (string, error) {
+	return a.mgr.Dispatch(ctx, name, message)
 }
 
 // handleCommand processes slash commands from messaging platforms.

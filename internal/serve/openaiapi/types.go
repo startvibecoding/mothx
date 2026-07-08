@@ -18,9 +18,66 @@ type ChatCompletionRequest struct {
 	MaxTokens   int              `json:"max_tokens,omitempty"`
 
 	// VibeCoding extensions
-	XSessionID  string `json:"x_session_id,omitempty"`
-	XMode       string `json:"x_mode,omitempty"`
-	XWorkingDir string `json:"x_working_dir,omitempty"`
+	XSessionID  string              `json:"x_session_id,omitempty"`
+	XMode       string              `json:"x_mode,omitempty"`
+	XWorkingDir string              `json:"x_working_dir,omitempty"`
+	XTools      *SessionToolOptions `json:"x_tools,omitempty"`
+}
+
+// SessionToolOptions are per-session runtime tool toggles supplied by WebUI.
+type SessionToolOptions struct {
+	WebSearch  *bool `json:"webSearch,omitempty"`
+	Browser    *bool `json:"browser,omitempty"`
+	A2AMaster  *bool `json:"a2aMaster,omitempty"`
+	Delegate   *bool `json:"delegate,omitempty"`
+	MultiAgent *bool `json:"multiAgent,omitempty"`
+}
+
+// CapabilityFeature describes serve-level capability availability and defaults.
+type CapabilityFeature struct {
+	Available bool   `json:"available"`
+	Default   bool   `json:"default"`
+	Locked    bool   `json:"locked,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// CapabilityOverview is returned by GET /api/capabilities.
+type CapabilityOverview struct {
+	Modes    []string                     `json:"modes"`
+	Features map[string]CapabilityFeature `json:"features"`
+	Defaults SessionCapabilities          `json:"defaults"`
+}
+
+// SessionCapabilities are the effective runtime capabilities for a session.
+type SessionCapabilities struct {
+	ID              string `json:"id,omitempty"`
+	WorkDir         string `json:"workDir,omitempty"`
+	Active          bool   `json:"active"`
+	Mode            string `json:"mode"`
+	DelegateMode    bool   `json:"delegateMode"`
+	Delegate        bool   `json:"delegate"`
+	MultiAgent      bool   `json:"multiAgent"`
+	Workflows       bool   `json:"workflows"`
+	WebSearch       bool   `json:"webSearch"`
+	Browser         bool   `json:"browser"`
+	A2AMaster       bool   `json:"a2aMaster"`
+	Model           string `json:"model,omitempty"`
+	ThinkingLevel   string `json:"thinkingLevel,omitempty"`
+	Persisted       bool   `json:"persisted"`
+	RuntimeOnly     bool   `json:"runtimeOnly,omitempty"`
+	PersistenceNote string `json:"persistenceNote,omitempty"`
+}
+
+// SessionCapabilityPatch updates mutable session runtime capabilities.
+type SessionCapabilityPatch struct {
+	Mode         *string `json:"mode,omitempty"`
+	DelegateMode *bool   `json:"delegateMode,omitempty"`
+	Delegate     *bool   `json:"delegate,omitempty"`
+	MultiAgent   *bool   `json:"multiAgent,omitempty"`
+	Workflows    *bool   `json:"workflows,omitempty"`
+	WebSearch    *bool   `json:"webSearch,omitempty"`
+	Browser      *bool   `json:"browser,omitempty"`
+	A2AMaster    *bool   `json:"a2aMaster,omitempty"`
 }
 
 // RequestMessage represents a message in the OpenAI request.

@@ -16,6 +16,9 @@ type Config struct {
 	EnableSubAgents      bool                 `json:"enableSubAgents,omitempty"`
 	EnableDelegate       bool                 `json:"enableDelegate,omitempty"`
 	EnableWorkflows      bool                 `json:"enableWorkflows,omitempty"`
+	EnableWebSearch      bool                 `json:"enableWebSearch,omitempty"`
+	EnableBrowser        bool                 `json:"enableBrowser,omitempty"`
+	EnableA2AMaster      bool                 `json:"enableA2AMaster,omitempty"`
 	Sandbox              SandboxConfig        `json:"sandbox"`
 	AllowedWorkDirs      *[]string            `json:"allowedWorkDirs,omitempty"` // nil=no check, []=deny all overrides
 	Session              SessionConfig        `json:"session"`

@@ -73,6 +73,20 @@ var migrations = []migration{
 		Name: "006_add_request_stats_protocol_column",
 		SQL:  `ALTER TABLE request_stats ADD COLUMN protocol TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		Name: "007_create_session_capabilities_table",
+		SQL: `CREATE TABLE IF NOT EXISTS session_capabilities (
+			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+			mode TEXT NOT NULL DEFAULT '',
+			delegate_mode INTEGER NOT NULL DEFAULT 0,
+			multi_agent INTEGER NOT NULL DEFAULT 0,
+			workflows INTEGER NOT NULL DEFAULT 0,
+			web_search INTEGER NOT NULL DEFAULT 0,
+			browser INTEGER NOT NULL DEFAULT 0,
+			a2a_master INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT NOT NULL
+		);`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

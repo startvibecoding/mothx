@@ -7,14 +7,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/startvibecoding/mothx/internal/a2a"
 	"github.com/startvibecoding/mothx/internal/agent"
+	browserfeature "github.com/startvibecoding/mothx/internal/browser"
+	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
 	"github.com/startvibecoding/mothx/internal/workflow"
 )
@@ -84,6 +90,17 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("model %q does not support image input", currentModel.ID), "invalid_request_error")
 		return
 	}
+	if req.XSessionID != "" && req.XWorkingDir != "" {
+		sessionWorkDir, found, err := s.findSessionWorkDir(req.XSessionID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+			return
+		}
+		if found && !sameWorkDir(sessionWorkDir, workDir) {
+			writeError(w, http.StatusConflict, fmt.Sprintf("x_working_dir %q does not match session %q workDir %q", workDir, req.XSessionID, sessionWorkDir), "conflict_error")
+			return
+		}
+	}
 
 	// Get or create session
 	sessionID := req.XSessionID
@@ -106,6 +123,10 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	sess.Lock()
 	defer sess.Unlock()
 	sess.Touch()
+	if err := s.applySessionToolOptions(sess, req.XTools); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+		return
+	}
 
 	// Check for slash command
 	if cmdResult := s.handleCommand(sess, lastUserMsg.Content); cmdResult != nil {
@@ -143,14 +164,16 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		extraContext += "\n## Client Instructions\n" + strings.Join(systemMsgs, "\n") + "\n"
 	}
 
+	runtimeSettings := s.settingsForSession(sess)
+
 	// Build compaction settings
 	compactionSettings := ctxpkg.CompactionSettings{
-		Enabled:          s.settings.Compaction.Enabled,
-		ReserveTokens:    s.settings.Compaction.ReserveTokens,
-		KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-		Tokenizer:        s.settings.Compaction.Tokenizer,
-		TokenizerModel:   s.settings.Compaction.TokenizerModel,
-		Template:         s.settings.Compaction.Template,
+		Enabled:          runtimeSettings.Compaction.Enabled,
+		ReserveTokens:    runtimeSettings.Compaction.ReserveTokens,
+		KeepRecentTokens: runtimeSettings.Compaction.KeepRecentTokens,
+		Tokenizer:        runtimeSettings.Compaction.Tokenizer,
+		TokenizerModel:   runtimeSettings.Compaction.TokenizerModel,
+		Template:         runtimeSettings.Compaction.Template,
 	}
 	if compactionSettings.ReserveTokens == 0 {
 		compactionSettings.ReserveTokens = 16384
@@ -167,7 +190,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	maxTokens := req.MaxTokens
 	if maxTokens <= 0 {
-		maxTokens = agent.ResolveMaxTokens(s.settings, currentModel)
+		maxTokens = agent.ResolveMaxTokens(runtimeSettings, currentModel)
 	}
 
 	// Per-request temperature/top_p override (from OpenAI-compatible client)
@@ -179,7 +202,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Register sub-agent/delegate tools before agent construction; the agent freezes tools at New().
-	if s.cfg.EnableSubAgents && sess.AgentMgr != nil {
+	if sess.MultiAgent && sess.AgentMgr != nil {
 		agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
 	}
 	if sess.DelegateMode && sess.AgentMgr != nil {
@@ -199,13 +222,13 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		ThinkingLevel:      thinkingLevel,
 		MaxTokens:          maxTokens,
 		SandboxMgr:         s.sandboxMgr,
-		Settings:           s.settings,
+		Settings:           runtimeSettings,
 		Allow:              s.getAllow(),
 		Session:            sess.Manager,
 		ExtraContext:       extraContext,
 		RuleContent:        ruleContent,
 		CompactionSettings: compactionSettings,
-		MultiAgent:         s.cfg.EnableSubAgents,
+		MultiAgent:         sess.MultiAgent,
 		DelegateMode:       sess.DelegateMode,
 		Workflows:          sess.Workflows,
 	}
@@ -231,7 +254,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	timeout := time.Duration(s.cfg.RequestTimeoutSecs) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	if (s.cfg.EnableSubAgents || sess.DelegateMode || sess.Workflows) && sess.AgentMgr != nil {
+	if (sess.MultiAgent || sess.DelegateMode || sess.Workflows) && sess.AgentMgr != nil {
 		sess.AgentMgr.Register(agent.NewAgentAdapter(a))
 		defer func() {
 			sess.AgentMgr.Finish(a.ID(), ctx.Err())
@@ -259,6 +282,13 @@ func cloneModel(model *provider.Model) *provider.Model {
 		copy.Compat = &compat
 	}
 	return &copy
+}
+
+func sameWorkDir(a, b string) bool {
+	if a == "" || b == "" {
+		return a == b
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string) {
@@ -515,44 +545,31 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 			if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
 				sessWorkDir = sess.GetHeader().Cwd
 			}
-			registry := tools.NewRegistry(sessWorkDir, s.sandboxMgr.GetActive())
-			registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
-			skillsMgr, extraContext, err := buildWorkDirContext(s.settings, sessWorkDir, s.cfg.EnableWorkflows)
+			resources, err := s.buildSessionResources(sessWorkDir)
 			if err != nil {
 				return nil, err
 			}
-			if skillsMgr != nil {
-				registry.Register(tools.NewSkillRefTool(skillsMgr))
-			}
-			ruleContent := contextfiles.LoadRuleFile(sessWorkDir)
 			gwSess := &APISession{
 				ID:           sessionID,
 				WorkDir:      sessWorkDir,
 				Manager:      sess,
-				Registry:     registry,
-				SkillsMgr:    skillsMgr,
-				ExtraContext: extraContext,
-				RuleContent:  ruleContent,
+				Registry:     resources.registry,
+				SkillsMgr:    resources.skillsMgr,
+				ExtraContext: resources.extraContext,
+				RuleContent:  resources.ruleContent,
 				DelegateMode: s.cfg.EnableDelegate,
 				Workflows:    s.cfg.EnableWorkflows,
+				WebSearch:    s.cfg.EnableWebSearch,
+				Browser:      s.cfg.EnableBrowser,
+				A2AMaster:    s.cfg.EnableA2AMaster,
+				MultiAgent:   s.cfg.EnableSubAgents,
 				LastUsed:     time.Now(),
 			}
-			if s.cfg.EnableSubAgents || s.cfg.EnableDelegate || s.cfg.EnableWorkflows {
-				compactionSettings := ctxpkg.CompactionSettings{
-					Enabled:          s.settings.Compaction.Enabled,
-					ReserveTokens:    s.settings.Compaction.ReserveTokens,
-					KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-					Tokenizer:        s.settings.Compaction.Tokenizer,
-					TokenizerModel:   s.settings.Compaction.TokenizerModel,
-					Template:         s.settings.Compaction.Template,
-				}
-				factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
-					MultiAgentEnabled: true,
-					DelegateEnabled:   s.cfg.EnableDelegate,
-					WorkflowsEnabled:  s.cfg.EnableWorkflows,
-					Allow:             s.getAllow(),
-				})
-				gwSess.AgentMgr = agent.NewAgentManager(factory)
+			if err := s.applyStoredSessionCapabilities(gwSess); err != nil {
+				return nil, err
+			}
+			if gwSess.MultiAgent || gwSess.DelegateMode || gwSess.Workflows {
+				gwSess.AgentMgr = s.newAgentManagerForSession(gwSess)
 			}
 			if err := s.pool.Put(gwSess); err != nil {
 				return nil, err
@@ -572,44 +589,31 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 				if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
 					sessWorkDir = sess.GetHeader().Cwd
 				}
-				registry := tools.NewRegistry(sessWorkDir, s.sandboxMgr.GetActive())
-				registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
-				skillsMgr, extraContext, err := buildWorkDirContext(s.settings, sessWorkDir, s.cfg.EnableWorkflows)
+				resources, err := s.buildSessionResources(sessWorkDir)
 				if err != nil {
 					return nil, err
 				}
-				if skillsMgr != nil {
-					registry.Register(tools.NewSkillRefTool(skillsMgr))
-				}
-				ruleContent := contextfiles.LoadRuleFile(sessWorkDir)
 				gwSess := &APISession{
 					ID:           defaultID,
 					WorkDir:      sessWorkDir,
 					Manager:      sess,
-					Registry:     registry,
-					SkillsMgr:    skillsMgr,
-					ExtraContext: extraContext,
-					RuleContent:  ruleContent,
+					Registry:     resources.registry,
+					SkillsMgr:    resources.skillsMgr,
+					ExtraContext: resources.extraContext,
+					RuleContent:  resources.ruleContent,
 					DelegateMode: s.cfg.EnableDelegate,
 					Workflows:    s.cfg.EnableWorkflows,
+					WebSearch:    s.cfg.EnableWebSearch,
+					Browser:      s.cfg.EnableBrowser,
+					A2AMaster:    s.cfg.EnableA2AMaster,
+					MultiAgent:   s.cfg.EnableSubAgents,
 					LastUsed:     time.Now(),
 				}
-				if s.cfg.EnableSubAgents || s.cfg.EnableDelegate || s.cfg.EnableWorkflows {
-					compactionSettings := ctxpkg.CompactionSettings{
-						Enabled:          s.settings.Compaction.Enabled,
-						ReserveTokens:    s.settings.Compaction.ReserveTokens,
-						KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-						Tokenizer:        s.settings.Compaction.Tokenizer,
-						TokenizerModel:   s.settings.Compaction.TokenizerModel,
-						Template:         s.settings.Compaction.Template,
-					}
-					factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
-						MultiAgentEnabled: true,
-						DelegateEnabled:   s.cfg.EnableDelegate,
-						WorkflowsEnabled:  s.cfg.EnableWorkflows,
-						Allow:             s.getAllow(),
-					})
-					gwSess.AgentMgr = agent.NewAgentManager(factory)
+				if err := s.applyStoredSessionCapabilities(gwSess); err != nil {
+					return nil, err
+				}
+				if gwSess.MultiAgent || gwSess.DelegateMode || gwSess.Workflows {
+					gwSess.AgentMgr = s.newAgentManagerForSession(gwSess)
 				}
 				if err := s.pool.Put(gwSess); err != nil {
 					return nil, err
@@ -637,49 +641,35 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 		id = mgr.GetHeader().ID
 	}
 
-	skillsMgr, extraContext, err := buildWorkDirContext(s.settings, workDir, s.cfg.EnableWorkflows)
+	resources, err := s.buildSessionResources(workDir)
 	if err != nil {
 		return nil, err
 	}
 
-	registry := tools.NewRegistry(workDir, s.sandboxMgr.GetActive())
-	registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
-	if skillsMgr != nil {
-		registry.Register(tools.NewSkillRefTool(skillsMgr))
-	}
-
-	ruleContent := contextfiles.LoadRuleFile(workDir)
 	sess := &APISession{
 		ID:           id,
 		WorkDir:      workDir,
 		Manager:      mgr,
-		Registry:     registry,
+		Registry:     resources.registry,
 		Mode:         "",
-		SkillsMgr:    skillsMgr,
-		ExtraContext: extraContext,
-		RuleContent:  ruleContent,
+		SkillsMgr:    resources.skillsMgr,
+		ExtraContext: resources.extraContext,
+		RuleContent:  resources.ruleContent,
 		DelegateMode: s.cfg.EnableDelegate,
 		Workflows:    s.cfg.EnableWorkflows,
+		WebSearch:    s.cfg.EnableWebSearch,
+		Browser:      s.cfg.EnableBrowser,
+		A2AMaster:    s.cfg.EnableA2AMaster,
+		MultiAgent:   s.cfg.EnableSubAgents,
 		LastUsed:     time.Now(),
+	}
+	if err := s.applyStoredSessionCapabilities(sess); err != nil {
+		return nil, err
 	}
 
 	// Create agent manager if sub-agent, delegate, or workflow mode is enabled.
-	if s.cfg.EnableSubAgents || s.cfg.EnableDelegate || s.cfg.EnableWorkflows {
-		compactionSettings := ctxpkg.CompactionSettings{
-			Enabled:          s.settings.Compaction.Enabled,
-			ReserveTokens:    s.settings.Compaction.ReserveTokens,
-			KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-			Tokenizer:        s.settings.Compaction.Tokenizer,
-			TokenizerModel:   s.settings.Compaction.TokenizerModel,
-			Template:         s.settings.Compaction.Template,
-		}
-		factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, s.settings, s.sandboxMgr, extraContext, ruleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
-			MultiAgentEnabled: true,
-			DelegateEnabled:   s.cfg.EnableDelegate,
-			WorkflowsEnabled:  s.cfg.EnableWorkflows,
-			Allow:             s.getAllow(),
-		})
-		sess.AgentMgr = agent.NewAgentManager(factory)
+	if sess.MultiAgent || sess.DelegateMode || sess.Workflows {
+		sess.AgentMgr = s.newAgentManagerForSession(sess)
 	}
 
 	if err := s.pool.Put(sess); err != nil {
@@ -701,6 +691,203 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 	}
 
 	return sess, nil
+}
+
+type sessionResources struct {
+	registry     *tools.Registry
+	skillsMgr    *skills.Manager
+	extraContext string
+	ruleContent  string
+}
+
+func (s *Server) buildSessionResources(workDir string) (*sessionResources, error) {
+	skillsMgr, extraContext, err := buildWorkDirContext(s.settings, workDir, s.cfg.EnableWorkflows, s.cfg.EnableBrowser)
+	if err != nil {
+		return nil, err
+	}
+
+	registry := tools.NewRegistry(workDir, s.sandboxMgr.GetActive())
+	registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
+	if skillsMgr != nil {
+		registry.Register(tools.NewSkillRefTool(skillsMgr))
+	}
+	if s.cfg.EnableBrowser {
+		browserfeature.RegisterTool(registry)
+	}
+	if err := s.registerA2AMasterTool(registry); err != nil {
+		return nil, err
+	}
+
+	return &sessionResources{
+		registry:     registry,
+		skillsMgr:    skillsMgr,
+		extraContext: extraContext,
+		ruleContent:  contextfiles.LoadRuleFile(workDir),
+	}, nil
+}
+
+func (s *Server) applySessionToolOptions(sess *APISession, opts *SessionToolOptions) error {
+	if sess == nil {
+		return nil
+	}
+	browserChanged := false
+	if opts != nil {
+		applyBoolOption(&sess.WebSearch, opts.WebSearch)
+		browserChanged = applyBoolOption(&sess.Browser, opts.Browser)
+		applyBoolOption(&sess.A2AMaster, opts.A2AMaster)
+		applyBoolOption(&sess.DelegateMode, opts.Delegate)
+		applyBoolOption(&sess.MultiAgent, opts.MultiAgent)
+	}
+	if err := s.syncSessionTools(sess, browserChanged); err != nil {
+		return err
+	}
+	if opts != nil {
+		return s.persistSessionCapabilities(sess)
+	}
+	return nil
+}
+
+func applyBoolOption(dst *bool, src *bool) bool {
+	if src == nil || dst == nil || *dst == *src {
+		return false
+	}
+	*dst = *src
+	return true
+}
+
+func (s *Server) syncSessionTools(sess *APISession, refreshContext bool) error {
+	if sess == nil || sess.Registry == nil {
+		return nil
+	}
+
+	if refreshContext {
+		if err := s.refreshSessionContext(sess); err != nil {
+			return err
+		}
+	}
+
+	if sess.Browser {
+		browserfeature.RegisterTool(sess.Registry)
+	} else {
+		browserfeature.RemoveTool(sess.Registry)
+	}
+
+	if sess.A2AMaster {
+		if err := s.registerA2ADispatchTool(sess.Registry); err != nil {
+			return err
+		}
+	} else {
+		sess.Registry.Remove("a2a_dispatch")
+	}
+
+	if sess.MultiAgent || sess.DelegateMode || sess.Workflows {
+		if sess.AgentMgr == nil {
+			sess.AgentMgr = s.newAgentManagerForSession(sess)
+		}
+	} else {
+		sess.AgentMgr = nil
+	}
+
+	if sess.MultiAgent && sess.AgentMgr != nil {
+		agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
+	} else {
+		removeSubAgentTools(sess.Registry)
+	}
+
+	if sess.DelegateMode && sess.AgentMgr != nil {
+		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
+	} else {
+		sess.Registry.Remove("delegate_subagent")
+	}
+	if sess.Workflows && sess.AgentMgr != nil {
+		workflow.RegisterTools(sess.Registry, sess.AgentMgr, nil)
+	} else {
+		removeWorkflowTools(sess.Registry)
+	}
+
+	return nil
+}
+
+func removeSubAgentTools(registry *tools.Registry) {
+	if registry == nil {
+		return
+	}
+	for _, name := range []string{"subagent_spawn", "subagent_status", "subagent_send", "subagent_destroy"} {
+		registry.Remove(name)
+	}
+}
+
+func removeWorkflowTools(registry *tools.Registry) {
+	if registry == nil {
+		return
+	}
+	for _, name := range []string{"workflow_lint", "workflow_run", "workflow_status", "workflow_cancel"} {
+		registry.Remove(name)
+	}
+}
+
+func (s *Server) refreshSessionContext(sess *APISession) error {
+	skillsMgr, extraContext, err := buildWorkDirContext(s.settings, sess.WorkDir, sess.Workflows, sess.Browser)
+	if err != nil {
+		return err
+	}
+	sess.SkillsMgr = skillsMgr
+	sess.ExtraContext = extraContext
+	sess.RuleContent = contextfiles.LoadRuleFile(sess.WorkDir)
+	if sess.Registry != nil && skillsMgr != nil {
+		sess.Registry.Register(tools.NewSkillRefTool(skillsMgr))
+	}
+	if sess.AgentMgr != nil {
+		sess.AgentMgr = s.newAgentManagerForSession(sess)
+	}
+	return nil
+}
+
+func (s *Server) settingsForSession(sess *APISession) *config.Settings {
+	if s.settings == nil || sess == nil {
+		return s.settings
+	}
+	runtimeSettings := *s.settings
+	runtimeSettings.WebSearch.Enabled = config.BoolPtr(sess.WebSearch)
+	return &runtimeSettings
+}
+
+func (s *Server) registerA2AMasterTool(registry *tools.Registry) error {
+	if !s.cfg.EnableA2AMaster {
+		return nil
+	}
+	return s.registerA2ADispatchTool(registry)
+}
+
+func (s *Server) registerA2ADispatchTool(registry *tools.Registry) error {
+	a2aListPath := a2a.ProjectAgentListConfigPath()
+	if _, err := os.Stat(a2aListPath); err != nil {
+		a2aListPath = a2a.AgentListConfigPath()
+	}
+	a2aListCfg, err := a2a.LoadAgentList(a2aListPath)
+	if err != nil {
+		return fmt.Errorf("load a2a-list.json: %w", err)
+	}
+	a2aMgr := a2a.NewA2AManager(a2aListCfg)
+	registry.Register(tools.NewA2ADispatchTool(&a2aDispatcherAdapter{mgr: a2aMgr}))
+	return nil
+}
+
+type a2aDispatcherAdapter struct {
+	mgr *a2a.A2AManager
+}
+
+func (a *a2aDispatcherAdapter) List() []tools.AgentEntry {
+	entries := a.mgr.List()
+	result := make([]tools.AgentEntry, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, tools.AgentEntry{Name: e.Name, URL: e.URL})
+	}
+	return result
+}
+
+func (a *a2aDispatcherAdapter) Dispatch(ctx context.Context, name, message string) (string, error) {
+	return a.mgr.Dispatch(ctx, name, message)
 }
 
 func (s *Server) clearSession(sess *APISession, workDir string) error {

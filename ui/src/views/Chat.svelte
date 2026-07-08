@@ -1,6 +1,7 @@
 <script>
+  import { onMount, tick } from 'svelte';
   import { markdownToHTML } from '../lib/markdown.js';
-  import { request, readSSE } from '../lib/api.js';
+  import { patchJSON, readSSE } from '../lib/api.js';
   import {
     sessions,
     currentSession,
@@ -12,7 +13,11 @@
     clearBanners,
     refreshSessions,
     getSessionMessages,
-    getSessionToolResult
+    getSessionToolResult,
+    sessionToolOptions,
+    sessionToolsFor,
+    setSessionTools,
+    moveSessionTools
   } from '../lib/stores.js';
   import { shortID, toolStateClass, formatArgs } from '../lib/format.js';
   import DirBrowser from '../components/DirBrowser.svelte';
@@ -28,6 +33,11 @@
   let showBrowser = false;
   let imageInput;
   let imageUploads = [];
+  let chatScroll;
+  let shouldFollowOutput = true;
+  let scrollFrame = 0;
+  let sessionToolKey = '__new__';
+  let sessionTools = sessionToolsFor({}, sessionToolKey);
 
   const suggestions = [
     'chat.suggestion.projectSummary',
@@ -40,8 +50,22 @@
     'chat.suggestion.multiAgent'
   ];
 
+  const toolToggles = [
+    { key: 'webSearch', label: 'webSearch' },
+    { key: 'browser', label: 'browser' },
+    { key: 'a2aMaster', label: 'a2aMaster' },
+    { key: 'delegate', label: 'delegate' },
+    { key: 'multiAgent', label: 'multi-agent' }
+  ];
+
   // Reset or load state when the selected session changes.
   let prevSession = $currentSession;
+  onMount(() => {
+    if ($currentSession) {
+      loadSessionMessages($currentSession);
+    }
+  });
+
   $: {
     const nextSession = $currentSession;
     if (nextSession !== prevSession) {
@@ -50,6 +74,7 @@
         workDir = '';
         messages = []; // new chat — no history
         chatEvents = []; // reset tool events
+        shouldFollowOutput = true;
       } else if (busy) {
         // The first streaming chunk can assign the newly-created session ID.
         // Do not reload persisted history mid-stream; it can replace the local
@@ -73,6 +98,7 @@
         messages = [];
       }
       chatEvents = []; // reset tool events for new session view
+      scrollChatToBottom({ force: true });
     } catch {
       if (id !== $currentSession) return;
       // Leave messages empty on error
@@ -81,6 +107,8 @@
   }
 
   $: activeSession = $sessions.find((s) => s.id === $currentSession);
+  $: sessionToolKey = $currentSession || '__new__';
+  $: sessionTools = sessionToolsFor($sessionToolOptions, sessionToolKey, activeSession || $features);
   $: recentTools = chatEvents.slice(-6).reverse();
   $: modelOptions = $models;
   $: activeModel = modelOptions.find((m) => m.id === $selectedModel);
@@ -126,6 +154,7 @@
 
     // Add user message
     messages = [...messages, { role: 'user', content: outgoing, images: outgoingImages }];
+    scrollChatToBottom({ force: true });
     prompt = '';
     imageUploads = [];
     if (imageInput) imageInput.value = '';
@@ -143,6 +172,7 @@
         stream: true,
         x_session_id: $currentSession || undefined,
         x_working_dir: isNewSession ? workDir.trim() : activeSessionWorkDir,
+        x_tools: sessionTools,
         messages: requestMessages
       });
       const res = await fetch('/v1/chat/completions', {
@@ -159,6 +189,7 @@
       }
       // Add placeholder assistant message
       messages = [...messages, { role: 'assistant', content: '' }];
+      scrollChatToBottom({ force: true });
       await readSSE(res.body, handleStreamEvent);
       sessionCreated = true;
     } catch (err) {
@@ -184,6 +215,55 @@
 
   function resetSession() {
     currentSession.set('');
+  }
+
+  function handleChatScroll() {
+    shouldFollowOutput = isChatNearBottom();
+  }
+
+  function isChatNearBottom() {
+    if (!chatScroll) return true;
+    const distance = chatScroll.scrollHeight - chatScroll.scrollTop - chatScroll.clientHeight;
+    return distance < 96;
+  }
+
+  async function scrollChatToBottom({ force = false } = {}) {
+    if (!chatScroll) return;
+    if (!force && !shouldFollowOutput) return;
+    await tick();
+    if (!chatScroll) return;
+    if (scrollFrame) cancelAnimationFrame(scrollFrame);
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      if (!chatScroll) return;
+      if (!force && !shouldFollowOutput) return;
+      chatScroll.scrollTop = chatScroll.scrollHeight;
+      shouldFollowOutput = true;
+    });
+  }
+
+  async function updateToolOption(key, event) {
+    const targetSession = $currentSession;
+    const previousTools = sessionTools;
+    const nextTools = {
+      ...sessionTools,
+      [key]: Boolean(event.currentTarget.checked)
+    };
+    setSessionTools(sessionToolKey, nextTools);
+    if (!targetSession) return;
+    try {
+      const updated = await patchJSON(
+        `/api/sessions/${encodeURIComponent(targetSession)}/capabilities`,
+        nextTools
+      );
+      if (targetSession === $currentSession) {
+        setSessionTools(targetSession, updated);
+      }
+      await refreshSessions();
+    } catch (err) {
+      setSessionTools(targetSession, previousTools);
+      setError(err);
+    }
   }
 
   function onDirSelect(e) {
@@ -554,14 +634,19 @@
 
   function handleToolStatusEvent(item) {
     chatEvents = [...chatEvents.slice(-49), { type: 'tool', ...item }];
-    if (!item?.tool || !item?.status) return;
+    if (!item?.tool || !item?.status) {
+      scrollChatToBottom();
+      return;
+    }
     if (item.status === 'running') {
       upsertStreamingToolCall(item);
+      scrollChatToBottom();
       return;
     }
     if (item.status === 'completed' || item.status === 'failed') {
       upsertStreamingToolResult(item);
     }
+    scrollChatToBottom();
   }
 
   function upsertStreamingToolCall(item) {
@@ -651,12 +736,16 @@
         handleToolStatusEvent(item);
       } catch {
         chatEvents = [...chatEvents.slice(-49), { type: 'tool', status: 'unknown', raw: event.data }];
+        scrollChatToBottom();
       }
       return;
     }
     try {
       const chunk = JSON.parse(event.data);
       if (chunk?.x_session_id) {
+        if (!$currentSession) {
+          moveSessionTools('__new__', chunk.x_session_id);
+        }
         currentSession.set(chunk.x_session_id);
       }
       const delta = chunk?.choices?.[0]?.delta?.content;
@@ -668,6 +757,7 @@
           last.content += delta;
           messages = messages;
         }
+        scrollChatToBottom();
       }
     } catch {
       // ignore malformed frames
@@ -676,7 +766,7 @@
 </script>
 
 <section class="chat-view">
-  <div class="chat-scroll">
+  <div class="chat-scroll" bind:this={chatScroll} on:scroll={handleChatScroll}>
     {#if messages.length === 0 && !busy}
       <div class="welcome">
         <h2>{$t('chat.welcome')}</h2>
@@ -706,7 +796,7 @@
               {#if msg.images?.length}
                 <div class="msg-images">
                   {#each msg.images as image}
-                    <img src={image.dataUrl} alt={image.name} />
+                    <img src={image.dataUrl} alt={image.name} on:load={() => scrollChatToBottom()} />
                   {/each}
                 </div>
               {/if}
@@ -866,7 +956,7 @@
                   {#if msg.detail?.images?.length}
                     <div class="msg-images">
                       {#each msg.detail.images as image}
-                        <img src={image.dataUrl} alt={image.name} />
+                        <img src={image.dataUrl} alt={image.name} on:load={() => scrollChatToBottom()} />
                       {/each}
                     </div>
                   {/if}
@@ -977,6 +1067,19 @@
             {/each}
           {/if}
         </select>
+        <div class="tool-toggles" aria-label={$t('chat.tools')}>
+          {#each toolToggles as item}
+            <label class="tool-toggle" title={$t(`chat.toolToggle.${item.key}`)}>
+              <input
+                type="checkbox"
+                checked={sessionTools[item.key]}
+                disabled={!apiEnabled || busy}
+                on:change={(event) => updateToolOption(item.key, event)}
+              />
+              <span>{item.label}</span>
+            </label>
+          {/each}
+        </div>
       </div>
       <div class="right">
         {#if busy}

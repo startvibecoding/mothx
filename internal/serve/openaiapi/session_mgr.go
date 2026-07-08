@@ -3,6 +3,7 @@ package openaiapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -28,6 +29,10 @@ type APISession struct {
 	Mode         string // session-level mode override
 	DelegateMode bool   // session-level delegation mode
 	Workflows    bool   // session-level workflow mode
+	WebSearch    bool   // session-level hosted web search toggle
+	Browser      bool   // session-level browser tool toggle
+	A2AMaster    bool   // session-level A2A dispatch tool toggle
+	MultiAgent   bool   // session-level sub-agent tools toggle
 	LastUsed     time.Time
 	mu           sync.Mutex // serializes requests within this session
 
@@ -42,6 +47,10 @@ type ActiveSessionInfo struct {
 	Mode         string    `json:"mode,omitempty"`
 	DelegateMode bool      `json:"delegateMode,omitempty"`
 	Workflows    bool      `json:"workflows,omitempty"`
+	WebSearch    bool      `json:"webSearch,omitempty"`
+	Browser      bool      `json:"browser,omitempty"`
+	A2AMaster    bool      `json:"a2aMaster,omitempty"`
+	MultiAgent   bool      `json:"multiAgent,omitempty"`
 	Active       bool      `json:"active"`
 	LastUsed     time.Time `json:"lastUsed"`
 	MessageCount int       `json:"messageCount"`
@@ -91,6 +100,12 @@ var ErrActiveSessionIDAmbiguous = errors.New("active session ID is ambiguous")
 
 // ErrSessionToolResultNotFound is returned when a persisted tool result cannot be found.
 var ErrSessionToolResultNotFound = errors.New("session tool result not found")
+
+// ErrSessionNotFound is returned when a session cannot be found in memory or persistence.
+var ErrSessionNotFound = errors.New("session not found")
+
+// ErrInvalidCapability is returned when a capability patch contains an invalid value.
+var ErrInvalidCapability = errors.New("invalid capability value")
 
 // Lock acquires the session lock (one request at a time per session).
 func (s *APISession) Lock() { s.mu.Lock() }
@@ -283,6 +298,10 @@ func (p *SessionPool) listDetails() []ActiveSessionInfo {
 			Mode:         s.Mode,
 			DelegateMode: s.DelegateMode,
 			Workflows:    s.Workflows,
+			WebSearch:    s.WebSearch,
+			Browser:      s.Browser,
+			A2AMaster:    s.A2AMaster,
+			MultiAgent:   s.MultiAgent,
 			Active:       true,
 			LastUsed:     s.LastUsed,
 			MessageCount: messageCount,
@@ -312,6 +331,32 @@ func (p *SessionPool) getExact(id string) (*APISession, error) {
 		found = s
 	}
 	return found, nil
+}
+
+func (s *Server) findSessionWorkDir(id string) (string, bool, error) {
+	if id == "" || s == nil {
+		return "", false, nil
+	}
+	if s.pool != nil {
+		sess, err := s.pool.getExact(id)
+		if err != nil {
+			return "", false, err
+		}
+		if sess != nil {
+			return sess.WorkDir, true, nil
+		}
+	}
+	if s.settings == nil {
+		return "", false, nil
+	}
+	mgr, err := session.OpenByIDExact(s.settings.GetSessionDir(), id)
+	if err != nil {
+		return "", false, nil
+	}
+	if header := mgr.GetHeader(); header != nil {
+		return header.Cwd, true, nil
+	}
+	return "", true, nil
 }
 
 // Stop shuts down the cleanup goroutine.
@@ -410,6 +455,294 @@ func (s *Server) ListActiveSessions() []ActiveSessionInfo {
 		return sessions[i].LastUsed.After(sessions[j].LastUsed)
 	})
 	return sessions
+}
+
+// CapabilityOverview returns serve-level capability defaults and availability.
+func (s *Server) CapabilityOverview() CapabilityOverview {
+	defaults := s.defaultSessionCapabilities("", false, false)
+	return CapabilityOverview{
+		Modes: []string{"plan", "agent", "yolo"},
+		Features: map[string]CapabilityFeature{
+			"delegate":   {Available: true, Default: defaults.DelegateMode},
+			"multiAgent": {Available: true, Default: defaults.MultiAgent},
+			"workflows":  {Available: true, Default: defaults.Workflows},
+			"webSearch":  {Available: true, Default: defaults.WebSearch},
+			"browser":    {Available: true, Default: defaults.Browser},
+			"a2aMaster":  {Available: true, Default: defaults.A2AMaster},
+			"sandbox":    {Available: true, Default: s != nil && s.cfg != nil && s.cfg.Sandbox.Enabled},
+		},
+		Defaults: defaults,
+	}
+}
+
+// GetSessionCapabilities returns runtime capabilities for an active or persisted session.
+func (s *Server) GetSessionCapabilities(id string) (*SessionCapabilities, error) {
+	if id == "" {
+		return nil, ErrSessionNotFound
+	}
+	if s != nil && s.pool != nil {
+		sess, err := s.pool.getExact(id)
+		if err != nil {
+			return nil, err
+		}
+		if sess != nil {
+			caps := s.capabilitiesFromSession(sess, true, sess.Manager != nil)
+			return &caps, nil
+		}
+	}
+	if s == nil || s.settings == nil {
+		return nil, ErrSessionNotFound
+	}
+	mgr, err := session.OpenByIDExact(s.settings.GetSessionDir(), id)
+	if err != nil {
+		return nil, ErrSessionNotFound
+	}
+	workDir := ""
+	if header := mgr.GetHeader(); header != nil {
+		workDir = header.Cwd
+	}
+	caps := s.defaultSessionCapabilities(workDir, false, true)
+	caps.ID = id
+	if stored, ok, err := s.loadStoredCapabilities(id); err != nil {
+		return nil, err
+	} else if ok {
+		applyStoredCapabilitiesToResponse(&caps, stored)
+	}
+	return &caps, nil
+}
+
+// PatchSessionCapabilities activates a session if needed and updates mutable runtime capabilities.
+func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatch) (*SessionCapabilities, error) {
+	if id == "" {
+		return nil, ErrSessionNotFound
+	}
+	workDir, found, err := s.findSessionWorkDir(id)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, ErrSessionNotFound
+	}
+	sess, err := s.getOrCreateSession(id, workDir)
+	if err != nil {
+		return nil, err
+	}
+	if sess == nil {
+		return nil, ErrSessionNotFound
+	}
+	sess.Lock()
+	defer sess.Unlock()
+
+	refreshContext := false
+	if patch.Mode != nil {
+		mode := strings.TrimSpace(*patch.Mode)
+		if err := validateCapabilityMode(mode); err != nil {
+			return nil, err
+		}
+		sess.Mode = mode
+	}
+	if applyBoolOption(&sess.WebSearch, patch.WebSearch) {
+		// Web search affects hosted tool injection at next agent construction.
+	}
+	if applyBoolOption(&sess.Browser, patch.Browser) {
+		refreshContext = true
+	}
+	if applyBoolOption(&sess.A2AMaster, patch.A2AMaster) {
+		// A2A registry sync happens below.
+	}
+	delegate := patch.DelegateMode
+	if delegate == nil {
+		delegate = patch.Delegate
+	}
+	applyBoolOption(&sess.DelegateMode, delegate)
+	applyBoolOption(&sess.MultiAgent, patch.MultiAgent)
+	if applyBoolOption(&sess.Workflows, patch.Workflows) {
+		refreshContext = true
+	}
+	if err := s.syncSessionTools(sess, refreshContext); err != nil {
+		return nil, err
+	}
+	if err := s.persistSessionCapabilities(sess); err != nil {
+		return nil, err
+	}
+	sess.Touch()
+
+	caps := s.capabilitiesFromSession(sess, true, sess.Manager != nil)
+	caps.RuntimeOnly = false
+	caps.PersistenceNote = ""
+	return &caps, nil
+}
+
+func (s *Server) loadStoredCapabilities(id string) (*session.SessionCapabilities, bool, error) {
+	if s == nil || s.settings == nil || id == "" {
+		return nil, false, nil
+	}
+	return session.LoadSessionCapabilities(s.settings.GetSessionDir(), id)
+}
+
+func (s *Server) applyStoredSessionCapabilities(sess *APISession) error {
+	if sess == nil {
+		return nil
+	}
+	stored, ok, err := s.loadStoredCapabilities(sess.ID)
+	if err != nil || !ok {
+		return err
+	}
+	oldBrowser := sess.Browser
+	oldWorkflows := sess.Workflows
+	if err := applyStoredCapabilitiesToSession(sess, stored); err != nil {
+		return err
+	}
+	return s.syncSessionTools(sess, oldBrowser != sess.Browser || oldWorkflows != sess.Workflows)
+}
+
+func applyStoredCapabilitiesToSession(sess *APISession, stored *session.SessionCapabilities) error {
+	if sess == nil || stored == nil {
+		return nil
+	}
+	if err := validateCapabilityMode(stored.Mode); err != nil {
+		return err
+	}
+	sess.Mode = stored.Mode
+	sess.DelegateMode = stored.DelegateMode
+	sess.MultiAgent = stored.MultiAgent
+	sess.Workflows = stored.Workflows
+	sess.WebSearch = stored.WebSearch
+	sess.Browser = stored.Browser
+	sess.A2AMaster = stored.A2AMaster
+	return nil
+}
+
+func applyStoredCapabilitiesToResponse(caps *SessionCapabilities, stored *session.SessionCapabilities) {
+	if caps == nil || stored == nil {
+		return
+	}
+	caps.Mode = stored.Mode
+	if caps.Mode == "" {
+		caps.Mode = "yolo"
+	}
+	caps.DelegateMode = stored.DelegateMode
+	caps.Delegate = stored.DelegateMode
+	caps.MultiAgent = stored.MultiAgent
+	caps.Workflows = stored.Workflows
+	caps.WebSearch = stored.WebSearch
+	caps.Browser = stored.Browser
+	caps.A2AMaster = stored.A2AMaster
+	caps.RuntimeOnly = false
+	caps.PersistenceNote = ""
+}
+
+func (s *Server) persistSessionCapabilities(sess *APISession) error {
+	if s == nil || s.settings == nil || sess == nil || sess.ID == "" {
+		return nil
+	}
+	return session.SaveSessionCapabilities(s.settings.GetSessionDir(), session.SessionCapabilities{
+		SessionID:    sess.ID,
+		Mode:         sess.Mode,
+		DelegateMode: sess.DelegateMode,
+		MultiAgent:   sess.MultiAgent,
+		Workflows:    sess.Workflows,
+		WebSearch:    sess.WebSearch,
+		Browser:      sess.Browser,
+		A2AMaster:    sess.A2AMaster,
+		UpdatedAt:    time.Now(),
+	})
+}
+
+func validateCapabilityMode(mode string) error {
+	switch mode {
+	case "", "plan", "agent", "yolo":
+		return nil
+	default:
+		return fmt.Errorf("%w: mode must be plan, agent, yolo, or empty string", ErrInvalidCapability)
+	}
+}
+
+func (s *Server) defaultSessionCapabilities(workDir string, active bool, persisted bool) SessionCapabilities {
+	mode := ""
+	delegateMode := false
+	workflows := false
+	webSearch := false
+	browser := false
+	a2aMaster := false
+	multiAgent := false
+	if s != nil && s.cfg != nil {
+		mode = s.cfg.DefaultMode
+		delegateMode = s.cfg.EnableDelegate
+		workflows = s.cfg.EnableWorkflows
+		webSearch = s.cfg.EnableWebSearch
+		browser = s.cfg.EnableBrowser
+		a2aMaster = s.cfg.EnableA2AMaster
+		multiAgent = s.cfg.EnableSubAgents
+	}
+	if mode == "" {
+		mode = "yolo"
+	}
+	return SessionCapabilities{
+		WorkDir:         workDir,
+		Active:          active,
+		Mode:            mode,
+		DelegateMode:    delegateMode,
+		Delegate:        delegateMode,
+		MultiAgent:      multiAgent,
+		Workflows:       workflows,
+		WebSearch:       webSearch,
+		Browser:         browser,
+		A2AMaster:       a2aMaster,
+		Model:           s.currentModelID(),
+		ThinkingLevel:   s.currentThinkingLevel(),
+		Persisted:       persisted,
+		RuntimeOnly:     true,
+		PersistenceNote: "capability changes are runtime-only until session capability persistence is implemented",
+	}
+}
+
+func (s *Server) capabilitiesFromSession(sess *APISession, active bool, persisted bool) SessionCapabilities {
+	if sess == nil {
+		return s.defaultSessionCapabilities("", active, persisted)
+	}
+	caps := s.defaultSessionCapabilities(sess.WorkDir, active, persisted)
+	caps.ID = sess.ID
+	if sess.Mode != "" {
+		caps.Mode = sess.Mode
+	}
+	caps.DelegateMode = sess.DelegateMode
+	caps.Delegate = sess.DelegateMode
+	caps.MultiAgent = sess.MultiAgent
+	caps.Workflows = sess.Workflows
+	caps.WebSearch = sess.WebSearch
+	caps.Browser = sess.Browser
+	caps.A2AMaster = sess.A2AMaster
+	if _, ok, err := s.loadStoredCapabilities(sess.ID); err == nil && ok {
+		caps.RuntimeOnly = false
+		caps.PersistenceNote = ""
+	}
+	return caps
+}
+
+func (s *Server) currentModelID() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.model == nil {
+		return ""
+	}
+	return s.model.ID
+}
+
+func (s *Server) currentThinkingLevel() string {
+	if s == nil || s.cfg == nil {
+		return ""
+	}
+	if s.cfg.DefaultThinkingLevel != "" {
+		return s.cfg.DefaultThinkingLevel
+	}
+	if s.settings != nil {
+		return s.settings.DefaultThinkingLevel
+	}
+	return ""
 }
 
 // DeleteActiveSession deletes one active session from persistence and the runtime pool.

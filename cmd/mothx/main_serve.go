@@ -67,6 +67,9 @@ func registerServeFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	fs.BoolVar(&flags.multiAgent, "multi-agent", false, "Enable multi-agent mode (sub-agent tools)")
 	fs.BoolVar(&flags.delegate, "delegate", false, "Enable delegation mode (blocking single sub-agent tool)")
 	fs.BoolVar(&flags.workflows, "workflows", false, "Enable workflow mode (Elisp workflow tools)")
+	fs.BoolVar(&flags.webSearch, "web-search", false, "Enable configured web search provider for serve sessions")
+	fs.BoolVar(&flags.browser, "browser", false, "Enable browser automation tool")
+	fs.BoolVar(&flags.enableA2AMaster, "enable-a2a-master", false, "Enable A2A master mode (dispatch tasks to remote agents)")
 	fs.BoolVar(&flags.lobsterMode, "lobster", false, "Enable lobster mode (yolo, no sandbox, sub-agents on)")
 	fs.BoolVar(&flags.verbose, "verbose", false, "Verbose output")
 	fs.BoolVar(&flags.debug, "debug", false, "Enable debug logging")
@@ -84,6 +87,9 @@ func (f *cliFlags) serveOptions() serve.RunOptions {
 		MultiAgent: f.multiAgent,
 		Delegate:   f.delegate,
 		Workflows:  f.workflows,
+		WebSearch:  f.webSearch,
+		Browser:    f.browser,
+		A2AMaster:  f.enableA2AMaster,
 		Lobster:    f.lobsterMode,
 		Verbose:    f.verbose,
 		Debug:      f.debug,

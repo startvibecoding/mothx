@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	browserfeature "github.com/startvibecoding/mothx/internal/browser"
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/debugpprof"
@@ -37,6 +38,9 @@ type RunOptions struct {
 	MultiAgent  bool
 	Delegate    bool
 	Workflows   bool
+	WebSearch   bool
+	Browser     bool
+	A2AMaster   bool
 	Verbose     bool
 	Debug       bool
 	ExtraRoutes func(*Server, *http.ServeMux)
@@ -80,6 +84,9 @@ func Run(opts RunOptions, version string) error {
 	gCfg, err := loadRunConfig(opts)
 	if err != nil {
 		return fmt.Errorf("load API config: %w", err)
+	}
+	if gCfg.EnableWebSearch {
+		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
 
 	// Resolve provider/model
@@ -141,7 +148,7 @@ func Run(opts RunOptions, version string) error {
 		}
 	}
 
-	skillsMgr, extraContext, err := buildWorkDirContext(settings, cwd, gCfg.EnableWorkflows)
+	skillsMgr, extraContext, err := buildWorkDirContext(settings, cwd, gCfg.EnableWorkflows, gCfg.EnableBrowser)
 	if err != nil {
 		return err
 	}
@@ -214,6 +221,15 @@ func Run(opts RunOptions, version string) error {
 		if gCfg.EnableWorkflows {
 			fmt.Fprintf(os.Stderr, "  Workflows: enabled\n")
 		}
+		if gCfg.EnableWebSearch {
+			fmt.Fprintf(os.Stderr, "  Web search: enabled\n")
+		}
+		if gCfg.EnableBrowser {
+			fmt.Fprintf(os.Stderr, "  Browser: enabled\n")
+		}
+		if gCfg.EnableA2AMaster {
+			fmt.Fprintf(os.Stderr, "  A2A master: enabled\n")
+		}
 		fmt.Fprintf(os.Stderr, "  Tool visibility: %s | System prompt: %s\n", gCfg.ToolVisibility.Mode, gCfg.SystemPromptMode)
 		fmt.Fprintf(os.Stderr, "\nReady to serve.\n")
 		errCh <- httpServer.ListenAndServe()
@@ -269,6 +285,15 @@ func applyRunOverrides(cfg *Config, opts RunOptions) {
 	if opts.Workflows {
 		cfg.EnableWorkflows = true
 	}
+	if opts.WebSearch {
+		cfg.EnableWebSearch = true
+	}
+	if opts.Browser {
+		cfg.EnableBrowser = true
+	}
+	if opts.A2AMaster {
+		cfg.EnableA2AMaster = true
+	}
 	if opts.Sandbox {
 		cfg.Sandbox.Enabled = true
 	}
@@ -299,10 +324,15 @@ func registerRoutes(mux *http.ServeMux, srv *Server, opts RunOptions) {
 	}
 }
 
-func buildWorkDirContext(settings *config.Settings, workDir string, workflows bool) (*skills.Manager, string, error) {
+func buildWorkDirContext(settings *config.Settings, workDir string, workflows bool, browser bool) (*skills.Manager, string, error) {
 	if workflows {
 		if _, _, err := workflow.EnsureProjectSkill(workDir); err != nil {
 			return nil, "", fmt.Errorf("create workflow skill: %w", err)
+		}
+	}
+	if browser {
+		if _, _, err := browserfeature.EnsureProjectSkill(workDir); err != nil {
+			return nil, "", fmt.Errorf("create browser skill: %w", err)
 		}
 	}
 	skillsMgr := skills.NewManagerWithProjectDirs(settings.GetGlobalSkillsDir(), skills.ProjectSkillDirs(workDir))
@@ -318,6 +348,9 @@ func buildWorkDirContext(settings *config.Settings, workDir string, workflows bo
 	extraContext += skillsMgr.BuildAllSkillsContext()
 	if workflows {
 		extraContext += skillsMgr.BuildSkillContext(workflow.SkillName)
+	}
+	if browser {
+		extraContext += skillsMgr.BuildSkillContext(browserfeature.SkillName)
 	}
 	return skillsMgr, extraContext, nil
 }

@@ -39,6 +39,9 @@ type RunOptions struct {
 	MultiAgent bool
 	Delegate   bool
 	Workflows  bool
+	WebSearch  bool
+	Browser    bool
+	A2AMaster  bool
 	Lobster    bool
 	Verbose    bool
 	Debug      bool
@@ -67,6 +70,9 @@ type activeSessionManager interface {
 	DeleteActiveSession(id string) (bool, error)
 	GetSessionMessages(id string) ([]openaiapi.SessionMessageEntry, error)
 	GetSessionToolResult(id, toolCallID string) (*openaiapi.SessionToolResultDetail, error)
+	CapabilityOverview() openaiapi.CapabilityOverview
+	GetSessionCapabilities(id string) (*openaiapi.SessionCapabilities, error)
+	PatchSessionCapabilities(id string, patch openaiapi.SessionCapabilityPatch) (*openaiapi.SessionCapabilities, error)
 }
 
 type websocketRuntime interface {
@@ -83,6 +89,10 @@ type featureStatus struct {
 	Feishu     bool `json:"feishu"`
 	WebSocket  bool `json:"websocket"`
 	MultiAgent bool `json:"multiAgent"`
+	Delegate   bool `json:"delegate"`
+	WebSearch  bool `json:"webSearch"`
+	Browser    bool `json:"browser"`
+	A2AMaster  bool `json:"a2aMaster"`
 	Cron       bool `json:"cron"`
 	Memory     bool `json:"memory"`
 }
@@ -120,6 +130,9 @@ func Run(opts RunOptions, version string) error {
 	settings, err := config.LoadSettings()
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
+	}
+	if cfg.API.EnableWebSearch {
+		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
 
 	fmt.Fprintf(os.Stderr, "MothX Serve v%s starting\n", version)
@@ -161,6 +174,9 @@ func Run(opts RunOptions, version string) error {
 		MultiAgent:  opts.MultiAgent,
 		Delegate:    opts.Delegate,
 		Workflows:   opts.Workflows,
+		WebSearch:   opts.WebSearch,
+		Browser:     opts.Browser,
+		A2AMaster:   opts.A2AMaster,
 		Verbose:     opts.Verbose,
 		Debug:       opts.Debug,
 		ExtraRoutes: rt.routes(path),
@@ -220,6 +236,15 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 	if opts.Workflows {
 		cfg.API.EnableWorkflows = true
 	}
+	if opts.WebSearch {
+		cfg.API.EnableWebSearch = true
+	}
+	if opts.Browser {
+		cfg.API.EnableBrowser = true
+	}
+	if opts.A2AMaster {
+		cfg.API.EnableA2AMaster = true
+	}
 	if opts.Lobster {
 		cfg.LobsterMode = true
 	}
@@ -278,6 +303,9 @@ func buildConfigFromServeConfig(cfg *Config) *channels.Config {
 	hCfg.DefaultModel = cfg.API.Model
 	hCfg.MultiAgent = cfg.API.EnableSubAgents
 	hCfg.Sandbox = cfg.API.Sandbox.Enabled
+	hCfg.WebSearch = cfg.API.EnableWebSearch
+	hCfg.Browser = cfg.API.EnableBrowser
+	hCfg.A2AMaster = cfg.API.EnableA2AMaster
 	hCfg.WorkDir = cfg.API.GetWorkDir()
 	hCfg.Wechat = cfg.Channels.Wechat
 	hCfg.Feishu = cfg.Channels.Feishu
@@ -449,6 +477,7 @@ func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *htt
 		sessions := activeSessionManagerFromAPI(srv)
 		mux.HandleFunc("/api/status", rt.handleStatus(sessions))
 		mux.HandleFunc("/api/serve/config", rt.handleServeConfig(configPath))
+		mux.HandleFunc("/api/capabilities", rt.handleCapabilities(sessions))
 		mux.HandleFunc("/api/sessions", rt.handleSessions(sessions))
 		mux.HandleFunc("/api/sessions/", rt.handleSessionByID(sessions))
 		mux.HandleFunc("/api/settings", rt.handleSettings)
@@ -520,22 +549,29 @@ func (rt *channelRuntime) statusSnapshot(sessions activeSessionManager) serveSta
 	}
 	if rt.cfg != nil {
 		status.Listen = rt.cfg.API.GetListenAddr()
-		status.Features = featureStatusFromConfig(rt.cfg.Features)
+		status.Features = featureStatusFromConfig(rt.cfg)
 		status.WebUI = rt.cfg.WebUI
 	}
 	return status
 }
 
-func featureStatusFromConfig(cfg FeatureConfig) featureStatus {
+func featureStatusFromConfig(cfg *Config) featureStatus {
+	if cfg == nil {
+		return featureStatus{}
+	}
 	return featureStatus{
-		WebUI:      cfg.WebUI,
-		OpenAIAPI:  cfg.OpenAIAPI,
-		Wechat:     cfg.Wechat,
-		Feishu:     cfg.Feishu,
-		WebSocket:  cfg.WebSocket,
-		MultiAgent: cfg.MultiAgent,
-		Cron:       cfg.Cron,
-		Memory:     cfg.Memory,
+		WebUI:      cfg.Features.WebUI,
+		OpenAIAPI:  cfg.Features.OpenAIAPI,
+		Wechat:     cfg.Features.Wechat,
+		Feishu:     cfg.Features.Feishu,
+		WebSocket:  cfg.Features.WebSocket,
+		MultiAgent: cfg.Features.MultiAgent,
+		Delegate:   cfg.API.EnableDelegate,
+		WebSearch:  cfg.API.EnableWebSearch,
+		Browser:    cfg.API.EnableBrowser,
+		A2AMaster:  cfg.API.EnableA2AMaster,
+		Cron:       cfg.Features.Cron,
+		Memory:     cfg.Features.Memory,
 	}
 }
 
@@ -549,7 +585,34 @@ func (rt *channelRuntime) handleSessions(sessions activeSessionManager) http.Han
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions.ListActiveSessions()})
+		scope := r.URL.Query().Get("scope")
+		if scope == "" {
+			scope = "all"
+		}
+		list := sessions.ListActiveSessions()
+		switch scope {
+		case "all":
+		case "active":
+			list = filterActiveSessions(list)
+		default:
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid scope: expected all or active"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sessions": list})
+	}
+}
+
+func (rt *channelRuntime) handleCapabilities(sessions activeSessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if sessions == nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+			return
+		}
+		writeJSON(w, http.StatusOK, sessions.CapabilityOverview())
 	}
 }
 
@@ -568,6 +631,65 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 		if id == "" {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "session ID required"})
 			return
+		}
+		if len(parts) == 1 && id == "active" && r.Method == http.MethodGet {
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"sessions": filterActiveSessions(sessions.ListActiveSessions())})
+			return
+		}
+		if len(parts) == 2 && parts[1] == "capabilities" {
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			switch r.Method {
+			case http.MethodGet:
+				caps, err := sessions.GetSessionCapabilities(id)
+				if errors.Is(err, openaiapi.ErrSessionNotFound) {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+					return
+				}
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				writeJSON(w, http.StatusOK, caps)
+				return
+			case http.MethodPatch:
+				body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+				if err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read request body"})
+					return
+				}
+				var patch openaiapi.SessionCapabilityPatch
+				if len(strings.TrimSpace(string(body))) > 0 {
+					if err := json.Unmarshal(body, &patch); err != nil {
+						writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+						return
+					}
+				}
+				caps, err := sessions.PatchSessionCapabilities(id, patch)
+				if errors.Is(err, openaiapi.ErrSessionNotFound) {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+					return
+				}
+				if errors.Is(err, openaiapi.ErrInvalidCapability) {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				writeJSON(w, http.StatusOK, caps)
+				return
+			default:
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
 		}
 		if len(parts) == 2 && parts[1] == "messages" {
 			if r.Method != http.MethodGet {
@@ -643,6 +765,16 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "deleted": true})
 	}
+}
+
+func filterActiveSessions(list []openaiapi.ActiveSessionInfo) []openaiapi.ActiveSessionInfo {
+	active := make([]openaiapi.ActiveSessionInfo, 0, len(list))
+	for _, sess := range list {
+		if sess.Active {
+			active = append(active, sess)
+		}
+	}
+	return active
 }
 
 func (rt *channelRuntime) handleChannels(w http.ResponseWriter, r *http.Request) {

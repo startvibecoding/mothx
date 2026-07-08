@@ -1222,7 +1222,51 @@ label span:first-child { margin-bottom: 2px; }
   align-items: center;
   gap: 8px;
 }
+.composer-bar .left {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.composer-bar .right { flex-shrink: 0; }
 .composer-bar select { max-width: 200px; height: 32px; font-size: 12px; }
+.tool-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.tool-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tool-toggle:hover { border-color: var(--hover-border); color: var(--text); }
+.tool-toggle input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+.tool-toggle:has(input:checked) {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+.tool-toggle:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .file-input { display: none; }
 .icon-btn {
   width: 34px;

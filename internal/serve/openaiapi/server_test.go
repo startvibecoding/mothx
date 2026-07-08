@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/mothx/internal/agent"
+	browserfeature "github.com/startvibecoding/mothx/internal/browser"
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/provider"
@@ -170,6 +171,9 @@ func TestApplyRunOverrides(t *testing.T) {
 		MultiAgent: true,
 		Delegate:   true,
 		Workflows:  true,
+		WebSearch:  true,
+		Browser:    true,
+		A2AMaster:  true,
 	})
 
 	if cfg.Listen != ":9090" {
@@ -189,6 +193,15 @@ func TestApplyRunOverrides(t *testing.T) {
 	}
 	if !cfg.EnableWorkflows {
 		t.Fatal("workflows should be enabled")
+	}
+	if !cfg.EnableWebSearch {
+		t.Fatal("web search should be enabled")
+	}
+	if !cfg.EnableBrowser {
+		t.Fatal("browser should be enabled")
+	}
+	if !cfg.EnableA2AMaster {
+		t.Fatal("A2A master should be enabled")
 	}
 }
 
@@ -238,6 +251,9 @@ func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 		MultiAgent: true,
 		Delegate:   true,
 		Workflows:  true,
+		WebSearch:  true,
+		Browser:    true,
+		A2AMaster:  true,
 	})
 	if err != nil {
 		t.Fatalf("loadRunConfig: %v", err)
@@ -252,7 +268,8 @@ func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 	if cfg.WorkingDir != "/tmp/work" {
 		t.Fatalf("workDir = %q, want /tmp/work", cfg.WorkingDir)
 	}
-	if !cfg.Sandbox.Enabled || !cfg.EnableSubAgents || !cfg.EnableDelegate || !cfg.EnableWorkflows {
+	if !cfg.Sandbox.Enabled || !cfg.EnableSubAgents || !cfg.EnableDelegate || !cfg.EnableWorkflows ||
+		!cfg.EnableWebSearch || !cfg.EnableBrowser || !cfg.EnableA2AMaster {
 		t.Fatal("expected overrides to be applied")
 	}
 
@@ -262,7 +279,8 @@ func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 	if original.WorkingDir != "" {
 		t.Fatalf("original workDir mutated: %q", original.WorkingDir)
 	}
-	if original.Sandbox.Enabled || original.EnableSubAgents || original.EnableDelegate || original.EnableWorkflows {
+	if original.Sandbox.Enabled || original.EnableSubAgents || original.EnableDelegate || original.EnableWorkflows ||
+		original.EnableWebSearch || original.EnableBrowser || original.EnableA2AMaster {
 		t.Fatal("original config booleans mutated")
 	}
 }
@@ -1197,6 +1215,30 @@ func TestChatHandler_WorkDirForbidden(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403", w.Code)
+	}
+}
+
+func TestChatHandler_SessionWorkDirConflict(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	sessionWorkDir := srv.cfg.GetWorkDir()
+	otherWorkDir := t.TempDir()
+	mgr := session.New(sessionWorkDir, srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("cwd-conflict"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	body := fmt.Sprintf(`{"messages":[{"role":"user","content":"hi"}],"x_session_id":"cwd-conflict","x_working_dir":%q}`, otherWorkDir)
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409, body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "does not match session") {
+		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 }
 
@@ -2337,6 +2379,188 @@ func TestAPISessionCreatesAndActivatesWorkflowSkillForWorkDir(t *testing.T) {
 	}
 	if !strings.Contains(sess.ExtraContext, "## Active Skill: "+workflow.SkillName) {
 		t.Fatalf("expected workflow skill to be active in session context")
+	}
+}
+
+func TestAPISessionCreatesAndActivatesBrowserSkillForWorkDir(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	srv.cfg.EnableBrowser = true
+
+	sess, err := srv.getOrCreateSession("browser-sess", workDir)
+	if err != nil {
+		t.Fatalf("getOrCreateSession() error = %v", err)
+	}
+	if sess == nil {
+		t.Fatal("expected session")
+	}
+	skillPath := filepath.Join(workDir, ".skills", browserfeature.SkillName, "SKILL.md")
+	if _, err := os.Stat(skillPath); err != nil {
+		t.Fatalf("expected browser skill at %s: %v", skillPath, err)
+	}
+	if sess.SkillsMgr == nil || sess.SkillsMgr.Get(browserfeature.SkillName) == nil {
+		t.Fatal("expected session skills manager to load browser skill")
+	}
+	if !strings.Contains(sess.ExtraContext, "## Active Skill: "+browserfeature.SkillName) {
+		t.Fatalf("expected browser skill to be active in session context")
+	}
+	if _, ok := sess.Registry.Get(browserfeature.ToolName); !ok {
+		t.Fatal("expected browser tool to be registered")
+	}
+}
+
+func TestAPISessionAppliesPerSessionToolOptions(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	oldCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	defer os.Chdir(oldCwd)
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(workDir, ".mothx"), 0755); err != nil {
+		t.Fatalf("mkdir .mothx: %v", err)
+	}
+	a2aList := `{"agents":[{"name":"reviewer","url":"http://localhost:8093"}]}`
+	if err := os.WriteFile(filepath.Join(workDir, ".mothx", "a2a-list.json"), []byte(a2aList), 0644); err != nil {
+		t.Fatalf("write a2a list: %v", err)
+	}
+
+	sess, err := srv.getOrCreateSession("tool-options-sess", workDir)
+	if err != nil {
+		t.Fatalf("getOrCreateSession() error = %v", err)
+	}
+
+	enabled := true
+	if err := srv.applySessionToolOptions(sess, &SessionToolOptions{
+		WebSearch:  &enabled,
+		Browser:    &enabled,
+		A2AMaster:  &enabled,
+		Delegate:   &enabled,
+		MultiAgent: &enabled,
+	}); err != nil {
+		t.Fatalf("apply enable options: %v", err)
+	}
+	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn"} {
+		if _, ok := sess.Registry.Get(name); !ok {
+			t.Fatalf("expected %s tool to be registered", name)
+		}
+	}
+	if !srv.settingsForSession(sess).IsWebSearchEnabled() {
+		t.Fatal("expected per-session web search to be enabled")
+	}
+
+	disabled := false
+	if err := srv.applySessionToolOptions(sess, &SessionToolOptions{
+		WebSearch:  &disabled,
+		Browser:    &disabled,
+		A2AMaster:  &disabled,
+		Delegate:   &disabled,
+		MultiAgent: &disabled,
+	}); err != nil {
+		t.Fatalf("apply disable options: %v", err)
+	}
+	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn"} {
+		if _, ok := sess.Registry.Get(name); ok {
+			t.Fatalf("expected %s tool to be removed", name)
+		}
+	}
+	if srv.settingsForSession(sess).IsWebSearchEnabled() {
+		t.Fatal("expected per-session web search to be disabled")
+	}
+}
+
+func TestSessionCapabilitiesGetAndPatch(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	mgr := session.New(workDir, srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("caps-sess"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	initial, err := srv.GetSessionCapabilities("caps-sess")
+	if err != nil {
+		t.Fatalf("GetSessionCapabilities: %v", err)
+	}
+	if initial.Active || !initial.Persisted || initial.WorkDir != workDir {
+		t.Fatalf("initial capabilities = %#v", initial)
+	}
+
+	mode := "agent"
+	enabled := true
+	updated, err := srv.PatchSessionCapabilities("caps-sess", SessionCapabilityPatch{
+		Mode:         &mode,
+		WebSearch:    &enabled,
+		Browser:      &enabled,
+		DelegateMode: &enabled,
+		MultiAgent:   &enabled,
+		Workflows:    &enabled,
+	})
+	if err != nil {
+		t.Fatalf("PatchSessionCapabilities enable: %v", err)
+	}
+	if !updated.Active || updated.Mode != "agent" || !updated.Browser || !updated.DelegateMode || !updated.MultiAgent || !updated.Workflows || !updated.WebSearch {
+		t.Fatalf("updated capabilities = %#v", updated)
+	}
+	sess := srv.pool.GetForWorkDir(workDir, "caps-sess")
+	if sess == nil {
+		t.Fatal("expected patched session to be active")
+	}
+	for _, name := range []string{"browser", "delegate_subagent", "subagent_spawn", "workflow_run"} {
+		if _, ok := sess.Registry.Get(name); !ok {
+			t.Fatalf("expected %s tool to be registered", name)
+		}
+	}
+	if !srv.settingsForSession(sess).IsWebSearchEnabled() {
+		t.Fatal("expected web search to be enabled for session")
+	}
+
+	disabled := false
+	if _, err := srv.PatchSessionCapabilities("caps-sess", SessionCapabilityPatch{
+		Browser:      &disabled,
+		DelegateMode: &disabled,
+		MultiAgent:   &disabled,
+		Workflows:    &disabled,
+		WebSearch:    &disabled,
+	}); err != nil {
+		t.Fatalf("PatchSessionCapabilities disable: %v", err)
+	}
+	for _, name := range []string{"browser", "delegate_subagent", "subagent_spawn", "workflow_run"} {
+		if _, ok := sess.Registry.Get(name); ok {
+			t.Fatalf("expected %s tool to be removed", name)
+		}
+	}
+	if srv.settingsForSession(sess).IsWebSearchEnabled() {
+		t.Fatal("expected web search to be disabled for session")
+	}
+
+	reEnabled := true
+	if _, err := srv.PatchSessionCapabilities("caps-sess", SessionCapabilityPatch{
+		Browser:      &reEnabled,
+		DelegateMode: &reEnabled,
+		MultiAgent:   &reEnabled,
+		WebSearch:    &reEnabled,
+	}); err != nil {
+		t.Fatalf("PatchSessionCapabilities re-enable: %v", err)
+	}
+	srv.pool.RemoveByWorkDir(workDir, "caps-sess")
+	persisted, err := srv.GetSessionCapabilities("caps-sess")
+	if err != nil {
+		t.Fatalf("GetSessionCapabilities after pool remove: %v", err)
+	}
+	if persisted.Active || persisted.RuntimeOnly || !persisted.Browser || !persisted.DelegateMode || !persisted.MultiAgent || !persisted.WebSearch {
+		t.Fatalf("persisted capabilities = %#v", persisted)
+	}
+	restored, err := srv.getOrCreateSession("caps-sess", workDir)
+	if err != nil {
+		t.Fatalf("restore session: %v", err)
+	}
+	for _, name := range []string{"browser", "delegate_subagent", "subagent_spawn"} {
+		if _, ok := restored.Registry.Get(name); !ok {
+			t.Fatalf("expected restored %s tool to be registered", name)
+		}
 	}
 }
 

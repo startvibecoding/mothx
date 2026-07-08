@@ -17,6 +17,9 @@ type rawConfig struct {
 	SystemPromptMode   string                   `json:"systemPromptMode,omitempty"`
 	RequestTimeoutSecs *int                     `json:"requestTimeoutSeconds,omitempty"`
 	MaxConcurrentReqs  *int                     `json:"maxConcurrentRequests,omitempty"`
+	WebSearch          *bool                    `json:"webSearch,omitempty"`
+	Browser            *bool                    `json:"browser,omitempty"`
+	A2AMaster          *bool                    `json:"a2aMaster,omitempty"`
 	Agent              *rawAgentConfig          `json:"agent,omitempty"`
 	WebUI              *rawWebUIConfig          `json:"webUI,omitempty"`
 	LobsterMode        bool                     `json:"lobsterMode,omitempty"`
