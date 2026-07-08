@@ -5,9 +5,24 @@
   import { shortID } from '../lib/format.js';
   import { t } from '../lib/preferences.js';
 
+  const pageSize = 25;
+
   let filter = '';
+  let page = 1;
+  let previousFilter = '';
 
   $: filtered = filterList($sessions, filter);
+  $: totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  $: if (filter !== previousFilter) {
+    page = 1;
+    previousFilter = filter;
+  }
+  $: if (page > totalPages) page = totalPages;
+  $: if (page < 1) page = 1;
+  $: pageStart = filtered.length === 0 ? 0 : (page - 1) * pageSize + 1;
+  $: pageEnd = Math.min(filtered.length, page * pageSize);
+  $: pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
+  $: pageNumbers = buildPageNumbers(page, totalPages);
 
   function filterList(list, term) {
     const t = term.trim().toLowerCase();
@@ -20,6 +35,22 @@
   function open(id) {
     currentSession.set(id);
     navigate(id ? `/chat?session=${encodeURIComponent(id)}` : '/chat');
+  }
+
+  function buildPageNumbers(current, total) {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    if (start > 2) pages.push('gap-start');
+    for (let n = start; n <= end; n += 1) pages.push(n);
+    if (end < total - 1) pages.push('gap-end');
+    pages.push(total);
+    return pages;
+  }
+
+  function goToPage(next) {
+    page = Math.min(totalPages, Math.max(1, Number(next) || 1));
   }
 
   async function remove(id) {
@@ -57,7 +88,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each filtered as s (s.id)}
+        {#each pageItems as s (s.id)}
           <tr class:active={$currentSession === s.id}>
             <td>
               <button type="button" class="link-btn" on:click={() => open(s.id)}>
@@ -84,5 +115,29 @@
         {/if}
       </tbody>
     </table>
+    {#if filtered.length > pageSize}
+      <div class="stats-pagination sessions-pagination">
+        <button type="button" class="page-btn" disabled={page <= 1} on:click={() => goToPage(1)}>{$t('common.first')}</button>
+        <button type="button" class="page-btn" disabled={page <= 1} on:click={() => goToPage(page - 1)}>{$t('common.previous')}</button>
+        {#each pageNumbers as item}
+          {#if typeof item === 'number'}
+            <button
+              type="button"
+              class="page-btn"
+              class:active={item === page}
+              aria-current={item === page ? 'page' : undefined}
+              on:click={() => goToPage(item)}
+            >
+              {item}
+            </button>
+          {:else}
+            <span class="page-gap" aria-hidden="true">...</span>
+          {/if}
+        {/each}
+        <button type="button" class="page-btn" disabled={page >= totalPages} on:click={() => goToPage(page + 1)}>{$t('common.nextPage')}</button>
+        <button type="button" class="page-btn" disabled={page >= totalPages} on:click={() => goToPage(totalPages)}>{$t('common.last')}</button>
+        <span class="page-info">{$t('sessions.pageRange', { start: pageStart, end: pageEnd, total: filtered.length })}</span>
+      </div>
+    {/if}
   </div>
 </section>

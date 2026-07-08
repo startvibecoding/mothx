@@ -173,30 +173,52 @@ label span:first-child { margin-bottom: 2px; }
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   padding: 0 10px;
-  height: 36px;
-  margin-bottom: 8px;
+  height: 38px;
+  margin-bottom: 6px;
 }
 .side-search input {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   height: 100%;
   padding: 0;
   font-size: 13px;
+  color: var(--text);
 }
 .side-search input:focus { outline: none; box-shadow: none; }
-.side-search kbd {
+.side-search kbd,
+.new-chat kbd {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 18px;
+  box-sizing: border-box;
   font-size: 11px;
+  border-radius: 4px;
+  font-family: var(--font);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+.side-search kbd {
   color: var(--text-muted);
   border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-family: var(--font);
-  line-height: 1.4;
+  background: var(--bg-secondary);
+}
+.side-search .ico,
+.new-chat .ico {
+  width: 18px;
+  flex-shrink: 0;
+  text-align: center;
 }
 .side-search .ico { font-size: 14px; color: var(--text-muted); }
 
@@ -205,7 +227,8 @@ label span:first-child { margin-bottom: 2px; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 0 12px;
+  box-sizing: border-box;
+  padding: 0 10px;
   height: 38px;
   border-radius: var(--radius-sm);
   background: var(--primary);
@@ -216,16 +239,19 @@ label span:first-child { margin-bottom: 2px; }
   margin-bottom: 8px;
 }
 .new-chat:hover { background: var(--primary-hover); }
-.new-chat .label { flex: 1; text-align: left; }
+.new-chat .label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .new-chat kbd {
-  font-size: 11px;
-  opacity: .6;
-  font-family: var(--font);
-  border: none;
-  background: none;
-  padding: 0;
-  min-height: 0;
   color: inherit;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  opacity: .75;
 }
 
 .side-nav {
@@ -699,6 +725,15 @@ label span:first-child { margin-bottom: 2px; }
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 12px;
+}
+.page-gap {
+  min-width: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.sessions-pagination {
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 /* ─── KV list ─── */

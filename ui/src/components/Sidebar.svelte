@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { sessions, currentSession, features, statsSummary, refreshStatsSummary } from '../lib/stores.js';
   import { route, navigate } from '../lib/router.js';
   import { shortID } from '../lib/format.js';
@@ -7,6 +7,11 @@
   import PreferenceControls from './PreferenceControls.svelte';
 
   let searchTerm = '';
+  let searchInput;
+  let isMac = false;
+  let searchShortcut = 'Ctrl K';
+  let newChatShortcut = 'Ctrl⇧K';
+  let removeShortcutListener = null;
 
   const primaryNav = [
     { key: 'chat', path: '/chat', label: 'nav.newChat', icon: 'edit', accent: true },
@@ -22,9 +27,21 @@
   $: filteredSessions = filterSessions($sessions, searchTerm);
   $: recentSessions = filteredSessions.slice(0, 12);
   $: summaryStats = $statsSummary || {};
+  $: searchAriaShortcut = isMac ? 'Meta+K' : 'Control+K';
+  $: newChatAriaShortcut = isMac ? 'Shift+Meta+K' : 'Shift+Control+K';
 
   onMount(() => {
+    isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '');
+    searchShortcut = isMac ? '⌘K' : 'Ctrl K';
+    newChatShortcut = isMac ? '⇧⌘K' : 'Ctrl⇧K';
+    const onKeydown = (event) => handleGlobalShortcut(event);
+    window.addEventListener('keydown', onKeydown);
+    removeShortcutListener = () => window.removeEventListener('keydown', onKeydown);
     refreshStatsSummary();
+  });
+
+  onDestroy(() => {
+    removeShortcutListener?.();
   });
 
   function filterSessions(list, term) {
@@ -44,6 +61,32 @@
   function openNewChat() {
     currentSession.set('');
     navigate('/chat');
+  }
+
+  async function focusSearch() {
+    await tick();
+    searchInput?.focus();
+    searchInput?.select();
+  }
+
+  function handleGlobalShortcut(event) {
+    const key = (event.key || '').toLowerCase();
+    const mod = isMac ? event.metaKey : event.ctrlKey;
+    if (!mod || key !== 'k' || event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.shiftKey) {
+      openNewChat();
+      return;
+    }
+    focusSearch();
+  }
+
+  function handleSearchKeydown(event) {
+    if (event.key === 'Escape' && searchTerm) {
+      event.preventDefault();
+      searchTerm = '';
+    }
   }
 
   function isActive(item) {
@@ -70,17 +113,26 @@
   <div class="side-search">
     <span class="ico" aria-hidden="true">🔍</span>
     <input
+      bind:this={searchInput}
       bind:value={searchTerm}
       placeholder={$t('sidebar.search')}
       aria-label={$t('sidebar.search')}
+      aria-keyshortcuts={searchAriaShortcut}
+      on:keydown={handleSearchKeydown}
     />
-    <kbd>⌘K</kbd>
+    <kbd>{searchShortcut}</kbd>
   </div>
 
-  <button class="new-chat" on:click={openNewChat}>
+  <button
+    type="button"
+    class="new-chat"
+    on:click={openNewChat}
+    aria-keyshortcuts={newChatAriaShortcut}
+    title={`${$t('nav.newChat')} (${newChatShortcut})`}
+  >
     <span class="ico" aria-hidden="true">✎</span>
     <span class="label">{$t('nav.newChat')}</span>
-    <kbd>⇧ ⌘K</kbd>
+    <kbd>{newChatShortcut}</kbd>
   </button>
 
   <nav class="side-nav" aria-label={$t('nav.sessions')}>
