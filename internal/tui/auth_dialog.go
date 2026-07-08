@@ -225,6 +225,15 @@ func (a *App) handleAuthKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 				return true, nil
 			}
 		}
+		if a.auth.View == authViewModelList && !a.authInputActive() && a.deleteSelectedAuthModel() {
+			a.scheduleRender()
+			return true, nil
+		}
+	case tea.KeyDelete:
+		if a.auth.View == authViewModelList && !a.authInputActive() && a.deleteSelectedAuthModel() {
+			a.scheduleRender()
+			return true, nil
+		}
 	case tea.KeyRunes:
 		if a.auth.View == authViewExistingProvider && len(msg.Runes) > 0 {
 			a.auth.Search += string(msg.Runes)

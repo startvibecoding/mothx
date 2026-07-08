@@ -144,6 +144,45 @@ func (a *App) selectModelList(value string) {
 	}
 }
 
+func (a *App) deleteSelectedAuthModel() bool {
+	opts := a.authModelListOptions()
+	if a.auth.Cursor < 0 || a.auth.Cursor >= len(opts) {
+		return false
+	}
+	value := opts[a.auth.Cursor].Value
+	if !strings.HasPrefix(value, "edit:") {
+		return false
+	}
+	modelID := strings.TrimPrefix(value, "edit:")
+	if _, ok := a.auth.Models[modelID]; !ok {
+		return false
+	}
+
+	delete(a.auth.Models, modelID)
+	order := a.auth.ModelOrder[:0]
+	for _, id := range a.auth.ModelOrder {
+		if id != modelID {
+			order = append(order, id)
+		}
+	}
+	a.auth.ModelOrder = order
+	if len(a.auth.ModelOrder) == 0 {
+		a.auth.ModelOrder = nil
+	}
+	if a.auth.CurrentModelID == modelID {
+		a.auth.CurrentModelID = ""
+		if len(a.auth.ModelOrder) > 0 {
+			a.auth.CurrentModelID = a.auth.ModelOrder[0]
+		}
+	}
+
+	maxCursor := len(a.authModelListOptions()) - 1
+	if a.auth.Cursor > maxCursor {
+		a.auth.Cursor = max(0, maxCursor)
+	}
+	return true
+}
+
 // --- authViewModelGroupList ---
 
 func (a *App) authModelGroupOptions() []authOption {

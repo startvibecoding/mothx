@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/tui/components/editor"
 )
@@ -1000,6 +1002,73 @@ func TestModelGroupDoneReturnsToPreviousView(t *testing.T) {
 	a.selectAuthOption()
 	if a.auth.View != authViewSettingsDetail {
 		t.Fatalf("View = %v, want authViewSettingsDetail", a.auth.View)
+	}
+}
+
+func TestAuthModelListShortcutDeletesSelectedModel(t *testing.T) {
+	a := &App{settings: config.DefaultSettings()}
+	a.auth = authDialogState{
+		Open:           true,
+		View:           authViewModelList,
+		CurrentModelID: "m1",
+		Models: map[string]*modelEditState{
+			"m1": {ID: "m1", Name: "M1", Input: []string{"text"}},
+			"m2": {ID: "m2", Name: "M2", Input: []string{"text"}},
+		},
+		ModelOrder: []string{"m1", "m2"},
+		Cursor:     1,
+	}
+
+	handled, _ := a.handleAuthKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	if !handled {
+		t.Fatal("Backspace was not handled")
+	}
+	if _, ok := a.auth.Models["m1"]; ok {
+		t.Fatal("m1 was not deleted")
+	}
+	if got := strings.Join(a.auth.ModelOrder, ","); got != "m2" {
+		t.Fatalf("ModelOrder = %q, want m2", got)
+	}
+	if a.auth.CurrentModelID != "m2" {
+		t.Fatalf("CurrentModelID = %q, want m2", a.auth.CurrentModelID)
+	}
+
+	handled, _ = a.handleAuthKey(tea.KeyMsg{Type: tea.KeyDelete})
+	if !handled {
+		t.Fatal("Delete was not handled")
+	}
+	if _, ok := a.auth.Models["m2"]; ok {
+		t.Fatal("m2 was not deleted")
+	}
+	if len(a.auth.ModelOrder) != 0 {
+		t.Fatalf("ModelOrder = %#v, want empty", a.auth.ModelOrder)
+	}
+	if a.auth.CurrentModelID != "" {
+		t.Fatalf("CurrentModelID = %q, want empty", a.auth.CurrentModelID)
+	}
+}
+
+func TestAuthModelListShortcutIgnoresActions(t *testing.T) {
+	a := &App{settings: config.DefaultSettings()}
+	a.auth = authDialogState{
+		Open: true,
+		View: authViewModelList,
+		Models: map[string]*modelEditState{
+			"m1": {ID: "m1", Name: "M1", Input: []string{"text"}},
+		},
+		ModelOrder: []string{"m1"},
+		Cursor:     0,
+	}
+
+	a.handleAuthKey(tea.KeyMsg{Type: tea.KeyBackspace})
+	if _, ok := a.auth.Models["m1"]; !ok {
+		t.Fatal("Add Model action should not delete a model")
+	}
+
+	a.auth.Cursor = len(a.authModelListOptions()) - 1
+	a.handleAuthKey(tea.KeyMsg{Type: tea.KeyDelete})
+	if _, ok := a.auth.Models["m1"]; !ok {
+		t.Fatal("Done action should not delete a model")
 	}
 }
 
