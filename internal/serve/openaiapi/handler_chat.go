@@ -138,7 +138,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if req.Stream {
-			s.writeCommandResponseStreaming(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content)
+			s.writeCommandResponseStreaming(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content, req.XTranscript)
 		} else {
 			s.writeCommandResponse(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content)
 		}
@@ -265,7 +265,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	eventCh := a.RunWithUserMessage(ctx, lastUserMessage)
 
 	if req.Stream {
-		s.handleStreamingResponse(w, r, eventCh, currentModel.ID, sess.ID)
+		s.handleStreamingResponse(w, r, eventCh, currentModel.ID, sess.ID, req.XTranscript)
 	} else {
 		s.handleNonStreamingResponse(w, eventCh, currentModel.ID, sess.ID)
 	}
@@ -291,7 +291,7 @@ func sameWorkDir(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
 
-func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string) {
+func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string, transcript bool) {
 	sse := NewSSEWriter(w, modelID, sessionID)
 	sse.WriteRoleDelta()
 
@@ -311,6 +311,9 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 
 		switch ev.Type {
 		case agent.EventTextDelta:
+			if transcript {
+				sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent(ev.TextDelta))
+			}
 			sse.WriteContentDelta(ev.TextDelta)
 
 		case agent.EventToolCall:
@@ -320,16 +323,20 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 				pendingTools[callID] = tc
 			}
 			xToolCalls = append(xToolCalls, XToolCall{Name: name, Args: ev.ToolArgs, Status: "running"})
-			switch toolMode {
-			case "content":
-				sse.WriteContentDelta(formatToolRunning(name, ev.ToolArgs))
-			case "sse_event":
-				sse.WriteToolStatusEvent(ToolStatusEvent{
-					Tool:       name,
-					ToolCallID: callID,
-					Status:     "running",
-					Args:       ev.ToolArgs,
-				})
+			if transcript {
+				sse.WriteTranscriptEvent(messageTranscriptEvent(transcriptToolCallEntry(name, callID, ev)))
+			} else {
+				switch toolMode {
+				case "content":
+					sse.WriteContentDelta(formatToolRunning(name, ev.ToolArgs))
+				case "sse_event":
+					sse.WriteToolStatusEvent(ToolStatusEvent{
+						Tool:       name,
+						ToolCallID: callID,
+						Status:     "running",
+						Args:       ev.ToolArgs,
+					})
+				}
 			}
 
 		case agent.EventToolExecutionEnd:
@@ -359,19 +366,23 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 				name = tc.Name
 			}
 
-			switch toolMode {
-			case "content":
-				sse.WriteToolResult(tc, toolDetail)
-			case "sse_event":
-				sse.WriteToolStatusEvent(ToolStatusEvent{
-					Tool:       name,
-					ToolCallID: ev.ToolCallID,
-					Status:     status,
-					Args:       tc.Args,
-					Summary:    summarizeToolStatusResult(ev.ToolResult),
-					IsError:    ev.ToolError != nil,
-					HasDetail:  ev.ToolCallID != "",
-				})
+			if transcript {
+				sse.WriteTranscriptEvent(messageTranscriptEvent(transcriptToolResultEntry(name, ev, status)))
+			} else {
+				switch toolMode {
+				case "content":
+					sse.WriteToolResult(tc, toolDetail)
+				case "sse_event":
+					sse.WriteToolStatusEvent(ToolStatusEvent{
+						Tool:       name,
+						ToolCallID: ev.ToolCallID,
+						Status:     status,
+						Args:       tc.Args,
+						Summary:    summarizeToolStatusResult(ev.ToolResult),
+						IsError:    ev.ToolError != nil,
+						HasDetail:  ev.ToolCallID != "",
+					})
+				}
 			}
 
 		case agent.EventUsage:
@@ -387,6 +398,9 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 
 		case agent.EventError:
 			if ev.Error != nil {
+				if transcript {
+					sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent("\n\n[Error: " + ev.Error.Error() + "]"))
+				}
 				sse.WriteError(ev.Error.Error())
 			} else {
 				sse.WriteDone(&totalUsage)
@@ -396,6 +410,75 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 	}
 	// Channel closed without EventDone
 	sse.WriteDone(&totalUsage)
+}
+
+func assistantDeltaTranscriptEvent(text string) TranscriptStreamEvent {
+	return TranscriptStreamEvent{
+		Type: "assistant_delta",
+		Message: &SessionMessageEntry{
+			Role:    "assistant",
+			Content: text,
+		},
+	}
+}
+
+func messageTranscriptEvent(entry SessionMessageEntry) TranscriptStreamEvent {
+	return TranscriptStreamEvent{
+		Type:    "message",
+		Message: &entry,
+	}
+}
+
+func transcriptToolCallEntry(name, callID string, ev agent.Event) SessionMessageEntry {
+	args := rawToolArgs(ev.ToolArgs)
+	invalidArgs := ""
+	if ev.ToolCall != nil {
+		if ev.ToolCall.Name != "" {
+			name = ev.ToolCall.Name
+		}
+		if ev.ToolCall.ID != "" {
+			callID = ev.ToolCall.ID
+		}
+		if len(ev.ToolCall.Arguments) > 0 {
+			args = validRawMessage(ev.ToolCall.Arguments)
+		}
+		invalidArgs = ev.ToolCall.InvalidArguments
+	}
+	return SessionMessageEntry{
+		Role:        "toolCall",
+		ToolCallID:  callID,
+		ToolName:    name,
+		Arguments:   args,
+		InvalidArgs: invalidArgs,
+		Plan:        planFromToolCall(name, args),
+	}
+}
+
+func transcriptToolResultEntry(name string, ev agent.Event, status string) SessionMessageEntry {
+	isError := status == "failed" || ev.ToolError != nil
+	summary := summarizeToolStatusResult(ev.ToolResult)
+	if isError && strings.TrimSpace(ev.ToolResult) == "" && ev.ToolError != nil {
+		summary = ev.ToolError.Error()
+	}
+	return SessionMessageEntry{
+		Role:       "toolResult",
+		ToolCallID: ev.ToolCallID,
+		ToolName:   name,
+		IsError:    isError,
+		Summary:    summary,
+		HasDetail:  ev.ToolCallID != "",
+	}
+}
+
+func rawToolArgs(args map[string]any) json.RawMessage {
+	if len(args) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(args)
+	if err != nil || !json.Valid(data) {
+		return nil
+	}
+	return data
 }
 
 func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-chan agent.Event, modelID, sessionID string) {
@@ -516,9 +599,12 @@ func (s *Server) writeCommandResponse(w http.ResponseWriter, result *CommandResu
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (s *Server) writeCommandResponseStreaming(w http.ResponseWriter, result *CommandResult, modelID, sessionID, cmd string) {
+func (s *Server) writeCommandResponseStreaming(w http.ResponseWriter, result *CommandResult, modelID, sessionID, cmd string, transcript bool) {
 	sse := NewSSEWriter(w, modelID, sessionID)
 	sse.WriteRoleDelta()
+	if transcript {
+		sse.WriteTranscriptEvent(assistantDeltaTranscriptEvent(result.Message))
+	}
 	sse.WriteContentDelta(result.Message)
 	sse.WriteDone(&CompletionUsage{})
 }

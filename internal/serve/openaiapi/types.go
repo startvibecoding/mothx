@@ -22,6 +22,7 @@ type ChatCompletionRequest struct {
 	XMode       string              `json:"x_mode,omitempty"`
 	XWorkingDir string              `json:"x_working_dir,omitempty"`
 	XTools      *SessionToolOptions `json:"x_tools,omitempty"`
+	XTranscript bool                `json:"x_transcript,omitempty"`
 }
 
 // SessionToolOptions are per-session runtime tool toggles supplied by WebUI.
@@ -218,6 +219,14 @@ type ToolStatusEvent struct {
 	Summary    string         `json:"summary,omitempty"`
 	IsError    bool           `json:"isError,omitempty"`
 	HasDetail  bool           `json:"hasDetail,omitempty"`
+}
+
+// TranscriptStreamEvent is a WebUI-oriented SSE event that mirrors the
+// /api/sessions/{id}/messages entry shape while the response is still running.
+type TranscriptStreamEvent struct {
+	Type       string               `json:"type"` // "assistant_delta" or "message"
+	XSessionID string               `json:"x_session_id,omitempty"`
+	Message    *SessionMessageEntry `json:"message,omitempty"`
 }
 
 // --- Model list types ---

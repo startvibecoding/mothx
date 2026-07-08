@@ -951,6 +951,85 @@ func TestSSEWriter_ToolStatusEvent(t *testing.T) {
 	}
 }
 
+func TestSSEWriter_TranscriptEvent(t *testing.T) {
+	w := httptest.NewRecorder()
+	sse := NewSSEWriter(w, "test-model", "sess-1")
+	sse.WriteTranscriptEvent(TranscriptStreamEvent{
+		Type: "message",
+		Message: &SessionMessageEntry{
+			Role:       "toolResult",
+			ToolCallID: "call-1",
+			ToolName:   "bash",
+			Summary:    "ok",
+			HasDetail:  true,
+		},
+	})
+	body := w.Body.String()
+	if !strings.Contains(body, "event: transcript") {
+		t.Errorf("missing transcript event: %s", body)
+	}
+	if !strings.Contains(body, `"x_session_id":"sess-1"`) {
+		t.Errorf("missing session id: %s", body)
+	}
+	if !strings.Contains(body, `"role":"toolResult"`) {
+		t.Errorf("missing transcript message: %s", body)
+	}
+}
+
+func TestStreamingResponseTranscriptEvents(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	eventCh := make(chan agent.Event, 4)
+	eventCh <- agent.Event{Type: agent.EventTextDelta, TextDelta: "checking"}
+	eventCh <- agent.Event{
+		Type: agent.EventToolCall,
+		ToolCall: &provider.ToolCallBlock{
+			ID:        "call-1",
+			Name:      "bash",
+			Arguments: json.RawMessage(`{"command":"ls"}`),
+		},
+		ToolArgs: map[string]any{"command": "ls"},
+	}
+	eventCh <- agent.Event{
+		Type:       agent.EventToolExecutionEnd,
+		ToolCallID: "call-1",
+		ToolName:   "bash",
+		ToolResult: "ok\nmore",
+	}
+	eventCh <- agent.Event{Type: agent.EventDone}
+	close(eventCh)
+
+	req := httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	w := httptest.NewRecorder()
+	srv.handleStreamingResponse(w, req, eventCh, "test-model", "sess-1", true)
+
+	body := w.Body.String()
+	if got := strings.Count(body, "event: transcript"); got != 3 {
+		t.Fatalf("transcript event count = %d, want 3: %s", got, body)
+	}
+	for _, want := range []string{
+		`"type":"assistant_delta"`,
+		`"content":"checking"`,
+		`"role":"toolCall"`,
+		`"toolName":"bash"`,
+		`"arguments":{"command":"ls"}`,
+		`"role":"toolResult"`,
+		`"summary":"ok"`,
+		`[DONE]`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %s in body: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "event: tool_status") {
+		t.Fatalf("transcript mode should not emit legacy tool_status events: %s", body)
+	}
+	if strings.Contains(body, "⏳") {
+		t.Fatalf("transcript mode should not mix tool status into content deltas: %s", body)
+	}
+}
+
 // --- writeError / writeJSON tests ---
 
 func TestWriteError(t *testing.T) {
@@ -1761,6 +1840,34 @@ func TestChatHandler_SlashHelp_Streaming(t *testing.T) {
 	ct := w.Header().Get("Content-Type")
 	if !strings.Contains(ct, "text/event-stream") {
 		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+}
+
+func TestChatHandler_SlashHelp_StreamingTranscript(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	body := `{"messages":[{"role":"user","content":"/help"}],"stream":true,"x_transcript":true}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	resBody := w.Body.String()
+	if !strings.Contains(resBody, "event: transcript") {
+		t.Fatalf("streaming command should include transcript event: %s", resBody)
+	}
+	if !strings.Contains(resBody, `"type":"assistant_delta"`) {
+		t.Fatalf("transcript event should carry assistant delta: %s", resBody)
+	}
+	if !strings.Contains(resBody, "/clear") {
+		t.Fatalf("help content should mention /clear: %s", resBody)
+	}
+	if !strings.Contains(resBody, "[DONE]") {
+		t.Fatalf("streaming response should end with [DONE]: %s", resBody)
 	}
 }
 

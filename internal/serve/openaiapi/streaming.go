@@ -95,6 +95,19 @@ func (s *SSEWriter) WriteToolStatusEvent(evt ToolStatusEvent) {
 	}
 }
 
+// WriteTranscriptEvent sends a WebUI transcript event that can be rendered with
+// the same components used for persisted session history.
+func (s *SSEWriter) WriteTranscriptEvent(evt TranscriptStreamEvent) {
+	if evt.XSessionID == "" {
+		evt.XSessionID = s.sessID
+	}
+	data, _ := json.Marshal(evt)
+	fmt.Fprintf(s.w, "event: transcript\ndata: %s\n\n", data)
+	if s.flusher != nil {
+		s.flusher.Flush()
+	}
+}
+
 // WriteDone sends the final chunk with finish_reason and usage, then [DONE].
 func (s *SSEWriter) WriteDone(usage *CompletionUsage) {
 	finishReason := "stop"

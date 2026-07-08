@@ -36,6 +36,7 @@
   let chatScroll;
   let shouldFollowOutput = true;
   let scrollFrame = 0;
+  let streamUsesTranscript = false;
   let sessionToolKey = '__new__';
   let sessionTools = sessionToolsFor({}, sessionToolKey);
 
@@ -150,6 +151,7 @@
     }
     busy = true;
     chatEvents = [];
+    streamUsesTranscript = false;
     clearBanners();
 
     // Add user message
@@ -173,6 +175,7 @@
         x_session_id: $currentSession || undefined,
         x_working_dir: isNewSession ? workDir.trim() : activeSessionWorkDir,
         x_tools: sessionTools,
+        x_transcript: true,
         messages: requestMessages
       });
       const res = await fetch('/v1/chat/completions', {
@@ -649,24 +652,29 @@
     scrollChatToBottom();
   }
 
-  function upsertStreamingToolCall(item) {
-    const toolCallId = item.toolCallId || '';
-    const plan = normalizePlan(item.tool === 'plan' ? item.args : null);
-    const next = plan
-      ? {
-          role: 'plan',
-          toolCallId,
-          toolName: item.tool,
-          plan
-        }
-      : {
-          role: 'toolCall',
-          toolCallId,
-          toolName: item.tool,
-          arguments: item.args,
-          callView: buildToolCallView(item.tool, item.args)
-        };
+  function upsertTranscriptMessage(next) {
+    if (!next) return;
+    if (next.role === 'assistant') {
+      messages = [...messages, next];
+      scrollChatToBottom();
+      return;
+    }
+    if (next.role === 'toolResult') {
+      upsertTranscriptToolResult(next);
+      scrollChatToBottom();
+      return;
+    }
+    if (next.role !== 'toolCall' && next.role !== 'plan') {
+      messages = [...messages, next];
+      scrollChatToBottom();
+      return;
+    }
+    upsertTranscriptToolCall(next);
+    scrollChatToBottom();
+  }
 
+  function upsertTranscriptToolCall(next) {
+    const toolCallId = next.toolCallId || '';
     const idx = toolCallId ? messages.findIndex((m) => m.toolCallId === toolCallId && (m.role === 'toolCall' || m.role === 'plan')) : -1;
     if (idx >= 0) {
       messages[idx] = { ...messages[idx], ...next };
@@ -681,22 +689,8 @@
     messages = [...messages, next];
   }
 
-  function upsertStreamingToolResult(item) {
-    if (item.tool === 'plan' && item.status !== 'failed' && !item.isError) return;
-    const toolCallId = item.toolCallId || '';
-    const next = {
-      role: 'toolResult',
-      toolCallId,
-      toolName: item.tool,
-      summary: item.summary || (item.status === 'failed' ? $t('chat.tool.failed') : $t('chat.tool.completed')),
-      isError: item.isError || item.status === 'failed',
-      hasDetail: Boolean(item.hasDetail && toolCallId),
-      detailLoaded: false,
-      detailLoading: false,
-      detailError: '',
-      detail: null
-    };
-
+  function upsertTranscriptToolResult(next) {
+    const toolCallId = next.toolCallId || '';
     const existing = toolCallId ? messages.findIndex((m) => m.role === 'toolResult' && m.toolCallId === toolCallId) : -1;
     if (existing >= 0) {
       messages[existing] = { ...messages[existing], ...next };
@@ -721,6 +715,29 @@
     messages = [...messages, next];
   }
 
+  function upsertStreamingToolCall(item) {
+    const message = {
+      role: 'toolCall',
+      toolCallId: item.toolCallId || '',
+      toolName: item.tool,
+      arguments: item.args
+    };
+    upsertTranscriptMessage(normalizeSessionMessage(message));
+  }
+
+  function upsertStreamingToolResult(item) {
+    if (item.tool === 'plan' && item.status !== 'failed' && !item.isError) return;
+    const message = {
+      role: 'toolResult',
+      toolCallId: item.toolCallId || '',
+      toolName: item.tool,
+      summary: item.summary || (item.status === 'failed' ? $t('chat.tool.failed') : $t('chat.tool.completed')),
+      isError: item.isError || item.status === 'failed',
+      hasDetail: Boolean(item.hasDetail && item.toolCallId)
+    };
+    upsertTranscriptMessage(normalizeSessionMessage(message));
+  }
+
   function textFromContents(contents = []) {
     return contents
       .filter((block) => block.type === 'text' && block.text)
@@ -730,7 +747,18 @@
 
   function handleStreamEvent(event) {
     if (event.data === '[DONE]') return;
+    if (event.event === 'transcript') {
+      try {
+        const item = JSON.parse(event.data);
+        streamUsesTranscript = true;
+        applyTranscriptStreamEvent(item);
+      } catch {
+        // ignore malformed transcript frames
+      }
+      return;
+    }
     if (event.event === 'tool_status') {
+      if (streamUsesTranscript) return;
       try {
         const item = JSON.parse(event.data);
         handleToolStatusEvent(item);
@@ -749,19 +777,42 @@
         currentSession.set(chunk.x_session_id);
       }
       const delta = chunk?.choices?.[0]?.delta?.content;
-      if (delta) {
-        const last = messages[messages.length - 1];
-        if (!last || last.role !== 'assistant') {
-          messages = [...messages, { role: 'assistant', content: delta }];
-        } else {
-          last.content += delta;
-          messages = messages;
-        }
-        scrollChatToBottom();
+      if (delta && !streamUsesTranscript) {
+        appendAssistantDelta(delta);
       }
     } catch {
       // ignore malformed frames
     }
+  }
+
+  function applyTranscriptStreamEvent(item) {
+    if (item?.x_session_id) {
+      if (!$currentSession) {
+        moveSessionTools('__new__', item.x_session_id);
+      }
+      currentSession.set(item.x_session_id);
+    }
+    const message = item?.message;
+    if (!message) return;
+    if (item.type === 'assistant_delta') {
+      appendAssistantDelta(message.content || '');
+      return;
+    }
+    if (item.type === 'message') {
+      upsertTranscriptMessage(normalizeSessionMessage(message));
+    }
+  }
+
+  function appendAssistantDelta(delta) {
+    if (!delta) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== 'assistant') {
+      messages = [...messages, { role: 'assistant', content: delta }];
+    } else {
+      last.content += delta;
+      messages = messages;
+    }
+    scrollChatToBottom();
   }
 </script>
 
