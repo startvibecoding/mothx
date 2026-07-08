@@ -860,6 +860,19 @@ func TestUIHandlerMissingAssetsReturnsServiceUnavailable(t *testing.T) {
 	}
 }
 
+func TestUIHandlerServesEmbeddedDefault(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	uiHandler(defaultWebUIDir).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "MothX Serve") {
+		t.Fatalf("body = %q", w.Body.String())
+	}
+}
+
 func TestUIHandlerServesIndexFallback(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<main>ok</main>"), 0600); err != nil {
@@ -1106,6 +1119,19 @@ func TestApplyOverridesWebUIDirEnablesWebUI(t *testing.T) {
 	}
 	if !cfg.WebUI.Enabled || !cfg.Features.WebUI {
 		t.Fatalf("webUI should be enabled, config = %#v features = %#v", cfg.WebUI, cfg.Features)
+	}
+}
+
+func TestApplyOverridesWebUIDirCanOverrideDefaultPathFromDisk(t *testing.T) {
+	cfg := DefaultConfig()
+
+	applyOverrides(cfg, RunOptions{WebUIDir: defaultWebUIDir})
+
+	if !filepath.IsAbs(cfg.WebUI.Dir) {
+		t.Fatalf("webUI dir = %q, want absolute path", cfg.WebUI.Dir)
+	}
+	if useEmbeddedWebUI(cfg.WebUI.Dir) {
+		t.Fatalf("webUI dir = %q should force disk assets", cfg.WebUI.Dir)
 	}
 }
 

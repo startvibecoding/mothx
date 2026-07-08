@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/messaging/wechat"
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
+	webui "github.com/startvibecoding/mothx/ui"
 )
 
 type RunOptions struct {
@@ -185,7 +188,13 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 		cfg.API.Listen = listenFromPortOverride(opts.Port)
 	}
 	if opts.WebUIDir != "" {
-		cfg.WebUI.Dir = opts.WebUIDir
+		webUIDir := opts.WebUIDir
+		if useEmbeddedWebUI(webUIDir) {
+			if abs, err := filepath.Abs(webUIDir); err == nil {
+				webUIDir = abs
+			}
+		}
+		cfg.WebUI.Dir = webUIDir
 		cfg.WebUI.Enabled = true
 		cfg.Features.WebUI = true
 	}
@@ -899,27 +908,51 @@ func pathWithinAnyRoot(path string, roots []string) bool {
 	return false
 }
 
+const defaultWebUIDir = "ui/dist"
+
 func uiHandler(dir string) http.Handler {
-	dir = resolveWebUIDir(dir)
-	indexPath := filepath.Join(dir, "index.html")
-	fs := http.FileServer(http.Dir(dir))
+	if useEmbeddedWebUI(dir) {
+		return uiFSHandler(webui.DistFS(), "embedded Web UI assets not found")
+	}
+	return uiFSHandler(os.DirFS(resolveWebUIDir(dir)), "Web UI assets not found. Build ui/dist or set webUI.dir to a built frontend directory.")
+}
+
+func uiFSHandler(fsys fs.FS, missingMessage string) http.Handler {
+	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Join(dir, filepath.Clean(r.URL.Path))
-		if st, err := os.Stat(path); err == nil && !st.IsDir() {
-			fs.ServeHTTP(w, r)
+		name := strings.TrimPrefix(pathpkg.Clean("/"+r.URL.Path), "/")
+		if name == "" {
+			name = "index.html"
+		}
+		if st, err := fs.Stat(fsys, name); err == nil && !st.IsDir() {
+			if name == "index.html" {
+				serveUIIndex(w, fsys)
+				return
+			}
+			fileServer.ServeHTTP(w, r)
 			return
 		}
-		if st, err := os.Stat(indexPath); err == nil && !st.IsDir() {
-			http.ServeFile(w, r, indexPath)
+		if st, err := fs.Stat(fsys, "index.html"); err == nil && !st.IsDir() {
+			serveUIIndex(w, fsys)
 			return
 		}
-		http.Error(w, "Web UI assets not found. Build ui/dist or set webUI.dir to a built frontend directory.", http.StatusServiceUnavailable)
+		http.Error(w, missingMessage, http.StatusServiceUnavailable)
 	})
+}
+
+func serveUIIndex(w http.ResponseWriter, fsys fs.FS) {
+	index, err := fs.ReadFile(fsys, "index.html")
+	if err != nil {
+		http.Error(w, "Web UI index not found", http.StatusServiceUnavailable)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(index)
 }
 
 func resolveWebUIDir(dir string) string {
 	if dir == "" {
-		dir = "ui/dist"
+		dir = defaultWebUIDir
 	}
 	if filepath.IsAbs(dir) {
 		return dir
@@ -947,6 +980,10 @@ func resolveWebUIDir(dir string) string {
 		return fallback
 	}
 	return dir
+}
+
+func useEmbeddedWebUI(dir string) bool {
+	return dir == "" || filepath.ToSlash(filepath.Clean(dir)) == defaultWebUIDir
 }
 
 func hasUIIndex(dir string) bool {

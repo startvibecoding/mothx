@@ -59,7 +59,7 @@ func newServeInitConfigCommand() *cobra.Command {
 func registerServeFlags(fs *pflag.FlagSet, flags *cliFlags) {
 	fs.StringVar(&flags.servePort, "port", "", "Listen port or address (e.g. 8080, :8080, 0.0.0.0:8080)")
 	fs.StringVar(&flags.serveConfig, "config", "", "Path to serve.json")
-	fs.StringVar(&flags.serveWebUIDir, "web-ui-dir", "", "Directory containing built Serve Web UI assets")
+	fs.StringVar(&flags.serveWebUIDir, "web-ui-dir", "", "Override embedded Serve Web UI assets with a built frontend directory")
 	fs.StringVar(&flags.workDir, "work-dir", "", "Default working directory")
 	fs.StringVarP(&flags.provider, "provider", "p", "", "Provider (openai, anthropic, or custom provider name)")
 	fs.StringVarP(&flags.model, "model", "m", "", "Model ID")
