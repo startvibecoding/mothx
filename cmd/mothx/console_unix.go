@@ -9,5 +9,8 @@ func initConsole() error {
 }
 
 func teaProgramOptions() []tea.ProgramOption {
-	return []tea.ProgramOption{tea.WithInputTTY(), tea.WithReportFocus()}
+	// MothX handles split multi-line pastes in the TUI input queue. Leaving
+	// Bubble Tea's bracketed paste parser enabled can make the UI appear frozen
+	// if a terminal or PTY drops the bracketed-paste end marker.
+	return []tea.ProgramOption{tea.WithInputTTY(), tea.WithReportFocus(), tea.WithoutBracketedPaste()}
 }
