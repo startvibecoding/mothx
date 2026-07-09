@@ -14,6 +14,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/auth", Value: "/auth", Description: "Configure provider token, base URL, proxy and models"},
 		{Label: "/settings", Value: "/settings", Description: "Configure settings.json groups, including providers"},
 		{Label: "/mode", Value: "/mode ", Description: "Switch or show execution mode (plan/agent/yolo)"},
+		{Label: "/esm", Value: "/esm ", Description: "Enable Supervisor Mode objective and idle continuation"},
 		{Label: "/model", Value: "/model ", Description: "Switch or show model"},
 		{Label: "/defaultModel", Value: "/defaultModel ", Description: "Set default provider/model; defaults to global settings"},
 		{Label: "/skills", Value: "/skills", Description: "List available skills"},
@@ -132,6 +133,10 @@ func commandArgumentSuggestionItems(value string) []suggest.Item {
 	}
 
 	switch cmd {
+	case "/esm":
+		if argIndex == 1 {
+			return commandArgumentItems(cmd, []string{"edit", "pause", "resume", "clear", "budget"})
+		}
 	case "/mode":
 		if argIndex == 1 {
 			return commandArgumentItems(cmd, []string{"plan", "agent", "yolo"})

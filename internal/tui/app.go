@@ -19,6 +19,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/cron"
+	"github.com/startvibecoding/mothx/internal/esm"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
@@ -230,6 +231,18 @@ type App struct {
 	totalCacheWrite  int
 	totalCostUSD     float64
 	latestUsage      *provider.Usage
+
+	// Enable Supervisor Mode (ESM)
+	esmStore           *esm.Store
+	esmStoreDir        string
+	esmToolsRegistered bool
+	esmFooter          string
+	esmMu              sync.Mutex
+	esmRunSeq          int64
+	esmSteeredSeq      int64
+	esmRunTracked      bool
+	esmRunSessionID    string
+	esmRunTokens       int64
 
 	// Spinner state
 	spinnerIndex int
@@ -496,6 +509,9 @@ func (a *App) LoadHistoryMessages() {
 	for _, msg := range historyMessages {
 		switch msg.Role {
 		case "user":
+			if msg.SystemInjected {
+				continue
+			}
 			a.messages = append(a.messages, userStyle.Render("You: ")+msg.Content)
 		case "assistant":
 			// Extract text content from assistant message

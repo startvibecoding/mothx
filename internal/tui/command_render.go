@@ -40,6 +40,8 @@ func commandHelpText() string {
 	return strings.Join([]string{
 		"Commands:",
 		"  /mode [plan|agent|yolo] - Switch or show mode",
+		"  /esm <objective>        - Enable Supervisor Mode for a persistent objective",
+		"  /esm                    - Show Enable Supervisor Mode status",
 		"  /model [model_id]       - Switch or show model",
 		"  /defaultModel [project|global] - Set default provider/model (default: global)",
 		"  /auth                  - Configure provider token, base URL and models",

@@ -1237,8 +1237,8 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	if err := db2.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("schema_migrations should exist: %v", err)
 	}
-	if migrationCount != 9 {
-		t.Errorf("expected 9 migrations applied, got %d", migrationCount)
+	if migrationCount != len(migrations) {
+		t.Errorf("expected %d migrations applied, got %d", len(migrations), migrationCount)
 	}
 
 	// request_stats should exist
@@ -1248,6 +1248,9 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	}
 	if err := db2.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='cron_jobs'").Scan(&tblName); err != nil {
 		t.Fatalf("cron_jobs table should exist after migration: %v", err)
+	}
+	if err := db2.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='session_esm_objectives'").Scan(&tblName); err != nil {
+		t.Fatalf("session_esm_objectives table should exist after migration: %v", err)
 	}
 
 	// Old data should still work

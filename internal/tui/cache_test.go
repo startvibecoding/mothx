@@ -17,6 +17,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/contextfiles"
+	"github.com/startvibecoding/mothx/internal/esm"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -1500,6 +1501,66 @@ func TestHandleAgentEventStatusAndWarningMessage(t *testing.T) {
 	}
 	if !strings.Contains(joined, "context high") || !strings.Contains(joined, "budget low") {
 		t.Fatalf("messages = %q, want pressure warnings", joined)
+	}
+}
+
+func TestESMCommandPreservesObjectiveTextAndRegistersTools(t *testing.T) {
+	tmp := t.TempDir()
+	sessionDir := filepath.Join(tmp, "sessions")
+	settings := config.DefaultSettings()
+	settings.SessionDir = sessionDir
+	sess := session.New(tmp, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init session: %v", err)
+	}
+	a := &App{
+		settings: settings,
+		session:  sess,
+		registry: tools.NewRegistry(tmp, nil),
+		cwd:      tmp,
+	}
+
+	a.handleCommand("/esm build   the thing: 你好")
+
+	store := esm.NewStore(sessionDir)
+	obj, err := store.Get(context.Background(), sess.GetHeader().ID)
+	if err != nil {
+		t.Fatalf("load ESM objective: %v", err)
+	}
+	if obj.Objective != "build   the thing: 你好" {
+		t.Fatalf("objective = %q", obj.Objective)
+	}
+	if _, ok := a.registry.Get("get_esm"); !ok {
+		t.Fatal("get_esm tool was not registered")
+	}
+	if _, ok := a.registry.Get("update_esm"); !ok {
+		t.Fatal("update_esm tool was not registered")
+	}
+}
+
+func TestLoadHistoryMessagesSkipsSystemInjectedUserMessages(t *testing.T) {
+	tmp := t.TempDir()
+	sessionDir := filepath.Join(tmp, "sessions")
+	sess := session.New(tmp, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init session: %v", err)
+	}
+	if _, err := sess.AppendMessage(provider.NewSystemInjectedUserMessage("[ESM continuation] hidden")); err != nil {
+		t.Fatalf("Append system injected: %v", err)
+	}
+	if _, err := sess.AppendMessage(provider.NewUserMessage("visible user")); err != nil {
+		t.Fatalf("Append user: %v", err)
+	}
+
+	a := &App{session: sess}
+	a.LoadHistoryMessages()
+
+	joined := stripANSI(strings.Join(a.messages, "\n"))
+	if strings.Contains(joined, "[ESM continuation] hidden") {
+		t.Fatalf("system injected message was displayed: %q", joined)
+	}
+	if !strings.Contains(joined, "visible user") {
+		t.Fatalf("visible user message missing: %q", joined)
 	}
 }
 

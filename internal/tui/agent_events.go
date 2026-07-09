@@ -174,7 +174,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
 		a.updateViewportContent()
-		return tea.Batch(a.timer.Stop(), a.listenAgentEvents())
+		return tea.Batch(a.timer.Stop(), a.listenAgentEvents(), a.finishESMRun(nil))
 
 	case agent.EventError:
 		a.commitActiveStream()
@@ -193,7 +193,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
 		a.updateViewportContent()
-		return tea.Batch(a.timer.Stop(), a.listenAgentEvents())
+		return tea.Batch(a.timer.Stop(), a.listenAgentEvents(), a.finishESMRun(event.Error))
 
 	case agent.EventUsage:
 		if event.ContextUsage != nil {
@@ -201,6 +201,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		}
 		if event.Usage != nil {
 			a.latestUsage = cloneUsage(event.Usage)
+			a.recordESMUsage(event.Usage)
 			// Accumulate cache stats
 			a.totalInputTokens += event.Usage.TotalInputTokens()
 			a.totalCacheRead += event.Usage.CacheRead
@@ -254,7 +255,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		return a.listenAgentEvents()
 
 	case agent.EventMessageStart:
-		if event.Message.Role == "user" && event.Message.Content != "" {
+		if event.Message.Role == "user" && event.Message.Content != "" && !event.Message.SystemInjected {
 			a.addMessage(userStyle.Render("You: ") + event.Message.Content)
 		}
 		return a.listenAgentEvents()

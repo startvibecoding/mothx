@@ -10,6 +10,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const expectedMigrationCount = 10
+
 func createTestDB(t *testing.T) *DB {
 	t.Helper()
 	tmpDir := t.TempDir()
@@ -290,8 +292,8 @@ func TestMigrationFromOldDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema_migrations table should exist after migration: %v", err)
 	}
-	if migrationCount != 9 {
-		t.Errorf("expected 9 migrations recorded, got %d", migrationCount)
+	if migrationCount != expectedMigrationCount {
+		t.Errorf("expected %d migrations recorded, got %d", expectedMigrationCount, migrationCount)
 	}
 
 	// Verify a specific migration was recorded
@@ -302,6 +304,11 @@ func TestMigrationFromOldDB(t *testing.T) {
 	}
 	if appliedAt == "" {
 		t.Error("migration 004 should have applied_at timestamp")
+	}
+
+	var esmTable string
+	if err := sdb.db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='session_esm_objectives'").Scan(&esmTable); err != nil {
+		t.Fatalf("session_esm_objectives table should exist after migration: %v", err)
 	}
 
 	// request_stats table should now exist and be usable
@@ -357,8 +364,8 @@ func TestIdempotentMigrations(t *testing.T) {
 
 	var count1 int
 	db1.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count1)
-	if count1 != 9 {
-		t.Errorf("expected 9 migrations after first open, got %d", count1)
+	if count1 != expectedMigrationCount {
+		t.Errorf("expected %d migrations after first open, got %d", expectedMigrationCount, count1)
 	}
 	db1.Close()
 
@@ -371,7 +378,7 @@ func TestIdempotentMigrations(t *testing.T) {
 
 	var count2 int
 	db2.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count2)
-	if count2 != 9 {
-		t.Errorf("expected 9 migrations after second open (no re-apply), got %d", count2)
+	if count2 != expectedMigrationCount {
+		t.Errorf("expected %d migrations after second open (no re-apply), got %d", expectedMigrationCount, count2)
 	}
 }

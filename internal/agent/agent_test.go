@@ -1305,8 +1305,8 @@ func TestBuildSystemPrompt(t *testing.T) {
 	}
 
 	// Check that prompt contains expected content
-	if !contains(prompt, "VibeCoding") {
-		t.Error("expected prompt to contain 'VibeCoding'")
+	if !contains(prompt, "MothX") {
+		t.Error("expected prompt to contain 'MothX'")
 	}
 
 	if !contains(prompt, "/home/user/project") {

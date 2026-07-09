@@ -379,6 +379,11 @@ func (a *App) processInput(input string) tea.Cmd {
 		a.addCommandError(fmt.Sprintf("Error creating session: %v", err))
 		return nil
 	}
+	if err := a.syncESMTools(); err != nil {
+		a.addCommandError(fmt.Sprintf("Failed to sync ESM tools: %v", err))
+		return nil
+	}
+	a.prepareESMRun()
 	a.ensureAgent()
 
 	a.registerManagedAgent()
@@ -404,6 +409,11 @@ func (a *App) submitAgentPrompt(prompt string) tea.Cmd {
 		a.addCommandError(fmt.Sprintf("Error creating session: %v", err))
 		return nil
 	}
+	if err := a.syncESMTools(); err != nil {
+		a.addCommandError(fmt.Sprintf("Failed to sync ESM tools: %v", err))
+		return nil
+	}
+	a.prepareESMRun()
 	a.ensureAgent()
 	a.registerManagedAgent()
 	ctx := context.Background()
@@ -482,7 +492,10 @@ func (a *App) ensureAgent() {
 		DelegateMode:       a.delegateMode,
 		Workflows:          a.workflows,
 	}
-	a.agent = agent.New(agentCfg, a.registry)
+	a.agent = agent.NewWithLoopConfig(agent.AgentLoopConfig{
+		Config:              agentCfg,
+		GetSteeringMessages: a.nextESMSteeringMessages,
+	}, a.registry)
 	a.registerManagedAgent()
 
 	// Load history messages from session if available and not yet loaded

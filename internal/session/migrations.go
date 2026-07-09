@@ -149,6 +149,23 @@ var migrations = []migration{
 		CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run);
 		CREATE INDEX IF NOT EXISTS idx_cron_jobs_created_at ON cron_jobs(created_at);`,
 	},
+	{
+		Name: "010_create_session_esm_objectives_table",
+		SQL: `CREATE TABLE IF NOT EXISTS session_esm_objectives (
+			session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+			esm_id TEXT NOT NULL,
+			objective TEXT NOT NULL,
+			status TEXT NOT NULL,
+			token_budget INTEGER,
+			tokens_used INTEGER NOT NULL DEFAULT 0,
+			time_used_ms INTEGER NOT NULL DEFAULT 0,
+			blocked_count INTEGER NOT NULL DEFAULT 0,
+			blocked_reason TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_session_esm_objectives_status ON session_esm_objectives(status);`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

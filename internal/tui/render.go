@@ -310,6 +310,9 @@ func (a *App) renderBuiltinFooter() string {
 			rightParts = append(rightParts, cachePercentStr)
 		}
 	}
+	if a.esmFooter != "" {
+		rightParts = append(rightParts, a.esmFooter)
+	}
 	rightStr := strings.Join(rightParts, " | ")
 	rightWidth := lipgloss.Width(rightStr)
 
