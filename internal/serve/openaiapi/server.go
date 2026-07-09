@@ -58,15 +58,17 @@ type Server struct {
 	allow    *config.AllowConfig
 	version  string
 
-	provider      provider.Provider
-	providerName  string // user-configured vendor name (e.g. "longcat")
-	model         *provider.Model
-	sandboxMgr    *sandbox.Manager
-	skillsMgr     *skills.Manager
-	pool          *SessionPool
-	streamHub     *sessionStreamHub
-	cronStore     cron.CronStore
-	cronScheduler *cron.Scheduler
+	provider         provider.Provider
+	providerName     string // user-configured vendor name (e.g. "longcat")
+	providerOverride string
+	modelOverride    string
+	model            *provider.Model
+	sandboxMgr       *sandbox.Manager
+	skillsMgr        *skills.Manager
+	pool             *SessionPool
+	streamHub        *sessionStreamHub
+	cronStore        cron.CronStore
+	cronScheduler    *cron.Scheduler
 
 	extraContext      string
 	defaultSessionIDs map[string]string // key: workDir, used when x_session_id is empty
@@ -79,6 +81,64 @@ func (s *Server) SessionDir() string {
 		return ""
 	}
 	return s.settings.GetSessionDir()
+}
+
+// ApplySettings updates the runtime provider/model from a saved settings.json.
+func (s *Server) ApplySettings(next *config.Settings) error {
+	if s == nil || next == nil {
+		return nil
+	}
+	s.mu.RLock()
+	if s.cfg == nil {
+		s.mu.RUnlock()
+		return nil
+	}
+	cfg := *s.cfg
+	providerOverride := s.providerOverride
+	modelOverride := s.modelOverride
+	s.mu.RUnlock()
+
+	runtime := *next
+	if cfg.EnableWebSearch {
+		runtime.WebSearch.Enabled = config.BoolPtr(true)
+	}
+	providerName := cfg.Provider
+	if providerOverride != "" {
+		providerName = providerOverride
+	}
+	if providerName == "" {
+		providerName = runtime.DefaultProvider
+	}
+	modelID := cfg.Model
+	if modelOverride != "" {
+		modelID = modelOverride
+	}
+	if modelID == "" {
+		if providerOverride != "" || cfg.Provider != "" {
+			modelID = ""
+		} else {
+			modelID = runtime.DefaultModel
+		}
+	}
+
+	p, model, err := providerfactory.Create(&runtime, providerName, modelID)
+	if err != nil {
+		return fmt.Errorf("create provider: %w", err)
+	}
+	skillsMgr, extraContext, err := buildWorkDirContext(&runtime, cfg.GetWorkDir(), cfg.EnableWorkflows, cfg.EnableBrowser)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.settings = &runtime
+	s.provider = p
+	s.providerName = providerName
+	s.model = model
+	s.skillsMgr = skillsMgr
+	s.extraContext = extraContext
+	s.mu.Unlock()
+	return nil
 }
 
 // Run starts the OpenAI-compatible API server.
@@ -178,6 +238,8 @@ func Run(opts RunOptions, version string) error {
 		version:           version,
 		provider:          p,
 		providerName:      providerName,
+		providerOverride:  opts.Provider,
+		modelOverride:     opts.Model,
 		model:             model,
 		sandboxMgr:        sbMgr,
 		skillsMgr:         skillsMgr,

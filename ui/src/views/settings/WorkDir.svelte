@@ -1,5 +1,5 @@
 <script>
-  import { serveConfig, setError, setNotice, clearBanners } from '../../lib/stores.js';
+  import { serveConfig, refreshAll, setError, setNotice, clearBanners } from '../../lib/stores.js';
   import { putJSON } from '../../lib/api.js';
   import { t } from '../../lib/preferences.js';
 
@@ -14,8 +14,8 @@
       const cfg = JSON.parse(raw);
       defaultWorkDir = readDefaultWorkDir(cfg);
       const rawDirs = readAllowedWorkDirs(cfg);
-      restrictWorkDirs = Array.isArray(rawDirs);
-      allowedWorkDirs = Array.isArray(rawDirs) ? [...rawDirs] : [];
+      allowedWorkDirs = Array.isArray(rawDirs) ? rawDirs.map((dir) => String(dir ?? '')) : [];
+      restrictWorkDirs = allowedWorkDirs.some((dir) => dir.trim());
     } catch {
       defaultWorkDir = '';
       restrictWorkDirs = false;
@@ -63,13 +63,14 @@
       clearLegacyWorkDirFields(cfg.gateway);
 
       const filtered = allowedWorkDirs.map((d) => d.trim()).filter(Boolean);
-      if (restrictWorkDirs) cfg.allowedWorkDirs = filtered;
+      if (restrictWorkDirs && filtered.length > 0) cfg.allowedWorkDirs = filtered;
       else delete cfg.allowedWorkDirs;
       clearAllowedWorkDirs(cfg.api);
       clearAllowedWorkDirs(cfg.gateway);
 
       const saved = await putJSON('/api/serve/config', cfg);
       serveConfig.set(JSON.stringify(saved, null, 2));
+      await refreshAll();
       setNotice($t('settings.workdir.saved'));
     } catch (err) {
       setError(err);

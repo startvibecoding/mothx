@@ -14,10 +14,6 @@
   let wechatOpen = false;
   let wechatLogin = null;
   let wechatPoll = null;
-  let wechatQRDataURL = '';
-  let wechatQRSource = '';
-  let wechatQRLoading = false;
-  let wechatQRError = '';
 
   $: syncFromStore($serveConfig);
 
@@ -212,11 +208,9 @@
     clearBanners();
     wechatOpen = true;
     wechatLogin = { state: 'starting' };
-    resetWechatQRData();
     try {
       await saveConfig('');
       wechatLogin = await postJSON('/api/channels/wechat/login', {});
-      loadWechatQRData(wechatLogin);
       startWechatPolling();
     } catch (err) {
       setError(err);
@@ -237,7 +231,6 @@
   async function loadWechatLogin() {
     try {
       wechatLogin = await request('/api/channels/wechat/login');
-      loadWechatQRData(wechatLogin);
       if (wechatLogin?.state === 'confirmed') {
         stopWechatPolling();
         form.wechat.enabled = true;
@@ -263,42 +256,6 @@
       }
     }
     wechatOpen = false;
-    resetWechatQRData();
-  }
-
-  function resetWechatQRData() {
-    wechatQRDataURL = '';
-    wechatQRSource = '';
-    wechatQRLoading = false;
-    wechatQRError = '';
-  }
-
-  async function loadWechatQRData(login) {
-    const source = login?.qrUrl || '';
-    if (!source) {
-      resetWechatQRData();
-      return;
-    }
-    if (wechatQRSource === source && (wechatQRDataURL || wechatQRLoading)) return;
-    wechatQRSource = source;
-    wechatQRDataURL = '';
-    wechatQRError = '';
-    wechatQRLoading = true;
-    try {
-      const data = await request(addQueryParam(source, 'format', 'base64'));
-      if (wechatQRSource !== source) return;
-      wechatQRDataURL = data?.dataUrl || (data?.base64 ? `data:${data?.contentType || 'image/png'};base64,${data.base64}` : '');
-      if (!wechatQRDataURL) wechatQRError = $t('settings.channels.wechatNoQr');
-    } catch (err) {
-      if (wechatQRSource !== source) return;
-      wechatQRError = err instanceof Error ? err.message : String(err);
-    } finally {
-      if (wechatQRSource === source) wechatQRLoading = false;
-    }
-  }
-
-  function addQueryParam(path, key, value) {
-    return `${path}${path.includes('?') ? '&' : '?'}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
   }
 
   function qrEmbedSrc(value) {
@@ -441,13 +398,15 @@
         <button type="button" class="ghost sm" on:click={closeWechatLogin}>{$t('common.close')}</button>
       </header>
       <div class="qr-panel">
-        {#if wechatQRDataURL}
-          <img class="qr-image" src={wechatQRDataURL} alt={$t('settings.channels.wechatLogin')} />
-        {:else if wechatQRLoading || wechatLogin?.qrUrl || wechatLogin?.state === 'starting'}
-          <p class="empty">{$t('common.loading')}</p>
-        {:else}
-          <p class="empty">{$t('settings.channels.wechatNoQr')}</p>
-        {/if}
+        <p class="empty">
+          {#if wechatLogin?.qrOpenUrl || wechatLogin?.qrUrl}
+            {$t('settings.channels.wechatOpenQrHint')}
+          {:else if wechatLogin?.state === 'starting'}
+            {$t('common.loading')}
+          {:else}
+            {$t('settings.channels.wechatNoQr')}
+          {/if}
+        </p>
         <div class="qr-status">
           <span class="pill" class:on={wechatLogin?.state === 'confirmed'} class:off={wechatLogin?.state === 'error' || wechatLogin?.state === 'cancelled'}>
             {$t(`settings.channels.wechatState.${wechatLogin?.state || 'idle'}`)}
@@ -457,9 +416,6 @@
           {/if}
           {#if wechatLogin?.error}
             <p class="error-text">{wechatLogin.error}</p>
-          {/if}
-          {#if wechatQRError}
-            <p class="error-text">{wechatQRError}</p>
           {/if}
         </div>
       </div>

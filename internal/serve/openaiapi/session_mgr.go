@@ -15,6 +15,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 // APISession holds state for a single API session.
@@ -1201,10 +1202,7 @@ func summarizeToolResult(msg provider.Message) string {
 	if idx := strings.IndexByte(text, '\n'); idx >= 0 {
 		text = text[:idx]
 	}
-	if len(text) > 140 {
-		text = text[:140] + "..."
-	}
-	return text
+	return util.TruncateWithSuffix(text, 140, "...")
 }
 
 func planFromToolCall(toolName string, args json.RawMessage) *SessionTaskPlan {

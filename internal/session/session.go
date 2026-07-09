@@ -15,6 +15,7 @@ import (
 
 	"github.com/startvibecoding/mothx/internal/platform"
 	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/util"
 	_ "modernc.org/sqlite"
 )
 
@@ -1765,9 +1766,7 @@ func buildSessionDetails(sessions []SessionInfo) ([]SessionDetail, error) {
 								}
 							}
 						}
-						if len(text) > 60 {
-							text = text[:60] + "..."
-						}
+						text = util.TruncateWithSuffix(text, 60, "...")
 						d.Preview = text
 					}
 				}

@@ -32,6 +32,7 @@ type SessionToolOptions struct {
 	A2AMaster  *bool `json:"a2aMaster,omitempty"`
 	Delegate   *bool `json:"delegate,omitempty"`
 	MultiAgent *bool `json:"multiAgent,omitempty"`
+	Workflows  *bool `json:"workflows,omitempty"`
 }
 
 // CapabilityFeature describes serve-level capability availability and defaults.

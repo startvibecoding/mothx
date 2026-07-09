@@ -1498,6 +1498,41 @@ func TestHandleBrowseUsesDefaultWorkDirAsStartWithoutAllowlist(t *testing.T) {
 	}
 }
 
+func TestHandleBrowseFallsBackWhenDefaultWorkDirMissing(t *testing.T) {
+	parent := t.TempDir()
+	missing := filepath.Join(parent, "projects", "missing")
+	if err := os.MkdirAll(filepath.Join(parent, "child"), 0700); err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	cfg := DefaultConfig()
+	cfg.API.DefaultWorkDir = missing
+	rt := &channelRuntime{cfg: cfg}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/browse", nil)
+	w := httptest.NewRecorder()
+	rt.handleBrowse(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("default missing status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Path string `json:"path"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode browse response: %v", err)
+	}
+	if got.Path != parent {
+		t.Fatalf("browse path = %q, want nearest existing parent %q", got.Path, parent)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/browse?path="+url.QueryEscape(missing), nil)
+	w = httptest.NewRecorder()
+	rt.handleBrowse(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("explicit missing status = %d, want 403; body = %s", w.Code, w.Body.String())
+	}
+}
+
 func TestHandleBrowseUsesAllowedWorkDirs(t *testing.T) {
 	allowedRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(allowedRoot, "repo"), 0700); err != nil {

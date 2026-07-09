@@ -1,5 +1,5 @@
 <script>
-  import { settings, setError, setNotice, clearBanners } from '../../lib/stores.js';
+  import { settings, setError, setNotice, clearBanners, refreshModels, resetSelectedModelToDefault } from '../../lib/stores.js';
   import { putJSON } from '../../lib/api.js';
   import { t } from '../../lib/preferences.js';
   import ListEditor from './ListEditor.svelte';
@@ -324,6 +324,10 @@
       const next = buildConfigForSave();
       const saved = await putJSON('/api/settings', next);
       settings.set(JSON.stringify(saved, null, 2));
+      if (isProviderSettings) {
+        await refreshModels();
+        resetSelectedModelToDefault();
+      }
       setNotice($t(isProviderSettings ? 'settings.providers.saved' : 'settings.app.saved'));
     } catch (err) {
       setError(err);

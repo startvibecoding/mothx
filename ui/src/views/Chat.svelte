@@ -13,6 +13,7 @@
     clearBanners,
     refreshSessions,
     refreshStatsSummary,
+    resetSelectedModelToDefault,
     getSessionMessages,
     getSessionToolResult,
     getSessionSubAgents,
@@ -77,7 +78,8 @@
     { key: 'browser', label: 'browser' },
     { key: 'a2aMaster', label: 'a2aMaster' },
     { key: 'delegate', label: 'delegate' },
-    { key: 'multiAgent', label: 'multi-agent' }
+    { key: 'multiAgent', label: 'multi-agent' },
+    { key: 'workflows', label: 'workflow' }
   ];
 
   // Reset or load state when the selected session changes.
@@ -108,6 +110,7 @@
         chatEvents = []; // reset tool events
         sessionRunEvents = [];
         sessionCapabilityEvents = [];
+        resetSelectedModelToDefault();
         shouldFollowOutput = true;
       } else if (busy) {
         // The first streaming chunk can assign the newly-created session ID.
@@ -291,6 +294,7 @@
   }
 
   function resetSession() {
+    resetSelectedModelToDefault();
     currentSession.set('');
   }
 
@@ -925,7 +929,7 @@
         agentId: message.agentId,
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
-        summary: message.summary || $t('chat.tool.result'),
+        summary: formatToolResultSummary(message.toolName || 'tool', message.summary || $t('chat.tool.result'), message.isError),
         isError: message.isError,
         hasDetail: message.hasDetail,
         detailLoaded: false,
@@ -952,6 +956,18 @@
       content: message.content || textFromContents(message.contents),
       images
     };
+  }
+
+  function formatToolResultSummary(toolName, summary, isError = false) {
+    if (isError) return summary;
+    if (toolName === 'workflow_lint') {
+      const parsed = parseWorkflowLintResult(summary);
+      if (parsed) {
+        if (parsed.valid) return `${$t('chat.tool.workflowLint.valid')} · ${parsed.status}`;
+        return `${$t('chat.tool.workflowLint.invalid')} · ${parsed.error || parsed.status}`;
+      }
+    }
+    return summary;
   }
 
   function normalizePlan(value) {
@@ -1027,7 +1043,8 @@
       grepMatches: parseGrepResult(content),
       bashResult: parseBashResult(content),
       browserResult: parseBrowserResult(content),
-      subAgentResult: parseSubAgentResult(content)
+      subAgentResult: parseSubAgentResult(content),
+      workflowLintResult: parseWorkflowLintResult(content)
     };
   }
 
@@ -1181,6 +1198,41 @@
         invalidArguments
       };
     }
+    if (name === 'skill_ref') {
+      return {
+        kind: 'skill-ref',
+        label: $t('chat.tool.skillRef.label'),
+        target: value.skill && value.ref ? `${value.skill}/${value.ref}` : $t('chat.tool.skillRef.missing'),
+        details: [
+          value.skill ? $t('chat.tool.skillRef.skill', { skill: value.skill }) : '',
+          value.ref ? $t('chat.tool.skillRef.ref', { ref: value.ref }) : ''
+        ].filter(Boolean),
+        skill: value.skill || '',
+        ref: value.ref || '',
+        raw,
+        invalidArguments
+      };
+    }
+    if (name === 'workflow_lint') {
+      const source = typeof value.source === 'string' ? value.source : '';
+      const firstLine = source.split('\n').map((line) => line.trim()).find(Boolean) || '';
+      const lines = countTextLines(source);
+      const chars = source.length;
+      return {
+        kind: 'workflow-lint',
+        label: $t('chat.tool.workflowLint.label'),
+        target: firstLine ? compactText(firstLine, 120) : $t('chat.tool.workflowLint.missing'),
+        details: [
+          $t('chat.tool.workflowLint.lines', { count: lines }),
+          $t('chat.tool.workflowLint.chars', { count: chars })
+        ],
+        source,
+        lines,
+        chars,
+        raw,
+        invalidArguments
+      };
+    }
     if (name === 'delegate_subagent' || name === 'subagent_spawn') {
       const details = [];
       if (value.mode) details.push($t('chat.tool.subagent.mode', { mode: value.mode }));
@@ -1277,6 +1329,8 @@
     if (toolName === 'grep' && (parseGrepResult(content).matches.length > 0 || content === '(no matches found)')) return 'grep';
     if (toolName === 'bash' && parseBashResult(content)) return 'bash';
     if (toolName === 'browser') return 'browser';
+    if (toolName === 'skill_ref') return 'skill-ref';
+    if (toolName === 'workflow_lint' && parseWorkflowLintResult(content)) return 'workflow-lint';
     if (isSubAgentTool(toolName)) return 'subagent';
     return 'text';
   }
@@ -1394,6 +1448,19 @@
       // fall through to plain text
     }
     return { result: text };
+  }
+
+  function parseWorkflowLintResult(content = '') {
+    const parsed = normalizeJSONValue(content);
+    if (!isPlainObject(parsed) || !Object.prototype.hasOwnProperty.call(parsed, 'valid')) return null;
+    return {
+      valid: parsed.valid === true,
+      status: stringFrom(parsed.status || (parsed.valid ? 'done' : 'error')),
+      error: stringFrom(parsed.error || ''),
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks.map(stringFrom).filter(Boolean) : [],
+      results: Array.isArray(parsed.results) ? parsed.results.map(stringFrom).filter(Boolean) : [],
+      raw: JSON.stringify(parsed, null, 2)
+    };
   }
 
   function parseTaggedSections(content = '') {
@@ -1994,6 +2061,25 @@
                       </div>
                     {/if}
                   </div>
+                {:else if msg.callView?.kind === 'skill-ref'}
+                  <div class="skill-ref-call">
+                    <div class="find-row">
+                      <span>{$t('chat.tool.skillRef.skillLabel')}</span>
+                      <code>{msg.callView.skill || $t('chat.tool.skillRef.missing')}</code>
+                    </div>
+                    <div class="find-row">
+                      <span>{$t('chat.tool.skillRef.refLabel')}</span>
+                      <code>{msg.callView.ref || $t('chat.tool.skillRef.missing')}</code>
+                    </div>
+                  </div>
+                {:else if msg.callView?.kind === 'workflow-lint'}
+                  <div class="workflow-lint-call">
+                    <div class="write-call-head">
+                      <strong>{$t('chat.tool.workflowLint.source')}</strong>
+                      <span>{$t('chat.tool.write.summary', { lines: msg.callView.lines, chars: msg.callView.chars })}</span>
+                    </div>
+                    <pre class:empty={msg.callView.source === ''}>{msg.callView.source || $t('chat.tool.workflowLint.missing')}</pre>
+                  </div>
                 {:else if msg.callView?.kind === 'subagent-task'}
                   <div class="subagent-call">
                     <span>{$t('chat.tool.subagent.task')}</span>
@@ -2071,6 +2157,44 @@
                       {/if}
                       {#if msg.detail.subAgentResult.result || msg.detail.subAgentResult.last_response || msg.detail.subAgentResult.partial_result}
                         <pre>{msg.detail.subAgentResult.result || msg.detail.subAgentResult.last_response || msg.detail.subAgentResult.partial_result}</pre>
+                      {/if}
+                    </div>
+                  {:else if msg.detail?.kind === 'skill-ref' && msg.detail.content}
+                    <div class="skill-ref-result">
+                      <div class="markdown">{@html markdownToHTML(msg.detail.content)}</div>
+                    </div>
+                  {:else if msg.detail?.kind === 'workflow-lint' && msg.detail.workflowLintResult}
+                    <div class="workflow-lint-result">
+                      <div class="workflow-lint-head">
+                        <strong class:failed={!msg.detail.workflowLintResult.valid}>
+                          {msg.detail.workflowLintResult.valid ? $t('chat.tool.workflowLint.valid') : $t('chat.tool.workflowLint.invalid')}
+                        </strong>
+                        {#if msg.detail.workflowLintResult.status}
+                          <span>{msg.detail.workflowLintResult.status}</span>
+                        {/if}
+                      </div>
+                      {#if msg.detail.workflowLintResult.error}
+                        <p class="error-text">{msg.detail.workflowLintResult.error}</p>
+                      {/if}
+                      {#if msg.detail.workflowLintResult.tasks.length}
+                        <section>
+                          <strong>{$t('chat.tool.workflowLint.tasks')}</strong>
+                          <div class="workflow-chip-row">
+                            {#each msg.detail.workflowLintResult.tasks as task}
+                              <code>{task}</code>
+                            {/each}
+                          </div>
+                        </section>
+                      {/if}
+                      {#if msg.detail.workflowLintResult.results.length}
+                        <section>
+                          <strong>{$t('chat.tool.workflowLint.results')}</strong>
+                          <div class="workflow-chip-row">
+                            {#each msg.detail.workflowLintResult.results as result}
+                              <code>{result}</code>
+                            {/each}
+                          </div>
+                        </section>
                       {/if}
                     </div>
                   {:else if msg.detail?.kind === 'bash' && msg.detail.bashResult}
@@ -2376,6 +2500,25 @@
                             <code>{item.callView.selector}</code>
                           </div>
                         {/if}
+                      </div>
+                    {:else if item.callView?.kind === 'skill-ref'}
+                      <div class="skill-ref-call">
+                        <div class="find-row">
+                          <span>{$t('chat.tool.skillRef.skillLabel')}</span>
+                          <code>{item.callView.skill || $t('chat.tool.skillRef.missing')}</code>
+                        </div>
+                        <div class="find-row">
+                          <span>{$t('chat.tool.skillRef.refLabel')}</span>
+                          <code>{item.callView.ref || $t('chat.tool.skillRef.missing')}</code>
+                        </div>
+                      </div>
+                    {:else if item.callView?.kind === 'workflow-lint'}
+                      <div class="workflow-lint-call">
+                        <div class="write-call-head">
+                          <strong>{$t('chat.tool.workflowLint.source')}</strong>
+                          <span>{$t('chat.tool.write.summary', { lines: item.callView.lines, chars: item.callView.chars })}</span>
+                        </div>
+                        <pre class:empty={item.callView.source === ''}>{item.callView.source || $t('chat.tool.workflowLint.missing')}</pre>
                       </div>
                     {:else if item.callView?.kind === 'subagent-task'}
                       <div class="subagent-call">

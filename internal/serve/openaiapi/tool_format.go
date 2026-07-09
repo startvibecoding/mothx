@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 // toolCallInfo tracks a tool call through its lifecycle.
@@ -264,10 +265,7 @@ func toolKeyArg(name string, args map[string]any) string {
 	switch name {
 	case "bash":
 		if cmd, ok := args["command"].(string); ok {
-			if len(cmd) > 120 {
-				return cmd[:120] + "..."
-			}
-			return cmd
+			return util.TruncateWithSuffix(cmd, 120, "...")
 		}
 	case "read", "write", "edit", "ls":
 		if path, ok := args["path"].(string); ok {

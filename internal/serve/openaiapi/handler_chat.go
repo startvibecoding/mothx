@@ -24,6 +24,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
+	"github.com/startvibecoding/mothx/internal/util"
 	"github.com/startvibecoding/mothx/internal/workflow"
 )
 
@@ -656,10 +657,7 @@ func summarizeToolStatusResult(result string) string {
 	if idx := strings.IndexByte(text, '\n'); idx >= 0 {
 		text = text[:idx]
 	}
-	if len(text) > 140 {
-		text = text[:140] + "..."
-	}
-	return text
+	return util.TruncateWithSuffix(text, 140, "...")
 }
 
 func (s *Server) writeCommandResponse(w http.ResponseWriter, result *CommandResult, modelID, sessionID, cmd string) {
@@ -905,14 +903,16 @@ func (s *Server) applySessionToolOptions(sess *APISession, opts *SessionToolOpti
 	}
 	before := capabilitySnapshotFromSession(sess)
 	browserChanged := false
+	workflowsChanged := false
 	if opts != nil {
 		applyBoolOption(&sess.WebSearch, opts.WebSearch)
 		browserChanged = applyBoolOption(&sess.Browser, opts.Browser)
 		applyBoolOption(&sess.A2AMaster, opts.A2AMaster)
 		applyBoolOption(&sess.DelegateMode, opts.Delegate)
 		applyBoolOption(&sess.MultiAgent, opts.MultiAgent)
+		workflowsChanged = applyBoolOption(&sess.Workflows, opts.Workflows)
 	}
-	if err := s.syncSessionTools(sess, browserChanged); err != nil {
+	if err := s.syncSessionTools(sess, browserChanged || workflowsChanged); err != nil {
 		return err
 	}
 	if opts != nil {

@@ -77,7 +77,14 @@
   </div>
 
   <div class="page-body">
-    <table class="table">
+    <table class="table sessions-table">
+      <colgroup>
+        <col class="session-col" />
+        <col class="workdir-col" />
+        <col class="status-col" />
+        <col class="count-col" />
+        <col class="actions-col" />
+      </colgroup>
       <thead>
         <tr>
           <th>{$t('sessions.session')}</th>
@@ -90,16 +97,21 @@
       <tbody>
         {#each pageItems as s (s.id)}
           <tr class:active={$currentSession === s.id}>
-            <td>
-              <button type="button" class="link-btn" on:click={() => open(s.id)}>
+            <td class="session-cell">
+              <button
+                type="button"
+                class="link-btn session-title"
+                title={s.title || s.preview || shortID(s.id)}
+                on:click={() => open(s.id)}
+              >
                 {s.title || s.preview || shortID(s.id)}
               </button>
-              <div class="sub">{s.id}</div>
+              <div class="sub session-id-line" title={s.id}>{s.id}</div>
               {#if s.preview && s.title}
-                <div class="sub">{s.preview}</div>
+                <div class="sub session-preview" title={s.preview}>{s.preview}</div>
               {/if}
             </td>
-            <td class="wd">{s.workDir || '—'}</td>
+            <td class="wd" title={s.workDir || ''}>{s.workDir || '—'}</td>
             <td>{s.active ? $t('sessions.active') : $t('sessions.history')}</td>
             <td class="num">{s.messageCount || 0}</td>
             <td class="actions">

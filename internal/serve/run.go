@@ -101,6 +101,7 @@ type featureStatus struct {
 	WebSearch  bool `json:"webSearch"`
 	Browser    bool `json:"browser"`
 	A2AMaster  bool `json:"a2aMaster"`
+	Workflows  bool `json:"workflows"`
 	Cron       bool `json:"cron"`
 	Memory     bool `json:"memory"`
 }
@@ -502,7 +503,7 @@ func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *htt
 		mux.HandleFunc("/api/sessions", rt.handleSessions(sessions))
 		mux.HandleFunc("/api/sessions/", rt.handleSessionByID(sessions))
 		mux.HandleFunc("/api/stats/", rt.handleStats(srv.SessionDir()))
-		mux.HandleFunc("/api/settings", rt.handleSettings)
+		mux.HandleFunc("/api/settings", rt.handleSettings(srv))
 		mux.HandleFunc("/api/memory", rt.handleMemory)
 		mux.HandleFunc("/api/cron", rt.handleCron)
 		mux.HandleFunc("/api/cron/", rt.handleCronByID)
@@ -715,6 +716,7 @@ func featureStatusFromConfig(cfg *Config) featureStatus {
 		WebSearch:  cfg.API.EnableWebSearch,
 		Browser:    cfg.API.EnableBrowser,
 		A2AMaster:  cfg.API.EnableA2AMaster,
+		Workflows:  cfg.API.EnableWorkflows,
 		Cron:       cfg.Features.Cron,
 		Memory:     cfg.Features.Memory,
 	}
@@ -1065,28 +1067,35 @@ func (rt *channelRuntime) channelStatuses() []channelStatus {
 	return statuses
 }
 
-func (rt *channelRuntime) handleSettings(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		settings, err := config.LoadSettings()
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
+func (rt *channelRuntime) handleSettings(srv *openaiapi.Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			settings, err := config.LoadSettings()
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, settings)
+		case http.MethodPut:
+			var settings config.Settings
+			if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+			if err := config.SaveGlobalSettings(&settings); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			if srv != nil {
+				if err := srv.ApplySettings(&settings); err != nil {
+					log.Printf("serve: apply settings: %v", err)
+				}
+			}
+			writeJSON(w, http.StatusOK, settings)
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
-		writeJSON(w, http.StatusOK, settings)
-	case http.MethodPut:
-		var settings config.Settings
-		if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		if err := config.SaveGlobalSettings(&settings); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		writeJSON(w, http.StatusOK, settings)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
@@ -1173,6 +1182,9 @@ func (rt *channelRuntime) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		path = rt.browseDefaultDir()
+		if fallback := nearestExistingBrowseDir(path); fallback != "" {
+			path = fallback
+		}
 	}
 	abs, parent, err := rt.resolveBrowseDir(path)
 	if err != nil {
@@ -1216,6 +1228,26 @@ func (rt *channelRuntime) browseDefaultDir() string {
 		return cwd
 	}
 	return "."
+}
+
+func nearestExistingBrowseDir(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return ""
+	}
+	abs = filepath.Clean(abs)
+	for {
+		if real, err := filepath.EvalSymlinks(abs); err == nil {
+			if st, statErr := os.Stat(real); statErr == nil && st.IsDir() {
+				return filepath.Clean(real)
+			}
+		}
+		parent := filepath.Dir(abs)
+		if parent == abs {
+			return ""
+		}
+		abs = parent
+	}
 }
 
 func (rt *channelRuntime) resolveBrowseDir(path string) (string, string, error) {

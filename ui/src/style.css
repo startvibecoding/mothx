@@ -312,7 +312,7 @@ label span:first-child { margin-bottom: 2px; }
   gap: 8px;
   width: 100%;
   padding: 0 10px;
-  height: 32px;
+  min-height: 38px;
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -562,6 +562,37 @@ label span:first-child { margin-bottom: 2px; }
 .table .actions { display: flex; gap: 6px; justify-content: flex-end; }
 .table .sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .table .wd { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-table {
+  table-layout: fixed;
+}
+.sessions-table .session-col { width: 42%; }
+.sessions-table .workdir-col { width: 30%; }
+.sessions-table .status-col { width: 86px; }
+.sessions-table .count-col { width: 84px; }
+.sessions-table .actions-col { width: 150px; }
+.sessions-table .session-cell,
+.sessions-table .wd {
+  min-width: 0;
+}
+.sessions-table .session-title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sessions-table .session-id-line,
+.sessions-table .session-preview,
+.sessions-table .wd {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sessions-table .session-id-line {
+  font-family: var(--font-mono);
+}
 .empty-cell { text-align: center; color: var(--text-muted); padding: 24px 14px; }
 
 /* ─── Tags / Pills ─── */
@@ -1078,15 +1109,6 @@ label span:first-child { margin-bottom: 2px; }
   justify-items: center;
   padding: 18px;
 }
-.qr-image {
-  width: min(520px, 86vw);
-  aspect-ratio: 1;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-  object-fit: contain;
-  overflow: hidden;
-}
 .qr-status {
   display: grid;
   justify-items: center;
@@ -1464,6 +1486,8 @@ label span:first-child { margin-bottom: 2px; }
 .write-call,
 .find-call,
 .browser-call,
+.skill-ref-call,
+.workflow-lint-call,
 .subagent-call {
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-secondary);
@@ -1519,7 +1543,8 @@ label span:first-child { margin-bottom: 2px; }
 .edit-pane.old > span { color: var(--danger); }
 .edit-pane.new > span { color: var(--accent); }
 .edit-pane pre,
-.write-call pre {
+.write-call pre,
+.workflow-lint-call pre {
   margin: 0;
   border-top: 0;
   padding: 6px 12px 10px;
@@ -1532,12 +1557,14 @@ label span:first-child { margin-bottom: 2px; }
   background: transparent;
 }
 .edit-pane pre.empty,
-.write-call pre.empty {
+.write-call pre.empty,
+.workflow-lint-call pre.empty {
   color: var(--text-muted);
   font-style: italic;
 }
 .find-call,
-.browser-call {
+.browser-call,
+.skill-ref-call {
   display: grid;
 }
 .subagent-call {
@@ -1629,6 +1656,8 @@ label span:first-child { margin-bottom: 2px; }
 .grep-result,
 .bash-result,
 .browser-result,
+.skill-ref-result,
+.workflow-lint-result,
 .subagent-result {
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-secondary);
@@ -1676,6 +1705,71 @@ label span:first-child { margin-bottom: 2px; }
   padding: 8px 10px;
   max-height: 280px;
   overflow: auto;
+  background: var(--bg);
+}
+.skill-ref-result {
+  padding: 10px 12px;
+}
+.skill-ref-result .markdown {
+  max-height: 480px;
+  overflow: auto;
+}
+.workflow-lint-result {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.workflow-lint-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.workflow-lint-head strong {
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--accent);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+.workflow-lint-head strong.failed {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.workflow-lint-head span,
+.workflow-lint-result section > strong {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.workflow-lint-result section {
+  display: grid;
+  gap: 6px;
+}
+.workflow-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.workflow-chip-row code {
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.workflow-lint-result .error-text {
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
   background: var(--bg);
 }
 .bash-result {

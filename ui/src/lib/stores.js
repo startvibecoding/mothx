@@ -28,7 +28,8 @@ const defaultSessionTools = {
   browser: false,
   a2aMaster: false,
   delegate: false,
-  multiAgent: false
+  multiAgent: false,
+  workflows: false
 };
 export const sessionToolOptions = writable(loadSessionToolOptions());
 
@@ -42,7 +43,8 @@ export const features = derived(status, ($s) => ({
   delegate: $s?.features?.delegate === true,
   webSearch: $s?.features?.webSearch === true,
   browser: $s?.features?.browser === true,
-  a2aMaster: $s?.features?.a2aMaster === true
+  a2aMaster: $s?.features?.a2aMaster === true,
+  workflows: $s?.features?.workflows === true
 }));
 
 export const connectedChannels = derived(channels, ($c) =>
@@ -238,13 +240,43 @@ export async function refreshModels() {
     const list = data?.data || [];
     models.set(list);
     const current = get(selectedModel);
-    if (list.length > 0 && !list.some((m) => m.id === current)) {
-      selectedModel.set(list[0].id);
+    if (list.length > 0 && (!current || current === 'default' || !list.some((m) => m.id === current))) {
+      selectedModel.set(defaultModelForList(list));
     }
   } catch {
     models.set([]);
     selectedModel.set('default');
   }
+}
+
+export function resetSelectedModelToDefault() {
+  const list = get(models);
+  selectedModel.set(defaultModelForList(list));
+}
+
+function defaultModelForList(list = []) {
+  if (!Array.isArray(list) || list.length === 0) return 'default';
+  const ids = new Set(list.map((m) => m?.id).filter(Boolean));
+  const serve = parseJSONStore(serveConfig);
+  const cfg = parseJSONStore(settings);
+  const serveModel = stringValue(serve?.api?.model);
+  if (serveModel && ids.has(serveModel)) return serveModel;
+  const settingsModel = stringValue(cfg?.defaultModel);
+  if (settingsModel && ids.has(settingsModel)) return settingsModel;
+  return list[0]?.id || 'default';
+}
+
+function parseJSONStore(store) {
+  try {
+    const raw = get(store);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function stringValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function loadSessionToolOptions() {
@@ -268,7 +300,8 @@ function normalizeSessionTools(value = {}) {
     browser: Boolean(value.browser),
     a2aMaster: Boolean(value.a2aMaster),
     delegate: Boolean(value.delegate ?? value.delegateMode),
-    multiAgent: Boolean(value.multiAgent)
+    multiAgent: Boolean(value.multiAgent),
+    workflows: Boolean(value.workflows)
   };
 }
 

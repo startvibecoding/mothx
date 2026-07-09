@@ -2559,10 +2559,11 @@ func TestAPISessionAppliesPerSessionToolOptions(t *testing.T) {
 		A2AMaster:  &enabled,
 		Delegate:   &enabled,
 		MultiAgent: &enabled,
+		Workflows:  &enabled,
 	}, ""); err != nil {
 		t.Fatalf("apply enable options: %v", err)
 	}
-	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn"} {
+	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn", "workflow_run"} {
 		if _, ok := sess.Registry.Get(name); !ok {
 			t.Fatalf("expected %s tool to be registered", name)
 		}
@@ -2578,10 +2579,11 @@ func TestAPISessionAppliesPerSessionToolOptions(t *testing.T) {
 		A2AMaster:  &disabled,
 		Delegate:   &disabled,
 		MultiAgent: &disabled,
+		Workflows:  &disabled,
 	}, ""); err != nil {
 		t.Fatalf("apply disable options: %v", err)
 	}
-	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn"} {
+	for _, name := range []string{"browser", "a2a_dispatch", "delegate_subagent", "subagent_spawn", "workflow_run"} {
 		if _, ok := sess.Registry.Get(name); ok {
 			t.Fatalf("expected %s tool to be removed", name)
 		}

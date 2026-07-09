@@ -8,6 +8,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/agent"
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	wsruntime "github.com/startvibecoding/mothx/internal/serve/ws"
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 func (rt *channelRuntime) setupWebSocketRuntime(version string) {
@@ -91,9 +92,7 @@ func (a *serveWSDispatcherAdapter) ListSessions() []wsruntime.SessionInfo {
 		for _, m := range msgs {
 			if m.Role == "user" {
 				preview = m.Content
-				if len(preview) > 60 {
-					preview = preview[:60] + "..."
-				}
+				preview = util.TruncateWithSuffix(preview, 60, "...")
 				break
 			}
 		}

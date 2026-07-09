@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/startvibecoding/mothx/internal/provider"
 	_ "modernc.org/sqlite"
@@ -950,6 +951,34 @@ func TestListForDirDetailedLongPreview(t *testing.T) {
 	}
 	if !strings.HasSuffix(details[0].Preview, "...") {
 		t.Error("expected truncated preview to end with '...'")
+	}
+}
+
+func TestListForDirDetailedLongPreviewKeepsUTF8(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	m.Init()
+	longMsg := "a" + strings.Repeat("你好", 40)
+	m.AppendMessage(provider.NewUserMessage(longMsg))
+
+	details, err := ListForDirDetailed("/tmp/test", sessionDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(details) != 1 {
+		t.Fatalf("expected 1 session, got %d", len(details))
+	}
+	if !strings.HasSuffix(details[0].Preview, "...") {
+		t.Error("expected truncated preview to end with '...'")
+	}
+	if !utf8.ValidString(details[0].Preview) {
+		t.Fatalf("preview should be valid UTF-8, got %q", details[0].Preview)
+	}
+	if strings.ContainsRune(details[0].Preview, utf8.RuneError) {
+		t.Fatalf("preview should not contain replacement rune, got %q", details[0].Preview)
 	}
 }
 
