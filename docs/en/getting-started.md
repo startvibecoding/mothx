@@ -76,13 +76,33 @@ This will automatically download the latest release from GitHub and install the 
 - Linux/macOS: `/usr/local/bin`
 - Windows: `%LOCALAPPDATA%\vibecoding`
 
-### Method 4: Go Install
+### Method 4: Docker (GHCR)
+
+```bash
+# Default Ubuntu image, runs as root
+docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
+
+# Run MothX in the current workspace
+docker run --rm -it -v "$PWD:/workspace" -w /workspace ghcr.io/startvibecoding/mothx:latest
+```
+
+Available tags:
+
+- `latest` / `ubuntu` - default Ubuntu image
+- `debian`, `fedora`, `alpine` - distro variants
+- `vX.Y.Z`, `vX.Y.Z-ubuntu`, `vX.Y.Z-debian`, `vX.Y.Z-fedora`, `vX.Y.Z-alpine` - release tags
+
+Published architectures: `linux/amd64`, `linux/arm64`
+
+The container runs as `root` by default and includes `bash`, `git`, `curl`, `ca-certificates`, and `openssh-client`.
+
+### Method 5: Go Install
 
 ```bash
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
-### Method 5: Build from Source
+### Method 6: Build from Source
 
 ```bash
 # Clone repository
@@ -95,7 +115,7 @@ make build
 # Binary is located at bin/mothx
 ```
 
-### Method 6: Install to System
+### Method 7: Install to System
 
 ```bash
 # After building from source

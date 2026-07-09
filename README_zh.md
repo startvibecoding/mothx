@@ -88,13 +88,25 @@ INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibec
 $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
 ```
 
-**选项 4：Go 安装**
+**选项 4：Docker（GHCR）**
+
+```bash
+# 默认 Ubuntu 镜像，容器以 root 运行，适合直接扩展开发环境
+docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
+
+# 在当前目录运行 MothX
+docker run --rm -it -v "$PWD:/workspace" -w /workspace ghcr.io/startvibecoding/mothx:latest
+```
+
+可用标签：`latest` / `ubuntu`（默认）、`debian`、`fedora`、`alpine`
+
+**选项 5：Go 安装**
 
 ```bash
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
-**选项 5：从源码构建**
+**选项 6：从源码构建**
 
 ```bash
 git clone https://github.com/startvibecoding/mothx.git

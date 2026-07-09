@@ -1,0 +1,17 @@
+.git
+.github
+.idea
+.vscode
+.codex
+.mothx
+.vibe
+bin
+dist
+npm/bin
+ui/node_modules
+ui/dist
+pypi/.venv-build
+pypi/build
+pypi/dist
+pypi/*.egg-info
+*.test

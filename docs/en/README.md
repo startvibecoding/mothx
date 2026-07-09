@@ -115,6 +115,10 @@ pipx install mothx-installer
 # One-line install (Linux/macOS)
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
 
+# Docker (GHCR, Linux amd64/arm64)
+docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
+docker run --rm -it -v "$PWD:/workspace" -w /workspace ghcr.io/startvibecoding/mothx:latest
+
 # Go install
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```

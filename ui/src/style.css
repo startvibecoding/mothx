@@ -172,6 +172,7 @@ label span:first-child { margin-bottom: 2px; }
 .side-search {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
@@ -225,6 +226,7 @@ label span:first-child { margin-bottom: 2px; }
 .new-chat {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
   width: 100%;
   box-sizing: border-box;
@@ -256,6 +258,7 @@ label span:first-child { margin-bottom: 2px; }
 
 .side-nav {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 2px;
   margin-bottom: 8px;
@@ -291,6 +294,7 @@ label span:first-child { margin-bottom: 2px; }
 .side-history-head {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   justify-content: space-between;
   padding: 8px 4px 6px;
   font-size: 12px;
@@ -301,16 +305,45 @@ label span:first-child { margin-bottom: 2px; }
 }
 .side-history-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+.side-history-list.scrolling {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-muted) transparent;
+}
+.side-history-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.side-history-list.scrolling::-webkit-scrollbar {
+  width: 8px;
+}
+.side-history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.side-history-list::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+.side-history-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+  background-clip: content-box;
 }
 .history-item {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
+  flex: 0 0 auto;
   padding: 0 10px;
   min-height: 38px;
   border: none;
@@ -319,7 +352,6 @@ label span:first-child { margin-bottom: 2px; }
   color: var(--text-secondary);
   font-size: 13px;
   text-align: left;
-  min-height: 0;
   overflow: hidden;
 }
 .history-item:hover { background: var(--bg-hover); color: var(--text); }
@@ -341,6 +373,7 @@ label span:first-child { margin-bottom: 2px; }
 
 .side-stats {
   display: grid;
+  flex-shrink: 0;
   gap: 5px;
   width: calc(100% - 8px);
   padding: 7px 8px;
@@ -392,6 +425,7 @@ label span:first-child { margin-bottom: 2px; }
 
 .side-footer {
   display: grid;
+  flex-shrink: 0;
   gap: 10px;
   padding: 10px 4px;
   border-top: 1px solid var(--border);

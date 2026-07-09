@@ -67,6 +67,10 @@ npm install -g vibecoding-installer          # 兼容包，本过渡版本保留
 pipx install mothx-installer               # PyPI
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS
 
+# Docker（GHCR，Linux amd64/arm64）
+docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
+docker run --rm -it -v "$PWD:/workspace" -w /workspace ghcr.io/startvibecoding/mothx:latest
+
 # 设置 API 密钥
 export DEEPSEEK_API_KEY=sk-...
 

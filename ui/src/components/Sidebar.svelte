@@ -12,6 +12,8 @@
   let searchShortcut = 'Ctrl K';
   let newChatShortcut = 'Ctrl⇧K';
   let removeShortcutListener = null;
+  let historyScrollbarVisible = false;
+  let hideHistoryScrollbarTimer = null;
 
   const primaryNav = [
     { key: 'chat', path: '/chat', label: 'nav.newChat', icon: 'edit', accent: true },
@@ -42,6 +44,7 @@
 
   onDestroy(() => {
     removeShortcutListener?.();
+    if (hideHistoryScrollbarTimer) clearTimeout(hideHistoryScrollbarTimer);
   });
 
   function filterSessions(list, term) {
@@ -87,6 +90,15 @@
       event.preventDefault();
       searchTerm = '';
     }
+  }
+
+  function showHistoryScrollbar() {
+    historyScrollbarVisible = true;
+    if (hideHistoryScrollbarTimer) clearTimeout(hideHistoryScrollbarTimer);
+    hideHistoryScrollbarTimer = setTimeout(() => {
+      historyScrollbarVisible = false;
+      hideHistoryScrollbarTimer = null;
+    }, 900);
   }
 
   function isActive(item) {
@@ -175,7 +187,12 @@
         {$t('sidebar.all')}
       </button>
     </div>
-    <div class="side-history-list">
+    <div
+      class="side-history-list"
+      class:scrolling={historyScrollbarVisible}
+      on:wheel={showHistoryScrollbar}
+      on:scroll={showHistoryScrollbar}
+    >
       <button
         type="button"
         class="history-item"

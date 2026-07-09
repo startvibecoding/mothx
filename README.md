@@ -71,6 +71,10 @@ pipx install mothx-installer                # PyPI
 curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS/FreeBSD (GitHub)
 curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS/FreeBSD (Gitee 国内镜像)
 
+# Docker (GHCR, Linux amd64/arm64)
+docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
+docker run --rm -it -v "$PWD:/workspace" -w /workspace ghcr.io/startvibecoding/mothx:latest
+
 # Set your API key
 export DEEPSEEK_API_KEY=sk-...
 

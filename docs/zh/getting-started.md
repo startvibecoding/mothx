@@ -76,13 +76,33 @@ irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstal
 - Linux/macOS: `/usr/local/bin`
 - Windows: `%LOCALAPPDATA%\vibecoding`
 
-### 方法四: Go Install
+### 方法四: Docker (GHCR)
+
+```bash
+# 默认 Ubuntu 镜像，容器以 root 运行
+docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
+
+# 在当前工作区运行 MothX
+docker run --rm -it -v "$PWD:/workspace" -w /workspace ghcr.io/startvibecoding/mothx:latest
+```
+
+可用标签：
+
+- `latest` / `ubuntu` - 默认 Ubuntu 镜像
+- `debian`、`fedora`、`alpine` - 不同发行版镜像
+- `vX.Y.Z`、`vX.Y.Z-ubuntu`、`vX.Y.Z-debian`、`vX.Y.Z-fedora`、`vX.Y.Z-alpine` - 发布标签
+
+支持架构：`linux/amd64`、`linux/arm64`
+
+容器默认以 `root` 运行，并内置 `bash`、`git`、`curl`、`ca-certificates` 和 `openssh-client`。
+
+### 方法五: Go Install
 
 ```bash
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
 
-### 方法五: 从源码构建
+### 方法六: 从源码构建
 
 ```bash
 # 克隆仓库
@@ -95,7 +115,7 @@ make build
 # 二进制文件位于 bin/mothx
 ```
 
-### 方法六: 安装到系统
+### 方法七: 安装到系统
 
 ```bash
 # 从源码构建后
