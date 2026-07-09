@@ -3,16 +3,15 @@
 ARG GO_VERSION=1.26.1
 ARG NODE_VERSION=24
 ARG VERSION=dev
-ARG BUILDPLATFORM
 
-FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim AS ui-builder
+FROM node:${NODE_VERSION}-bookworm-slim AS ui-builder
 WORKDIR /src/ui
 COPY ui/package*.json ./
 RUN npm ci
 COPY ui/ ./
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS go-builder
+FROM golang:${GO_VERSION}-bookworm AS go-builder
 WORKDIR /src
 ARG VERSION
 ARG TARGETARCH
