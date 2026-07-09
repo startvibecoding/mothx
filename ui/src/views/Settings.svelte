@@ -3,6 +3,7 @@
   import SettingsOverview from './settings/Overview.svelte';
   import SettingsServe from './settings/ServeConfig.svelte';
   import SettingsApp from './settings/AppSettings.svelte';
+  import SettingsProviders from './settings/ProviderSettings.svelte';
   import SettingsMemory from './settings/Memory.svelte';
   import SettingsFeatures from './settings/Features.svelte';
   import SettingsWorkDir from './settings/WorkDir.svelte';
@@ -14,6 +15,7 @@
     { key: '', label: 'settings.tabs.overview' },
     { key: 'serve', label: 'settings.tabs.serve' },
     { key: 'workdir', label: 'settings.tabs.workdir' },
+    { key: 'providers', label: 'settings.tabs.providers' },
     { key: 'app', label: 'settings.tabs.app' },
     { key: 'memory', label: 'settings.tabs.memory' },
     { key: 'features', label: 'settings.tabs.features' },
@@ -48,6 +50,8 @@
       <SettingsServe />
     {:else if activeTab === 'workdir'}
       <SettingsWorkDir />
+    {:else if activeTab === 'providers'}
+      <SettingsProviders />
     {:else if activeTab === 'app'}
       <SettingsApp />
     {:else if activeTab === 'memory'}

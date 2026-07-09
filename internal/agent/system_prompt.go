@@ -23,7 +23,7 @@ func BuildSystemPrompt(mode string, toolNames []string, cwd string, ruleContent 
 	}
 
 	// Core identity and environment
-	sb.WriteString(fmt.Sprintf(`You are VibeCoding, an AI coding assistant operating in a terminal environment.
+	sb.WriteString(fmt.Sprintf(`You are MothX, an AI coding assistant operating in a terminal environment.
 
 ## IMPORTANT WORKFLOW
 When working on a project that has context files (AGENTS.md, CLAUDE.md, .cursorrules, etc.),

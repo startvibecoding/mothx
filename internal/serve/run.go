@@ -54,6 +54,7 @@ type channelRuntime struct {
 	version       string
 	dispatcher    *channels.Dispatcher
 	platforms     []messaging.Platform
+	wechatLogin   *wechatLoginSession
 	logHub        *logHub
 	wsRuntime     websocketRuntime
 	cronStore     cron.CronStore
@@ -373,6 +374,7 @@ func (rt *channelRuntime) applyConfigUpdate(next *Config) {
 	rt.cfg = next
 	rt.syncCronRuntime()
 	rt.syncWebSocketRuntime()
+	rt.syncPlatformRuntime()
 }
 
 func (rt *channelRuntime) syncCronRuntime() {
@@ -442,7 +444,9 @@ func (rt *channelRuntime) startPlatforms() {
 		if credPath == "" {
 			credPath = filepath.Join(config.ConfigDir(), "wechat-credentials.json")
 		}
-		if creds, err := wechat.LoadCredentials(credPath); err != nil || creds == nil {
+		if rt.dispatcher == nil {
+			fmt.Fprintf(os.Stderr, "  WeChat: enabled but dispatcher unavailable\n")
+		} else if creds, err := wechat.LoadCredentials(credPath); err != nil || creds == nil {
 			fmt.Fprintf(os.Stderr, "  WeChat: enabled but not logged in\n")
 		} else {
 			bot := wechat.NewBot(wechat.BotOptions{CredPath: credPath, AutoTyping: rt.cfg.Channels.Wechat.AutoTyping})
@@ -455,7 +459,9 @@ func (rt *channelRuntime) startPlatforms() {
 	}
 
 	if rt.cfg.Channels.Feishu.Enabled {
-		if rt.cfg.Channels.Feishu.AppID == "" || rt.cfg.Channels.Feishu.AppSecret == "" {
+		if rt.dispatcher == nil {
+			fmt.Fprintf(os.Stderr, "  Feishu: enabled but dispatcher unavailable\n")
+		} else if rt.cfg.Channels.Feishu.AppID == "" || rt.cfg.Channels.Feishu.AppSecret == "" {
 			fmt.Fprintf(os.Stderr, "  Feishu: enabled but app_id/app_secret not configured\n")
 		} else {
 			bot := feishu.NewBot(feishu.BotOptions{
@@ -501,6 +507,8 @@ func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *htt
 		mux.HandleFunc("/api/cron", rt.handleCron)
 		mux.HandleFunc("/api/cron/", rt.handleCronByID)
 		mux.HandleFunc("/api/channels", rt.handleChannels)
+		mux.HandleFunc("/api/channels/wechat/login/qr", rt.handleWechatLoginQR)
+		mux.HandleFunc("/api/channels/wechat/login", rt.handleWechatLogin(configPath))
 		mux.Handle("/ws/logs", rt.handleLogs(sessions))
 		mux.HandleFunc("/ws", rt.handleWebSocket)
 		mux.HandleFunc("/api/browse", rt.handleBrowse)

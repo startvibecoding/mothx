@@ -4,14 +4,21 @@
   import { t } from '../../lib/preferences.js';
   import ListEditor from './ListEditor.svelte';
 
+  export let section = 'app';
+
   let form = defaultForm();
   let jsonDraft = '{}';
   let parseError = '';
   let lastRaw = '';
   let selectedProviderID = '';
 
+  $: isProviderSettings = section === 'providers';
   $: syncFromStore($settings);
   $: currentProvider = form.providers.find((item) => item.id === selectedProviderID) || form.providers[0] || null;
+  $: defaultProvider = form.providers.find((item) => item.id === form.defaults.defaultProvider) || null;
+  $: defaultModelOptions = modelOptionsForProvider(defaultProvider);
+  $: defaultProviderMissing = Boolean(form.defaults.defaultProvider) && !form.providers.some((item) => item.id === form.defaults.defaultProvider);
+  $: defaultModelMissing = Boolean(form.defaults.defaultModel) && !defaultModelOptions.some((model) => model.id === form.defaults.defaultModel);
 
   function defaultForm() {
     return {
@@ -193,15 +200,21 @@
 
   function buildConfigForSave() {
     const cfg = JSON.parse(jsonDraft || '{}');
-    cfg.defaultProvider = form.defaults.defaultProvider.trim();
-    cfg.defaultModel = form.defaults.defaultModel.trim();
+
+    if (isProviderSettings) {
+      cfg.defaultProvider = form.defaults.defaultProvider.trim();
+      cfg.defaultModel = form.defaults.defaultModel.trim();
+      cfg.defaultThinkingLevel = form.defaults.defaultThinkingLevel || 'medium';
+      writeOptionalNumber(cfg, 'maxContextTokens', form.defaults.maxContextTokens);
+      writeOptionalNumber(cfg, 'maxOutputTokens', form.defaults.maxOutputTokens);
+      cfg.providers = providersToConfig(form.providers);
+      return cfg;
+    }
+
     cfg.defaultMode = form.defaults.defaultMode || 'agent';
-    cfg.defaultThinkingLevel = form.defaults.defaultThinkingLevel || 'medium';
     cfg.theme = form.defaults.theme || 'dark';
     writeTriBool(cfg, 'enablePlanTool', form.defaults.enablePlanTool);
     writeTriBool(cfg, 'updateCheck', form.defaults.updateCheck);
-    writeOptionalNumber(cfg, 'maxContextTokens', form.defaults.maxContextTokens);
-    writeOptionalNumber(cfg, 'maxOutputTokens', form.defaults.maxOutputTokens);
     writeString(cfg, 'skillsDir', form.defaults.skillsDir);
     writeString(cfg, 'sessionDir', form.defaults.sessionDir);
     writeString(cfg, 'shellPath', form.defaults.shellPath);
@@ -258,7 +271,6 @@
     writeList(cfg.approval, 'bashBlacklist', form.approval.bashBlacklist);
     writeTriBool(cfg.approval, 'confirmBeforeWrite', form.approval.confirmBeforeWrite);
 
-    cfg.providers = providersToConfig(form.providers);
     return cfg;
   }
 
@@ -312,7 +324,7 @@
       const next = buildConfigForSave();
       const saved = await putJSON('/api/settings', next);
       settings.set(JSON.stringify(saved, null, 2));
-      setNotice($t('settings.app.saved'));
+      setNotice($t(isProviderSettings ? 'settings.providers.saved' : 'settings.app.saved'));
     } catch (err) {
       setError(err);
     }
@@ -341,6 +353,21 @@
   function removeProvider(provider) {
     form.providers = form.providers.filter((item) => item !== provider);
     if (selectedProviderID === provider.id) selectedProviderID = form.providers[0]?.id || '';
+  }
+
+  function selectDefaultProvider(value) {
+    form.defaults.defaultProvider = value;
+    const provider = form.providers.find((item) => item.id === value) || null;
+    const models = modelOptionsForProvider(provider);
+    if (!models.some((model) => model.id === form.defaults.defaultModel)) {
+      form.defaults.defaultModel = models[0]?.id || '';
+    }
+    form = form;
+  }
+
+  function selectDefaultModel(value) {
+    form.defaults.defaultModel = value;
+    form = form;
   }
 
   function renameProvider(provider, value) {
@@ -387,6 +414,18 @@
   function removeListItem(list, index) {
     list.splice(index, 1);
     form = form;
+  }
+
+  function modelOptionsForProvider(provider) {
+    const seen = new Set();
+    const models = [];
+    for (const model of provider?.models || []) {
+      const id = String(model?.id || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      models.push({ id, name: String(model?.name || '').trim() });
+    }
+    return models;
   }
 
   function uniqueProviderID(prefix) {
@@ -502,8 +541,8 @@
 <div class="card editor-card">
   <div class="card-head">
     <div>
-      <h3>{$t('settings.tabs.app')}</h3>
-      <span class="hint">{$t('settings.app.hint')}</span>
+      <h3>{$t(isProviderSettings ? 'settings.tabs.providers' : 'settings.tabs.app')}</h3>
+      <span class="hint">{$t(isProviderSettings ? 'settings.providers.hint' : 'settings.app.hint')}</span>
     </div>
     <button type="button" class="primary" on:click={save}>{$t('common.save')}</button>
   </div>
@@ -515,54 +554,84 @@
 <div class="card">
   <div class="card-head">
     <div>
-      <h3>{$t('settings.app.sections.defaults')}</h3>
-      <span class="hint">{$t('settings.app.defaultsHint')}</span>
+      <h3>{$t(isProviderSettings ? 'settings.providers.sections.defaults' : 'settings.app.sections.defaults')}</h3>
+      <span class="hint">{$t(isProviderSettings ? 'settings.providers.defaultsHint' : 'settings.app.defaultsHint')}</span>
     </div>
   </div>
   <div class="form-grid">
-    <label><span>{$t('settings.app.defaultProvider')}</span><input bind:value={form.defaults.defaultProvider} /></label>
-    <label><span>{$t('settings.app.defaultModel')}</span><input bind:value={form.defaults.defaultModel} /></label>
-    <label>
-      <span>{$t('settings.app.defaultMode')}</span>
-      <select bind:value={form.defaults.defaultMode}>
-        <option value="plan">plan</option>
-        <option value="agent">agent</option>
-        <option value="yolo">yolo</option>
-      </select>
-    </label>
-    <label>
-      <span>{$t('settings.app.thinking')}</span>
-      <select bind:value={form.defaults.defaultThinkingLevel}>
-        <option value="low">low</option>
-        <option value="medium">medium</option>
-        <option value="high">high</option>
-      </select>
-    </label>
-    <label><span>{$t('settings.app.maxContextTokens')}</span><input type="number" min="0" bind:value={form.defaults.maxContextTokens} /></label>
-    <label><span>{$t('settings.app.maxOutputTokens')}</span><input type="number" min="0" bind:value={form.defaults.maxOutputTokens} /></label>
-    <label><span>{$t('settings.app.skillsDir')}</span><input bind:value={form.defaults.skillsDir} /></label>
-    <label><span>{$t('settings.app.sessionDir')}</span><input bind:value={form.defaults.sessionDir} /></label>
-    <label><span>{$t('settings.app.shellPath')}</span><input bind:value={form.defaults.shellPath} /></label>
-    <label><span>{$t('settings.app.shellPrefix')}</span><input bind:value={form.defaults.shellCommandPrefix} /></label>
-    <label>
-      <span>{$t('settings.app.enablePlanTool')}</span>
-      <select bind:value={form.defaults.enablePlanTool}>
-        <option value="">{$t('common.uninitialized')}</option>
-        <option value="true">{$t('common.enabled')}</option>
-        <option value="false">{$t('common.disabled')}</option>
-      </select>
-    </label>
-    <label>
-      <span>{$t('settings.app.updateCheck')}</span>
-      <select bind:value={form.defaults.updateCheck}>
-        <option value="">{$t('common.uninitialized')}</option>
-        <option value="true">{$t('common.enabled')}</option>
-        <option value="false">{$t('common.disabled')}</option>
-      </select>
-    </label>
+    {#if isProviderSettings}
+      <label>
+        <span>{$t('settings.app.defaultProvider')}</span>
+        <select value={form.defaults.defaultProvider} on:change={(event) => selectDefaultProvider(event.currentTarget.value)}>
+          <option value="">{$t('common.uninitialized')}</option>
+          {#if defaultProviderMissing}
+            <option value={form.defaults.defaultProvider}>{form.defaults.defaultProvider}</option>
+          {/if}
+          {#each form.providers as provider}
+            <option value={provider.id}>{provider.id}</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        <span>{$t('settings.app.defaultModel')}</span>
+        <select
+          value={form.defaults.defaultModel}
+          disabled={defaultModelOptions.length === 0 && !form.defaults.defaultModel}
+          on:change={(event) => selectDefaultModel(event.currentTarget.value)}
+        >
+          <option value="">{$t('common.uninitialized')}</option>
+          {#if defaultModelMissing}
+            <option value={form.defaults.defaultModel}>{form.defaults.defaultModel}</option>
+          {/if}
+          {#each defaultModelOptions as model}
+            <option value={model.id}>{model.name && model.name !== model.id ? `${model.id} - ${model.name}` : model.id}</option>
+          {/each}
+        </select>
+      </label>
+      <label>
+        <span>{$t('settings.app.thinking')}</span>
+        <select bind:value={form.defaults.defaultThinkingLevel}>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </label>
+      <label><span>{$t('settings.app.maxContextTokens')}</span><input type="number" min="0" bind:value={form.defaults.maxContextTokens} /></label>
+      <label><span>{$t('settings.app.maxOutputTokens')}</span><input type="number" min="0" bind:value={form.defaults.maxOutputTokens} /></label>
+    {:else}
+      <label>
+        <span>{$t('settings.app.defaultMode')}</span>
+        <select bind:value={form.defaults.defaultMode}>
+          <option value="plan">plan</option>
+          <option value="agent">agent</option>
+          <option value="yolo">yolo</option>
+        </select>
+      </label>
+      <label><span>{$t('settings.app.skillsDir')}</span><input bind:value={form.defaults.skillsDir} /></label>
+      <label><span>{$t('settings.app.sessionDir')}</span><input bind:value={form.defaults.sessionDir} /></label>
+      <label><span>{$t('settings.app.shellPath')}</span><input bind:value={form.defaults.shellPath} /></label>
+      <label><span>{$t('settings.app.shellPrefix')}</span><input bind:value={form.defaults.shellCommandPrefix} /></label>
+      <label>
+        <span>{$t('settings.app.enablePlanTool')}</span>
+        <select bind:value={form.defaults.enablePlanTool}>
+          <option value="">{$t('common.uninitialized')}</option>
+          <option value="true">{$t('common.enabled')}</option>
+          <option value="false">{$t('common.disabled')}</option>
+        </select>
+      </label>
+      <label>
+        <span>{$t('settings.app.updateCheck')}</span>
+        <select bind:value={form.defaults.updateCheck}>
+          <option value="">{$t('common.uninitialized')}</option>
+          <option value="true">{$t('common.enabled')}</option>
+          <option value="false">{$t('common.disabled')}</option>
+        </select>
+      </label>
+    {/if}
   </div>
 </div>
 
+{#if !isProviderSettings}
 <div class="card">
   <div class="card-head">
     <div>
@@ -657,7 +726,9 @@
     <ListEditor title={$t('settings.app.bashBlacklist')} list={form.approval.bashBlacklist} onAdd={() => addListItem(form.approval.bashBlacklist)} onRemove={(i) => removeListItem(form.approval.bashBlacklist, i)} />
   </div>
 </div>
+{/if}
 
+{#if isProviderSettings}
 <div class="card">
   <div class="card-head">
     <div>
@@ -723,14 +794,27 @@
               <span>{$t('settings.app.models')}</span>
               <button type="button" class="ghost sm" on:click={() => addModel(currentProvider)}>{$t('common.add')}</button>
             </div>
+            <div class="model-row model-row-head">
+              <span>{$t('settings.app.modelID')}</span>
+              <span>{$t('settings.app.modelName')}</span>
+              <span>{$t('settings.app.modelContext')}</span>
+              <span>{$t('settings.app.modelMaxTokens')}</span>
+              <span>{$t('settings.app.modelTemperature')}</span>
+              <span>{$t('settings.app.modelTopP')}</span>
+              <span>{$t('settings.app.modelInput')}</span>
+              <span>{$t('settings.app.modelReasoning')}</span>
+              <span>{$t('settings.app.modelActions')}</span>
+            </div>
             {#each currentProvider.models as model, i (i)}
               <div class="model-row">
                 <input bind:value={model.id} placeholder="model-id" />
                 <input bind:value={model.name} placeholder="Display name" />
                 <input type="number" min="0" bind:value={model.contextWindow} placeholder="context" />
                 <input type="number" min="0" bind:value={model.maxTokens} placeholder="max" />
+                <input type="number" step="0.1" bind:value={model.temperature} placeholder="temp" />
+                <input type="number" step="0.1" bind:value={model.topP} placeholder="top_p" />
                 <input bind:value={model.input} placeholder="text, image" />
-                <label class="checkbox tight"><input type="checkbox" bind:checked={model.reasoning} /> reasoning</label>
+                <label class="model-reasoning-toggle"><input type="checkbox" bind:checked={model.reasoning} /> {$t('settings.app.modelReasoning')}</label>
                 <button type="button" class="ghost sm" on:click={() => removeModel(currentProvider, i)}>{$t('common.remove')}</button>
               </div>
             {/each}
@@ -740,6 +824,7 @@
     </div>
   {/if}
 </div>
+{/if}
 
 <details class="card editor-card advanced-json">
   <summary>

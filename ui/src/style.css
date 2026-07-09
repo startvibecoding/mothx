@@ -937,11 +937,166 @@ label span:first-child { margin-bottom: 2px; }
   grid-template-columns: minmax(0, 180px) minmax(0, 1fr) auto;
 }
 .model-row {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(96px, .6fr) minmax(96px, .6fr) minmax(120px, .8fr) auto auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) repeat(4, minmax(76px, .6fr)) minmax(110px, .8fr) auto auto;
+}
+.model-row-head {
+  min-height: 22px;
+  padding: 0 1px 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.model-row-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .checkbox.tight {
   height: auto;
   white-space: nowrap;
+}
+.model-reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.model-reasoning-toggle:hover {
+  border-color: var(--hover-border);
+  color: var(--text);
+}
+.model-reasoning-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+.model-reasoning-toggle:has(input:checked) {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+/* ─── Channel settings ─── */
+.channel-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.channel-config-card {
+  min-width: 0;
+}
+.channel-card-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 18px 16px;
+}
+.channel-card-body .compact-grid {
+  padding: 0;
+  gap: 10px;
+}
+.channel-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.channel-switch input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+.channel-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.kv.compact {
+  padding: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.channel-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--overlay);
+}
+.channel-modal {
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--modal-shadow);
+}
+.channel-modal header,
+.channel-modal footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.channel-modal footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 0;
+}
+.channel-modal header h3 {
+  margin: 0 0 2px;
+  font-size: 15px;
+}
+.qr-modal {
+  width: min(760px, 100%);
+}
+.qr-panel {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  padding: 18px;
+}
+.qr-image {
+  width: min(520px, 86vw);
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  object-fit: contain;
+  overflow: hidden;
+}
+.qr-status {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.qr-status code {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* ─── Cron ─── */
@@ -2159,6 +2314,23 @@ label span:first-child { margin-bottom: 2px; }
   .cron-row { grid-template-columns: 1fr; }
   .log-line { grid-template-columns: 60px 60px 1fr; }
   .form-grid { grid-template-columns: 1fr; }
+  .provider-editor { grid-template-columns: 1fr; }
+  .provider-list {
+    display: flex;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .provider-list button {
+    min-width: 160px;
+    border-bottom: 0;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .provider-header-row,
+  .model-row {
+    grid-template-columns: 1fr;
+  }
+  .model-row-head { display: none; }
 }
 
 /* ─── WorkDir form ─── */

@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 
 	configpkg "github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/cron"
+	"github.com/startvibecoding/mothx/internal/messaging/wechat"
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
 	"github.com/startvibecoding/mothx/internal/session"
@@ -495,6 +497,177 @@ func TestHandleChannels_ReturnsStableEntries(t *testing.T) {
 	}
 	if statuses[2] != (channelStatus{Name: "websocket", Enabled: true, Connected: true}) {
 		t.Fatalf("websocket status = %#v", statuses[2])
+	}
+}
+
+func TestHandleWechatLoginGetReturnsStoredCredentials(t *testing.T) {
+	credPath := filepath.Join(t.TempDir(), "wechat-credentials.json")
+	if err := wechat.SaveCredentials(&wechat.Credentials{
+		Token:     "token",
+		BaseURL:   wechat.DefaultBaseURL,
+		AccountID: "bot-id",
+		UserID:    "user-id",
+	}, credPath); err != nil {
+		t.Fatalf("SaveCredentials: %v", err)
+	}
+	rt := &channelRuntime{
+		cfg: &Config{
+			Channels: ChannelConfig{
+				Wechat: channels.WechatConfig{CredPath: credPath, Enabled: true},
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/channels/wechat/login", nil)
+	w := httptest.NewRecorder()
+	rt.handleWechatLogin(filepath.Join(t.TempDir(), "serve.json")).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var got wechatLoginStatus
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.State != "confirmed" || !got.Enabled || !got.LoggedIn || got.UserID != "user-id" {
+		t.Fatalf("login status = %#v", got)
+	}
+}
+
+func TestHandleWechatLoginQRServesCurrentSessionImage(t *testing.T) {
+	sess, _ := newWechatLoginSession()
+	t.Cleanup(sess.cancelLogin)
+	sess.update("pending", func() {
+		sess.qrURL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+	})
+	rt := &channelRuntime{cfg: DefaultConfig(), wechatLogin: sess}
+
+	status := rt.wechatLoginSnapshot()
+	if !strings.HasPrefix(status.QRURL, "/api/channels/wechat/login/qr?") {
+		t.Fatalf("qr url = %q, want local proxy URL", status.QRURL)
+	}
+	if !strings.HasPrefix(status.QROpenURL, "data:image/png;base64,") {
+		t.Fatalf("qr open url = %q, want data image URL", status.QROpenURL)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, status.QRURL, nil)
+	w := httptest.NewRecorder()
+	rt.handleWechatLoginQR(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("content-type = %q, want image/png", got)
+	}
+	if w.Body.Len() == 0 {
+		t.Fatal("expected QR image body")
+	}
+}
+
+func TestHandleWechatLoginQRExtractsImageFromHTMLPage(t *testing.T) {
+	const pngData = "\x89PNG\r\n\x1a\nqr"
+	var pageRequested bool
+	var imageRequested bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			pageRequested = true
+			http.SetCookie(w, &http.Cookie{Name: "qr", Value: "ok"})
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(`<html><body><img class="qr" src="/qr.png"></body></html>`))
+		case "/qr.png":
+			imageRequested = true
+			cookie, err := r.Cookie("qr")
+			if err != nil || cookie.Value != "ok" {
+				http.Error(w, "missing QR cookie", http.StatusForbidden)
+				return
+			}
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte(pngData))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(upstream.Close)
+
+	sess, _ := newWechatLoginSession()
+	t.Cleanup(sess.cancelLogin)
+	sess.update("pending", func() {
+		sess.qrURL = upstream.URL + "/login"
+	})
+	rt := &channelRuntime{cfg: DefaultConfig(), wechatLogin: sess}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/channels/wechat/login/qr", nil)
+	w := httptest.NewRecorder()
+	rt.handleWechatLoginQR(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if !pageRequested || !imageRequested {
+		t.Fatalf("pageRequested=%v imageRequested=%v, want both true", pageRequested, imageRequested)
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("content-type = %q, want image/png", got)
+	}
+	if got := w.Body.String(); got != pngData {
+		t.Fatalf("body = %q, want %q", got, pngData)
+	}
+}
+
+func TestHandleWechatLoginQRReturnsBase64DataURL(t *testing.T) {
+	const pngData = "\x89PNG\r\n\x1a\nqr"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/login":
+			http.SetCookie(w, &http.Cookie{Name: "qr", Value: "ok"})
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write([]byte(`<html><body><img src="/qr.png"></body></html>`))
+		case "/qr.png":
+			cookie, err := r.Cookie("qr")
+			if err != nil || cookie.Value != "ok" {
+				http.Error(w, "missing QR cookie", http.StatusForbidden)
+				return
+			}
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte(pngData))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(upstream.Close)
+
+	sess, _ := newWechatLoginSession()
+	t.Cleanup(sess.cancelLogin)
+	sess.update("pending", func() {
+		sess.qrURL = upstream.URL + "/login"
+	})
+	rt := &channelRuntime{cfg: DefaultConfig(), wechatLogin: sess}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/channels/wechat/login/qr?format=base64", nil)
+	w := httptest.NewRecorder()
+	rt.handleWechatLoginQR(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var got wechatLoginQRResponse
+	if err := json.NewDecoder(w.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.ContentType != "image/png" {
+		t.Fatalf("content-type = %q, want image/png", got.ContentType)
+	}
+	if !strings.HasPrefix(got.DataURL, "data:image/png;base64,") {
+		t.Fatalf("data URL = %q, want image/png data URL", got.DataURL)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(got.Base64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	if string(decoded) != pngData {
+		t.Fatalf("decoded data = %q, want %q", string(decoded), pngData)
 	}
 }
 
