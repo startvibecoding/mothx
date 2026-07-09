@@ -253,6 +253,21 @@ func TestShouldCompact(t *testing.T) {
 	}
 }
 
+func TestShouldCompactPercent(t *testing.T) {
+	if !ShouldCompactPercent(160, 200, 0.8) {
+		t.Fatal("80% usage should compact at 0.8 threshold")
+	}
+	if ShouldCompactPercent(159, 200, 0.8) {
+		t.Fatal("usage below threshold should not compact")
+	}
+	if !ShouldCompactPercent(80, 100, 80) {
+		t.Fatal("whole-number percentage threshold should be supported")
+	}
+	if ShouldCompactPercent(80, 0, 0.8) {
+		t.Fatal("zero context window should not compact")
+	}
+}
+
 func TestFindCutPoint(t *testing.T) {
 	messages := []provider.Message{
 		{Role: "user", Content: "Message 1"},
@@ -376,6 +391,34 @@ func TestCompactCapsSummaryMaxTokens(t *testing.T) {
 	}
 	if p.lastChat.MaxTokens != defaultMaxCompactionSummaryTokens {
 		t.Fatalf("summary MaxTokens = %d, want %d", p.lastChat.MaxTokens, defaultMaxCompactionSummaryTokens)
+	}
+}
+
+func TestCompactWithOptionsForceAllowsSummaryOnly(t *testing.T) {
+	p := &compactRecordingProvider{
+		models: []*provider.Model{{ID: "m", Name: "m", MaxTokens: 1024}},
+	}
+	messages := []provider.Message{
+		{Role: "user", Content: "only current user"},
+		{Role: "assistant", Content: "only current response"},
+	}
+
+	result, err := CompactWithOptions(
+		context.Background(),
+		messages,
+		p,
+		p.models[0],
+		"system",
+		nil,
+		CompactionSettings{ReserveTokens: 1024, KeepRecentTokens: 20000},
+		"",
+		CompactOptions{Force: true},
+	)
+	if err != nil {
+		t.Fatalf("CompactWithOptions(force) error = %v", err)
+	}
+	if result.FirstKeptIndex != len(messages) {
+		t.Fatalf("FirstKeptIndex = %d, want %d", result.FirstKeptIndex, len(messages))
 	}
 }
 

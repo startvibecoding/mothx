@@ -40,7 +40,8 @@ type APISession struct {
 	runMu        sync.RWMutex
 	running      bool
 
-	// ForceCompact is set by /compact command and consumed by the next agent run.
+	// ForceCompact is a legacy/session flag consumed by the next agent run.
+	// The /compact command now executes compaction immediately.
 	ForceCompact bool
 }
 

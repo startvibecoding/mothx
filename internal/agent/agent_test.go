@@ -1979,6 +1979,58 @@ func TestSetForceCompact_NoModelDoesNotForce(t *testing.T) {
 	}
 }
 
+func TestRunAutoCompactsBeforePlainTextTurn(t *testing.T) {
+	p := newCompactionReplayProvider()
+	p.models[0].ContextWindow = 8000
+	p.models[0].MaxTokens = 512
+
+	sb := sandbox.NewNoneSandbox()
+	registry := tools.NewRegistry(t.TempDir(), sb)
+	a := New(Config{
+		Provider: p,
+		Model:    p.models[0],
+		Mode:     "agent",
+		CompactionSettings: ctxpkg.CompactionSettings{
+			Enabled:          true,
+			ReserveTokens:    64,
+			KeepRecentTokens: 1,
+		},
+	}, registry)
+	oldUser := provider.NewUserMessage(strings.Repeat("old user ", 3000))
+	recentUser := provider.NewUserMessage("recent user")
+	a.LoadHistoryMessages([]provider.Message{
+		oldUser,
+		provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: strings.Repeat("old assistant ", 3000)}}),
+		recentUser,
+	})
+
+	var eventTypes []EventType
+	for ev := range a.Run(context.Background(), "continue") {
+		eventTypes = append(eventTypes, ev.Type)
+	}
+
+	if len(p.calls) != 2 {
+		t.Fatalf("provider call count = %d, want 2 (compaction + response); event types = %#v", len(p.calls), eventTypes)
+	}
+	actualCall := p.calls[1]
+	foundSummary := false
+	foundOldUser := false
+	for _, msg := range actualCall.Messages {
+		if msg.SystemInjected && msg.Content == "## Goal\ncheckpoint" {
+			foundSummary = true
+		}
+		if msg.Content == oldUser.Content {
+			foundOldUser = true
+		}
+	}
+	if !foundSummary {
+		t.Fatal("plain text turn did not include compacted summary")
+	}
+	if foundOldUser {
+		t.Fatal("plain text turn still included pre-compaction old user message")
+	}
+}
+
 func TestCompactionReplayPersistsAcrossSessionReload(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")

@@ -756,14 +756,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		} else if a.agent == nil {
 			a.addCommandError("Nothing to compact: no active conversation.")
 		} else {
-			msgs := a.agent.GetMessages()
-			if len(msgs) < 2 {
-				a.addCommandError("Nothing to compact: conversation is too short.")
-			} else if !a.agent.CanCompact() {
-				a.addCommandError("Nothing to compact: only recent context is available to keep.")
-			} else {
-				return a.startManualCompaction()
-			}
+			return a.startManualCompaction()
 		}
 	case "/clear":
 		a.resetTranscriptState()

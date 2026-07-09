@@ -1419,15 +1419,15 @@ func TestCommands_CompactTooShort(t *testing.T) {
 		t.Fatal("expected result")
 	}
 	if !result.Error {
-		t.Error("expected error for too-short conversation")
+		t.Error("expected compaction error for empty conversation")
 	}
-	if !strings.Contains(result.Message, "too short") {
-		t.Errorf("expected 'too short' message, got %q", result.Message)
+	if !strings.Contains(result.Message, "no messages to compact") {
+		t.Errorf("expected no messages error, got %q", result.Message)
 	}
 }
 
-func TestCommands_CompactSetsFlag(t *testing.T) {
-	srv := newTestServer(t)
+func TestCommands_CompactRunsImmediately(t *testing.T) {
+	srv, _ := newRecordingAPIServer(t)
 	srv.settings.Compaction.KeepRecentTokens = 1
 	sess := &APISession{ID: "test-sess", WorkDir: t.TempDir()}
 	mgr := session.New(sess.WorkDir, t.TempDir())
@@ -1446,11 +1446,15 @@ func TestCommands_CompactSetsFlag(t *testing.T) {
 	if result.Error {
 		t.Errorf("unexpected error: %s", result.Message)
 	}
-	if !sess.ForceCompact {
-		t.Error("expected ForceCompact to be set")
+	if sess.ForceCompact {
+		t.Error("ForceCompact should not be set for immediate compaction")
 	}
-	if !strings.Contains(result.Message, "compaction") {
+	if !strings.Contains(result.Message, "compacted") {
 		t.Errorf("expected compaction confirmation, got %q", result.Message)
+	}
+	replay := mgr.GetReplayState()
+	if len(replay.Messages) == 0 || !replay.Messages[0].SystemInjected {
+		t.Fatalf("expected compacted summary in replay, got %#v", replay.Messages)
 	}
 }
 
@@ -1519,8 +1523,8 @@ func TestCommands_RulePreservesExistingUnlessForced(t *testing.T) {
 	}
 }
 
-func TestCommands_CompactNoCompactableMessages(t *testing.T) {
-	srv := newTestServer(t)
+func TestCommands_CompactForcesSummaryOnlyWhenOnlyRecentContext(t *testing.T) {
+	srv, _ := newRecordingAPIServer(t)
 	sess := &APISession{ID: "test-sess", WorkDir: t.TempDir()}
 	mgr := session.New(sess.WorkDir, t.TempDir())
 	mgr.Init()
@@ -1532,14 +1536,15 @@ func TestCommands_CompactNoCompactableMessages(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected result")
 	}
-	if !result.Error {
-		t.Fatal("expected error for non-compactable conversation")
-	}
 	if sess.ForceCompact {
-		t.Fatal("ForceCompact should not be set for non-compactable conversation")
+		t.Fatal("ForceCompact should not be set for immediate compaction")
 	}
-	if !strings.Contains(result.Message, "only recent context") {
-		t.Errorf("expected only recent context message, got %q", result.Message)
+	if result.Error {
+		t.Fatalf("unexpected error: %s", result.Message)
+	}
+	replay := mgr.GetReplayState()
+	if len(replay.Messages) != 1 || !replay.Messages[0].SystemInjected {
+		t.Fatalf("expected summary-only replay, got %#v", replay.Messages)
 	}
 }
 

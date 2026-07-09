@@ -74,3 +74,15 @@ func ShouldCompact(contextTokens int, contextWindow int, reserveTokens int) bool
 	}
 	return contextTokens > contextWindow-reserveTokens
 }
+
+// ShouldCompactPercent checks if compaction should trigger based on the
+// percentage of the context window currently occupied.
+func ShouldCompactPercent(contextTokens int, contextWindow int, threshold float64) bool {
+	if contextWindow <= 0 || threshold <= 0 {
+		return false
+	}
+	if threshold > 1 {
+		threshold = threshold / 100
+	}
+	return float64(contextTokens)/float64(contextWindow) >= threshold
+}

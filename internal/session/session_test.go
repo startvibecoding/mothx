@@ -381,6 +381,33 @@ func TestGetMessagesAppliesCompaction(t *testing.T) {
 	}
 }
 
+func TestGetMessagesAppliesSummaryOnlyCompaction(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	m := New("/tmp/test", sessionDir)
+	m.Init()
+
+	_, _ = m.AppendMessage(provider.NewUserMessage("old user"))
+	_, _ = m.AppendMessage(provider.NewAssistantMessage([]provider.ContentBlock{{Type: "text", Text: "old assistant"}}))
+	_, _ = m.AppendCompaction("## Goal\nsummary only", "", 100)
+
+	messages := m.GetMessages()
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1", len(messages))
+	}
+	if !messages[0].SystemInjected || messages[0].Content != "## Goal\nsummary only" {
+		t.Fatalf("expected summary-only replay, got %#v", messages[0])
+	}
+	compaction, ok := m.GetLatestCompaction()
+	if !ok {
+		t.Fatal("expected latest compaction")
+	}
+	if compaction.LastSummarizedEntry == "" {
+		t.Fatal("summary-only compaction should record the last summarized entry")
+	}
+}
+
 func TestGetMessagesCompactionClearsStaleUsage(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")
@@ -1131,8 +1158,11 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 
 	msgs := m2.GetMessages()
-	if len(msgs) != 2 {
-		t.Errorf("expected 2 messages, got %d", len(msgs))
+	if len(msgs) != 1 {
+		t.Errorf("expected 1 compacted message, got %d", len(msgs))
+	}
+	if len(msgs) == 1 && (!msgs[0].SystemInjected || msgs[0].Content != "Summary") {
+		t.Errorf("expected summary-only replay, got %#v", msgs[0])
 	}
 }
 

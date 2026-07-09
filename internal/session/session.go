@@ -676,10 +676,15 @@ func latestCompactionLocked(entries []interface{}) (CompactionEntry, bool) {
 }
 
 func lastSummarizedEntryIDLocked(entries []interface{}, firstKeptEntryID string) string {
+	state := buildReplayState(entries)
 	if firstKeptEntryID == "" {
+		for i := len(state.entryIDs) - 1; i >= 0; i-- {
+			if state.entryIDs[i] != "" {
+				return state.entryIDs[i]
+			}
+		}
 		return ""
 	}
-	state := buildReplayState(entries)
 	for i, id := range state.entryIDs {
 		if id != firstKeptEntryID {
 			continue
@@ -795,7 +800,18 @@ type sequencedReplayState struct {
 }
 
 func applySequencedCompactionEntry(state *sequencedReplayState, entry CompactionEntry, seq int64) {
-	if state == nil || entry.FirstKeptEntry == "" {
+	if state == nil {
+		return
+	}
+
+	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
+	if entry.FirstKeptEntry == "" {
+		state.messages = []SequencedMessage{{
+			Seq:     seq,
+			EntryID: entry.ID,
+			Message: summary,
+		}}
+		state.entryIDs = []string{entry.ID}
 		return
 	}
 
@@ -813,7 +829,6 @@ func applySequencedCompactionEntry(state *sequencedReplayState, entry Compaction
 		return
 	}
 
-	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
 	nextMessages := make([]SequencedMessage, 0, 1+len(state.messages[firstKept:]))
 	nextMessages = append(nextMessages, SequencedMessage{
 		Seq:     seq,
@@ -836,7 +851,14 @@ func applySequencedCompactionEntry(state *sequencedReplayState, entry Compaction
 }
 
 func applyCompactionEntry(state *replayState, entry CompactionEntry) {
+	if state == nil {
+		return
+	}
+
+	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
 	if entry.FirstKeptEntry == "" {
+		state.messages = []provider.Message{summary}
+		state.entryIDs = []string{""}
 		return
 	}
 
@@ -856,7 +878,6 @@ func applyCompactionEntry(state *replayState, entry CompactionEntry) {
 		return
 	}
 
-	summary := provider.NewSystemInjectedUserMessage(entry.Summary)
 	nextMessages := make([]provider.Message, 0, 1+len(state.messages[firstKept:]))
 	nextMessages = append(nextMessages, summary)
 	for _, msg := range state.messages[firstKept:] {

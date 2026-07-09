@@ -83,7 +83,8 @@ type ChannelSession struct {
 	Mode       string
 	LastUsed   time.Time
 	mu         sync.Mutex // serializes requests within this session
-	// ForceCompact is set by /compact command and consumed by the next agent run.
+	// ForceCompact is a legacy/session flag consumed by the next agent run.
+	// The /compact command now executes compaction immediately.
 	ForceCompact bool
 }
 
@@ -521,6 +522,20 @@ func (d *Dispatcher) buildAgent(ctx context.Context, sess *ChannelSession, appro
 	return a, cleanup
 }
 
+func (d *Dispatcher) compactSession(ctx context.Context, sess *ChannelSession) error {
+	a, cleanup := d.buildAgent(ctx, sess, nil)
+	defer cleanup(nil)
+
+	eventCh := make(chan agent.Event, 16)
+	if err := a.CompactForced(ctx, eventCh); err != nil {
+		return err
+	}
+	for len(eventCh) > 0 {
+		<-eventCh
+	}
+	return nil
+}
+
 // messagingApprovalHandler returns an ApprovalHandler for messaging platforms.
 // Medium risk → auto-approve + notify; high risk → auto-reject + notify.
 func (d *Dispatcher) messagingApprovalHandler(ctx context.Context, sess *ChannelSession, progress func(string)) agentApprovalHandler {
@@ -892,26 +907,10 @@ func (d *Dispatcher) handleCommand(msg messaging.InboundMessage) (string, error)
 		}
 		sess.Lock()
 		defer sess.Unlock()
-		if sess.Manager == nil || len(sess.Manager.GetMessages()) < 2 {
-			return "Nothing to compact: conversation is too short.", nil
+		if err := d.compactSession(context.Background(), sess); err != nil {
+			return fmt.Sprintf("Context compaction failed: %v", err), nil
 		}
-		previousSummary := ""
-		if compaction, ok := sess.Manager.GetLatestCompaction(); ok {
-			previousSummary = compaction.Summary
-		}
-		compactionSettings := ctxpkg.NormalizeCompactionSettings(ctxpkg.CompactionSettings{
-			Enabled:          d.settings.Compaction.Enabled,
-			ReserveTokens:    d.settings.Compaction.ReserveTokens,
-			KeepRecentTokens: d.settings.Compaction.KeepRecentTokens,
-			Tokenizer:        d.settings.Compaction.Tokenizer,
-			TokenizerModel:   d.settings.Compaction.TokenizerModel,
-			Template:         d.settings.Compaction.Template,
-		})
-		if !ctxpkg.HasCompactableMessages(sess.Manager.GetReplayState().Messages, d.model, compactionSettings, previousSummary) {
-			return "Nothing to compact: only recent context is available to keep.", nil
-		}
-		sess.ForceCompact = true
-		return "✅ Context compaction will be triggered on the next message.", nil
+		return "✅ Context compacted.", nil
 	default:
 		return fmt.Sprintf("Unknown command: %s\nAvailable: /new /clear /status /sessions /mode /compact", cmd), nil
 	}

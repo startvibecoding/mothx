@@ -12,6 +12,7 @@ import (
 	providerfactory "github.com/startvibecoding/mothx/internal/provider/factory"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
+	"github.com/startvibecoding/mothx/internal/tools"
 	"github.com/startvibecoding/mothx/internal/workflow"
 )
 
@@ -479,30 +480,70 @@ func (s *Server) cmdCompact(sess *APISession) *CommandResult {
 	if sess == nil {
 		return &CommandResult{Message: "No active session.", Error: true}
 	}
+	if sess.Manager == nil {
+		return &CommandResult{Message: "No active session.", Error: true}
+	}
 
-	// Check if there are enough messages to compact
-	if sess.Manager == nil || len(sess.Manager.GetMessages()) < 2 {
-		return &CommandResult{Message: "Nothing to compact: conversation is too short.", Error: true}
+	a := s.agentForCommandCompaction(sess)
+	eventCh := make(chan agent.Event, 16)
+	if err := a.CompactForced(context.Background(), eventCh); err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Context compaction failed: %v", err), Error: true}
 	}
-	previousSummary := ""
-	if compaction, ok := sess.Manager.GetLatestCompaction(); ok {
-		previousSummary = compaction.Summary
+	for len(eventCh) > 0 {
+		<-eventCh
 	}
+	return &CommandResult{Message: "✅ Context compacted."}
+}
+
+func (s *Server) agentForCommandCompaction(sess *APISession) *agent.Agent {
+	runtimeSettings := s.settingsForSession(sess)
 	compactionSettings := ctxpkg.NormalizeCompactionSettings(ctxpkg.CompactionSettings{
-		Enabled:          s.settings.Compaction.Enabled,
-		ReserveTokens:    s.settings.Compaction.ReserveTokens,
-		KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
-		Tokenizer:        s.settings.Compaction.Tokenizer,
-		TokenizerModel:   s.settings.Compaction.TokenizerModel,
-		Template:         s.settings.Compaction.Template,
+		Enabled:          runtimeSettings.Compaction.Enabled,
+		ReserveTokens:    runtimeSettings.Compaction.ReserveTokens,
+		KeepRecentTokens: runtimeSettings.Compaction.KeepRecentTokens,
+		Tokenizer:        runtimeSettings.Compaction.Tokenizer,
+		TokenizerModel:   runtimeSettings.Compaction.TokenizerModel,
+		Template:         runtimeSettings.Compaction.Template,
 	})
-	if !ctxpkg.HasCompactableMessages(sess.Manager.GetReplayState().Messages, s.model, compactionSettings, previousSummary) {
-		return &CommandResult{Message: "Nothing to compact: only recent context is available to keep.", Error: true}
+	registry := sess.Registry
+	if registry == nil {
+		registry = tools.NewRegistry(sess.WorkDir, nil)
+		registry.RegisterDefaults()
 	}
-
-	// Set the force flag so the next agent run triggers compaction
-	sess.ForceCompact = true
-	return &CommandResult{Message: "✅ Context compaction will be triggered on the next request."}
+	extraContext := sess.ExtraContext
+	if extraContext == "" {
+		extraContext = s.extraContext
+	}
+	mode := sess.Mode
+	if mode == "" {
+		mode = runtimeSettings.DefaultMode
+	}
+	if mode == "" {
+		mode = "agent"
+	}
+	agentCfg := agent.Config{
+		Provider:           s.provider,
+		Model:              s.model,
+		Mode:               mode,
+		ThinkingLevel:      "",
+		MaxTokens:          agent.ResolveMaxTokens(runtimeSettings, s.model),
+		SandboxMgr:         s.sandboxMgr,
+		Settings:           runtimeSettings,
+		Allow:              s.getAllow(),
+		Session:            sess.Manager,
+		ExtraContext:       extraContext,
+		RuleContent:        sess.RuleContent,
+		CompactionSettings: compactionSettings,
+		MultiAgent:         sess.MultiAgent,
+		DelegateMode:       sess.DelegateMode,
+		Workflows:          sess.Workflows,
+	}
+	a := agent.New(agentCfg, registry)
+	replayState := sess.Manager.GetReplayState()
+	if len(replayState.Messages) > 0 {
+		a.LoadHistoryState(replayState.Messages, replayState.EntryIDs)
+	}
+	return a
 }
 
 func (s *Server) cmdRule(sess *APISession, parts []string) *CommandResult {

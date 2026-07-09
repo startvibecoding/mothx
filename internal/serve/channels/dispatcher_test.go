@@ -207,7 +207,7 @@ func TestBuildAgentUsesCompactionSettings(t *testing.T) {
 	}
 }
 
-func TestCompactCommandOnlySetsFlagWhenCompactable(t *testing.T) {
+func TestCompactCommandRunsImmediately(t *testing.T) {
 	tmpDir := t.TempDir()
 	p := newRecordingChannelProvider()
 	settings := config.DefaultSettings()
@@ -244,15 +244,19 @@ func TestCompactCommandOnlySetsFlagWhenCompactable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handleCommand() error = %v", err)
 	}
-	if !strings.Contains(reply, "compaction") {
+	if !strings.Contains(reply, "compacted") {
 		t.Fatalf("reply = %q, want compaction confirmation", reply)
 	}
-	if !sess.ForceCompact {
-		t.Fatal("ForceCompact should be set for compactable conversation")
+	if sess.ForceCompact {
+		t.Fatal("ForceCompact should not be set for immediate compaction")
+	}
+	replay := mgr.GetReplayState()
+	if len(replay.Messages) == 0 || !replay.Messages[0].SystemInjected {
+		t.Fatalf("expected compacted summary in replay, got %#v", replay.Messages)
 	}
 }
 
-func TestCompactCommandDoesNotSetFlagWhenOnlyRecentContext(t *testing.T) {
+func TestCompactCommandForcesSummaryOnlyWhenOnlyRecentContext(t *testing.T) {
 	tmpDir := t.TempDir()
 	p := newRecordingChannelProvider()
 	settings := config.DefaultSettings()
@@ -286,10 +290,14 @@ func TestCompactCommandDoesNotSetFlagWhenOnlyRecentContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handleCommand() error = %v", err)
 	}
-	if !strings.Contains(reply, "only recent context") {
-		t.Fatalf("reply = %q, want only recent context message", reply)
-	}
 	if sess.ForceCompact {
-		t.Fatal("ForceCompact should not be set for non-compactable conversation")
+		t.Fatal("ForceCompact should not be set for immediate compaction")
+	}
+	if !strings.Contains(reply, "compacted") {
+		t.Fatalf("reply = %q, want compaction confirmation", reply)
+	}
+	replay := mgr.GetReplayState()
+	if len(replay.Messages) != 1 || !replay.Messages[0].SystemInjected {
+		t.Fatalf("expected summary-only replay, got %#v", replay.Messages)
 	}
 }

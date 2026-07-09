@@ -592,12 +592,12 @@ Skills are loaded from:
 
 ### compaction
 
-Context compaction (compression) configuration for managing long conversations. When the context window fills up, MothX can automatically summarize older messages to keep the conversation going.
+Context compaction (compression) configuration for managing long conversations. MothX automatically summarizes older messages when the estimated request reaches about 80% of the model context window.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | bool | `true` | Enable automatic context compaction |
-| `reserveTokens` | int | `16384` | Tokens reserved for the model's response |
+| `reserveTokens` | int | `16384` | Compatibility setting also used to cap compaction summary output |
 | `keepRecentTokens` | int | `20000` | Recent message tokens to keep uncompacted |
 | `tokenizer` | string | `"auto"` | Token estimator selector. Currently `auto` and `generic` use the built-in chars/4 estimator |
 | `tokenizerModel` | string | `""` | Optional model hint for future model-specific token estimators |

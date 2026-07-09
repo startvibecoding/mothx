@@ -592,12 +592,12 @@ MothX 会自动搜索并加载以下文件:
 
 ### compaction
 
-上下文压缩配置，用于管理长对话。当上下文窗口快满时，MothX 会自动总结较旧的消息以继续对话。
+上下文压缩配置，用于管理长对话。当估算请求达到模型上下文窗口约 80% 时，MothX 会自动总结较旧的消息以继续对话。
 
 | 字段 | 类型 | 默认值 | 描述 |
 |------|------|--------|------|
 | `enabled` | bool | `true` | 启用自动上下文压缩 |
-| `reserveTokens` | int | `16384` | 为模型响应保留的 token |
+| `reserveTokens` | int | `16384` | 兼容配置，同时用于限制压缩摘要输出上限 |
 | `keepRecentTokens` | int | `20000` | 保留的最近消息 token 数 |
 | `tokenizer` | string | `"auto"` | token 估算器选择器。目前 `auto` 和 `generic` 都使用内置 chars/4 估算器 |
 | `tokenizerModel` | string | `""` | 预留的模型提示，用于后续模型专用 token 估算器 |

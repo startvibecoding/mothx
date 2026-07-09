@@ -83,6 +83,14 @@ type CompactionResult struct {
 	TokensBefore   int
 }
 
+// CompactOptions controls how aggressively compaction should preserve recent
+// messages. Forced compaction is used for explicit user requests and may
+// produce a summary-only checkpoint when there is no older history outside the
+// recent keep window.
+type CompactOptions struct {
+	Force bool
+}
+
 // CutPointResult holds information about where to cut the conversation.
 type CutPointResult struct {
 	FirstKeptIndex int
@@ -573,6 +581,21 @@ func Compact(
 	settings CompactionSettings,
 	previousSummary string,
 ) (*CompactionResult, error) {
+	return CompactWithOptions(ctx, messages, p, model, systemPrompt, tools, settings, previousSummary, CompactOptions{})
+}
+
+// CompactWithOptions performs context compaction with optional forced behavior.
+func CompactWithOptions(
+	ctx context.Context,
+	messages []provider.Message,
+	p provider.Provider,
+	model *provider.Model,
+	systemPrompt string,
+	tools []provider.ToolDefinition,
+	settings CompactionSettings,
+	previousSummary string,
+	options CompactOptions,
+) (*CompactionResult, error) {
 	if len(messages) == 0 {
 		return nil, fmt.Errorf("no messages to compact")
 	}
@@ -584,7 +607,14 @@ func Compact(
 	messagesToSummarize, cutPoint := messagesToSummarizeForCompaction(messages, settings, estimator, previousSummary)
 
 	if len(messagesToSummarize) == 0 {
-		return nil, fmt.Errorf("nothing to compact")
+		if !options.Force {
+			return nil, fmt.Errorf("nothing to compact")
+		}
+		messagesToSummarize = stripLeadingPreviousSummary(messages, previousSummary)
+		if len(messagesToSummarize) == 0 {
+			return nil, fmt.Errorf("nothing to compact")
+		}
+		cutPoint = CutPointResult{FirstKeptIndex: len(messages), TurnStartIndex: -1}
 	}
 
 	// Calculate max tokens for summary

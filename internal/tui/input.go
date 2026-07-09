@@ -522,7 +522,7 @@ func (a *App) startManualCompaction() tea.Cmd {
 		eventCh := make(chan agent.Event, 100)
 		go func() {
 			defer close(eventCh)
-			_ = compactAgent.Compact(context.Background(), eventCh)
+			_ = compactAgent.CompactForced(context.Background(), eventCh)
 		}()
 		return agentStreamStartMsg{
 			eventCh:    eventCh,

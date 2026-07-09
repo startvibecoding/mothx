@@ -312,7 +312,7 @@ type Agent struct {
 	questionMu       sync.Mutex
 	questionCounter  int64
 
-	// Force compaction flag — set by /compact command, consumed by ShouldCompact
+	// Force compaction flag, consumed before the next request is built.
 	forceCompact int32 // atomic: 0=false, 1=true
 }
 
@@ -671,6 +671,10 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 		a.context.SystemPrompt = a.frozenSystemPrompt
 		a.context.Tools = a.frozenToolDefs
 
+		// Compact before building the next request so plain text turns and
+		// forced compactions cannot miss the trigger point.
+		a.compactIfNeeded(ctx, ch)
+
 		// Build session context message with dynamic info (R2.3)
 		sessionContextMsg := a.buildSessionContextMessage()
 
@@ -960,11 +964,6 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 					PressurePercent: remaining * 100,
 				}
 			}
-		}
-
-		// Check if compaction should trigger
-		if a.ShouldCompact() {
-			_ = a.Compact(ctx, ch)
 		}
 
 		// Check if we should stop after this turn

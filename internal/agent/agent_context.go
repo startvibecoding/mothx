@@ -14,6 +14,7 @@ import (
 )
 
 const defaultCompactionTimeout = 5 * time.Minute
+const defaultAutoCompactionThreshold = 0.80
 
 // supportsImages checks if the model supports image input.
 func (a *Agent) supportsImages() bool {
@@ -395,7 +396,6 @@ func (a *Agent) GetContextUsage() *ctxpkg.ContextUsage {
 }
 
 // SetForceCompact marks the agent for forced compaction on the next turn.
-// Called by /compact command in TUI and API.
 func (a *Agent) SetForceCompact() {
 	atomic.StoreInt32(&a.forceCompact, 1)
 }
@@ -430,40 +430,70 @@ func (a *Agent) CanCompact() bool {
 	return ctxpkg.HasCompactableMessages(msgs, model, settings, a.previousCompactionSummary(msgs))
 }
 
-// ShouldCompact checks if compaction should trigger.
-// Returns true if context exceeds the threshold OR if forced via SetForceCompact.
-func (a *Agent) ShouldCompact() bool {
-	// Check force flag first (consumes it)
-	if atomic.CompareAndSwapInt32(&a.forceCompact, 1, 0) {
-		// Force compaction requested — still need a model and compactable history.
-		if a.CanCompact() {
-			return true
-		}
-	}
-
+func (a *Agent) canForceCompact() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
+	return a.config.Model != nil && len(a.messages) > 0
+}
+
+func (a *Agent) shouldAutoCompact() bool {
 	if !a.config.CompactionSettings.Enabled {
 		return false
 	}
-	if a.config.Model == nil {
+	if a.config.Model == nil || a.config.Model.ContextWindow <= 0 {
 		return false
 	}
-	contextWindow := a.config.Model.ContextWindow
-	if contextWindow <= 0 {
-		return false
-	}
+	sessionContextMsg := a.buildSessionContextMessage()
+	messages := a.buildRequestMessages(sessionContextMsg)
 	estimator := ctxpkg.ResolveTokenEstimator(a.config.CompactionSettings, a.config.Model)
-	tokens, _ := ctxpkg.EstimateContextTokensWithEstimator(a.messages, estimator)
-	if !ctxpkg.ShouldCompact(tokens, contextWindow, a.config.CompactionSettings.ReserveTokens) {
+	tokens := estimateChatRequestTokens(a.frozenSystemPrompt, messages, a.frozenToolDefs, estimator)
+	if !ctxpkg.ShouldCompactPercent(tokens, a.config.Model.ContextWindow, defaultAutoCompactionThreshold) {
 		return false
 	}
-	return ctxpkg.HasCompactableMessages(a.messages, a.config.Model, a.config.CompactionSettings, a.previousCompactionSummary(a.messages))
+
+	a.mu.RLock()
+	msgs := make([]provider.Message, len(a.messages))
+	copy(msgs, a.messages)
+	model := a.config.Model
+	settings := a.config.CompactionSettings
+	a.mu.RUnlock()
+	return ctxpkg.HasCompactableMessages(msgs, model, settings, a.previousCompactionSummary(msgs))
+}
+
+// ShouldCompact checks if compaction should trigger.
+// Returns true if context exceeds the threshold OR if forced via SetForceCompact.
+func (a *Agent) ShouldCompact() bool {
+	if atomic.CompareAndSwapInt32(&a.forceCompact, 1, 0) {
+		return a.canForceCompact()
+	}
+	return a.shouldAutoCompact()
+}
+
+func (a *Agent) compactIfNeeded(ctx context.Context, ch chan<- Event) {
+	if atomic.CompareAndSwapInt32(&a.forceCompact, 1, 0) {
+		if a.canForceCompact() {
+			_ = a.CompactForced(ctx, ch)
+		}
+		return
+	}
+	if a.shouldAutoCompact() {
+		_ = a.Compact(ctx, ch)
+	}
 }
 
 // Compact performs context compaction using Insert-then-Compress pattern (R4.1-R4.4).
 // Uses the SAME system prompt and tools as the main conversation.
 func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
+	return a.compact(ctx, ch, false)
+}
+
+// CompactForced performs explicit user-requested compaction. It skips
+// preflight compactability checks and allows summary-only checkpoints.
+func (a *Agent) CompactForced(ctx context.Context, ch chan<- Event) error {
+	return a.compact(ctx, ch, true)
+}
+
+func (a *Agent) compact(ctx context.Context, ch chan<- Event, force bool) error {
 	if a.config.Model == nil {
 		return fmt.Errorf("no model set for compaction")
 	}
@@ -490,9 +520,10 @@ func (a *Agent) Compact(ctx context.Context, ch chan<- Event) error {
 	previousSummary := a.previousCompactionSummary(msgs)
 
 	// Use Insert-then-Compress with the SAME system prompt and tools (R4.1)
-	result, err := ctxpkg.Compact(compactCtx, msgs, a.config.Provider, a.config.Model,
+	result, err := ctxpkg.CompactWithOptions(compactCtx, msgs, a.config.Provider, a.config.Model,
 		a.frozenSystemPrompt, a.frozenToolDefs,
-		a.config.CompactionSettings, previousSummary)
+		a.config.CompactionSettings, previousSummary,
+		ctxpkg.CompactOptions{Force: force})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			ch <- Event{Type: EventCompactionEnd, StatusMessage: "Context compaction canceled", StopReason: "canceled"}
