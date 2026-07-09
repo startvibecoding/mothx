@@ -172,8 +172,8 @@ mothx --session <session-file.db>
 
 | 平台 | 位置 |
 |------|------|
-| Linux/macOS | `~/.vibecoding/sessions/` |
-| Windows | `%APPDATA%\vibecoding\sessions\` |
+| Linux/macOS | `~/.mothx/sessions/` |
+| Windows | `%APPDATA%\mothx\sessions\` |
 
 ---
 
@@ -191,7 +191,7 @@ mothx --session <session-file.db>
 
 ```bash
 # 全局技能（所有项目可用）
-~/.vibecoding/skills/<name>/SKILL.md
+~/.mothx/skills/<name>/SKILL.md
 
 # 项目技能（覆盖全局）
 .skills/<name>/SKILL.md
@@ -234,7 +234,7 @@ mothx stats
 mothx stats --cli
 
 # 使用备用数据库
-mothx stats --db ~/.vibecoding/sessions/sessions.db
+mothx stats --db ~/.mothx/sessions/sessions.db
 ```
 
 ### 功能特性
@@ -308,8 +308,8 @@ MothX 可以作为 OpenAI 兼容的 HTTP 服务器使用：
 mothx serve
 
 # 配置文件
-~/.vibecoding/serve.json
-.vibe/serve.json
+~/.mothx/serve.json
+.mothx/serve.json
 ```
 
 ### 使用场景
@@ -331,8 +331,8 @@ MothX 可以部署为聊天机器人：
 mothx serve
 
 # 配置文件
-~/.vibecoding/serve.json
-.vibe/serve.json
+~/.mothx/serve.json
+.mothx/serve.json
 ```
 
 ### 功能特性
@@ -341,6 +341,8 @@ mothx serve
 - **持久化会话**：会话历史自动保存
 - **进度回调**：实时显示工具执行进度
 - **思考显示**：显示 AI 的思考过程
+- **微信 QR 登录**：扫码认证，支持登录状态轮询
+- **热重载配置**：通过 Web UI 保存设置后自动重载 provider/model 配置
 
 ---
 

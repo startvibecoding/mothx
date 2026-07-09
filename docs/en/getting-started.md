@@ -291,7 +291,7 @@ Skills are reusable prompt snippets that help enforce project conventions:
 ```
 
 Create skills by adding `SKILL.md` files:
-- **Global**: `~/.vibecoding/skills/<name>/SKILL.md` (available for all projects)
+- **Global**: `~/.mothx/skills/<name>/SKILL.md` (available for all projects)
 - **Project**: `.skills/<name>/SKILL.md` (project-specific, overrides global)
 
 See the [Skills System](skills.md) documentation for details.

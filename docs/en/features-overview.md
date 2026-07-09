@@ -173,8 +173,8 @@ Text commands are also available:
 
 | Platform | Location |
 |----------|----------|
-| Linux/macOS | `~/.vibecoding/sessions/` |
-| Windows | `%APPDATA%\vibecoding\sessions\` |
+| Linux/macOS | `~/.mothx/sessions/` |
+| Windows | `%APPDATA%\mothx\sessions\` |
 
 ---
 
@@ -192,7 +192,7 @@ Skills are reusable prompt snippets for:
 
 ```bash
 # Global skills (available for all projects)
-~/.vibecoding/skills/<name>/SKILL.md
+~/.mothx/skills/<name>/SKILL.md
 
 # Project skills (override global)
 .skills/<name>/SKILL.md
@@ -235,7 +235,7 @@ mothx stats
 mothx stats --cli
 
 # Use alternate database
-mothx stats --db ~/.vibecoding/sessions/sessions.db
+mothx stats --db ~/.mothx/sessions/sessions.db
 ```
 
 ### Features
@@ -309,8 +309,8 @@ MothX can be used as an OpenAI-compatible HTTP server:
 mothx serve
 
 # Configuration files
-~/.vibecoding/serve.json
-.vibe/serve.json
+~/.mothx/serve.json
+.mothx/serve.json
 ```
 
 ### Use Cases
@@ -332,8 +332,8 @@ MothX can be deployed as a chatbot:
 mothx serve
 
 # Configuration files
-~/.vibecoding/serve.json
-.vibe/serve.json
+~/.mothx/serve.json
+.mothx/serve.json
 ```
 
 ### Features
@@ -342,6 +342,8 @@ mothx serve
 - **Persistent sessions**: Session history automatically saved
 - **Progress callbacks**: Real-time tool execution progress
 - **Thinking display**: Show AI's thinking process
+- **WeChat QR Login**: Scan-to-authenticate with login status polling
+- **Configuration Hot-Reload**: Auto-reload provider/model config after saving via Web UI
 
 ---
 

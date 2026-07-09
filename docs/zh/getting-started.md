@@ -291,7 +291,7 @@ mothx --resume <session-id>
 ```
 
 创建技能的方式是添加 `SKILL.md` 文件：
-- **全局**: `~/.vibecoding/skills/<name>/SKILL.md`（所有项目可用）
+- **全局**: `~/.mothx/skills/<name>/SKILL.md`（所有项目可用）
 - **项目**: `.skills/<name>/SKILL.md`（项目特定，覆盖全局）
 
 详见 [技能系统](skills.md) 文档。

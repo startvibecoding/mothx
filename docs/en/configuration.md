@@ -6,13 +6,13 @@ MothX uses two configuration files:
 
 | File | Platform | Scope | Priority |
 |------|----------|-------|----------|
-| `~/.vibecoding/settings.json` | Linux/macOS | Global (all projects) | Low |
-| `%APPDATA%\vibecoding\settings.json` | Windows | Global (all projects) | Low |
-| `.vibe/settings.json` | All | Project-level | High |
+| `~/.mothx/settings.json` | Linux/macOS | Global (all projects) | Low |
+| `%APPDATA%\mothx\settings.json` | Windows | Global (all projects) | Low |
+| `.mothx/settings.json` | All | Project-level | High |
 
-> **Tip:** You can override the global config directory with the `VIBECODING_DIR` environment variable.
+> **Tip:** You can override the global config directory with the `MOTHX_DIR` environment variable.
 
-> **Windows:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`, so the full path is typically `C:\Users\<Username>\AppData\Roaming\vibecoding\settings.json`.
+> **Windows:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`, so the full path is typically `C:\Users\<Username>\AppData\Roaming\mothx\settings.json`.
 
 Project-level configuration overrides global configuration. When both exist, scalar fields from the project file overwrite the global values; the `providers` map is deep-merged per-key (project providers are added to or replace global providers, not the entire map).
 
@@ -90,7 +90,7 @@ Project-level configuration overrides global configuration. When both exist, sca
     "enabled": true,
     "extraFiles": ["/path/to/extra-context.md"]
   },
-  "skillsDir": "~/.vibecoding/skills",
+  "skillsDir": "~/.mothx/skills",
   "compaction": {
     "enabled": true,
     "reserveTokens": 16384,
@@ -112,7 +112,7 @@ Project-level configuration overrides global configuration. When both exist, sca
     "passEnv": ["PATH", "HOME", "USER", "LANG", "TERM", "SHELL"],
     "tmpSize": "100m"
   },
-  "sessionDir": "~/.vibecoding/sessions",
+  "sessionDir": "~/.mothx/sessions",
   "shellPath": "/bin/bash",
   "shellCommandPrefix": "",
   "theme": "dark",
@@ -145,10 +145,10 @@ Project-level configuration overrides global configuration. When both exist, sca
 | `maxContextTokens` | int | `0` (auto) | Override maximum context token count |
 | `maxOutputTokens` | int | `0` (auto) | Override maximum output token count |
 | `contextFiles` | object | *(see below)* | Context file loading settings |
-| `skillsDir` | string | `"~/.vibecoding/skills"` | Global skills directory path |
+| `skillsDir` | string | `"~/.mothx/skills"` | Global skills directory path |
 | `compaction` | object | *(see below)* | Context compaction settings |
 | `sandbox` | object | *(see below)* | Sandbox execution settings |
-| `sessionDir` | string | `"~/.vibecoding/sessions"` | SQLite session storage directory |
+| `sessionDir` | string | `"~/.mothx/sessions"` | SQLite session storage directory |
 | `shellPath` | string | `""` (auto) | Custom shell path for Bash tool |
 | `shellCommandPrefix` | string | `""` | Prefix prepended to every shell command |
 | `theme` | string | `"dark"` | UI theme: `"dark"` or `"light"` |
@@ -549,7 +549,7 @@ Context file loading settings.
     "enabled": true,
     "extraFiles": [
       "/path/to/extra-context.md",
-      "~/.vibecoding/global-context.md"
+      "~/.mothx/global-context.md"
     ]
   }
 }
@@ -577,11 +577,11 @@ Path to the global skills directory. Supports `~` expansion.
 
 | Platform | Default |
 |----------|---------|
-| Linux/macOS | `~/.vibecoding/skills` |
+| Linux/macOS | `~/.mothx/skills` |
 | Windows | `%APPDATA%\vibecoding\skills` |
 
 ```json
-{ "skillsDir": "~/.vibecoding/skills" }
+{ "skillsDir": "~/.mothx/skills" }
 ```
 
 Skills are loaded from:
@@ -722,11 +722,11 @@ MothX stores all session metadata and entries in a single, unified `sessions.db`
 
 | Platform | Default |
 |----------|---------|
-| Linux/macOS | `~/.vibecoding/sessions` |
+| Linux/macOS | `~/.mothx/sessions` |
 | Windows | `%APPDATA%\vibecoding\sessions` |
 
 ```json
-{ "sessionDir": "~/.vibecoding/sessions" }
+{ "sessionDir": "~/.mothx/sessions" }
 ```
 
 ---
@@ -918,7 +918,7 @@ In addition to the global `settings.json` approval configuration, MothX supports
 | File | Scope | Priority |
 |------|-------|----------|
 | `.vibe/allow.json` | Current project | High |
-| `~/.vibecoding/allow.json` | Global fallback | Low |
+| `~/.mothx/allow.json` | Global fallback | Low |
 
 #### Fields
 
@@ -959,7 +959,7 @@ MCP servers are configured in standalone `mcp.json` files, not in `settings.json
 
 MothX loads MCP configuration at startup from:
 
-1. Global config: `~/.vibecoding/mcp.json` on Linux/macOS, or `%APPDATA%\vibecoding\mcp.json` on Windows
+1. Global config: `~/.mothx/mcp.json` on Linux/macOS, or `%APPDATA%\mothx\mcp.json` on Windows
 2. Project config: `.vibe/mcp.json`
 
 Create a template from the TUI:
@@ -1259,7 +1259,7 @@ Use `headers` to attach custom HTTP headers to every request for a provider. Hea
 
 ### Project-Level Override
 
-Place in `.vibe/settings.json` to override specific settings for a project:
+Place in `.mothx/settings.json` to override specific settings for a project:
 
 ```json
 {

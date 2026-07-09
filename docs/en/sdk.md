@@ -271,7 +271,7 @@ func truncate(s string, n int) string {
 | `WithTools(names)` | all | Filter available tools |
 | `WithSystemPromptExtra(s)` | `""` | Extra system prompt context |
 | `WithSandbox(bool)` | `false` | Enable sandbox isolation |
-| `WithSessionDir(dir)` | `~/.vibecoding/sessions` | Session persistence |
+| `WithSessionDir(dir)` | `~/.mothx/sessions` | Session persistence |
 | `WithCompaction(enabled, reserve)` | `true, 16384` | Context compaction settings |
 | `WithMultiAgent(bool)` | `false` | Enable sub-agent tools |
 | `WithApprovalHandler(fn)` | nil | Custom tool approval callback |

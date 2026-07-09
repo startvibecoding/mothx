@@ -291,7 +291,7 @@ A2A Master mode lets you manage multiple remote A2A agents from a single MothX i
 mothx --init-a2a-master-config
 
 # 2. Edit a2a-list.json with your remote agent details
-#    Location: ~/.vibecoding/a2a-list.json or .vibe/a2a-list.json
+#    Location: ~/.mothx/a2a-list.json or .mothx/a2a-list.json
 
 # 3. Enable master mode
 mothx --enable-a2a-master
@@ -324,8 +324,8 @@ mothx --enable-a2a-master
 | `auth_token` | string | Bearer token (optional) |
 
 Config file locations (low to high priority):
-- `~/.vibecoding/a2a-list.json` (global)
-- `.vibe/a2a-list.json` (project-level, overrides global)
+- `~/.mothx/a2a-list.json` (global)
+- `.mothx/a2a-list.json` (project-level, overrides global)
 
 ### a2a_dispatch Tool
 

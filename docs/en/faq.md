@@ -72,7 +72,7 @@ export DEEPSEEK_API_KEY=sk-...
 export OPENAI_API_KEY=sk-...
 
 # Option 2: Check config file
-cat ~/.vibecoding/settings.json
+cat ~/.mothx/settings.json
 
 # Option 3: Run diagnostics
 mothx doctor
@@ -266,7 +266,7 @@ mothx --provider openai --model gpt-4o
 /model  # View available models
 
 # Permanent change to default model
-# Edit ~/.vibecoding/settings.json
+# Edit ~/.mothx/settings.json
 {
   "defaultProvider": "openai",
   "defaultModel": "gpt-4o"
@@ -322,13 +322,13 @@ mothx --resume abc123
 
 ```bash
 # Check session sizes
-du -sh ~/.vibecoding/sessions/
+du -sh ~/.mothx/sessions/
 
 # Delete old sessions (removes both handle file and SQLite records)
 /sessions del abc123
 
 # Back up the whole session root before manual cleanup; it contains sessions.db
-cp -a ~/.vibecoding/sessions ~/backups/sessions
+cp -a ~/.mothx/sessions ~/backups/sessions
 ```
 
 ---
@@ -487,7 +487,7 @@ Make sure:
 # Start Serve
 mothx serve
 
-# Config file ~/.vibecoding/serve.json
+# Config file ~/.mothx/serve.json
 {
   "port": 8080,
   "auth": {
@@ -523,7 +523,7 @@ curl http://localhost:8080/v1/chat/completions \
 # Start Channels mode
 mothx serve
 
-# Config file ~/.vibecoding/serve.json
+# Config file ~/.mothx/serve.json
 {
   "platform": "wechat",  // or "feishu"
   "appId": "your-app-id",

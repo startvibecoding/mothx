@@ -72,7 +72,7 @@ export DEEPSEEK_API_KEY=sk-...
 export OPENAI_API_KEY=sk-...
 
 # 方案二：检查配置文件
-cat ~/.vibecoding/settings.json
+cat ~/.mothx/settings.json
 
 # 方案三：运行诊断
 mothx doctor
@@ -266,7 +266,7 @@ mothx --provider openai --model gpt-4o
 /model  # 查看可用模型
 
 # 永久修改默认模型
-# 编辑 ~/.vibecoding/settings.json
+# 编辑 ~/.mothx/settings.json
 {
   "defaultProvider": "openai",
   "defaultModel": "gpt-4o"
@@ -322,13 +322,13 @@ mothx --resume abc123
 
 ```bash
 # 查看会话大小
-du -sh ~/.vibecoding/sessions/
+du -sh ~/.mothx/sessions/
 
 # 删除旧会话（同时删除句柄文件和 SQLite 记录）
 /sessions del abc123
 
 # 手动清理前先备份完整 session 根目录，其中包含 sessions.db
-cp -a ~/.vibecoding/sessions ~/backups/sessions
+cp -a ~/.mothx/sessions ~/backups/sessions
 ```
 
 ---
@@ -487,7 +487,7 @@ sudo pacman -S bubblewrap        # Arch
 # 启动 Serve
 mothx serve
 
-# 配置文件 ~/.vibecoding/serve.json
+# 配置文件 ~/.mothx/serve.json
 {
   "port": 8080,
   "auth": {
@@ -523,7 +523,7 @@ curl http://localhost:8080/v1/chat/completions \
 # 启动 Serve 模式
 mothx serve
 
-# 配置文件 ~/.vibecoding/serve.json
+# 配置文件 ~/.mothx/serve.json
 {
   "platform": "wechat",  // 或 "feishu"
   "appId": "your-app-id",

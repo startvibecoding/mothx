@@ -5,6 +5,103 @@
 
 ### ✨ Features
 
+- **Per-Session Tool Capabilities**
+  - Added `x_tools` extension to `/v1/chat/completions` for enabling webSearch, browser, a2aMaster, delegate, and multiAgent per session.
+  - Added `GET /api/capabilities` and `GET/PATCH /api/sessions/{id}/capabilities` APIs for querying and updating session tool toggles.
+  - Added `session_capabilities` persistence table (migration 007) in `sessions.db`.
+  - Added CLI flags `--web-search`, `--browser`, `--enable-a2a-master` for serve mode.
+  - Added `webSearch`, `browser`, `a2aMaster` fields to `serve.json` config.
+  - Web UI session tool toggles in composer bar with PATCH to capabilities API.
+  - Per-session settings injection for `webSearch` via `settingsForSession`.
+  - Added `x_session_id` + `x_working_dir` cwd conflict detection (HTTP 409).
+  - Added `/api/sessions?scope=all|active` and `/api/sessions/active` endpoints.
+  - `/mode` and `/delegate` commands now persist capability changes per session.
+
+- **Session Streaming & Stats Dashboard**
+  - Added SSE-based session streaming for real-time chat updates (`session_stream.go`).
+  - Added sequenced message/event replay for cursor-based streaming.
+  - Added `/api/stats/` endpoints (summary, timeseries, by-provider, by-model, recent).
+  - Track session running state and publish run/capability events to stream.
+  - Added cache read/write tokens to usage tracking.
+  - Web UI: SSE streaming in Chat view, Stats dashboard view, Channels/Logs settings.
+  - Added `WorkingDir` → `DefaultWorkDir` rename in serve config.
+  - Added legacy config dir normalization for session/skills dirs.
+
+- **Run & Capability Event Tracking**
+  - Added `session_run_events` and `session_capability_events` tables (migration 008).
+  - Record run lifecycle events (started/finished/failed/canceled) for every chat completion.
+  - Record capability change events for `/mode`, `/delegate`, `x_tools`, and PATCH API.
+  - New endpoints: `GET /api/sessions/{id}/run-events`, `GET /api/sessions/{id}/capability-events`.
+  - Web UI displays recent run and capability events.
+  - Added `make serve` Makefile target.
+
+- **Transcript SSE Events for Streaming**
+  - Added `x_transcript` field to `ChatCompletionRequest` for enabling transcript-mode streaming.
+  - When enabled, streaming handler emits `event: transcript` frames (`assistant_delta` and `message` types) instead of legacy `tool_status` events.
+  - Web UI sends `x_transcript:true` and routes transcript events through shared `upsertTranscriptMessage` path.
+  - Refactored streaming handler to branch on transcript flag with helper functions for building transcript toolCall/toolResult entries.
+
+- **Embedded Web UI Assets**
+  - Web UI assets are now embedded in the binary via `go:embed`, no longer requiring dist files on disk.
+  - Added `ui` package with `DistFS()` and `fs.FS` abstraction for both embedded and override paths.
+  - `--web-ui-dir` flag still supported for overriding embedded assets.
+
+- **External Bind Address via --port**
+  - `--port` now accepts full addresses (e.g. `0.0.0.0:8080`).
+  - Removed `displayListenAddr` rewrite that overrode `0.0.0.0` to `127.0.0.1`.
+
+- **Web UI Keyboard Shortcuts & Pagination**
+  - Sidebar: Cmd/Ctrl+K to focus search, Shift+Cmd/Ctrl+K for new chat.
+  - Platform-aware shortcut labels (macOS vs other), Escape clears search.
+  - Sessions view: paginated list (25 per page) with page navigation controls.
+
+- **WeChat QR Login API & Channels Settings UI**
+  - Added WeChat QR login API endpoints (login status, QR proxy, base64 mode).
+  - Added `wechatLoginSession` for managing QR scan flow state.
+  - Rewrote Channels.svelte with full WeChat QR login flow (polling, display, error handling).
+  - Added Feishu config form (appId/appSecret/workspace/allowedUsers) and WebSocket channel toggle.
+  - Added `ProviderSettings.svelte` wrapper and comprehensive i18n strings for channel settings.
+  - Dispatcher nil-checks before starting platforms.
+
+- **Sub-Agent Detach & Rule Guard Fix**
+  - Added `DetachChild()` to `AgentManager` to remove child from parent's active list while retaining the child agent for later inspection.
+  - Added `HasRunning()` to `AgentManager` to check if any agent is actively executing.
+  - Changed `DelegateSubAgentTool` to use `DetachChild` instead of `Destroy` so completed delegated children remain inspectable via handle.
+  - Delegate result now returns handle for tracking delegated child agents.
+  - Fixed `/rule` command guard to use `HasRunning()` instead of `Count() > 0` so rule changes are allowed when only completed retained agents exist.
+
+- **Cron Store Migration to SQLite**
+  - Replaced `FileCronStore` (cron.json) with `SQLiteCronStore` (sessions.db) for reliable, transactional cron job persistence.
+  - Added `SessionScopedStore` to bind cron jobs to sessions with per-session isolation and automatic workDir inheritance.
+  - Added `--cron` CLI flag as independent option (separate from `--multi-agent`).
+  - Cron now enabled by default in serve mode without requiring multi-agent.
+  - Scheduler attaches scheduled local runs to existing sessions when `SessionID` is set.
+  - Added `cron_jobs` table migration in sessions.go.
+  - Cron tool supports `findJob` by name (with ambiguity detection) for enable, disable, delete, and run actions.
+  - Dispatcher lazily initializes `AgentManager` for cron-only sessions.
+
+- **Serve Settings Hot-Reload & Workflows Toggle**
+  - Added `Server.ApplySettings()` to hot-reload provider/model after settings save.
+  - Added `workflows` session tool option and feature flag in serve.
+  - Added `nearestExistingBrowseDir` fallback when default work dir is missing.
+  - Refactored truncation to `util.TruncateWithSuffix` (UTF-8 safe).
+
+- **System Prompt Rename to MothX**
+  - Renamed system prompt identity from VibeCoding to MothX.
+
+### 🔧 Improvements
+
+- **Web UI Settings Expansion**
+  - Added `ListEditor` reusable component for editing string lists in settings.
+  - Expanded `AppSettings` with full form-based editor for defaults, web search, context files, compaction, sandbox, retry, approval, and provider config.
+  - Expanded `ServeConfig` with full form-based editor for features, API, cron, memory, security, agent, hooks, channels, and lobster mode settings.
+  - Web UI: sessions table fixed columns with ellipsis layout.
+  - Web UI: skill_ref and workflow_lint tool call/result display.
+  - Web UI: simplified WeChat QR to open-in-new-tab instead of embed.
+  - Web UI: `resetSelectedModelToDefault` on session switch and settings save.
+  - Web UI: workdir settings refresh after save, cleaner restrict logic.
+  - i18n: added zh/en strings for workflow and skill_ref tools.
+
 - **Web UI Internationalization & Theme Support**
   - Added a complete i18n system for the Web UI with Chinese/English language switching.
   - Added a preference controls panel (`PreferenceControls`) for adjusting language and theme.
@@ -39,10 +136,12 @@
 - **Serve init-config Subcommand**
   - Added `mothx serve init-config` subcommand for initializing global and project-level `serve.json` configuration.
 
-### 🔧 Improvements
-
 - **TUI Input Queue On-Demand Start**
   - Input queue ticker now starts on demand and stops when idle, reducing unnecessary CPU usage.
+
+- **TUI Backspace/Delete to Remove Auth Models**
+  - Added Backspace/Delete shortcut in the auth dialog model list to delete a selected model entry.
+  - Action rows like `+ Add Model` and `Done` are excluded from deletion.
 
 - **Split-Paste Coalescing Configurable**
   - Split-paste event coalescing is now configurable via test parameters, facilitating unit test verification.

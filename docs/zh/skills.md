@@ -12,9 +12,9 @@ MothX 的技能系统允许您创建可重用的提示片段，称为技能 (Ski
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Global Skills                 Project Skills                │
-│  Linux/macOS: ~/.vibecoding/   .skills/                      │
+│  Linux/macOS: ~/.mothx/        .skills/                      │
 │  skills/                       (项目根目录)                  │
-│  Windows: %APPDATA%\vibecoding\skills\                       │
+│  Windows: %APPDATA%\mothx\skills\                            │
 │  ┌─────────────────────┐      ┌─────────────────────┐       │
 │  │ coding-standards/   │      │ project-specific/   │       │
 │  │   SKILL.md          │      │   SKILL.md          │       │
@@ -38,17 +38,17 @@ MothX 的技能系统允许您创建可重用的提示片段，称为技能 (Ski
 ### 全局技能
 
 位置:
-- Linux/macOS: `~/.vibecoding/skills/`
-- Windows: `%APPDATA%\vibecoding\skills\`
+- Linux/macOS: `~/.mothx/skills/`
+- Windows: `%APPDATA%\mothx\skills\`
 
 全局技能对所有项目可用。
 
 ```bash
 # Linux/macOS
-~/.vibecoding/skills/
+~/.mothx/skills/
 
 # Windows
-%APPDATA%\vibecoding\skills\
+%APPDATA%\mothx\skills\
 
 ├── coding-standards/
 │   └── SKILL.md
@@ -117,8 +117,8 @@ This skill defines coding standards for the project.
 
 ```json
 {
-  "skillsDir": "~/.vibecoding/skills"  // Linux/macOS
-  // Windows: "%APPDATA%\\vibecoding\\skills"
+  "skillsDir": "~/.mothx/skills"  // Linux/macOS
+  // Windows: "%APPDATA%\\mothx\\skills"
 }
 ```
 
@@ -185,10 +185,10 @@ Loaded 3 skills:
 
 ```bash
 # Linux/macOS
-~/.vibecoding/skills/
+~/.mothx/skills/
 
 # Windows
-%APPDATA%\vibecoding\skills\
+%APPDATA%\mothx\skills\
 
 └── general-rules/
     └── SKILL.md
@@ -210,10 +210,10 @@ Loaded 3 skills:
 
 ```bash
 # Linux/macOS
-~/.vibecoding/skills/
+~/.mothx/skills/
 
 # Windows
-%APPDATA%\vibecoding\skills\
+%APPDATA%\mothx\skills\
 
 ├── coding/
 │   ├── go-style/

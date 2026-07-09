@@ -12,9 +12,9 @@ Skills are prompt snippets stored as `SKILL.md` files that can be loaded and inj
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Global Skills                 Project Skills                │
-│  Linux/macOS: ~/.vibecoding/   .skills/                      │
+│  Linux/macOS: ~/.mothx/        .skills/                      │
 │  skills/                                                       │
-│  Windows: %APPDATA%\vibecoding\skills\                       │
+│  Windows: %APPDATA%\mothx\skills\                            │
 │  ┌─────────────────────┐      ┌─────────────────────┐       │
 │  │ coding-standards/   │      │ project-specific/   │       │
 │  │   SKILL.md          │      │   SKILL.md          │       │
@@ -38,14 +38,14 @@ Skills are prompt snippets stored as `SKILL.md` files that can be loaded and inj
 ### Global Skills
 
 Location:
-- Linux/macOS: `~/.vibecoding/skills/`
-- Windows: `%APPDATA%\vibecoding\skills\`
+- Linux/macOS: `~/.mothx/skills/`
+- Windows: `%APPDATA%\mothx\skills\`
 
 Global skills are available for all projects.
 
 ```bash
 # Linux/macOS
-~/.vibecoding/skills/
+~/.mothx/skills/
 ├── coding-standards/
 │   └── SKILL.md
 ├── git-workflow/
@@ -54,7 +54,7 @@ Global skills are available for all projects.
     └── SKILL.md
 
 # Windows
-%APPDATA%\vibecoding\skills\
+%APPDATA%\mothx\skills\
 ├── coding-standards\
 │   └── SKILL.md
 ├── git-workflow\
@@ -122,11 +122,11 @@ Configure the skills directory in `settings.json`:
 
 ```json
 {
-  "skillsDir": "~/.vibecoding/skills"
+  "skillsDir": "~/.mothx/skills"
 }
 ```
 
-On Windows, use `%APPDATA%\vibecoding\skills` or an absolute path.
+On Windows, use `%APPDATA%\mothx\skills` or an absolute path.
 ```
 
 ### Project Local Skills
@@ -192,12 +192,12 @@ Place rules that apply to all projects in the global skills directory:
 
 ```bash
 # Linux/macOS
-~/.vibecoding/skills/
+~/.mothx/skills/
 └── general-rules/
     └── SKILL.md
 
 # Windows
-%APPDATA%\vibecoding\skills\
+%APPDATA%\mothx\skills\
 └── general-rules\
     └── SKILL.md
 ```
@@ -218,7 +218,7 @@ Organize skills by topic:
 
 ```bash
 # Linux/macOS
-~/.vibecoding/skills/
+~/.mothx/skills/
 ├── coding/
 │   ├── go-style/
 │   │   └── SKILL.md

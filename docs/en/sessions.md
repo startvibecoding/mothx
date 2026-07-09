@@ -10,7 +10,7 @@ MothX's session architecture differs based on the execution mode:
 
 1. **CLI / TUI / Serve Mode (Single Database + Virtual Handles)**
    All session metadata (session list, session IDs, CWD, timestamps) and all history messages/entries are stored entirely inside a single, unified SQLite database file `sessions.db` under `sessionDir`.
-   In this mode, **no physical working directory subdirectories or per-session handle files are created on disk**. The `.db` paths displayed in the CLI/TUI (e.g., `~/.vibecoding/sessions/20260625-120000_abcd1234.db`) are **virtual paths** (handles) computed dynamically from the database metadata. They do not exist on the filesystem but are fully recognized, navigated, and deleted by the program.
+   In this mode, **no physical working directory subdirectories or per-session handle files are created on disk**. The `.db` paths displayed in the CLI/TUI (e.g., `~/.mothx/sessions/20260625-120000_abcd1234.db`) are **virtual paths** (handles) computed dynamically from the database metadata. They do not exist on the filesystem but are fully recognized, navigated, and deleted by the program.
 
 2. **Serve Channels (Single Database + Physical Handles)**
    Unattended messaging channels store records in the single `sessions.db` database and additionally write physical subdirectory handle files containing the session ID (e.g., `20260625-120000_abcd1234.db`) under platform-specific or per-user paths on disk. This layout facilitates platform-specific mapping and lifecycle tracking.
@@ -18,7 +18,7 @@ MothX's session architecture differs based on the execution mode:
 ### Storage Location Layout
 
 ```text
-~/.vibecoding/sessions/
+~/.mothx/sessions/
 ├── sessions.db                       # The unified SQLite database for all session entries and metadata
 └── channels/                           # (Only present for messaging channels)
     └── wechat/user_123/active.db       # Channels platform-specific physical session handle
@@ -85,7 +85,7 @@ sess, err := session.ContinueRecent(cwd, sessionDir)
 mothx --resume abcd1234
 
 # By session handle path
-mothx --resume ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+mothx --resume ~/.mothx/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 ```
 
 ```go
@@ -163,7 +163,7 @@ If you do manual cleanup, remove only dated per-session handle files under encod
 
 ```bash
 # Example: inspect old handle files first, then delete carefully
-find ~/.vibecoding/sessions -path '*/--*--/*.db' -mtime +30 -print
+find ~/.mothx/sessions -path '*/--*--/*.db' -mtime +30 -print
 ```
 
 ### Backup Important Sessions
@@ -171,7 +171,7 @@ find ~/.vibecoding/sessions -path '*/--*--/*.db' -mtime +30 -print
 Back up the session root directory, especially `sessions.db` and the encoded working-directory handle directories:
 
 ```bash
-cp -a ~/.vibecoding/sessions ~/backups/
+cp -a ~/.mothx/sessions ~/backups/
 ```
 
 ## Troubleshooting
@@ -200,6 +200,6 @@ Possible causes:
 - The encoded working-directory directory is different
 
 Solutions:
-1. Check `~/.vibecoding/sessions/` or `%APPDATA%\vibecoding\sessions\`
+1. Check `~/.mothx/sessions/` or `%APPDATA%\mothx\sessions\`
 2. Use `--resume <session-id>` from the original working directory
 3. Confirm the configured `sessionDir` is correct

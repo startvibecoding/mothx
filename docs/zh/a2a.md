@@ -291,7 +291,7 @@ A2A Master 模式让你可以在一个 MothX 实例中管理多个远程 A2A Age
 mothx --init-a2a-master-config
 
 # 2. 编辑 a2a-list.json，填入实际的远程 agent 信息
-#    位置：~/.vibecoding/a2a-list.json 或 .vibe/a2a-list.json
+#    位置：~/.mothx/a2a-list.json 或 .mothx/a2a-list.json
 
 # 3. 启用 master 模式
 mothx --enable-a2a-master
@@ -324,8 +324,8 @@ mothx --enable-a2a-master
 | `auth_token` | string | Bearer Token（可选） |
 
 配置文件位置（优先级从低到高）：
-- `~/.vibecoding/a2a-list.json`（全局）
-- `.vibe/a2a-list.json`（项目级，覆盖全局）
+- `~/.mothx/a2a-list.json`（全局）
+- `.mothx/a2a-list.json`（项目级，覆盖全局）
 
 ### a2a_dispatch Tool
 

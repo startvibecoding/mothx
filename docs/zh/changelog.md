@@ -5,6 +5,103 @@
 
 ### ✨ 新功能
 
+- **按会话工具能力**
+  - `/v1/chat/completions` 新增 `x_tools` 扩展，支持按会话启用 webSearch、browser、a2aMaster、delegate 和 multiAgent。
+  - 新增 `GET /api/capabilities` 和 `GET/PATCH /api/sessions/{id}/capabilities` API，用于查询和更新会话工具开关。
+  - 新增 `session_capabilities` 持久化表（迁移 007），存储在 `sessions.db` 中。
+  - 新增 CLI 标志 `--web-search`、`--browser`、`--enable-a2a-master`。
+  - `serve.json` 配置新增 `webSearch`、`browser`、`a2aMaster` 字段。
+  - Web UI 作曲家栏新增会话工具开关，通过 PATCH 更新能力 API。
+  - 通过 `settingsForSession` 为会话注入 `webSearch` 设置。
+  - 新增 `x_session_id` + `x_working_dir` 工作目录冲突检测（HTTP 409）。
+  - 新增 `/api/sessions?scope=all|active` 和 `/api/sessions/active` 端点。
+  - `/mode` 和 `/delegate` 命令现在按会话持久化能力变更。
+
+- **会话流式传输与统计面板**
+  - 新增基于 SSE 的会话流式传输，支持实时聊天更新（`session_stream.go`）。
+  - 新增基于游标的消息/事件有序回放。
+  - 新增 `/api/stats/` 端点（摘要、时间序列、按厂商/模型、最近请求）。
+  - 跟踪会话运行状态，向流发布运行/能力事件。
+  - 使用统计新增缓存读取/写入 token 计数。
+  - Web UI：Chat 视图 SSE 流式传输、Stats 面板、Channels/Logs 设置。
+  - Serve 配置中 `WorkingDir` 重命名为 `DefaultWorkDir`。
+  - 新增旧版配置目录规范化（会话/skills 目录）。
+
+- **运行与能力事件追踪**
+  - 新增 `session_run_events` 和 `session_capability_events` 表（迁移 008）。
+  - 记录每次聊天完成的运行生命周期事件（started/finished/failed/canceled）。
+  - 记录 `/mode`、`/delegate`、`x_tools` 和 PATCH API 的能力变更事件。
+  - 新增端点：`GET /api/sessions/{id}/run-events`、`GET /api/sessions/{id}/capability-events`。
+  - Web UI 显示最近的运行和能力事件。
+  - 新增 `make serve` Makefile 目标。
+
+- **聊天 Transcript SSE 事件**
+  - `ChatCompletionRequest` 新增 `x_transcript` 字段，启用 transcript 模式流式传输。
+  - 启用后，流式处理器发送 `event: transcript` 帧（`assistant_delta` 和 `message` 类型），替代旧的 `tool_status` 事件。
+  - Web UI 发送 `x_transcript:true`，通过共享的 `upsertTranscriptMessage` 路径路由 transcript 事件。
+  - 重构流式处理器以根据 transcript 标志分支，新增构建 transcript toolCall/toolResult 条目的辅助函数。
+
+- **Web UI 资源嵌入二进制**
+  - Web UI 资源现在通过 `go:embed` 嵌入二进制文件，不再需要磁盘上的 dist 文件。
+  - 新增 `ui` 包，提供 `DistFS()` 和 `fs.FS` 抽象，支持嵌入和覆盖路径。
+  - `--web-ui-dir` 标志仍可用于覆盖嵌入资源。
+
+- **--port 支持外部绑定地址**
+  - `--port` 现在接受完整地址（如 `0.0.0.0:8080`）。
+  - 移除了将 `0.0.0.0` 重写为 `127.0.0.1` 的 `displayListenAddr` 逻辑。
+
+- **Web UI 键盘快捷键与会话分页**
+  - 侧边栏：Cmd/Ctrl+K 聚焦搜索，Shift+Cmd/Ctrl+K 新建聊天。
+  - 平台感知的快捷键标签（macOS 与其他），Escape 清除搜索。
+  - Sessions 视图：分页列表（每页 25 条），带页面导航控件。
+
+- **微信二维码登录 API 与通道设置 UI**
+  - 新增微信二维码登录 API 端点（登录状态、二维码代理、base64 模式）。
+  - 新增 `wechatLoginSession` 管理二维码扫描流程状态。
+  - 重写 Channels.svelte，实现完整的微信二维码登录流程（轮询、显示、错误处理）。
+  - 新增飞书配置表单（appId/appSecret/workspace/allowedUsers）和 WebSocket 通道开关。
+  - 新增 `ProviderSettings.svelte` 包装器和通道设置的完整 i18n 字符串。
+  - 启动平台前增加 dispatcher nil 检查。
+
+- **子 Agent 分离与规则守卫修复**
+  - `AgentManager` 新增 `DetachChild()`，从父级活动列表移除子级但保留子 Agent 供后续查看。
+  - `AgentManager` 新增 `HasRunning()`，检查是否有 Agent 正在执行。
+  - `DelegateSubAgentTool` 改用 `DetachChild` 替代 `Destroy`，使已完成的委派子 Agent 仍可通过句柄查看。
+  - 委派结果现在返回句柄，用于跟踪委派子 Agent。
+  - 修复 `/rule` 命令守卫，使用 `HasRunning()` 替代 `Count() > 0`，仅保留已完成的子 Agent 时允许规则变更。
+
+- **Cron 存储迁移到 SQLite**
+  - 用 `SQLiteCronStore`（sessions.db）替换 `FileCronStore`（cron.json），实现可靠的事务性 Cron 任务持久化。
+  - 新增 `SessionScopedStore`，将 Cron 任务绑定到会话，实现按会话隔离和自动继承 workDir。
+  - 新增 `--cron` CLI 标志，作为独立选项（与 `--multi-agent` 分离）。
+  - Cron 现在在 Serve 模式下默认启用，无需 multi-agent。
+  - 调度器在 `SessionID` 设置时将定时本地运行附加到已有会话。
+  - sessions.go 新增 `cron_jobs` 表迁移。
+  - Cron 工具支持按名称查找任务（含歧义检测）进行启用、禁用、删除和运行。
+  - Dispatcher 为仅 Cron 的会话延迟初始化 `AgentManager`。
+
+- **Serve 设置热重载与工作流开关**
+  - 新增 `Server.ApplySettings()`，保存设置后热重载 provider/model。
+  - Serve 新增 `workflows` 会话工具选项和功能标志。
+  - 默认工作目录不存在时，新增 `nearestExistingBrowseDir` 回退。
+  - 截断逻辑重构为 `util.TruncateWithSuffix`（UTF-8 安全）。
+
+- **系统提示重命名为 MothX**
+  - 系统提示中的身份标识从 VibeCoding 更改为 MothX。
+
+### 🔧 改进
+
+- **Web UI 设置扩展**
+  - 新增 `ListEditor` 可复用组件，用于编辑设置中的字符串列表。
+  - `AppSettings` 扩展为完整的表单编辑器，覆盖 defaults、web search、context files、compaction、sandbox、retry、approval 和 provider 配置。
+  - `ServeConfig` 扩展为完整的表单编辑器，覆盖 features、API、cron、memory、security、agent、hooks、channels 和 lobster mode。
+  - Web UI：Sessions 表格固定列和省略布局。
+  - Web UI：skill_ref 和 workflow_lint 工具调用/结果显示。
+  - Web UI：微信二维码简化为新标签页打开，不再内嵌。
+  - Web UI：会话切换和设置保存时重置 `resetSelectedModelToDefault`。
+  - Web UI：工作目录设置保存后刷新，更清晰的限制逻辑。
+  - i18n：新增 workflow 和 skill_ref 工具的中英文字符串。
+
 - **Web UI 国际化与主题支持**
   - 新增完整的 Web UI 国际化（i18n）系统，支持中英文切换。
   - 新增偏好设置面板（`PreferenceControls`），可调整语言和主题。
@@ -39,10 +136,12 @@
 - **Serve init-config 子命令**
   - 新增 `mothx serve init-config` 子命令，支持初始化全局和项目级 `serve.json` 配置。
 
-### 🔧 改进
-
 - **TUI 输入队列按需启动**
   - 输入队列定时器改为按需启动，空闲时自动停止，减少不必要的 CPU 占用。
+
+- **TUI Backspace/Delete 删除认证模型**
+  - 认证对话框模型列表中新增 Backspace/Delete 快捷键，可删除选中的模型条目。
+  - `+ Add Model` 和 `Done` 等操作行不会被误删。
 
 - **粘贴合并可配置化**
   - 分割粘贴事件合并（split-paste coalescing）现在可通过测试参数配置，便于单元测试验证。

@@ -271,7 +271,7 @@ func truncate(s string, n int) string {
 | `WithTools(names)` | 全部 | 过滤可用工具 |
 | `WithSystemPromptExtra(s)` | `""` | 额外的系统提示词上下文 |
 | `WithSandbox(bool)` | `false` | 启用沙箱隔离 |
-| `WithSessionDir(dir)` | `~/.vibecoding/sessions` | 会话持久化目录 |
+| `WithSessionDir(dir)` | `~/.mothx/sessions` | 会话持久化目录 |
 | `WithCompaction(enabled, reserve)` | `true, 16384` | 上下文压缩设置 |
 | `WithMultiAgent(bool)` | `false` | 启用子 Agent 工具 |
 | `WithApprovalHandler(fn)` | nil | 自定义工具审批回调 |

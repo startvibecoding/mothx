@@ -228,9 +228,9 @@ mothx serve   # 部署为微信/飞书机器人
 
 | 位置 | 平台 | 作用域 |
 |------|------|--------|
-| `~/.vibecoding/settings.json` | Linux/macOS | 全局 |
+| `~/.mothx/settings.json` | Linux/macOS | 全局 |
 | `%APPDATA%\vibecoding\settings.json` | Windows | 全局 |
-| `.vibe/settings.json` | 所有 | 项目（覆盖全局） |
+| `.mothx/settings.json` | 所有 | 项目（覆盖全局） |
 
 ### 环境变量
 

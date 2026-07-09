@@ -150,7 +150,7 @@ Examples:
 ```bash
 mothx stats
 mothx stats --cli
-mothx stats --cli --db ~/.vibecoding/sessions/sessions.db
+mothx stats --cli --db ~/.mothx/sessions/sessions.db
 ```
 
 ### `doctor` - Environment Diagnostics
@@ -213,8 +213,8 @@ Sample output:
     ✅ Working directory — /home/user/project
 
   Configuration Files
-    ✅ Global settings — /home/user/.vibecoding/settings.json (1.2 KB)
-    ⏭️  Project settings — .vibe/settings.json (not found)
+    ✅ Global settings — /home/user/.mothx/settings.json (1.2 KB)
+    ⏭️  Project settings — .mothx/settings.json (not found)
     ...
 
   Providers & Models
@@ -319,7 +319,7 @@ mothx -c
 
 # Resume specific session
 mothx --resume session-abc123
-mothx -r ~/.vibecoding/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
+mothx -r ~/.mothx/sessions/--encoded-working-directory--/20260625-120000_abcd1234.db
 
 # Use specific session handle file
 mothx --session ./20260625-120000_abcd1234.db

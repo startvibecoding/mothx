@@ -34,7 +34,7 @@ Download the skill package from the marketplace (typically a directory or archiv
 ```bash
 # Global install (available to all projects)
 # Linux/macOS:
-unzip go-expert.zip -d ~/.vibecoding/skills/
+unzip go-expert.zip -d ~/.mothx/skills/
 # Windows:
 Expand-Archive go-expert.zip -DestinationPath "$env:APPDATA\vibecoding\skills\"
 
@@ -106,14 +106,14 @@ In addition to marketplace downloads, you can create local skills directly.
 
 | Type | Location | Scope |
 |------|----------|-------|
-| Global | `~/.vibecoding/skills/` (Linux/macOS) or `%APPDATA%\vibecoding\skills\` (Windows) | All projects |
+| Global | `~/.mothx/skills/` (Linux/macOS) or `%APPDATA%\mothx\skills\` (Windows) | All projects |
 | Project | `.skills/` (project root) | Current project, overrides global |
 
 ### Creating a Skill
 
 ```bash
-mkdir -p ~/.vibecoding/skills/go-expert
-cat > ~/.vibecoding/skills/go-expert/SKILL.md << 'EOF'
+mkdir -p ~/.mothx/skills/go-expert
+cat > ~/.mothx/skills/go-expert/SKILL.md << 'EOF'
 # Go Expert
 
 Expert-level Go coding standards.
@@ -151,7 +151,7 @@ Configure the global skills directory in `settings.json`:
 
 ```json
 {
-  "skillsDir": "~/.vibecoding/skills"
+  "skillsDir": "~/.mothx/skills"
 }
 ```
 
