@@ -1834,6 +1834,49 @@ func TestInputSplitMultilinePastePreservesNewlines(t *testing.T) {
 	}
 }
 
+func TestInputSplitPasteCoalescesAfterFirstLineFlush(t *testing.T) {
+	withSplitPasteCoalescing(t, true)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("one"))
+	a.flushInputQueue()
+	if got := a.input.Value(); got != "one" {
+		t.Fatalf("input after first line flush = %q, want one", got)
+	}
+
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	if got := a.input.Value(); got != "one" {
+		t.Fatalf("input after deferred enter = %q, want one", got)
+	}
+
+	a.Update(teaKeyMsgForTest("two"))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "one\ntwo" {
+		t.Fatalf("split pasted input = %q, want newlines preserved", got)
+	}
+	if len(a.messages) != 0 {
+		t.Fatalf("split paste submitted messages = %#v, want none", a.messages)
+	}
+}
+
+func TestInputDeferredEnterSubmitsWhenPasteDoesNotContinue(t *testing.T) {
+	withSplitPasteCoalescing(t, true)
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	a.Update(teaKeyMsgForTest("/clear"))
+	a.flushInputQueue()
+	a.Update(teaSpecialKeyMsgForTest(tea.KeyEnter))
+	a.flushInputQueue()
+
+	if got := a.input.Value(); got != "" {
+		t.Fatalf("input after deferred submit = %q, want empty", got)
+	}
+	if len(a.messages) == 0 || !strings.Contains(stripANSI(a.messages[len(a.messages)-1]), "Conversation cleared") {
+		t.Fatalf("expected /clear to execute, messages = %#v", a.messages)
+	}
+}
+
 func TestInputSplitPasteCtrlJPreservesNewline(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
 

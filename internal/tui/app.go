@@ -159,6 +159,7 @@ type App struct {
 	inputQueueMu         sync.Mutex
 	inputQueueTickActive bool
 	lastInputTime        time.Time
+	lastTextInputTime    time.Time
 	inputBatchSize       int
 	inputDelay           time.Duration
 
@@ -839,7 +840,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.scheduleRender()
 				return a, flushCmd
 			}
-			if splitPasteCoalescingEnabled() && a.hasQueuedInput() && !a.commandSuggestionsVisible() {
+			if splitPasteCoalescingEnabled() && a.shouldQueueEnterForSplitPaste() {
 				cmd := a.queueInput(msg)
 				a.resetInputHistoryNavigation()
 				return a, cmd
@@ -1005,6 +1006,9 @@ func (a *App) queueInput(msg tea.Msg) tea.Cmd {
 		arrived: now,
 	})
 	a.lastInputTime = now
+	if isTextInputMsg(msg) {
+		a.lastTextInputTime = now
+	}
 	if a.inputQueueTickActive {
 		return nil
 	}
@@ -1016,6 +1020,19 @@ func (a *App) hasQueuedInput() bool {
 	a.inputQueueMu.Lock()
 	defer a.inputQueueMu.Unlock()
 	return len(a.inputQueue) > 0
+}
+
+func (a *App) shouldQueueEnterForSplitPaste() bool {
+	if a.commandSuggestionsVisible() {
+		return false
+	}
+	if a.hasQueuedInput() {
+		return true
+	}
+	if strings.TrimSpace(a.input.Value()) == "" || a.lastTextInputTime.IsZero() {
+		return false
+	}
+	return time.Since(a.lastTextInputTime) < splitPasteIdleDelay
 }
 
 func (a *App) stopInputQueueTickIfEmpty() bool {
@@ -1142,6 +1159,19 @@ func coalescedSplitPaste(events []InputEvent) (string, bool) {
 		return "", false
 	}
 	return b.String(), true
+}
+
+func isTextInputMsg(msg tea.Msg) bool {
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return false
+	}
+	switch keyMsg.Type {
+	case tea.KeyRunes, tea.KeySpace:
+		return true
+	default:
+		return false
+	}
 }
 
 func queuedInputHasLineBreak(events []InputEvent) bool {
