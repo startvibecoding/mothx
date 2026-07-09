@@ -151,7 +151,7 @@ func oneHourBucketSQL() string {
 func (s *DB) ByProvider(q Query) ([]Aggregate, error) {
 	where, args := buildWhereClause(q)
 	query := fmt.Sprintf(
-		"SELECT provider, protocol, COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(total_tokens),0), COUNT(*) FROM request_stats%s GROUP BY provider, protocol ORDER BY total_tokens DESC",
+		"SELECT provider, protocol, COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(total_tokens),0) AS token_total, COUNT(*) FROM request_stats%s GROUP BY provider, protocol ORDER BY token_total DESC",
 		where,
 	)
 	rows, err := s.db.Query(query, args...)
@@ -176,7 +176,7 @@ func (s *DB) ByProvider(q Query) ([]Aggregate, error) {
 func (s *DB) ByModel(q Query) ([]Aggregate, error) {
 	where, args := buildWhereClause(q)
 	query := fmt.Sprintf(
-		"SELECT model, provider, protocol, COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(total_tokens),0), COUNT(*) FROM request_stats%s GROUP BY model, provider, protocol ORDER BY total_tokens DESC",
+		"SELECT model, provider, protocol, COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(total_tokens),0) AS token_total, COUNT(*) FROM request_stats%s GROUP BY model, provider, protocol ORDER BY token_total DESC",
 		where,
 	)
 	rows, err := s.db.Query(query, args...)

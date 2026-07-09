@@ -35,6 +35,7 @@ type RunOptions struct {
 	Provider      string
 	Model         string
 	WorkDir       string
+	Unsafe        bool
 	Sandbox       bool
 	MultiAgent    bool
 	Delegate      bool
@@ -354,6 +355,9 @@ func applyRunOverrides(cfg *Config, opts RunOptions) {
 	}
 	if opts.Port != "" {
 		cfg.Listen = listenFromPortOverride(opts.Port)
+	}
+	if opts.Unsafe {
+		cfg.ApplyUnsafeAccess()
 	}
 	if opts.MultiAgent {
 		cfg.EnableSubAgents = true

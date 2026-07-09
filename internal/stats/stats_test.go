@@ -131,6 +131,8 @@ func TestByProvider(t *testing.T) {
 		now, "openai", "openai-chat", "gpt-4", 1000, 500, 1500)
 	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		now, "anthropic", "anthropic-messages", "claude-3", 2000, 800, 2800)
+	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		now, "openai", "openai-chat", "gpt-4", 1200, 600, 1800)
 
 	data, err := db.ByProvider(Query{})
 	if err != nil {
@@ -139,12 +141,15 @@ func TestByProvider(t *testing.T) {
 	if len(data) != 2 {
 		t.Errorf("expected 2 providers, got %d", len(data))
 	}
-	// anthropic should be first (higher total tokens)
-	if data[0].Vendor != "anthropic" {
-		t.Errorf("expected anthropic first, got %s", data[0].Vendor)
+	// openai should be first because its aggregate total is higher.
+	if data[0].Vendor != "openai" {
+		t.Errorf("expected openai first, got %s", data[0].Vendor)
 	}
-	if data[0].Protocol != "anthropic-messages" {
-		t.Errorf("expected anthropic-messages protocol, got %s", data[0].Protocol)
+	if data[0].Protocol != "openai-chat" {
+		t.Errorf("expected openai-chat protocol, got %s", data[0].Protocol)
+	}
+	if data[0].TotalTokens != 3300 {
+		t.Errorf("expected openai total 3300, got %d", data[0].TotalTokens)
 	}
 }
 
@@ -154,9 +159,11 @@ func TestByModel(t *testing.T) {
 
 	now := time.Now().Format(time.RFC3339Nano)
 	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		now, "openai", "openai-chat", "gpt-4", 1000, 500, 1500)
+		now, "openai", "openai-chat", "gpt-4", 600, 300, 900)
 	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		now, "openai", "openai-chat", "gpt-3.5", 500, 200, 700)
+		now, "openai", "openai-chat", "gpt-3.5", 800, 200, 1000)
+	_, _ = db.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		now, "openai", "openai-chat", "gpt-4", 900, 300, 1200)
 
 	data, err := db.ByModel(Query{})
 	if err != nil {
@@ -164,6 +171,12 @@ func TestByModel(t *testing.T) {
 	}
 	if len(data) != 2 {
 		t.Errorf("expected 2 models, got %d", len(data))
+	}
+	if data[0].Model != "gpt-4" {
+		t.Errorf("expected gpt-4 first, got %s", data[0].Model)
+	}
+	if data[0].TotalTokens != 2100 {
+		t.Errorf("expected gpt-4 total 2100, got %d", data[0].TotalTokens)
 	}
 }
 

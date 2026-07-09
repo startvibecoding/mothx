@@ -19,6 +19,9 @@ mothx serve --port 8080 --work-dir /path/to/project
 # 绑定到外部网卡（允许其他机器访问）
 mothx serve --port 0.0.0.0:8080 --work-dir /path/to/project
 
+# 关闭认证并绑定到所有网卡（仅限可信网络）
+mothx serve --unsafe --work-dir /path/to/project
+
 # 初始化配置文件
 mothx serve init-config global   # 生成 ~/.mothx/serve.json
 mothx serve init-config project  # 生成 .mothx/serve.json
@@ -79,7 +82,7 @@ mothx serve init-config project  # 生成 .mothx/serve.json
 
 ## 网络访问
 
-如果需要允许其他机器访问，把 Serve 绑定到外部网卡，例如 `--port 0.0.0.0:8080`，或在 `serve.json` 中设置 `"listen": "0.0.0.0:8080"`。对外暴露前应开启 Bearer token 认证。
+如果需要允许其他机器访问，把 Serve 绑定到外部网卡，例如 `--port 0.0.0.0:8080`，或在 `serve.json` 中设置 `"listen": "0.0.0.0:8080"`。对外暴露前应开启 Bearer token 认证。仅在可信本地网络中，可以使用 `--unsafe` 临时关闭认证，并把 loopback/default 监听地址绑定到 `0.0.0.0`。
 
 ## 安全
 
@@ -129,4 +132,5 @@ mothx serve init-config project  # 生成 .mothx/serve.json
 | `--work-dir` | 工作目录 | 当前目录 |
 | `--config` | 配置文件路径 | `~/.mothx/serve.json` 或 `.mothx/serve.json` |
 | `--web-ui-dir` | Web UI 静态资源目录 | 内置路径 |
+| `--unsafe` | 关闭认证并绑定到所有网卡 | 关闭 |
 | `--debug` | 启用 pprof 性能分析服务器 | 关闭 |

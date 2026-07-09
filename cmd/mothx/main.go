@@ -92,6 +92,7 @@ type cliFlags struct {
 	serveConfig     string
 	servePort       string
 	serveWebUIDir   string
+	serveUnsafe     bool
 	lobsterMode     bool
 }
 

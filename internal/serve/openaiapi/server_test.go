@@ -240,6 +240,33 @@ func TestApplyRunOverrides_PortForms(t *testing.T) {
 	}
 }
 
+func TestApplyRunOverrides_UnsafeDisablesAuthAndExposesListen(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Listen = "127.0.0.1:9090"
+	cfg.Auth = AuthConfig{Enabled: true, Tokens: []string{"sk-test"}}
+
+	applyRunOverrides(cfg, RunOptions{Unsafe: true})
+
+	if cfg.Auth.Enabled || len(cfg.Auth.Tokens) != 0 {
+		t.Fatalf("auth = %#v, want disabled with no tokens", cfg.Auth)
+	}
+	if cfg.Listen != "0.0.0.0:9090" {
+		t.Fatalf("listen = %q, want 0.0.0.0:9090", cfg.Listen)
+	}
+}
+
+func TestApplyRunOverrides_UnsafePreservesExternalListen(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Listen = "192.0.2.10:9090"
+	cfg.Auth = AuthConfig{Enabled: true, Tokens: []string{"sk-test"}}
+
+	applyRunOverrides(cfg, RunOptions{Unsafe: true})
+
+	if cfg.Listen != "192.0.2.10:9090" {
+		t.Fatalf("listen = %q, want 192.0.2.10:9090", cfg.Listen)
+	}
+}
+
 func TestLoadRunConfig_UsesInMemoryConfigAndClones(t *testing.T) {
 	allowed := []string{"/home/test"}
 	original := &Config{

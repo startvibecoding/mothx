@@ -1737,6 +1737,21 @@ func TestApplyOverridesPortForms(t *testing.T) {
 	}
 }
 
+func TestApplyOverridesUnsafeDisablesAuthAndExposesListen(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.API.Listen = ":9090"
+	cfg.API.Auth = openaiapi.AuthConfig{Enabled: true, Tokens: []string{"sk-test"}}
+
+	applyOverrides(cfg, RunOptions{Unsafe: true})
+
+	if cfg.API.Auth.Enabled || len(cfg.API.Auth.Tokens) != 0 {
+		t.Fatalf("auth = %#v, want disabled with no tokens", cfg.API.Auth)
+	}
+	if cfg.API.Listen != "0.0.0.0:9090" {
+		t.Fatalf("listen = %q, want 0.0.0.0:9090", cfg.API.Listen)
+	}
+}
+
 func TestDisplayListenAddrPreservesExplicitExternalBind(t *testing.T) {
 	tests := []struct {
 		addr string

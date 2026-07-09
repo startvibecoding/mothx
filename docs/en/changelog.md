@@ -49,6 +49,7 @@
 - **External Bind Address via --port**
   - `--port` now accepts full addresses (e.g. `0.0.0.0:8080`).
   - Removed `displayListenAddr` rewrite that overrode `0.0.0.0` to `127.0.0.1`.
+  - Added `mothx serve --unsafe` to disable auth and expose loopback/default listens on all interfaces for the current process.
 
 - **Web UI Keyboard Shortcuts & Pagination**
   - Sidebar: Cmd/Ctrl+K to focus search, Shift+Cmd/Ctrl+K for new chat.

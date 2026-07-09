@@ -1,6 +1,6 @@
 {
   "name": "mothx-installer-openbsd-x64",
-  "version": "1.1.60",
+  "version": "1.1.61",
   "description": "MothX native binary for openbsd-x64",
   "os": ["openbsd"],
   "cpu": ["x64"],

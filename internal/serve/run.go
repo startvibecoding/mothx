@@ -37,6 +37,7 @@ type RunOptions struct {
 	Provider   string
 	Model      string
 	WorkDir    string
+	Unsafe     bool
 	Sandbox    bool
 	MultiAgent bool
 	Delegate   bool
@@ -179,6 +180,7 @@ func Run(opts RunOptions, version string) error {
 		Provider:      opts.Provider,
 		Model:         opts.Model,
 		WorkDir:       opts.WorkDir,
+		Unsafe:        opts.Unsafe,
 		Sandbox:       opts.Sandbox,
 		MultiAgent:    opts.MultiAgent,
 		Delegate:      opts.Delegate,
@@ -228,6 +230,9 @@ func applyOverrides(cfg *Config, opts RunOptions) {
 	if opts.WorkDir != "" {
 		cfg.API.DefaultWorkDir = opts.WorkDir
 		cfg.API.WorkingDir = ""
+	}
+	if opts.Unsafe {
+		cfg.API.ApplyUnsafeAccess()
 	}
 	if opts.Provider != "" {
 		cfg.API.Provider = opts.Provider

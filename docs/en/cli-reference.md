@@ -114,6 +114,7 @@ mothx serve [flags]
 |------|-------|---------|-------------|
 | `--port` | - | `8080` | Listen port or address, e.g. `8080` or `0.0.0.0:8080` (overrides serve.json) |
 | `--config` | - | - | Path to serve.json |
+| `--unsafe` | - | false | Disable auth and bind Serve to all interfaces |
 | `--work-dir` | - | Current directory | Default working directory |
 | `--provider` | `-p` | From config | LLM provider |
 | `--model` | `-m` | From config | Model ID |

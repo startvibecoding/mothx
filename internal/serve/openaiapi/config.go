@@ -2,6 +2,7 @@ package openaiapi
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,6 +163,45 @@ func (c *Config) GetToolDetail() string {
 		return c.ToolVisibility.Detail
 	}
 	return "collapsed"
+}
+
+// ApplyUnsafeAccess disables API auth and exposes loopback/default listens on all interfaces.
+func (c *Config) ApplyUnsafeAccess() {
+	if c == nil {
+		return
+	}
+	c.Auth.Enabled = false
+	c.Auth.Tokens = nil
+	c.Listen = unsafeListenAddr(c.GetListenAddr())
+}
+
+func unsafeListenAddr(listen string) string {
+	listen = strings.TrimSpace(listen)
+	if listen == "" {
+		listen = ":8080"
+	}
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		if strings.HasPrefix(listen, ":") {
+			return "0.0.0.0" + listen
+		}
+		if !strings.Contains(listen, ":") {
+			return net.JoinHostPort("0.0.0.0", listen)
+		}
+		return listen
+	}
+	if shouldUnsafeBindAll(host) {
+		return net.JoinHostPort("0.0.0.0", port)
+	}
+	return listen
+}
+
+func shouldUnsafeBindAll(host string) bool {
+	if host == "" || strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // ValidateWorkDir checks if the given directory is allowed by the allowedWorkDirs whitelist.

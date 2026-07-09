@@ -65,8 +65,8 @@
       ]);
       summary = nextSummary || {};
       timeseries = Array.isArray(nextSeries) ? nextSeries : [];
-      byProvider = Array.isArray(nextProviders) ? nextProviders : [];
-      byModel = Array.isArray(nextModels) ? nextModels : [];
+      byProvider = sortByTotalTokens(nextProviders);
+      byModel = sortByTotalTokens(nextModels);
       recent = normalizeRecent(nextRecent);
       await refreshStatsSummary();
     } catch (err) {
@@ -93,6 +93,11 @@
 
   function normalizeRecent(value) {
     return value || { items: [], total: 0, page: 1, pageSize: recentPageSize };
+  }
+
+  function sortByTotalTokens(value) {
+    if (!Array.isArray(value)) return [];
+    return [...value].sort((a, b) => Number(b?.totalTokens || 0) - Number(a?.totalTokens || 0));
   }
 
   function rangeParams(value) {

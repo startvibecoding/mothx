@@ -19,6 +19,9 @@ mothx serve --port 8080 --work-dir /path/to/project
 # Bind to external interface (allow access from other machines)
 mothx serve --port 0.0.0.0:8080 --work-dir /path/to/project
 
+# Disable auth and bind to all interfaces for a trusted network
+mothx serve --unsafe --work-dir /path/to/project
+
 # Initialize configuration files
 mothx serve init-config global   # generates ~/.mothx/serve.json
 mothx serve init-config project  # generates .mothx/serve.json
@@ -79,7 +82,7 @@ After saving settings via the Web UI, Serve automatically hot-reloads provider/m
 
 ## Network Access
 
-To allow access from other machines, bind Serve to an external interface with `--port 0.0.0.0:8080` or set `"listen": "0.0.0.0:8080"` in `serve.json`. Enable Bearer token auth before exposing Serve beyond loopback.
+To allow access from other machines, bind Serve to an external interface with `--port 0.0.0.0:8080` or set `"listen": "0.0.0.0:8080"` in `serve.json`. Enable Bearer token auth before exposing Serve beyond loopback. For trusted local networks only, `--unsafe` disables auth and binds loopback/default listens to `0.0.0.0` for the current process.
 
 ## Security
 
@@ -129,4 +132,5 @@ Access `http://127.0.0.1:7878` to view usage statistics (tokens, requests, durat
 | `--work-dir` | Working directory | Current directory |
 | `--config` | Configuration file path | `~/.mothx/serve.json` or `.mothx/serve.json` |
 | `--web-ui-dir` | Web UI static assets directory | Built-in path |
+| `--unsafe` | Disable auth and bind Serve to all interfaces | Disabled |
 | `--debug` | Enable pprof profiling server | Disabled |

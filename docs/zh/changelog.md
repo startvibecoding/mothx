@@ -49,6 +49,7 @@
 - **--port 支持外部绑定地址**
   - `--port` 现在接受完整地址（如 `0.0.0.0:8080`）。
   - 移除了将 `0.0.0.0` 重写为 `127.0.0.1` 的 `displayListenAddr` 逻辑。
+  - 新增 `mothx serve --unsafe`，用于本次进程关闭认证，并把 loopback/default 监听地址暴露到所有网卡。
 
 - **Web UI 键盘快捷键与会话分页**
   - 侧边栏：Cmd/Ctrl+K 聚焦搜索，Shift+Cmd/Ctrl+K 新建聊天。
