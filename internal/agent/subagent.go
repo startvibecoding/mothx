@@ -125,7 +125,7 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 	if err != nil {
 		return tools.ToolResult{}, fmt.Errorf("create delegated sub-agent: %w", err)
 	}
-	defer func() { _ = t.manager.Destroy(a.ID()) }()
+	defer t.manager.DetachChild(a.ID())
 
 	t.manager.MarkRunning(a.ID())
 	t.manager.SetCancel(a.ID(), cancel)
@@ -168,10 +168,13 @@ func (t *DelegateSubAgentTool) Execute(ctx context.Context, params map[string]an
 	if !completed && runCtx.Err() != nil {
 		runErr = runCtx.Err()
 		t.manager.MarkError(a.ID(), runErr)
+	} else if !completed {
+		t.manager.MarkDone(a.ID(), lastAssistantResponse(a))
 	}
 
 	response := lastAssistantResponse(a)
 	result := map[string]any{
+		"handle":         string(a.ID()),
 		"status":         "done",
 		"result":         response,
 		"duration":       time.Since(started).Round(time.Millisecond).String(),

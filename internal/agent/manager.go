@@ -206,6 +206,16 @@ func (m *AgentManager) Destroy(id agentpkg.AgentID) error {
 	return nil
 }
 
+// DetachChild removes a child from its parent's active child list while
+// retaining the child agent, parent link, and status for later inspection.
+func (m *AgentManager) DetachChild(id agentpkg.AgentID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if parentID, hasParent := m.parentOf[id]; hasParent {
+		m.children[parentID] = removeAgentID(m.children[parentID], id)
+	}
+}
+
 // Finish unregisters a completed top-level agent and cancels any remaining children.
 // Child statuses are retained so callers can inspect why a delegated task stopped.
 // Finish must not abort the completed agent itself: interactive frontends may keep
@@ -422,4 +432,18 @@ func (m *AgentManager) Count() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.agents)
+}
+
+// HasRunning reports whether any managed agent is currently executing or ready
+// to execute work. Completed retained agents are history, not active blockers.
+func (m *AgentManager) HasRunning() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for id := range m.agents {
+		state := m.statuses[id].State
+		if state == "" || state == "ready" || state == "running" {
+			return true
+		}
+	}
+	return false
 }

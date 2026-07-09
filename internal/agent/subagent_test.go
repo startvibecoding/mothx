@@ -161,6 +161,16 @@ func TestDelegateSubAgentTool(t *testing.T) {
 	if parsed["status"] != "done" {
 		t.Fatalf("expected done status, got %q", parsed["status"])
 	}
+	handle, _ := parsed["handle"].(string)
+	if handle == "" {
+		t.Fatal("expected delegate result to include handle")
+	}
+	if st, ok := mgr.Status(agentpkg.AgentID(handle)); !ok || st.State != "done" {
+		t.Fatalf("expected retained delegated child status, got %#v ok=%v", st, ok)
+	}
+	if _, ok := mgr.Get(agentpkg.AgentID(handle)); !ok {
+		t.Fatal("expected delegated child messages to remain inspectable")
+	}
 	if children := mgr.Children("main"); len(children) != 0 {
 		t.Fatalf("expected delegated child cleanup, got %v", children)
 	}

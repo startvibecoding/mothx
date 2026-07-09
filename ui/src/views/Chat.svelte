@@ -59,6 +59,7 @@
   let subAgentModalMessages = [];
   let subAgentModalLoading = false;
   let subAgentModalError = '';
+  let subAgentRefreshTimer = 0;
 
   const suggestions = [
     'chat.suggestion.projectSummary',
@@ -88,6 +89,7 @@
   });
   onDestroy(() => {
     stopSessionStream();
+    if (subAgentRefreshTimer) clearTimeout(subAgentRefreshTimer);
   });
 
   $: {
@@ -446,6 +448,18 @@
         await loadSubAgentMessages(selectedSubAgentID);
       }
     }
+  }
+
+  function scheduleSubAgentRefresh(delay = 250) {
+    if (!$currentSession) return;
+    if (subAgentRefreshTimer) clearTimeout(subAgentRefreshTimer);
+    const targetSession = $currentSession;
+    subAgentRefreshTimer = setTimeout(() => {
+      subAgentRefreshTimer = 0;
+      if (targetSession === $currentSession) {
+        loadSubAgents(targetSession).catch(() => {});
+      }
+    }, delay);
   }
 
   function mergeSubAgents(existing = [], incoming = []) {
@@ -877,7 +891,8 @@
 
   function normalizeSessionMessage(message) {
     if (message.role === 'toolCall') {
-      const plan = normalizePlan(message.plan || (message.toolName === 'plan' ? message.arguments : null));
+      const args = normalizeJSONValue(message.arguments);
+      const plan = normalizePlan(message.plan || (message.toolName === 'plan' ? args : null));
       if (message.toolName === 'plan' && plan) {
         return {
           id: message.id,
@@ -896,9 +911,9 @@
         agentId: message.agentId,
         toolCallId: message.toolCallId,
         toolName: message.toolName || 'tool',
-        arguments: message.arguments,
+        arguments: args,
         invalidArguments: message.invalidArguments,
-        callView: buildToolCallView(message.toolName || 'tool', message.arguments, message.invalidArguments)
+        callView: buildToolCallView(message.toolName || 'tool', args, message.invalidArguments)
       };
     }
     if (message.role === 'toolResult') {
@@ -940,6 +955,7 @@
   }
 
   function normalizePlan(value) {
+    value = normalizeJSONValue(value);
     if (!value || !Array.isArray(value.steps) || value.steps.length === 0) return null;
     const steps = value.steps
       .map((step) => ({
@@ -1017,7 +1033,8 @@
 
   function buildToolCallView(toolName, args, invalidArguments = '') {
     const name = toolName || 'tool';
-    const value = isPlainObject(args) ? args : {};
+    const raw = normalizeJSONValue(args);
+    const value = isPlainObject(raw) ? raw : {};
     if (name === 'read') {
       const details = [];
       if (value.offset) details.push($t('chat.tool.read.offset', { offset: value.offset }));
@@ -1030,7 +1047,7 @@
         label: $t('chat.tool.read.label'),
         target: value.path || $t('chat.tool.read.missing'),
         details,
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1040,7 +1057,7 @@
         label: $t('chat.tool.ls.label'),
         target: value.path || '.',
         details: [],
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1054,7 +1071,7 @@
         label: $t('chat.tool.grep.label'),
         target: value.pattern || $t('chat.tool.grep.missing'),
         details,
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1076,7 +1093,7 @@
         path: value.path || '.',
         maxDepth: value.maxDepth ?? '',
         maxResults: value.maxResults ?? '',
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1091,7 +1108,7 @@
         label: $t('chat.tool.bash.label'),
         target: value.command || $t('chat.tool.bash.missing'),
         details,
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1117,7 +1134,7 @@
         target: value.path || $t('chat.tool.edit.missing'),
         details: [edits.length === 1 ? $t('chat.tool.edit.oneEdit') : $t('chat.tool.edit.manyEdits', { count: edits.length })],
         edits,
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1136,7 +1153,7 @@
         content,
         lines,
         chars,
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1160,7 +1177,7 @@
         url: value.url || '',
         value: value.value ?? value.text ?? value.key ?? '',
         expression: value.expression || '',
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1176,7 +1193,7 @@
         target: compactText(value.task || $t('chat.tool.subagent.taskMissing'), 140),
         details,
         task: value.task || '',
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1194,7 +1211,7 @@
         details,
         handle: value.handle || '',
         message: value.message || '',
-        raw: args,
+        raw,
         invalidArguments
       };
     }
@@ -1203,13 +1220,31 @@
       label: name,
       target: '',
       details: [],
-      raw: args,
+      raw,
       invalidArguments
     };
   }
 
   function isPlainObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function normalizeJSONValue(value) {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    if (!['{', '[', '"'].includes(trimmed[0]) && !/^(true|false|null|-?\d)/.test(trimmed)) return value;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  }
+
+  function stringFrom(value) {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value;
+    return String(value);
   }
 
   function countTextLines(text = '') {
@@ -1325,6 +1360,15 @@
   }
 
   function parseBrowserResult(content = '') {
+    const parsed = normalizeJSONValue(content);
+    if (isPlainObject(parsed)) {
+      return {
+        status: stringFrom(parsed.status || parsed.message || parsed.result || parsed.action || 'browser result'),
+        title: stringFrom(parsed.title || parsed.pageTitle || ''),
+        url: stringFrom(parsed.url || parsed.href || parsed.currentURL || parsed.currentUrl || ''),
+        content: JSON.stringify(parsed, null, 2)
+      };
+    }
     const text = String(content || '').trim();
     if (!text) return null;
     const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -1340,6 +1384,7 @@
   }
 
   function parseSubAgentResult(content = '') {
+    if (isPlainObject(content)) return content;
     const text = String(content || '').trim();
     if (!text) return null;
     try {
@@ -1387,6 +1432,13 @@
       return;
     }
     if (item.status === 'completed' || item.status === 'failed') {
+      if (isSubAgentTool(item.tool)) {
+        applySubAgentToolResultSummary({
+          toolName: item.tool,
+          summary: item.summary || '',
+          isError: item.isError || item.status === 'failed'
+        });
+      }
       upsertStreamingToolResult(item);
     }
     scrollChatToBottom();
@@ -1481,13 +1533,16 @@
         next.push({ role: 'assistant', agentId: agentID, content: delta });
       }
       subAgentTranscripts = { ...subAgentTranscripts, [agentID]: next };
+      ensureSubAgent(agentID, { status: 'running', messageCount: next.length });
     } else {
       const normalized = normalizeSessionMessage(message);
       if (normalized) {
+        const next = upsertMessageInList(current, normalized);
         subAgentTranscripts = {
           ...subAgentTranscripts,
-          [agentID]: upsertMessageInList(current, normalized)
+          [agentID]: next
         };
+        ensureSubAgent(agentID, { status: 'running', messageCount: next.length });
       }
     }
     if (showSubAgentModal && selectedSubAgentID === agentID) {
@@ -1499,7 +1554,7 @@
   function applySubAgentToolStatus(item) {
     const agentID = item?.agentId || '';
     if (!agentID) return;
-    ensureSubAgent(agentID, { status: item.status === 'failed' ? 'error' : 'running' });
+    ensureSubAgent(agentID, { status: subAgentStatusFromToolStatus(item.status, item.isError) });
     if (item.status === 'running') {
       applySubAgentTranscriptMessage({
         role: 'toolCall',
@@ -1519,6 +1574,60 @@
         hasDetail: false
       });
     }
+  }
+
+  function recordSubAgentStatus(agentID, status, summary = '') {
+    if (!agentID) return;
+    const state = subAgentStatusFromToolStatus(status, status === 'error' || status === 'failed');
+    ensureSubAgent(agentID, {
+      status: state,
+      error: state === 'error' ? summary : ''
+    });
+    const current = subAgentTranscripts[agentID] || [];
+    const next = upsertMessageInList(current, {
+      id: `status:${agentID}:${state}:${summary}`,
+      role: 'status',
+      agentId: agentID,
+      content: state,
+      summary,
+      isError: state === 'error'
+    });
+    subAgentTranscripts = { ...subAgentTranscripts, [agentID]: next };
+    if (showSubAgentModal && selectedSubAgentID === agentID) {
+      subAgentModalMessages = next;
+    }
+    scheduleSubAgentRefresh();
+  }
+
+  function subAgentStatusFromToolStatus(status, isError = false) {
+    const s = String(status || '').toLowerCase();
+    if (isError || s === 'error' || s === 'failed') return 'error';
+    if (s === 'done' || s === 'completed' || s === 'complete') return 'done';
+    if (s === 'destroyed') return 'destroyed';
+    if (s === 'message_sent' || s === 'running' || s === 'ready') return 'running';
+    return s || 'running';
+  }
+
+  function applySubAgentToolResultSummary(message) {
+    if (!message || !isSubAgentTool(message.toolName)) return;
+    const result = parseSubAgentResult(message.content || message.summary || '');
+    if (!result) {
+      scheduleSubAgentRefresh();
+      return;
+    }
+    const handle = stringFrom(result.handle || result.id || result.agent_id || result.agentId);
+    if (handle) {
+      const status = subAgentStatusFromToolStatus(result.status, message.isError);
+      const patch = {
+        status,
+        lastResponse: stringFrom(result.result || result.last_response || result.partial_result || ''),
+        error: stringFrom(result.error || '')
+      };
+      const messageCount = Number(result.message_count || 0);
+      if (Number.isFinite(messageCount) && messageCount > 0) patch.messageCount = messageCount;
+      ensureSubAgent(handle, patch);
+    }
+    scheduleSubAgentRefresh();
   }
 
   function ensureSubAgent(agentID, patch = {}) {
@@ -1666,13 +1775,7 @@
     if (!message) return;
     if (message.agentId) {
       if (item.type === 'subagent_status') {
-        ensureSubAgent(message.agentId, {
-          status: message.content === 'error' ? 'error' : 'done',
-          error: message.summary || ''
-        });
-        if (showSubAgentModal && selectedSubAgentID === message.agentId) {
-          subAgentModalMessages = subAgentTranscripts[message.agentId] || [];
-        }
+        recordSubAgentStatus(message.agentId, message.content, message.summary || '');
         return;
       }
       applySubAgentTranscriptMessage(message, item.type);
@@ -1683,6 +1786,11 @@
       return;
     }
     if (item.type === 'message') {
+      if (message.role === 'toolResult') {
+        applySubAgentToolResultSummary(message);
+      } else if (message.role === 'toolCall' && isSubAgentTool(message.toolName)) {
+        scheduleSubAgentRefresh();
+      }
       upsertTranscriptMessage(normalizeSessionMessage(message));
     }
   }
@@ -2237,15 +2345,63 @@
                 {:else if item.role === 'user'}
                   <p>{item.content}</p>
                 {:else if item.role === 'toolCall'}
-                  <div class="tool-mini">
-                    <strong>{item.callView?.label || item.toolName}</strong>
-                    {#if item.callView?.target}<span>{item.callView.target}</span>{/if}
+                  <div class="tool-call-body embedded">
+                    <div class="tool-title">
+                      <span class="dot running"></span>
+                      <strong>{item.callView?.label || item.toolName}</strong>
+                      {#if item.callView?.target}<span class="tool-target">{item.callView.target}</span>{/if}
+                    </div>
+                    {#if item.callView?.details?.length}
+                      <div class="tool-call-tags">
+                        {#each item.callView.details as detail}
+                          <span>{detail}</span>
+                        {/each}
+                      </div>
+                    {/if}
+                    {#if item.callView?.kind === 'browser'}
+                      <div class="browser-call">
+                        <div class="find-row">
+                          <span>{$t('chat.tool.browser.action')}</span>
+                          <code>{item.callView.action || $t('chat.tool.browser.missing')}</code>
+                        </div>
+                        {#if item.callView.url}
+                          <div class="find-row">
+                            <span>{$t('chat.tool.browser.url')}</span>
+                            <code>{item.callView.url}</code>
+                          </div>
+                        {/if}
+                        {#if item.callView.selector}
+                          <div class="find-row">
+                            <span>{$t('chat.tool.browser.selectorLabel')}</span>
+                            <code>{item.callView.selector}</code>
+                          </div>
+                        {/if}
+                      </div>
+                    {:else if item.callView?.kind === 'subagent-task'}
+                      <div class="subagent-call">
+                        <span>{$t('chat.tool.subagent.task')}</span>
+                        <p>{item.callView.task || item.callView.target}</p>
+                      </div>
+                    {:else if item.callView?.kind === 'subagent-handle'}
+                      <div class="subagent-call compact">
+                        <div class="find-row">
+                          <span>{$t('chat.tool.subagent.handle')}</span>
+                          <code>{item.callView.handle || $t('chat.tool.subagent.handleMissing')}</code>
+                        </div>
+                      </div>
+                    {/if}
                   </div>
                 {:else if item.role === 'toolResult'}
                   <div class="tool-mini">
                     <span class="dot {item.isError ? 'error' : 'done'}"></span>
                     <strong>{item.toolName}</strong>
                     <span>{item.summary}</span>
+                  </div>
+                {:else if item.role === 'status'}
+                  <div class="tool-mini">
+                    <span class="dot {item.isError ? 'error' : 'done'}"></span>
+                    <strong>{subAgentStatusLabel(item.content)}</strong>
+                    {#if item.summary}<span>{item.summary}</span>{/if}
                   </div>
                 {:else}
                   <pre>{item.content || formatArgs(item.arguments)}</pre>

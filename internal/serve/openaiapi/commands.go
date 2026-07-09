@@ -509,7 +509,7 @@ func (s *Server) cmdRule(sess *APISession, parts []string) *CommandResult {
 	if sess == nil {
 		return &CommandResult{Message: "No active session.", Error: true}
 	}
-	if sess.AgentMgr != nil && sess.AgentMgr.Count() > 0 {
+	if sess.AgentMgr != nil && sess.AgentMgr.HasRunning() {
 		return &CommandResult{Message: "Cannot change rule while agents are running.", Error: true}
 	}
 	overwrite, ok := parseRuleForce(parts)
