@@ -1,6 +1,61 @@
 # Changelog
 
 
+## v1.1.62
+
+### ✨ Features
+
+- **ESM (Supervisor Mode)**
+  - Added `internal/esm` package providing Event State Memory for long-running objectives with persistent state.
+  - Added `/esm` command with `edit`, `pause`, `resume`, `clear`, and `budget` subcommands.
+  - Registered `get_esm` and `update_esm` tools when ESM objective is active.
+  - ESM steering messages injected via `AgentLoopConfig.GetSteeringMessages`.
+  - ESM status shown in TUI footer.
+  - SQLite-backed storage with `session_esm_objectives` table (migration 010).
+
+- **ESM Completion Review Workflow**
+  - Added worker → critic → audit review pipeline for completion candidates.
+  - Added `StatusCompleteCandidate` with structured `WorkerReport`/`AuditReport` parsing and validation.
+  - Added `completion_review`, `completion_run_id`, `completion_reason`, `blocked_run_id` to Objective schema (migrations 011/012).
+  - TUI ESM orchestrates the full review pipeline; only a passing audit marks objective complete.
+  - AgentFactory tracks `providerName`/`Vendor` for sub-agent runtime sync.
+  - Added `withRuntimeConfig` for flexible factory cloning.
+
+- **Context Compaction Improvements**
+  - `/compact` now executes immediately across TUI, channels, and OpenAI API runtimes (was previously deferred).
+  - Added `CompactForced` for explicit user-requested compaction that allows summary-only checkpoints when no older history exists outside the recent keep window.
+  - Auto-compaction trigger moved before building the next request so plain-text turns cannot miss the trigger point.
+  - Switched auto-compaction threshold to percentage-based (80% of context window) via `ShouldCompactPercent`.
+  - Fixed session replay to handle summary-only compaction entries where `FirstKeptEntry` is empty.
+
+- **Docker Support**
+  - Added `Dockerfile` (Ubuntu default, Debian/Fedora/Alpine variants) with multi-stage build.
+  - Added `.github/workflows/ghcr-publish.yml` for CI/CD publishing to GHCR.
+  - Added `.dockerignore` for clean builds.
+  - Added Docker installation docs to README and getting-started guides (zh/en).
+
+### 🔧 Improvements
+
+- **TUI Split-Paste Handling**
+  - Disabled bracketed paste by default to prevent TUI freeze when terminals drop the end marker.
+  - Improved split-paste Enter deferral: queue Enter only when text was recently typed (within idle delay window), instead of always queueing when buffer is non-empty.
+  - Added macOS-specific `console_darwin.go` to keep `WithoutBracketedPaste` where bracketed-paste end markers are unreliable.
+  - Removed `WithoutBracketedPaste` from generic Unix (`console_unix.go`) now that the input queue handles split pastes without disabling bracketed paste.
+  - Added tests for split-paste coalescing after first-line flush and deferred Enter submit.
+
+- **Web UI Sidebar Fixes**
+  - Fixed sidebar: auto-hiding scrollbar for history list, flex-shrink fixes for layout stability.
+
+- **AgentFactory Enhancements**
+  - AgentFactory now tracks `providerName` and `Vendor` for sub-agent runtime synchronization.
+  - Fix usage stats provider name extraction when `Vendor` is empty.
+
+### 📚 Documentation
+
+- Removed stale `docs/proposal/codex-goal-mode.md`.
+- Added `docs/proposal/enable-supervisor-mode.md`.
+- Updated configuration docs to reflect new `/compact` immediate execution and summary-only checkpoint behavior.
+
 ## v1.1.61
 
 ### ✨ Features

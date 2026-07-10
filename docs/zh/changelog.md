@@ -1,6 +1,61 @@
 # 更新日志
 
 
+## v1.1.62
+
+### ✨ 新功能
+
+- **ESM（Supervisor Mode）**
+  - 新增 `internal/esm` 包，提供 Event State Memory 用于长期目标的持久化状态管理。
+  - 新增 `/esm` 命令，支持 `edit`、`pause`、`resume`、`clear`、`budget` 子命令。
+  - ESM 目标激活时注册 `get_esm` 和 `update_esm` 工具。
+  - 通过 `AgentLoopConfig.GetSteeringMessages` 注入 ESM 引导消息。
+  - TUI 底部栏显示 ESM 状态。
+  - SQLite 持久化存储，新增 `session_esm_objectives` 表（迁移 010）。
+
+- **ESM 完成审查工作流**
+  - 新增 worker → critic → audit 审查流水线，用于验证完成候选。
+  - 新增 `StatusCompleteCandidate`，支持结构化的 `WorkerReport`/`AuditReport` 解析与校验。
+  - Objective schema 新增 `completion_review`、`completion_run_id`、`completion_reason`、`blocked_run_id` 字段（迁移 011/012）。
+  - TUI ESM 编排完整审查流水线，仅审计通过才标记目标完成。
+  - AgentFactory 追踪 `providerName`/`Vendor`，确保子 Agent 运行时同步。
+  - 新增 `withRuntimeConfig` 用于灵活的工厂克隆。
+
+- **上下文压缩改进**
+  - `/compact` 现在在 TUI、Channels 和 OpenAI API 运行时中立即执行（此前为延迟执行）。
+  - 新增 `CompactForced`，支持用户显式请求的压缩，当近期保留窗口外无旧历史时允许仅生成摘要检查点。
+  - 自动压缩触发点移至构建下一个请求之前，确保纯文本轮次不会错过触发点。
+  - 自动压缩阈值改为基于百分比（上下文窗口的 80%），通过 `ShouldCompactPercent` 控制。
+  - 修复会话回放，正确处理 `FirstKeptEntry` 为空的纯摘要压缩条目。
+
+- **Docker 支持**
+  - 新增 `Dockerfile`（默认 Ubuntu，支持 Debian/Fedora/Alpine 变体），多阶段构建。
+  - 新增 `.github/workflows/ghcr-publish.yml`，支持 CI/CD 发布到 GHCR。
+  - 新增 `.dockerignore`，确保干净构建。
+  - README 和入门指南新增 Docker 安装文档（中英文）。
+
+### 🔧 改进
+
+- **TUI 粘贴处理优化**
+  - 默认禁用括号粘贴，防止终端丢弃结束标记时 TUI 假死。
+  - 改进分割粘贴的 Enter 延迟：仅在最近有文本输入时（空闲延迟窗口内）才排队 Enter，而非缓冲区非空时始终排队。
+  - 新增 macOS 专属 `console_darwin.go`，在括号粘贴结束标记不可靠的终端中保持 `WithoutBracketedPaste`。
+  - 从通用 Unix（`console_unix.go`）移除 `WithoutBracketedPaste`，输入队列现在无需禁用括号粘贴即可处理分割粘贴。
+  - 新增分割粘贴合并和延迟 Enter 提交的测试。
+
+- **Web UI 侧边栏修复**
+  - 修复侧边栏：历史列表自动隐藏滚动条，flex-shrink 修复提升布局稳定性。
+
+- **AgentFactory 增强**
+  - AgentFactory 现在追踪 `providerName` 和 `Vendor`，确保子 Agent 运行时同步。
+  - 修复 `Vendor` 为空时使用量统计中 provider 名称提取的问题。
+
+### 📚 文档
+
+- 移除过时的 `docs/proposal/codex-goal-mode.md`。
+- 新增 `docs/proposal/enable-supervisor-mode.md`。
+- 更新配置文档，反映 `/compact` 立即执行和纯摘要检查点行为。
+
 ## v1.1.61
 
 ### ✨ 新功能
