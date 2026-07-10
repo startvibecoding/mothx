@@ -19,6 +19,10 @@ const (
 // rejections that pauses unattended ESM continuation.
 const CompletionRejectionLimit = 3
 
+// RecoveryLimit is the number of consecutive automatic recoveries permitted
+// after interrupted ESM role runs. Further interruptions pause continuation.
+const RecoveryLimit = 2
+
 // Phase identifies the current role in the ESM completion pipeline.
 type Phase string
 
@@ -49,6 +53,8 @@ type Objective struct {
 	RemainingWork    []string
 	RejectionCount   int
 	RejectionRunID   string
+	RecoveryCount    int
+	RecoveryReason   string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

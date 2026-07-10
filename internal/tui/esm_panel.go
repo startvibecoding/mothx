@@ -206,6 +206,12 @@ func (a *App) esmPanelLines(width int) []string {
 	if obj.RejectionCount > 0 {
 		lines = append(lines, fmt.Sprintf("Consecutive completion rejections: %d/%d", obj.RejectionCount, esm.CompletionRejectionLimit))
 	}
+	if obj.RecoveryCount > 0 {
+		lines = append(lines, "", fmt.Sprintf("Consecutive automatic recoveries: %d/%d", obj.RecoveryCount, esm.RecoveryLimit))
+		if obj.RecoveryReason != "" {
+			lines = appendWrappedESMField(lines, "Latest recovery reason", obj.RecoveryReason, width)
+		}
+	}
 	if obj.CompletionReason != "" && obj.Status == esm.StatusCompleteCandidate {
 		lines = append(lines, "")
 		lines = appendWrappedESMField(lines, "Completion candidate", obj.CompletionReason, width)

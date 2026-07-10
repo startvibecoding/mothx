@@ -53,3 +53,16 @@ func TestParseAuditReportPass(t *testing.T) {
 		t.Fatalf("report = %#v", report)
 	}
 }
+
+func TestParseRecoveryReport(t *testing.T) {
+	report, err := ParseRecoveryReport(`{"decision":"resume","summary":"tests show the partial change is valid","evidence":["go test ./..."],"remaining_work":["finish docs"],"blockers":[]}`)
+	if err != nil {
+		t.Fatalf("ParseRecoveryReport: %v", err)
+	}
+	if report.Decision != RecoveryDecisionResume || report.Summary == "" || len(report.RemainingWork) != 1 {
+		t.Fatalf("report = %#v", report)
+	}
+	if _, err := ParseRecoveryReport(`{"decision":"blocked","summary":"cannot continue","blockers":[]}`); err == nil {
+		t.Fatal("ParseRecoveryReport accepted blocked report without blocker")
+	}
+}

@@ -45,7 +45,7 @@ type rowQueryer interface {
 }
 
 func getObjective(ctx context.Context, q rowQueryer, sessionID string) (*Objective, error) {
-	row := q.QueryRowContext(ctx, `SELECT session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, blocked_run_id, completion_reason, completion_run_id, completion_review, phase, progress_summary, remaining_work, completion_rejection_count, completion_rejection_run_id, created_at, updated_at
+	row := q.QueryRowContext(ctx, `SELECT session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, blocked_run_id, completion_reason, completion_run_id, completion_review, phase, progress_summary, remaining_work, completion_rejection_count, completion_rejection_run_id, recovery_count, recovery_reason, created_at, updated_at
 		FROM session_esm_objectives WHERE session_id = ?`, sessionID)
 	return scanObjective(row)
 }
@@ -55,7 +55,7 @@ func scanObjective(row *sql.Row) (*Objective, error) {
 	var budget sql.NullInt64
 	var remainingWork string
 	var created, updated string
-	if err := row.Scan(&obj.SessionID, &obj.ESMID, &obj.Objective, &obj.Status, &budget, &obj.TokensUsed, &obj.TimeUsedMS, &obj.BlockedCount, &obj.BlockedReason, &obj.BlockedRunID, &obj.CompletionReason, &obj.CompletionRunID, &obj.CompletionReview, &obj.Phase, &obj.ProgressSummary, &remainingWork, &obj.RejectionCount, &obj.RejectionRunID, &created, &updated); err != nil {
+	if err := row.Scan(&obj.SessionID, &obj.ESMID, &obj.Objective, &obj.Status, &budget, &obj.TokensUsed, &obj.TimeUsedMS, &obj.BlockedCount, &obj.BlockedReason, &obj.BlockedRunID, &obj.CompletionReason, &obj.CompletionRunID, &obj.CompletionReview, &obj.Phase, &obj.ProgressSummary, &remainingWork, &obj.RejectionCount, &obj.RejectionRunID, &obj.RecoveryCount, &obj.RecoveryReason, &created, &updated); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -174,7 +174,7 @@ func (s *Store) Edit(ctx context.Context, sessionID, objective string) (*Objecti
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET objective = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', phase = ?, progress_summary = '', remaining_work = '[]', completion_rejection_count = 0, completion_rejection_run_id = '', updated_at = ?
+		SET objective = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', phase = ?, progress_summary = '', remaining_work = '[]', completion_rejection_count = 0, completion_rejection_run_id = '', recovery_count = 0, recovery_reason = '', updated_at = ?
 		WHERE session_id = ?`, objective, PhaseWorker, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
@@ -263,7 +263,7 @@ func (s *Store) Resume(ctx context.Context, sessionID string) (*Objective, error
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', phase = ?, completion_rejection_count = 0, completion_rejection_run_id = '', updated_at = ?
+		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', phase = ?, completion_rejection_count = 0, completion_rejection_run_id = '', recovery_count = 0, recovery_reason = '', updated_at = ?
 		WHERE session_id = ?`, StatusActive, PhaseWorker, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
@@ -353,8 +353,60 @@ func (s *Store) RecordWorkerProgress(ctx context.Context, sessionID, summary str
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET phase = ?, progress_summary = ?, remaining_work = ?, updated_at = ?
+		SET phase = ?, progress_summary = ?, remaining_work = ?, recovery_count = 0, recovery_reason = '', updated_at = ?
 		WHERE session_id = ?`, PhaseWorker, strings.TrimSpace(summary), encoded, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// RecordRecovery persists a recovery diagnosis after an interrupted ESM role.
+// It keeps the objective active for a bounded number of automatic retries and
+// pauses it once the recovery limit is exceeded.
+func (s *Store) RecordRecovery(ctx context.Context, sessionID, reason, summary string, remainingWork []string) (*Objective, error) {
+	reason = strings.TrimSpace(reason)
+	summary = strings.TrimSpace(summary)
+	if reason == "" {
+		return nil, fmt.Errorf("recovery requires an interruption reason")
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	current, err := getObjective(ctx, tx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Status != StatusActive {
+		return current, ErrInvalidTransition
+	}
+	if remainingWork == nil {
+		remainingWork = current.RemainingWork
+	}
+	encoded, err := encodeStringSlice(remainingWork)
+	if err != nil {
+		return nil, err
+	}
+	nextCount := current.RecoveryCount + 1
+	nextStatus := StatusActive
+	if nextCount > RecoveryLimit {
+		nextStatus = StatusPaused
+	}
+	if summary == "" {
+		summary = "Interrupted ESM role; recovery will continue from the current repository state."
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET status = ?, recovery_count = ?, recovery_reason = ?, progress_summary = ?, remaining_work = ?, updated_at = ?
+		WHERE session_id = ?`, nextStatus, nextCount, reason, summary, encoded, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)

@@ -13,6 +13,9 @@ const (
 
 	AuditVerdictPass = "pass"
 	AuditVerdictFail = "fail"
+
+	RecoveryDecisionResume  = "resume"
+	RecoveryDecisionBlocked = "blocked"
 )
 
 // WorkerReport is the structured final response from an isolated ESM worker.
@@ -31,6 +34,16 @@ type AuditReport struct {
 	RequirementsChecked []string `json:"requirements_checked"`
 	MissingWork         []string `json:"missing_work"`
 	Evidence            []string `json:"evidence"`
+}
+
+// RecoveryReport is the structured result of an observer inspecting work left
+// behind by an interrupted ESM role.
+type RecoveryReport struct {
+	Decision      string   `json:"decision"`
+	Summary       string   `json:"summary"`
+	Evidence      []string `json:"evidence"`
+	RemainingWork []string `json:"remaining_work"`
+	Blockers      []string `json:"blockers"`
 }
 
 func ParseWorkerReport(text string) (WorkerReport, error) {
@@ -89,6 +102,30 @@ func ParseAuditReport(text string) (AuditReport, error) {
 	report.RequirementsChecked = trimStringSlice(report.RequirementsChecked)
 	report.MissingWork = trimStringSlice(report.MissingWork)
 	report.Evidence = trimStringSlice(report.Evidence)
+	return report, nil
+}
+
+func ParseRecoveryReport(text string) (RecoveryReport, error) {
+	var report RecoveryReport
+	if err := decodeReport(text, &report); err != nil {
+		return report, err
+	}
+	report.Decision = strings.TrimSpace(report.Decision)
+	switch report.Decision {
+	case RecoveryDecisionResume, RecoveryDecisionBlocked:
+	default:
+		return report, fmt.Errorf("invalid recovery decision %q", report.Decision)
+	}
+	report.Summary = strings.TrimSpace(report.Summary)
+	report.Evidence = trimStringSlice(report.Evidence)
+	report.RemainingWork = trimStringSlice(report.RemainingWork)
+	report.Blockers = trimStringSlice(report.Blockers)
+	if report.Summary == "" {
+		return report, fmt.Errorf("recovery summary is empty")
+	}
+	if report.Decision == RecoveryDecisionBlocked && len(report.Blockers) == 0 {
+		return report, fmt.Errorf("blocked recovery report has no concrete blocker")
+	}
 	return report, nil
 }
 

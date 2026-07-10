@@ -57,6 +57,12 @@ func SteeringPrompt(obj *Objective) string {
 	if obj.RejectionCount > 0 {
 		b.WriteString(fmt.Sprintf("- consecutive completion rejections: %d/%d\n", obj.RejectionCount, CompletionRejectionLimit))
 	}
+	if obj.RecoveryCount > 0 {
+		b.WriteString(fmt.Sprintf("- consecutive automatic recoveries: %d/%d\n", obj.RecoveryCount, RecoveryLimit))
+		if obj.RecoveryReason != "" {
+			b.WriteString("- latest recovery reason: " + obj.RecoveryReason + "\n")
+		}
+	}
 	if obj.CompletionReason != "" {
 		b.WriteString("- completion candidate evidence: ")
 		b.WriteString(obj.CompletionReason)
@@ -135,9 +141,44 @@ func WorkerTaskPrompt(obj *Objective) string {
 	if obj.BlockedCount > 0 && obj.BlockedReason != "" {
 		b.WriteString(fmt.Sprintf("\nRepeated blocker audit so far: %d/3 (%s)\n", obj.BlockedCount, obj.BlockedReason))
 	}
+	if obj.RecoveryCount > 0 && obj.RecoveryReason != "" {
+		b.WriteString(fmt.Sprintf("\nLatest automatic recovery (%d/%d): %s\n", obj.RecoveryCount, RecoveryLimit, obj.RecoveryReason))
+	}
 	b.WriteString("\nFinal response format:\n")
 	b.WriteString("Return exactly one JSON object and no markdown. Schema:\n")
 	b.WriteString(`{"status":"continue|complete_candidate|blocked_candidate","summary":"what changed or was learned","evidence":["files, commands, tests, observations"],"remaining_work":["work still required, or empty if complete_candidate"],"blockers":["concrete blockers, or empty"]}`)
+	b.WriteString("\n")
+	return b.String()
+}
+
+// RecoveryObserverTaskPrompt asks a read-only observer to inspect the
+// repository after an ESM role was interrupted before it could report state.
+func RecoveryObserverTaskPrompt(obj *Objective, role, interruption string) string {
+	if obj == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("You are the ESM recovery observer. An isolated ESM role was interrupted before it could complete its structured report. Inspect the current repository state and determine whether a fresh worker can safely continue.\n\n")
+	b.WriteString("Objective:\n<objective>\n")
+	b.WriteString(escapeXMLText(obj.Objective))
+	b.WriteString("\n</objective>\n\n")
+	b.WriteString("Interrupted role: " + escapeXMLText(role) + "\n")
+	b.WriteString("Interruption: " + escapeXMLText(interruption) + "\n\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Use only the available read-only tools to inspect files, diffs, tests, and evidence left in the worktree.\n")
+	b.WriteString("- Do not write files, run destructive commands, or claim work completed without evidence.\n")
+	b.WriteString("- Return resume when a new worker can continue from the current state. List concrete remaining work.\n")
+	b.WriteString("- Return blocked only for a concrete external blocker that prevents meaningful progress.\n")
+	b.WriteString("- Do not call get_esm/update_esm; the supervisor owns ESM state.\n")
+	if obj.ProgressSummary != "" {
+		b.WriteString("\nLast persisted progress:\n" + obj.ProgressSummary + "\n")
+	}
+	if len(obj.RemainingWork) > 0 {
+		b.WriteString("\nPersisted remaining work:\n- " + strings.Join(obj.RemainingWork, "\n- ") + "\n")
+	}
+	b.WriteString("\nFinal response format:\n")
+	b.WriteString("Return exactly one JSON object and no markdown. Schema:\n")
+	b.WriteString(`{"decision":"resume|blocked","summary":"what was verified after the interruption","evidence":["files, commands, tests, observations"],"remaining_work":["work a fresh worker must continue"],"blockers":["concrete external blockers, or empty"]}`)
 	b.WriteString("\n")
 	return b.String()
 }

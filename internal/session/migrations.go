@@ -206,6 +206,11 @@ var migrations = []migration{
 		      ALTER TABLE session_esm_objectives ADD COLUMN completion_rejection_count INTEGER NOT NULL DEFAULT 0;
 		      ALTER TABLE session_esm_objectives ADD COLUMN completion_rejection_run_id TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		Name: "015_add_session_esm_recovery_state",
+		SQL: `ALTER TABLE session_esm_objectives ADD COLUMN recovery_count INTEGER NOT NULL DEFAULT 0;
+		      ALTER TABLE session_esm_objectives ADD COLUMN recovery_reason TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

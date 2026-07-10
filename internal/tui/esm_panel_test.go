@@ -64,6 +64,8 @@ func TestESMProgressPanelShowsPhaseMissingWorkAndCircuitBreaker(t *testing.T) {
 		RemainingWork:    []string{"add regression tests", "verify narrow terminal layout"},
 		CompletionReview: "review: missing coverage\nmissing_work (2): add regression tests; verify narrow terminal layout",
 		RejectionCount:   esm.CompletionRejectionLimit,
+		RecoveryCount:    2,
+		RecoveryReason:   "worker timed out after 30m",
 		TokensUsed:       1250,
 		TimeUsedMS:       65000,
 		UpdatedAt:        time.Now(),
@@ -82,6 +84,8 @@ func TestESMProgressPanelShowsPhaseMissingWorkAndCircuitBreaker(t *testing.T) {
 		"add regression tests",
 		"verify narrow terminal layout",
 		"Consecutive completion rejections: 3/3",
+		"Consecutive automatic recoveries: 2/2",
+		"Latest recovery reason: worker timed out after 30m",
 		"circuit breaker",
 	} {
 		if !strings.Contains(content, want) {

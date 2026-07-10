@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"net"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -218,6 +219,64 @@ func TestESMWorkerCompleteCandidateRequiresSuccessfulToolCall(t *testing.T) {
 	got := requireESMStatus(t, store, sessionID, esm.StatusActive)
 	if !strings.Contains(got.CompletionReview, "all inspection or validation tool calls failed") {
 		t.Fatalf("completion review = %q, want failed-tool rejection", got.CompletionReview)
+	}
+}
+
+func TestESMWorkerTimeoutRunsRecoveryObserverAndKeepsObjectiveActive(t *testing.T) {
+	store, sessionID := newTUITestESMStore(t)
+	obj, err := store.Create(context.Background(), sessionID, "finish recovery flow", nil)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	var roleIDs []string
+	app := &App{esmRoleRunner: func(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, id, workDir, mode string, toolFilter []string, maxIterations int, task string) (esmRoleResult, error) {
+		roleIDs = append(roleIDs, id)
+		if strings.Contains(id, "recovery-observer") {
+			return esmToolBackedResult(`{"decision":"resume","summary":"partial implementation is present","evidence":["read changed file"],"remaining_work":["run tests"],"blockers":[]}`), nil
+		}
+		return esmRoleResult{}, context.DeadlineExceeded
+	}}
+	eventCh := make(chan internalagent.Event, 20)
+	if ok := app.runESMWorker(context.Background(), eventCh, nil, store, sessionID, "timeout-run", "", "agent", obj); !ok {
+		t.Fatal("runESMWorker returned false")
+	}
+	if got, want := roleIDs, []string{"timeout-run-worker", "timeout-run-recovery-observer"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("role IDs = %#v, want %#v", got, want)
+	}
+	got := requireESMStatus(t, store, sessionID, esm.StatusActive)
+	if got.RecoveryCount != 1 || !strings.Contains(got.RecoveryReason, "worker timed out") || len(got.RemainingWork) != 1 {
+		t.Fatalf("recovery state = %#v", got)
+	}
+	for len(eventCh) > 0 {
+		if event := <-eventCh; event.Type == internalagent.EventError {
+			t.Fatalf("timeout recovery emitted terminal error: %#v", event)
+		}
+	}
+}
+
+func TestESMWorkerRetryableTransportFailureSkipsObserver(t *testing.T) {
+	store, sessionID := newTUITestESMStore(t)
+	obj, err := store.Create(context.Background(), sessionID, "finish transport recovery", nil)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := store.RecordWorkerProgress(context.Background(), sessionID, "partial work", []string{"preserve pending work"}); err != nil {
+		t.Fatalf("RecordWorkerProgress: %v", err)
+	}
+	var calls int
+	app := &App{esmRoleRunner: func(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, id, workDir, mode string, toolFilter []string, maxIterations int, task string) (esmRoleResult, error) {
+		calls++
+		return esmRoleResult{}, fmt.Errorf("send request: %w", &net.DNSError{Err: "connection refused", IsTemporary: true})
+	}}
+	if ok := app.runESMWorker(context.Background(), make(chan internalagent.Event, 10), nil, store, sessionID, "transport-run", "", "agent", obj); !ok {
+		t.Fatal("runESMWorker returned false")
+	}
+	if calls != 1 {
+		t.Fatalf("role calls = %d, want worker only", calls)
+	}
+	got := requireESMStatus(t, store, sessionID, esm.StatusActive)
+	if got.RecoveryCount != 1 || !strings.Contains(got.RecoveryReason, "provider transport failure") || !reflect.DeepEqual(got.RemainingWork, []string{"preserve pending work"}) {
+		t.Fatalf("transport recovery state = %#v", got)
 	}
 }
 

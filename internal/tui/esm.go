@@ -20,6 +20,9 @@ import (
 const (
 	esmGetToolName    = "get_esm"
 	esmUpdateToolName = "update_esm"
+
+	esmRoleTimeout             = 30 * time.Minute
+	esmRecoveryObserverTimeout = 5 * time.Minute
 )
 
 func (a *App) ensureESMStore() *esm.Store {
@@ -128,6 +131,9 @@ func (a *App) setESMFooter(obj *esm.Objective) {
 	}
 	if obj.RejectionCount > 0 {
 		parts = append(parts, fmt.Sprintf("reject %d/%d", obj.RejectionCount, esm.CompletionRejectionLimit))
+	}
+	if obj.RecoveryCount > 0 {
+		parts = append(parts, fmt.Sprintf("recover %d/%d", obj.RecoveryCount, esm.RecoveryLimit))
 	}
 	a.esmFooter = strings.Join(parts, " ")
 }
@@ -560,6 +566,9 @@ func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Eve
 		}
 	}
 	if err != nil {
+		if a.recoverInterruptedESMRole(ctx, eventCh, manager, store, sessionID, runID, workDir, mode, "worker", err) {
+			return true
+		}
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
 		return false
 	}
@@ -646,6 +655,9 @@ func (a *App) runESMCritic(ctx context.Context, eventCh chan<- internalagent.Eve
 			return false
 		}
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("critic completion candidate", next, review)})
+		if a.recoverInterruptedESMRole(ctx, eventCh, manager, store, sessionID, runID, workDir, mode, "critic", err) {
+			return true
+		}
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
 		return false
 	}
@@ -709,6 +721,9 @@ func (a *App) runESMAudit(ctx context.Context, eventCh chan<- internalagent.Even
 			return false
 		}
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("audit completion candidate", next, review)})
+		if a.recoverInterruptedESMRole(ctx, eventCh, manager, store, sessionID, runID, workDir, mode, "audit", err) {
+			return true
+		}
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
 		return false
 	}
@@ -750,6 +765,114 @@ func (a *App) runESMAudit(ctx context.Context, eventCh chan<- internalagent.Even
 	return true
 }
 
+// recoverInterruptedESMRole turns bounded, recoverable role failures into a
+// clean supervisor completion. That lets the normal ESM continuation launch a
+// fresh worker without leaving the TUI in a permanently thinking state.
+func (a *App) recoverInterruptedESMRole(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode, role string, runErr error) bool {
+	if runErr == nil || store == nil {
+		return false
+	}
+	if errors.Is(runErr, context.DeadlineExceeded) {
+		return a.runESMRecoveryObserver(ctx, eventCh, manager, store, sessionID, runID, workDir, mode, role, runErr)
+	}
+	if isESMRetryableTransportError(runErr) {
+		reason := "provider transport failure in " + role + ": " + compactESMError(runErr)
+		summary := "Provider request failed after its built-in retries. A fresh ESM worker will retry from the current repository state."
+		return a.recordESMRecovery(ctx, eventCh, store, sessionID, reason, summary, nil)
+	}
+	return false
+}
+
+func (a *App) runESMRecoveryObserver(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode, role string, interruption error) bool {
+	obj, err := store.Get(ctx, sessionID)
+	if err != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
+		return false
+	}
+	reason := role + " timed out after " + esmRoleTimeout.String() + ": " + compactESMError(interruption)
+	if obj.RecoveryCount >= esm.RecoveryLimit {
+		return a.recordESMRecovery(ctx, eventCh, store, sessionID, reason, "Automatic recovery limit reached after repeated interrupted ESM roles.", obj.RemainingWork)
+	}
+
+	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM recovery observer started after " + role + " timeout"})
+	result, observerErr := a.runESMRoleAgentWithTimeout(ctx, eventCh, manager, runID+"-recovery-observer", workDir, mode, []string{"read", "grep", "find", "ls"}, 40, esm.RecoveryObserverTaskPrompt(obj, role, interruption.Error()), esmRecoveryObserverTimeout)
+	if result.Tokens > 0 {
+		next, accountErr := store.AccountUsage(ctx, sessionID, result.Tokens, 0)
+		if accountErr != nil && !errors.Is(accountErr, esm.ErrNotFound) {
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: accountErr})
+			return false
+		}
+		if next != nil && next.Status == esm.StatusBudgetLimited {
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM token budget reached during recovery observation"})
+			return true
+		}
+	}
+	if observerErr != nil {
+		summary := "Recovery observer did not finish; a fresh worker will retry from the current repository state."
+		return a.recordESMRecovery(ctx, eventCh, store, sessionID, reason+"; observer failed: "+compactESMError(observerErr), summary, obj.RemainingWork)
+	}
+	report, err := esm.ParseRecoveryReport(result.Response)
+	if err != nil {
+		summary := "Recovery observer returned no usable diagnostic; a fresh worker will retry from the current repository state."
+		return a.recordESMRecovery(ctx, eventCh, store, sessionID, reason+"; observer report invalid: "+compactESMError(err), summary, obj.RemainingWork)
+	}
+	if result.ToolCalls == 0 || len(result.ToolError) >= result.ToolCalls {
+		summary := "Recovery observer did not obtain usable tool-backed inspection evidence; a fresh worker will retry from the current repository state."
+		return a.recordESMRecovery(ctx, eventCh, store, sessionID, reason+"; observer inspection was not usable", summary, obj.RemainingWork)
+	}
+
+	summary := "Recovery observer: " + report.Summary
+	next, recordErr := store.RecordRecovery(ctx, sessionID, reason, summary, report.RemainingWork)
+	if recordErr != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: recordErr})
+		return false
+	}
+	if next.Status == esm.StatusPaused {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM paused after %d consecutive recoveries; inspect the recovery reason and run /esm resume when ready", next.RecoveryCount)})
+		return true
+	}
+	if report.Decision == esm.RecoveryDecisionBlocked {
+		blocker := formatESMItemDetail("recovery observer blockers", report.Blockers)
+		updated, updateErr := store.UpdateFromModelForRun(ctx, sessionID, esm.StatusBlocked, blocker, runID+"-recovery")
+		if updateErr != nil {
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: updateErr})
+			return false
+		}
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM recovery observer reported blocker; status: %s", updated.Status)})
+		return true
+	}
+	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM recovery observer verified resumable work (%d/%d); starting a fresh worker", next.RecoveryCount, esm.RecoveryLimit)})
+	return true
+}
+
+func (a *App) recordESMRecovery(ctx context.Context, eventCh chan<- internalagent.Event, store *esm.Store, sessionID, reason, summary string, remainingWork []string) bool {
+	next, err := store.RecordRecovery(ctx, sessionID, reason, summary, remainingWork)
+	if err != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
+		return false
+	}
+	if next.Status == esm.StatusPaused {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM paused after %d consecutive recoveries; inspect the recovery reason and run /esm resume when ready", next.RecoveryCount)})
+		return true
+	}
+	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM recovery recorded (%d/%d); starting a fresh worker", next.RecoveryCount, esm.RecoveryLimit)})
+	return true
+}
+
+func isESMRetryableTransportError(err error) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "send request:") && provider.IsRetryable(err, 0)
+}
+
+func compactESMError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return truncatePlain(strings.ReplaceAll(err.Error(), "\n", "; "), 500)
+}
+
 type esmRoleResult struct {
 	Response  string
 	Tokens    int64
@@ -761,6 +884,10 @@ type esmRoleResult struct {
 type esmRoleRunner func(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, id, workDir, mode string, toolFilter []string, maxIterations int, task string) (esmRoleResult, error)
 
 func (a *App) runESMRoleAgent(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, id, workDir, mode string, toolFilter []string, maxIterations int, task string) (esmRoleResult, error) {
+	return a.runESMRoleAgentWithTimeout(ctx, eventCh, manager, id, workDir, mode, toolFilter, maxIterations, task, esmRoleTimeout)
+}
+
+func (a *App) runESMRoleAgentWithTimeout(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, id, workDir, mode string, toolFilter []string, maxIterations int, task string, timeout time.Duration) (esmRoleResult, error) {
 	if a.esmRoleRunner != nil {
 		return a.esmRoleRunner(ctx, eventCh, manager, id, workDir, mode, toolFilter, maxIterations, task)
 	}
@@ -786,8 +913,7 @@ func (a *App) runESMRoleAgent(ctx context.Context, eventCh chan<- internalagent.
 		_ = manager.Destroy(childID)
 	}()
 
-	policy := internalagent.DefaultSubAgentPolicy()
-	runCtx, cancel := context.WithTimeout(ctx, policy.TimeoutPerAgent)
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	manager.MarkRunning(childID)
 	manager.SetCancel(childID, cancel)

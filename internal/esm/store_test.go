@@ -240,6 +240,51 @@ func TestStorePersistsWorkerProgress(t *testing.T) {
 	}
 }
 
+func TestStoreRecoveryLimitAndWorkerProgressReset(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	for i := 1; i <= RecoveryLimit; i++ {
+		obj, err := store.RecordRecovery(ctx, sessionID, "worker timed out", "observer found resumable work", []string{"finish tests"})
+		if err != nil {
+			t.Fatalf("RecordRecovery %d: %v", i, err)
+		}
+		if obj.Status != StatusActive || obj.RecoveryCount != i || obj.RecoveryReason != "worker timed out" {
+			t.Fatalf("recovery %d = %#v", i, obj)
+		}
+	}
+
+	obj, err := store.RecordRecovery(ctx, sessionID, "worker timed out", "observer found resumable work", []string{"finish tests"})
+	if err != nil {
+		t.Fatalf("RecordRecovery limit: %v", err)
+	}
+	if obj.Status != StatusPaused || obj.RecoveryCount != RecoveryLimit+1 {
+		t.Fatalf("recovery limit = %#v", obj)
+	}
+
+	obj, err = store.Resume(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if obj.RecoveryCount != 0 || obj.RecoveryReason != "" {
+		t.Fatalf("resume did not reset recovery state: %#v", obj)
+	}
+	obj, err = store.RecordRecovery(ctx, sessionID, "worker timed out", "observer found resumable work", []string{"finish tests"})
+	if err != nil {
+		t.Fatalf("RecordRecovery after resume: %v", err)
+	}
+	obj, err = store.RecordWorkerProgress(ctx, sessionID, "implemented tests", []string{"run verification"})
+	if err != nil {
+		t.Fatalf("RecordWorkerProgress: %v", err)
+	}
+	if obj.RecoveryCount != 0 || obj.RecoveryReason != "" {
+		t.Fatalf("worker progress did not reset recovery state: %#v", obj)
+	}
+}
+
 func TestStoreCompletionRejectionCircuitBreaker(t *testing.T) {
 	ctx := context.Background()
 	store, sessionID := newTestStore(t)
