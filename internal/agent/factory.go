@@ -105,6 +105,7 @@ type AgentOptions struct {
 	MaxIterations     int
 	ToolExecutionMode string
 	Session           *session.Manager
+	IsSubAgent        bool                                                        // persist this agent outside the user-continuable session tables
 	ApprovalHandler   func(toolCallID, toolName string, args map[string]any) bool // per-agent approval override
 	MultiAgent        *bool                                                       // optional prompt override
 	DelegateMode      *bool                                                       // optional prompt override
@@ -171,7 +172,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 	// Determine session
 	sess := opts.Session
 	if sess == nil {
-		sess = f.defaultSession(workDir)
+		sess = f.defaultSession(workDir, opts.IsSubAgent || opts.ParentID != "")
 	}
 
 	multiAgent := f.multiAgentEnabled && opts.ParentID == ""
@@ -303,13 +304,16 @@ func (f *AgentFactory) sandboxForMode(mode string) sandbox.Sandbox {
 }
 
 // defaultSession creates a default session manager for the given work directory.
-func (f *AgentFactory) defaultSession(workDir string) *session.Manager {
+func (f *AgentFactory) defaultSession(workDir string, subAgent bool) *session.Manager {
 	sessionDir := ""
 	if f.settings != nil {
 		sessionDir = f.settings.GetSessionDir()
 	}
 	if sessionDir == "" {
 		sessionDir = platform.SessionDir()
+	}
+	if subAgent {
+		return session.NewSubAgent(workDir, sessionDir)
 	}
 	return session.New(workDir, sessionDir)
 }

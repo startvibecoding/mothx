@@ -4,13 +4,31 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-const expectedMigrationCount = 12
+const expectedMigrationCount = 13
+
+func TestDashboardShareActivityUsesSevenDayFlameHeatmap(t *testing.T) {
+	for _, expected := range []string{
+		"Last 7 days by 2-hour intensity",
+		"groupBy: '1h'",
+		"shareStartDate.setDate(shareStartDate.getDate() - 6)",
+		"from: localDate(shareStartDate)",
+		"const days = []",
+		"const hourMap = {}",
+		"const slotH = (chartH - slotGap * 11) / 12",
+		"function flameColor(value)",
+	} {
+		if !strings.Contains(dashboardHTML, expected) {
+			t.Errorf("dashboard share activity is missing %q", expected)
+		}
+	}
+}
 
 func createTestDB(t *testing.T) *DB {
 	t.Helper()

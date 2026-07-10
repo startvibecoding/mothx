@@ -811,6 +811,10 @@ function localDate(d) {
 	return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+function localHour(d) {
+	return localDate(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':00';
+}
+
 function esc(value) {
 	return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
 		'&': '&amp;',
@@ -1447,9 +1451,17 @@ async function generateShareImage() {
 		return bits.join(' / ');
 	}
 
+	const shareEndDate = new Date();
+	shareEndDate.setHours(0, 0, 0, 0);
+	const shareStartDate = new Date(shareEndDate);
+	shareStartDate.setDate(shareStartDate.getDate() - 6);
 	const [summary, timeseries, byModel] = await Promise.all([
 		fetchAPI('/api/summary'),
-		fetchAPI('/api/timeseries', { groupBy: 'day' }),
+		fetchAPI('/api/timeseries', {
+			from: localDate(shareStartDate),
+			to: localDate(shareEndDate),
+			groupBy: '1h'
+		}),
 		fetchAPI('/api/by-model')
 	]);
 
@@ -1503,56 +1515,69 @@ async function generateShareImage() {
 	ctx.fillText('Daily Activity', padding + 30, y + 48);
 	ctx.fillStyle = '#6b7280';
 	ctx.font = '20px ' + font;
-	ctx.fillText('Last 30 days by token volume', padding + 30, y + 82);
+	ctx.fillText('Last 7 days by 2-hour intensity', padding + 30, y + 82);
 
-	const now = new Date();
-	const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-	const dayMap = {};
-	timeseries.forEach(d => { dayMap[d.label] = d; });
+	const hourMap = {};
+	timeseries.forEach(d => { hourMap[d.label] = d; });
 
 	const days = [];
 	let maxTokens = 0;
-	for (let i = 0; i < 30; i++) {
-		const dt = new Date(from.getTime() + i * 86400000);
-		const key = localDate(dt);
-		const entry = dayMap[key] || { totalTokens: 0 };
-		days.push({ date: key, totalTokens: entry.totalTokens });
-		if (entry.totalTokens > maxTokens) maxTokens = entry.totalTokens;
+	for (let i = 0; i < 7; i++) {
+		const dt = new Date(shareStartDate);
+		dt.setDate(dt.getDate() + i);
+		const slots = [];
+		for (let slot = 0; slot < 12; slot++) {
+			const slotStart = new Date(dt);
+			slotStart.setHours(slot * 2, 0, 0, 0);
+			const nextHour = new Date(slotStart);
+			nextHour.setHours(nextHour.getHours() + 1);
+			const totalTokens = (hourMap[localHour(slotStart)] || { totalTokens: 0 }).totalTokens +
+				(hourMap[localHour(nextHour)] || { totalTokens: 0 }).totalTokens;
+			slots.push(totalTokens);
+			if (totalTokens > maxTokens) maxTokens = totalTokens;
+		}
+		days.push({ date: dt, slots });
 	}
 
 	const chartX = padding + 30;
 	const chartY = y + 106;
 	const chartW = contentW - 60;
-	const chartH = 88;
-	ctx.strokeStyle = '#eef2f7';
-	ctx.lineWidth = 2;
-	for (let i = 0; i < 4; i++) {
-		const gy = chartY + i * (chartH / 3);
-		ctx.beginPath();
-		ctx.moveTo(chartX, gy);
-		ctx.lineTo(chartX + chartW, gy);
-		ctx.stroke();
+	const chartH = 108;
+	const dayGap = 14;
+	const dayW = (chartW - dayGap * (days.length - 1)) / days.length;
+	const slotGap = 3;
+	const slotH = (chartH - slotGap * 11) / 12;
+	function flameColor(value) {
+		if (!value || !maxTokens) return '#e8eef5';
+		const ratio = value / maxTokens;
+		if (ratio < 0.16) return '#bae6fd';
+		if (ratio < 0.38) return '#38bdf8';
+		if (ratio < 0.62) return '#2563eb';
+		if (ratio < 0.82) return '#f59e0b';
+		return '#ef4444';
 	}
 
-	const barGap = 8;
-	const barW = (chartW - barGap * 29) / 30;
-	const barColors = ['#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#2563eb'];
 	for (let i = 0; i < days.length; i++) {
-		const pct = maxTokens ? days[i].totalTokens / maxTokens : 0;
-		const h = Math.max(10, pct * chartH);
-		const x = chartX + i * (barW + barGap);
-		const barY = chartY + chartH - h;
-		const colorIndex = Math.min(4, Math.floor(pct * 5));
-		ctx.fillStyle = barColors[colorIndex];
-		roundRect(x, barY, barW, h, 7);
-		ctx.fill();
-	}
+		const day = days[i];
+		const x = chartX + i * (dayW + dayGap);
+		for (let slot = 0; slot < day.slots.length; slot++) {
+			const cellY = chartY + (11 - slot) * (slotH + slotGap);
+			ctx.fillStyle = flameColor(day.slots[slot]);
+			roundRect(x, cellY, dayW, slotH, 5);
+			ctx.fill();
+		}
 
-	ctx.fillStyle = '#6b7280';
-	ctx.font = '18px ' + font;
-	ctx.fillText(days[0] ? days[0].date.slice(5) : '', chartX, y + trendH - 24);
-	ctx.textAlign = 'right';
-	ctx.fillText(days[29] ? days[29].date.slice(5) : '', chartX + chartW, y + trendH - 24);
+		ctx.fillStyle = '#64748b';
+		ctx.font = '600 16px ' + font;
+		ctx.textAlign = 'center';
+		ctx.fillText(localDate(day.date).slice(5), x + dayW / 2, y + trendH - 24);
+	}
+	ctx.fillStyle = '#94a3b8';
+	ctx.font = '14px ' + font;
+	ctx.fillText('00', chartX - 10, chartY + chartH);
+	ctx.fillText('12', chartX - 10, chartY + chartH / 2 + 4);
+	ctx.fillText('22', chartX - 10, chartY + 12);
+
 	ctx.textAlign = 'left';
 	y += trendH + 28;
 

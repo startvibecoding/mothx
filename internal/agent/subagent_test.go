@@ -14,6 +14,7 @@ import (
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/sandbox"
+	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
 )
@@ -96,6 +97,38 @@ func TestAgentFactoryWorkflowPromptNotInheritedByChild(t *testing.T) {
 	}
 	if contains(childAdapter.inner.frozenSystemPrompt, "Workflow Tools") {
 		t.Fatal("expected child prompt to omit workflow instructions")
+	}
+}
+
+func TestAgentFactoryStoresChildSessionsSeparately(t *testing.T) {
+	factory, mgr := newTestFactoryAndManager(t)
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := mgr.Create(AgentOptions{ID: "child", ParentID: parent.ID()})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+
+	childSession := child.(*AgentAdapter).inner.config.Session
+	if _, err := childSession.AppendMessage(provider.NewUserMessage("child work")); err != nil {
+		t.Fatalf("append child message: %v", err)
+	}
+
+	db, err := session.OpenRootDB(factory.settings.GetSessionDir())
+	if err != nil {
+		t.Fatalf("open session db: %v", err)
+	}
+	var mainCount, subCount int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&mainCount); err != nil {
+		t.Fatalf("count main sessions: %v", err)
+	}
+	if err := db.QueryRow("SELECT COUNT(*) FROM sub_session").Scan(&subCount); err != nil {
+		t.Fatalf("count child sessions: %v", err)
+	}
+	if mainCount != 0 || subCount != 1 {
+		t.Fatalf("session counts = main:%d sub:%d, want main:0 sub:1", mainCount, subCount)
 	}
 }
 

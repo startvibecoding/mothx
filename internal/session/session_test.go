@@ -547,6 +547,57 @@ func TestListForDir(t *testing.T) {
 	}
 }
 
+func TestSubAgentSessionsAreExcludedFromMainSessionLists(t *testing.T) {
+	tmpDir := t.TempDir()
+	sessionDir := filepath.Join(tmpDir, "sessions")
+
+	main := New("/tmp/test", sessionDir)
+	if err := main.InitWithID("main-session"); err != nil {
+		t.Fatalf("init main session: %v", err)
+	}
+	child := NewSubAgent("/tmp/test", sessionDir)
+	if err := child.InitWithID("sub-session"); err != nil {
+		t.Fatalf("init sub-agent session: %v", err)
+	}
+	if _, err := child.AppendMessage(provider.NewUserMessage("sub-agent work")); err != nil {
+		t.Fatalf("append sub-agent message: %v", err)
+	}
+
+	sessions, err := ListForDir("/tmp/test", sessionDir)
+	if err != nil {
+		t.Fatalf("list main sessions: %v", err)
+	}
+	if len(sessions) != 1 || sessionFileID(sessions[0].Path) != "main-session" {
+		t.Fatalf("main session list = %#v, want only main-session", sessions)
+	}
+
+	continued, err := ContinueRecent("/tmp/test", sessionDir)
+	if err != nil {
+		t.Fatalf("continue recent: %v", err)
+	}
+	if continued.GetHeader().ID != "main-session" {
+		t.Fatalf("continued session = %q, want main-session", continued.GetHeader().ID)
+	}
+
+	db, err := OpenRootDB(sessionDir)
+	if err != nil {
+		t.Fatalf("open root db: %v", err)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sub_session").Scan(&count); err != nil {
+		t.Fatalf("count sub sessions: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("sub_session count = %d, want 1", count)
+	}
+	if err := db.QueryRow("SELECT COUNT(*) FROM sub_entries WHERE session_id = ?", "sub-session").Scan(&count); err != nil {
+		t.Fatalf("count sub entries: %v", err)
+	}
+	if count != 2 { // header plus the message
+		t.Fatalf("sub_entries count = %d, want 2", count)
+	}
+}
+
 func TestContinueRecent(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")

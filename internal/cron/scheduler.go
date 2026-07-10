@@ -194,6 +194,7 @@ func (s *Scheduler) executeJob(job CronJob) {
 			}
 		}
 		a, err := s.manager.Create(agent.AgentOptions{
+			IsSubAgent: sess == nil,
 			Mode:       job.Mode,
 			WorkDir:    workDir,
 			Session:    sess,

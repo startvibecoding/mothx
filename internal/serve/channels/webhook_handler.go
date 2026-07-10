@@ -41,8 +41,9 @@ func (h *WebhookHandler) HandleWebhookEvent(ctx context.Context, route webhook.R
 
 	// Create a sub-agent to handle the task
 	a, err := h.dispatcher.agentMgr.Create(agent.AgentOptions{
-		Mode:    "yolo",
-		WorkDir: h.dispatcher.cfg.GetWorkDir(),
+		IsSubAgent: true,
+		Mode:       "yolo",
+		WorkDir:    h.dispatcher.cfg.GetWorkDir(),
 	})
 	if err != nil {
 		return fmt.Errorf("create webhook agent: %w", err)

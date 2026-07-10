@@ -706,6 +706,7 @@ func (a *App) runESMRoleAgent(ctx context.Context, eventCh chan<- internalagent.
 	childID := agentpkg.AgentID(id)
 	child, err := manager.Create(internalagent.AgentOptions{
 		ID:            childID,
+		IsSubAgent:    true,
 		Mode:          mode,
 		WorkDir:       workDir,
 		Tools:         toolFilter,

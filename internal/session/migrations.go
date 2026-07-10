@@ -176,6 +176,28 @@ var migrations = []migration{
 		      ALTER TABLE session_esm_objectives ADD COLUMN completion_run_id TEXT NOT NULL DEFAULT '';
 		      ALTER TABLE session_esm_objectives ADD COLUMN completion_review TEXT NOT NULL DEFAULT '';`,
 	},
+	{
+		Name: "013_create_subagent_session_tables",
+		SQL: `CREATE TABLE IF NOT EXISTS sub_session (
+			id TEXT PRIMARY KEY,
+			cwd TEXT,
+			timestamp TEXT,
+			parent_session TEXT,
+			version INTEGER
+		);
+		CREATE TABLE IF NOT EXISTS sub_entries (
+			seq INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id TEXT REFERENCES sub_session(id) ON DELETE CASCADE,
+			id TEXT UNIQUE,
+			type TEXT NOT NULL,
+			parent_id TEXT,
+			timestamp TEXT NOT NULL,
+			data TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_sub_entries_session_id ON sub_entries(session_id);
+		CREATE INDEX IF NOT EXISTS idx_sub_entries_type ON sub_entries(type);
+		CREATE INDEX IF NOT EXISTS idx_sub_session_cwd ON sub_session(cwd);`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

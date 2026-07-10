@@ -36,6 +36,7 @@ type Manager struct {
 	leafID     *string
 	cwd        string
 	sessionDir string
+	subAgent   bool
 }
 
 type replayState struct {
@@ -79,6 +80,28 @@ func New(cwd, sessionDir string) *Manager {
 		cwd:        cwd,
 		sessionDir: sessionDir,
 	}
+}
+
+// NewSubAgent creates a session manager whose records are stored separately
+// from user-continuable sessions.
+func NewSubAgent(cwd, sessionDir string) *Manager {
+	m := New(cwd, sessionDir)
+	m.subAgent = true
+	return m
+}
+
+func (m *Manager) sessionTable() string {
+	if m.subAgent {
+		return "sub_session"
+	}
+	return "sessions"
+}
+
+func (m *Manager) entriesTable() string {
+	if m.subAgent {
+		return "sub_entries"
+	}
+	return "entries"
 }
 
 // Open opens an existing session file.
@@ -1057,7 +1080,7 @@ func (m *Manager) load() error {
 		// Load session metadata
 		var cwd, timestamp, parentSession sql.NullString
 		var version int
-		err := db.QueryRow("SELECT cwd, timestamp, parent_session, version FROM sessions WHERE id = ?", sessionID).
+		err := db.QueryRow("SELECT cwd, timestamp, parent_session, version FROM "+m.sessionTable()+" WHERE id = ?", sessionID).
 			Scan(&cwd, &timestamp, &parentSession, &version)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -1077,7 +1100,7 @@ func (m *Manager) load() error {
 		}
 		m.cwd = cwd.String
 
-		rows, err := db.Query("SELECT type, data FROM entries WHERE session_id = ? ORDER BY seq ASC", sessionID)
+		rows, err := db.Query("SELECT type, data FROM "+m.entriesTable()+" WHERE session_id = ? ORDER BY seq ASC", sessionID)
 		if err != nil {
 			return err
 		}
@@ -1876,7 +1899,7 @@ func (m *Manager) writeEntry(entry interface{}) error {
 				parentSess = m.header.ParentSession
 			}
 			_, err = db.Exec(
-				"INSERT OR REPLACE INTO sessions (id, cwd, timestamp, parent_session, version) VALUES (?, ?, ?, ?, ?)",
+				"INSERT OR REPLACE INTO "+m.sessionTable()+" (id, cwd, timestamp, parent_session, version) VALUES (?, ?, ?, ?, ?)",
 				sessionID, m.cwd, m.header.Timestamp.Format(time.RFC3339Nano), parentSess, m.header.Version,
 			)
 			if err != nil {
@@ -1889,7 +1912,7 @@ func (m *Manager) writeEntry(entry interface{}) error {
 			parentIDVal = *parentID
 		}
 		_, err := db.Exec(
-			"INSERT OR REPLACE INTO entries (session_id, id, type, parent_id, timestamp, data) VALUES (?, ?, ?, ?, ?, ?)",
+			"INSERT OR REPLACE INTO "+m.entriesTable()+" (session_id, id, type, parent_id, timestamp, data) VALUES (?, ?, ?, ?, ?, ?)",
 			sessionID, id, typeStr, parentIDVal, ts.Format(time.RFC3339Nano), string(data),
 		)
 		return err
