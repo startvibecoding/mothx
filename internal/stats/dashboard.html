@@ -1550,11 +1550,11 @@ async function generateShareImage() {
 	function flameColor(value) {
 		if (!value || !maxTokens) return '#e8eef5';
 		const ratio = value / maxTokens;
-		if (ratio < 0.16) return '#bae6fd';
-		if (ratio < 0.38) return '#38bdf8';
-		if (ratio < 0.62) return '#2563eb';
-		if (ratio < 0.82) return '#f59e0b';
-		return '#ef4444';
+		if (ratio < 0.16) return '#dbeafe';
+		if (ratio < 0.38) return '#93c5fd';
+		if (ratio < 0.62) return '#60a5fa';
+		if (ratio < 0.82) return '#3b82f6';
+		return '#1d4ed8';
 	}
 
 	for (let i = 0; i < days.length; i++) {

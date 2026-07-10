@@ -18,6 +18,8 @@
   - 新增 `StatusCompleteCandidate`，支持结构化的 `WorkerReport`/`AuditReport` 解析与校验。
   - Objective schema 新增 `completion_review`、`completion_run_id`、`completion_reason`、`blocked_run_id` 字段（迁移 011/012）。
   - TUI ESM 编排完整审查流水线，仅审计通过才标记目标完成。
+  - 限制 critic/audit 子代理仅使用只读工具，并要求报告中包含具体的阻塞项。
+  - 抑制父 TUI 流中冗余的角色代理生命周期事件，输出更清爽。
   - AgentFactory 追踪 `providerName`/`Vendor`，确保子 Agent 运行时同步。
   - 新增 `withRuntimeConfig` 用于灵活的工厂克隆。
 
@@ -34,6 +36,11 @@
   - 新增 `.dockerignore`，确保干净构建。
   - README 和入门指南新增 Docker 安装文档（中英文）。
 
+- **子代理会话隔离存储**
+  - 新增 `sub_session` 和 `sub_entries` 专用表，用于子代理、cron、webhook 和 ESM worker 会话（迁移 013）。
+  - `AgentOptions` 新增 `IsSubAgent` 标志；factory 自动将子代理路由到隔离存储，避免污染主会话列表。
+  - Cron 调度器、webhook 分发器和 ESM worker 流水线均启用子会话存储。
+
 ### 🔧 改进
 
 - **TUI 粘贴处理优化**
@@ -49,6 +56,28 @@
 - **AgentFactory 增强**
   - AgentFactory 现在追踪 `providerName` 和 `Vendor`，确保子 Agent 运行时同步。
   - 修复 `Vendor` 为空时使用量统计中 provider 名称提取的问题。
+
+- **Serve API 安全加固**
+  - 默认监听地址改为回环地址（`127.0.0.1:8080`），默认模式改为 `agent`，默认启用沙箱。
+  - 公网（非回环）监听现在需要 Bearer token 认证，除非传入 `--unsafe`。
+  - 新增符号链接安全的 `IsWithinPath` 辅助函数；工作目录解析和 `allowedWorkDirs` 检查拒绝符号链接逃逸。
+  - 持久化的会话工作目录在加载时重新校验，防止过期路径逃逸。
+  - 请求处理期间固定会话，防止空闲淘汰竞争；为 `Touch`/使用计数器添加锁，修复并发 list/evict 数据竞争。
+
+- **沙箱清理**
+  - 新增 `CommandCleanupProvider` 接口；macOS Seatbelt 沙箱现在在每条命令退出后清理临时配置文件。
+  - Bash 工具在同步和异步命令路径上都会调用沙箱清理。
+
+- **Cron 调度器可靠性**
+  - SQLite cron 存储新增原子 `ClaimDue`，防止多调度器实例重复执行同一任务。
+  - 内存中跟踪运行中的 claim，避免同一任务重叠触发。
+
+- **A2A 任务取消**
+  - 注册每次运行的 cancel，使 `tasks/cancel` 能传播到执行器 context。
+  - 新增 `TaskStore.Finish`/`Cancel` 辅助函数，并补充终态测试。
+
+- **统计面板热力图**
+  - 将 30 天柱状图替换为 7 天 / 2 小时分桶的火焰式热力图，更直观展示使用强度。
 
 ### 📚 文档
 

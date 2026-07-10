@@ -18,6 +18,8 @@
   - Added `StatusCompleteCandidate` with structured `WorkerReport`/`AuditReport` parsing and validation.
   - Added `completion_review`, `completion_run_id`, `completion_reason`, `blocked_run_id` to Objective schema (migrations 011/012).
   - TUI ESM orchestrates the full review pipeline; only a passing audit marks objective complete.
+  - Restricted critic/audit sub-agents to read-only tools and require concrete blockers in reports.
+  - Suppressed noisy role-agent lifecycle events in the parent TUI stream for cleaner output.
   - AgentFactory tracks `providerName`/`Vendor` for sub-agent runtime sync.
   - Added `withRuntimeConfig` for flexible factory cloning.
 
@@ -34,6 +36,11 @@
   - Added `.dockerignore` for clean builds.
   - Added Docker installation docs to README and getting-started guides (zh/en).
 
+- **Sub-Agent Session Isolation**
+  - Added dedicated `sub_session` and `sub_entries` tables for sub-agent, cron, webhook, and ESM worker sessions (migration 013).
+  - Added `IsSubAgent` flag to `AgentOptions`; factory automatically routes sub-agents to isolated storage so they no longer pollute the main session list.
+  - Cron scheduler, webhook dispatcher, and ESM worker pipeline all opt in to sub-session storage.
+
 ### 🔧 Improvements
 
 - **TUI Split-Paste Handling**
@@ -49,6 +56,28 @@
 - **AgentFactory Enhancements**
   - AgentFactory now tracks `providerName` and `Vendor` for sub-agent runtime synchronization.
   - Fix usage stats provider name extraction when `Vendor` is empty.
+
+- **Serve API Security & Hardening**
+  - Default listen address changed to loopback (`127.0.0.1:8080`), default mode changed to `agent`, sandbox enabled by default.
+  - Public (non-loopback) listen now requires Bearer token auth unless `--unsafe` is passed.
+  - Added symlink-safe `IsWithinPath` helper; work directory resolution and `allowedWorkDirs` checks reject symlink escape.
+  - Persisted session working directories are re-validated on load to prevent stale-path escapes.
+  - Sessions are pinned during request handling to prevent idle-eviction races; added locking to `Touch`/use counters to fix concurrent list/evict data races.
+
+- **Sandbox Cleanup**
+  - Added `CommandCleanupProvider` interface; macOS Seatbelt sandbox now cleans up temporary profiles after each command exits.
+  - Bash tool invokes sandbox cleanup on both synchronous and asynchronous command paths.
+
+- **Cron Scheduler Reliability**
+  - Added atomic `ClaimDue` in the SQLite cron store to prevent duplicate job runs across scheduler instances.
+  - Tracked in-memory claims to avoid overlapping ticks for the same job.
+
+- **A2A Task Cancellation**
+  - Registered per-run cancel so `tasks/cancel` propagates to the executor context.
+  - Introduced `TaskStore.Finish`/`Cancel` helpers and added terminal-state tests.
+
+- **Stats Dashboard Heatmap**
+  - Replaced the 30-day bar chart with a 7-day / 2-hour bucket flame-style heatmap for a more intuitive view of usage intensity.
 
 ### 📚 Documentation
 
