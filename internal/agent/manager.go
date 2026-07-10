@@ -9,6 +9,8 @@ import (
 	"time"
 
 	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // ManagedAgentStatus captures scheduling state for an agent managed by AgentManager.
@@ -44,6 +46,20 @@ func NewAgentManager(factory *AgentFactory) *AgentManager {
 		cancels:  make(map[agentpkg.AgentID]context.CancelFunc),
 		factory:  factory,
 	}
+}
+
+// UpdateRuntimeConfig updates the factory used for future agents while keeping
+// existing managed agents untouched.
+func (m *AgentManager) UpdateRuntimeConfig(p provider.Provider, providerName string, model *provider.Model, settings *config.Settings, allow *config.AllowConfig) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.factory == nil {
+		return
+	}
+	m.factory = m.factory.withRuntimeConfig(p, providerName, model, settings, allow)
 }
 
 // Register adds an already-created top-level agent to the manager.

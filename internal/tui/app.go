@@ -233,16 +233,21 @@ type App struct {
 	latestUsage      *provider.Usage
 
 	// Enable Supervisor Mode (ESM)
-	esmStore           *esm.Store
-	esmStoreDir        string
-	esmToolsRegistered bool
-	esmFooter          string
-	esmMu              sync.Mutex
-	esmRunSeq          int64
-	esmSteeredSeq      int64
-	esmRunTracked      bool
-	esmRunSessionID    string
-	esmRunTokens       int64
+	esmStore            *esm.Store
+	esmStoreDir         string
+	esmToolsRegistered  bool
+	esmFooter           string
+	esmMu               sync.Mutex
+	esmRunSeq           int64
+	esmSteeredSeq       int64
+	esmBudgetLimitedSeq int64
+	esmBudgetSteeredSeq int64
+	esmRunTracked       bool
+	esmRunSessionID     string
+	esmRunID            string
+	esmActiveAgentID    agentpkg.AgentID
+	esmRunTokens        int64
+	esmRoleRunner       esmRoleRunner
 
 	// Spinner state
 	spinnerIndex int
@@ -1329,6 +1334,7 @@ func (a *App) View() string {
 
 func (a *App) abortPendingRequest(reason string) tea.Cmd {
 	a.pendingAbortReason = reason
+	a.abortActiveESMAgent()
 	if a.agent != nil {
 		a.abortAndResetAgent("aborted")
 	}
@@ -1390,4 +1396,21 @@ func safeProviderName(p provider.Provider) string {
 		return ""
 	}
 	return p.Name()
+}
+
+func (a *App) activeProviderName() string {
+	if a.providerName != "" {
+		return a.providerName
+	}
+	if a.model != nil && a.model.Provider != "" {
+		return a.model.Provider
+	}
+	return safeProviderName(a.provider)
+}
+
+func (a *App) syncAgentManagerRuntime() {
+	if a == nil || a.agentMgr == nil {
+		return
+	}
+	a.agentMgr.UpdateRuntimeConfig(a.provider, a.activeProviderName(), a.model, a.settings, a.allow)
 }

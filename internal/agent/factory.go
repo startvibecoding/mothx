@@ -17,6 +17,7 @@ import (
 // AgentFactory creates Agent instances with consistent configuration.
 type AgentFactory struct {
 	provider           provider.Provider
+	providerName       string
 	model              *provider.Model
 	settings           *config.Settings
 	allow              *config.AllowConfig
@@ -53,6 +54,7 @@ type AgentFactoryOptions struct {
 	MultiAgentEnabled bool
 	DelegateEnabled   bool
 	WorkflowsEnabled  bool
+	ProviderName      string
 	Allow             *config.AllowConfig
 }
 
@@ -75,6 +77,7 @@ func NewAgentFactoryWithOptions(
 	}
 	return &AgentFactory{
 		provider:           provider,
+		providerName:       opts.ProviderName,
 		model:              model,
 		settings:           settings,
 		allow:              allow,
@@ -192,6 +195,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 		ID:       opts.ID,
 		ParentID: opts.ParentID,
 		Provider: f.provider,
+		Vendor:   f.providerName,
 		Model:    model,
 		Mode:     mode,
 		ThinkingLevel: func() provider.ThinkingLevel {
@@ -237,6 +241,7 @@ func (f *AgentFactory) withParentRuntimeConfig(cfg AgentLoopConfig) *AgentFactor
 	}
 	clone := *f
 	clone.provider = cfg.Provider
+	clone.providerName = cfg.Vendor
 	clone.model = cfg.Model
 	clone.settings = cfg.Settings
 	clone.allow = cfg.Allow
@@ -244,6 +249,27 @@ func (f *AgentFactory) withParentRuntimeConfig(cfg AgentLoopConfig) *AgentFactor
 	clone.ruleContent = cfg.RuleContent
 	clone.compactionSettings = cfg.CompactionSettings
 	clone.approvalHandler = cfg.ApprovalHandler
+	return &clone
+}
+
+func (f *AgentFactory) withRuntimeConfig(p provider.Provider, providerName string, model *provider.Model, settings *config.Settings, allow *config.AllowConfig) *AgentFactory {
+	if f == nil {
+		return nil
+	}
+	clone := *f
+	if p != nil {
+		clone.provider = p
+	}
+	clone.providerName = providerName
+	if model != nil {
+		clone.model = model
+	}
+	if settings != nil {
+		clone.settings = settings
+	}
+	if allow != nil {
+		clone.allow = allow
+	}
 	return &clone
 }
 

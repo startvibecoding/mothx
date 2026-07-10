@@ -80,16 +80,16 @@ func TestStoreBlockedAuditAndComplete(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	for i := 1; i <= 2; i++ {
-		obj, err := store.UpdateFromModel(ctx, sessionID, StatusBlocked, "missing API token")
+	for i, runID := range []string{"run-1", "run-2"} {
+		obj, err := store.UpdateFromModelForRun(ctx, sessionID, StatusBlocked, "missing API token", runID)
 		if err != nil {
-			t.Fatalf("UpdateFromModel blocked %d: %v", i, err)
+			t.Fatalf("UpdateFromModel blocked %d: %v", i+1, err)
 		}
-		if obj.Status != StatusActive || obj.BlockedCount != i {
-			t.Fatalf("blocked audit %d = %#v", i, obj)
+		if obj.Status != StatusActive || obj.BlockedCount != i+1 {
+			t.Fatalf("blocked audit %d = %#v", i+1, obj)
 		}
 	}
-	obj, err := store.UpdateFromModel(ctx, sessionID, StatusBlocked, "missing API token")
+	obj, err := store.UpdateFromModelForRun(ctx, sessionID, StatusBlocked, "missing API token", "run-3")
 	if err != nil {
 		t.Fatalf("UpdateFromModel blocked 3: %v", err)
 	}
@@ -109,7 +109,116 @@ func TestStoreBlockedAuditAndComplete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateFromModel complete: %v", err)
 	}
+	if obj.Status != StatusCompleteCandidate || obj.CompletionReason != "all checks pass" {
+		t.Fatalf("complete candidate = %#v", obj)
+	}
+
+	obj, err = store.MarkCompleteFromAudit(ctx, sessionID, "auditor verified every requirement")
+	if err != nil {
+		t.Fatalf("MarkCompleteFromAudit: %v", err)
+	}
 	if obj.Status != StatusComplete {
-		t.Fatalf("status = %s, want complete", obj.Status)
+		t.Fatalf("status = %s, want complete after audit", obj.Status)
+	}
+}
+
+func TestStoreBlockedAuditRequiresConsecutiveRuns(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	obj, err := store.UpdateFromModelForRun(ctx, sessionID, StatusBlocked, "missing API token", "run-1")
+	if err != nil {
+		t.Fatalf("blocked run 1: %v", err)
+	}
+	if obj.BlockedCount != 1 || obj.BlockedRunID != "run-1" || obj.Status != StatusActive {
+		t.Fatalf("blocked run 1 = %#v", obj)
+	}
+
+	obj, err = store.UpdateFromModelForRun(ctx, sessionID, StatusBlocked, "missing API token", "run-1")
+	if err != nil {
+		t.Fatalf("duplicate blocked run 1: %v", err)
+	}
+	if obj.BlockedCount != 1 {
+		t.Fatalf("duplicate blocked same run count = %d, want 1", obj.BlockedCount)
+	}
+
+	obj, err = store.FinishRun(ctx, sessionID, "run-2")
+	if err != nil {
+		t.Fatalf("FinishRun run 2: %v", err)
+	}
+	if obj.BlockedCount != 0 || obj.BlockedReason != "" || obj.BlockedRunID != "" {
+		t.Fatalf("non-blocked run did not reset audit: %#v", obj)
+	}
+
+	for i, runID := range []string{"run-3", "run-4"} {
+		obj, err = store.UpdateFromModelForRun(ctx, sessionID, StatusBlocked, "missing API token", runID)
+		if err != nil {
+			t.Fatalf("blocked %s: %v", runID, err)
+		}
+		if obj.BlockedCount != i+1 || obj.Status != StatusActive {
+			t.Fatalf("blocked %s = %#v", runID, obj)
+		}
+	}
+	obj, err = store.UpdateFromModelForRun(ctx, sessionID, StatusBlocked, "missing API token", "run-5")
+	if err != nil {
+		t.Fatalf("blocked run 5: %v", err)
+	}
+	if obj.BlockedCount != 3 || obj.Status != StatusBlocked {
+		t.Fatalf("third consecutive blocker = %#v", obj)
+	}
+}
+
+func TestStoreCompleteRequiresEvidence(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if _, err := store.UpdateFromModel(ctx, sessionID, StatusComplete, ""); err == nil {
+		t.Fatal("UpdateFromModel complete without evidence succeeded, want error")
+	}
+}
+
+func TestStoreRejectCompletionCandidateReturnsActive(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	obj, err := store.UpdateFromModelForRun(ctx, sessionID, StatusComplete, "worker evidence", "run-1")
+	if err != nil {
+		t.Fatalf("UpdateFromModelForRun complete: %v", err)
+	}
+	if obj.Status != StatusCompleteCandidate || obj.CompletionRunID != "run-1" {
+		t.Fatalf("candidate = %#v", obj)
+	}
+
+	obj, err = store.RejectCompletionCandidate(ctx, sessionID, "missing requirement")
+	if err != nil {
+		t.Fatalf("RejectCompletionCandidate: %v", err)
+	}
+	if obj.Status != StatusActive || obj.CompletionReview != "missing requirement" {
+		t.Fatalf("rejected candidate = %#v", obj)
+	}
+}
+
+func TestStoreRecordCompletionReviewWhileActive(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	obj, err := store.RecordCompletionReview(ctx, sessionID, "worker completion lacked tool-backed evidence")
+	if err != nil {
+		t.Fatalf("RecordCompletionReview: %v", err)
+	}
+	if obj.Status != StatusActive || obj.CompletionReview != "worker completion lacked tool-backed evidence" {
+		t.Fatalf("recorded review = %#v", obj)
 	}
 }

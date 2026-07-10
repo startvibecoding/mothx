@@ -17,6 +17,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/config/` — settings and defaults
 - `internal/context/` — context window and compaction
 - `internal/contextfiles/` — `AGENTS.md` / `CLAUDE.md` discovery
+- `internal/esm/` — Enable Supervisor Mode state, prompts, reports, and tools
 - `internal/memory/` — persistent memory (memory.md)
 - `internal/messaging/` — messaging platform abstraction (wechat, feishu)
 - `internal/provider/` — provider abstraction and implementations
@@ -63,7 +64,9 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - Do not change the settings JSON schema or the expected meaning of existing provider config fields when adding vendor support.
 - The agent loop builds a system prompt, sends messages, handles stream events, executes tools, and continues until completion.
 - Tools should stay stateless when possible; shared execution state belongs in registries/managers.
+- AgentManager creates future agents from its AgentFactory. When runtime provider/model/settings change in the TUI, update the manager runtime too so sub-agents and ESM workers use the same provider/model as the main app.
 - Context files and skills are first-class prompt inputs.
+- Enable Supervisor Mode state and report parsing live in `internal/esm`; TUI orchestration owns worker/critic/audit sub-agent scheduling and status transitions.
 - Sessions are stored in SQLite with parent/child relationships. CLI and serve API sessions use a single root `sessions.db` database with dynamically computed virtual `.db` paths for listing/switching; serve channels additionally write physical handle files in per-user channel directories on disk.
 - Schema migrations are managed via `internal/session/migrations.go`. A `schema_migrations` table tracks which migrations have been applied. `ApplyMigrations(db)` runs any pending migrations and is called on every DB open from both `session.withDB()` and `stats.Open()`. To add a schema change, append a new entry to the `migrations` slice — do not use `CREATE TABLE IF NOT EXISTS` directly in new code.
 
@@ -179,6 +182,16 @@ When changing code, prefer the least risky approach that satisfies the request.
 - Show a visible tool "running" line before the final result line, rather than overwriting a single tool entry in place.
 - In auth/settings dialogs, clear stale `ParamField` / `ParamFieldKey` when changing views. Menu navigation and toggle fields must not leave input mode active for the next view.
 - In `/auth` model lists, `Backspace` / `Delete` on a model row deletes that model. Keep deletion scoped to model rows only; action rows like `+ Add Model` and `Done` must not delete anything.
+- `/defaultModel`, `/model`, and `/auth` provider saves must keep `App.provider`, `App.providerName`, `App.model`, `App.settings`, and `AgentManager` runtime config in sync; otherwise ESM and sub-agents can continue using stale provider/model instances.
+
+## ESM-Specific Notes
+
+- ESM completion is a worker candidate followed by independent critic and audit review. Only a passing audit can mark the objective complete.
+- Critic/audit `fail`, malformed reports, missing pass evidence, missing `requirements_checked`, or all-failed inspection tools must reject the completion candidate and return the objective to active.
+- Worker `complete_candidate` requires successful tool-backed inspection evidence. If all worker tools failed, keep ESM active and record the completion review.
+- If the token budget is reached during worker/critic/audit execution, do not mark the objective complete.
+- Preserve `completion_review` in the next worker prompt so later runs can address previous audit failures.
+- `blocked_candidate` must follow the repeated-blocker audit rules in `internal/esm.Store`; do not treat a single blocked report as terminal.
 
 ## Provider and Model Reference
 

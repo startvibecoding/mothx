@@ -99,6 +99,62 @@ func TestAgentFactoryWorkflowPromptNotInheritedByChild(t *testing.T) {
 	}
 }
 
+func TestAgentFactoryPropagatesProviderNameToChildren(t *testing.T) {
+	mockProvider := provider.NewMockProvider("underlying-vendor", []*provider.Model{
+		{ID: "model1", Name: "Model 1"},
+	}, nil)
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
+	factory := NewAgentFactoryWithOptions(
+		mockProvider,
+		mockProvider.Models()[0],
+		settings,
+		sandboxMgr,
+		"",
+		"",
+		nil,
+		ctxpkg.CompactionSettings{},
+		nil,
+		AgentFactoryOptions{
+			MultiAgentEnabled: true,
+			ProviderName:      "configured-provider",
+		},
+	)
+	mgr := NewAgentManager(factory)
+
+	parent, err := mgr.Create(AgentOptions{ID: "main"})
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	parentAdapter := parent.(*AgentAdapter)
+	if got := parentAdapter.inner.config.Vendor; got != "configured-provider" {
+		t.Fatalf("parent vendor = %q, want configured-provider", got)
+	}
+
+	child, err := mgr.Create(AgentOptions{ID: "child", ParentID: "main"})
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	childAdapter := child.(*AgentAdapter)
+	if got := childAdapter.inner.config.Vendor; got != "configured-provider" {
+		t.Fatalf("child vendor = %q, want configured-provider", got)
+	}
+
+	nextProvider := provider.NewMockProvider("next-underlying-vendor", []*provider.Model{
+		{ID: "model2", Name: "Model 2"},
+	}, nil)
+	mgr.UpdateRuntimeConfig(nextProvider, "next-configured-provider", nextProvider.Models()[0], settings, nil)
+	next, err := mgr.Create(AgentOptions{ID: "after-switch"})
+	if err != nil {
+		t.Fatalf("create after-switch agent: %v", err)
+	}
+	nextAdapter := next.(*AgentAdapter)
+	if got := nextAdapter.inner.config.Vendor; got != "next-configured-provider" {
+		t.Fatalf("updated vendor = %q, want next-configured-provider", got)
+	}
+}
+
 func TestSubAgentSpawnTool(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	tool := NewSubAgentSpawnTool(mgr)

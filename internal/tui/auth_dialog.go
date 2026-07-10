@@ -830,7 +830,9 @@ func (a *App) saveAuthProvider() {
 	}
 	a.settings = effective
 	a.provider = p
+	a.providerName = a.auth.ProviderID
 	a.model = m
+	a.syncAgentManagerRuntime()
 	a.resetAgent(fmt.Errorf("provider changed"))
 	providerID := a.auth.ProviderID
 	model := m.ID

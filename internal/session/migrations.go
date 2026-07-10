@@ -166,6 +166,16 @@ var migrations = []migration{
 		);
 		CREATE INDEX IF NOT EXISTS idx_session_esm_objectives_status ON session_esm_objectives(status);`,
 	},
+	{
+		Name: "011_add_session_esm_blocked_run_id",
+		SQL:  `ALTER TABLE session_esm_objectives ADD COLUMN blocked_run_id TEXT NOT NULL DEFAULT '';`,
+	},
+	{
+		Name: "012_add_session_esm_completion_audit",
+		SQL: `ALTER TABLE session_esm_objectives ADD COLUMN completion_reason TEXT NOT NULL DEFAULT '';
+		      ALTER TABLE session_esm_objectives ADD COLUMN completion_run_id TEXT NOT NULL DEFAULT '';
+		      ALTER TABLE session_esm_objectives ADD COLUMN completion_review TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.

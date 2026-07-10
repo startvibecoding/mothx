@@ -1513,14 +1513,13 @@ func TestESMCommandPreservesObjectiveTextAndRegistersTools(t *testing.T) {
 	if err := sess.Init(); err != nil {
 		t.Fatalf("Init session: %v", err)
 	}
-	a := &App{
-		settings: settings,
-		session:  sess,
-		registry: tools.NewRegistry(tmp, nil),
-		cwd:      tmp,
-	}
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{{ID: "mock-model", Name: "Mock Model"}}, nil)
+	a := NewApp(mockProvider, mockProvider.Models()[0], settings, sess, tools.NewRegistry(tmp, nil), "", "", "", nil, "agent", false, false, nil, nil, nil)
 
-	a.handleCommand("/esm build   the thing: 你好")
+	cmd := a.handleCommand("/esm build   the thing: 你好")
+	if cmd == nil {
+		t.Fatal("/esm create did not return an immediate continuation command")
+	}
 
 	store := esm.NewStore(sessionDir)
 	obj, err := store.Get(context.Background(), sess.GetHeader().ID)
@@ -1535,6 +1534,199 @@ func TestESMCommandPreservesObjectiveTextAndRegistersTools(t *testing.T) {
 	}
 	if _, ok := a.registry.Get("update_esm"); !ok {
 		t.Fatal("update_esm tool was not registered")
+	}
+}
+
+func TestESMResumeReturnsImmediateContinuationCommand(t *testing.T) {
+	tmp := t.TempDir()
+	sessionDir := filepath.Join(tmp, "sessions")
+	settings := config.DefaultSettings()
+	settings.SessionDir = sessionDir
+	sess := session.New(tmp, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init session: %v", err)
+	}
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{{ID: "mock-model", Name: "Mock Model"}}, nil)
+	a := NewApp(mockProvider, mockProvider.Models()[0], settings, sess, tools.NewRegistry(tmp, nil), "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	if cmd := a.handleCommand("/esm keep going"); cmd == nil {
+		t.Fatal("/esm create did not return an immediate continuation command")
+	}
+	if cmd := a.handleCommand("/esm pause"); cmd != nil {
+		t.Fatal("/esm pause returned a continuation command")
+	}
+	if cmd := a.handleCommand("/esm resume"); cmd == nil {
+		t.Fatal("/esm resume did not return an immediate continuation command")
+	}
+}
+
+func TestESMUsageCrossingBudgetInjectsBudgetLimitSteering(t *testing.T) {
+	tmp := t.TempDir()
+	sessionDir := filepath.Join(tmp, "sessions")
+	settings := config.DefaultSettings()
+	settings.SessionDir = sessionDir
+	sess := session.New(tmp, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init session: %v", err)
+	}
+	mockProvider := provider.NewMockProvider("mock", []*provider.Model{{ID: "mock-model", Name: "Mock Model"}}, nil)
+	a := NewApp(mockProvider, mockProvider.Models()[0], settings, sess, tools.NewRegistry(tmp, nil), "", "", "", nil, "agent", false, false, nil, nil, nil)
+
+	budget := int64(10)
+	store := esm.NewStore(sessionDir)
+	if _, err := store.Create(context.Background(), sess.GetHeader().ID, "finish the real objective", &budget); err != nil {
+		t.Fatalf("Create ESM objective: %v", err)
+	}
+
+	a.prepareESMRun()
+	a.recordESMUsage(&provider.Usage{TotalTokens: 11})
+
+	obj, err := store.Get(context.Background(), sess.GetHeader().ID)
+	if err != nil {
+		t.Fatalf("load ESM objective: %v", err)
+	}
+	if obj.Status != esm.StatusBudgetLimited {
+		t.Fatalf("status = %s, want budget_limited", obj.Status)
+	}
+
+	msgs := a.nextESMSteeringMessages()
+	if len(msgs) != 1 || !strings.Contains(msgs[0].Content, "budget_limited") {
+		t.Fatalf("budget steering messages = %#v", msgs)
+	}
+	if msgs := a.nextESMSteeringMessages(); len(msgs) != 0 {
+		t.Fatalf("budget steering repeated: %#v", msgs)
+	}
+}
+
+func TestESMSubAgentWorkerCandidateRequiresAuditPass(t *testing.T) {
+	tmp := t.TempDir()
+	sessionDir := filepath.Join(tmp, "sessions")
+	settings := config.DefaultSettings()
+	settings.SessionDir = sessionDir
+	settings.DefaultThinkingLevel = "off"
+	sess := session.New(tmp, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init session: %v", err)
+	}
+	p := &esmSequenceProvider{name: "underlying-vendor", withInspection: true, responses: []string{
+		`{"status":"complete_candidate","summary":"implemented","evidence":["unit tests pass"],"remaining_work":[],"blockers":[]}`,
+		`{"verdict":"pass","review":"no demo-level gap found","requirements_checked":["objective -> candidate has evidence"],"missing_work":[],"evidence":["read files"]}`,
+		`{"verdict":"pass","review":"verified all requirements","requirements_checked":["objective -> tests pass"],"missing_work":[],"evidence":["go test"]}`,
+	}}
+	model := p.Models()[0]
+	factory := agent.NewAgentFactoryWithOptions(p, model, settings, nil, "", "", nil, ctxpkg.CompactionSettings{ReserveTokens: 16384, KeepRecentTokens: 20000}, nil, agent.AgentFactoryOptions{MultiAgentEnabled: true, ProviderName: "configured-provider"})
+	mgr := agent.NewAgentManager(factory)
+	a := NewApp(p, model, settings, sess, tools.NewRegistry(tmp, nil), "", "", "", nil, "agent", false, false, mgr, nil, nil)
+
+	cmd := a.handleCommand("/esm ship the real thing")
+	if cmd == nil {
+		t.Fatal("/esm create returned nil command")
+	}
+	msg := cmd()
+	start, ok := msg.(agentStreamStartMsg)
+	if !ok {
+		t.Fatalf("command message = %#v, want agentStreamStartMsg", msg)
+	}
+	for range start.eventCh {
+	}
+
+	store := esm.NewStore(sessionDir)
+	obj, err := store.Get(context.Background(), sess.GetHeader().ID)
+	if err != nil {
+		t.Fatalf("load ESM objective: %v", err)
+	}
+	if obj.Status != esm.StatusComplete {
+		t.Fatalf("status = %s, want complete after audit pass; obj=%#v", obj.Status, obj)
+	}
+	if p.getCalls() != 6 {
+		t.Fatalf("provider calls = %d, want inspection + final for worker, critic, audit", p.getCalls())
+	}
+	assertOnlyRequestStatProvider(t, sessionDir, "configured-provider")
+}
+
+func assertOnlyRequestStatProvider(t *testing.T, sessionDir string, want string) {
+	t.Helper()
+	db, err := session.OpenRootDB(sessionDir)
+	if err != nil {
+		t.Fatalf("open root session db: %v", err)
+	}
+	rows, err := db.Query("SELECT DISTINCT provider FROM request_stats")
+	if err != nil {
+		t.Fatalf("query request_stats providers: %v", err)
+	}
+	defer rows.Close()
+
+	var providers []string
+	for rows.Next() {
+		var providerName string
+		if err := rows.Scan(&providerName); err != nil {
+			t.Fatalf("scan request_stats provider: %v", err)
+		}
+		providers = append(providers, providerName)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate request_stats providers: %v", err)
+	}
+	if len(providers) != 1 || providers[0] != want {
+		t.Fatalf("request_stats providers = %#v, want only %q", providers, want)
+	}
+}
+
+func TestESMSubAgentPassWithoutInspectionIsRejected(t *testing.T) {
+	tmp := t.TempDir()
+	sessionDir := filepath.Join(tmp, "sessions")
+	settings := config.DefaultSettings()
+	settings.SessionDir = sessionDir
+	settings.DefaultThinkingLevel = "off"
+	sess := session.New(tmp, sessionDir)
+	if err := sess.Init(); err != nil {
+		t.Fatalf("Init session: %v", err)
+	}
+	p := &esmSequenceProvider{responses: []string{
+		`{"status":"complete_candidate","summary":"implemented","evidence":["unit tests pass"],"remaining_work":[],"blockers":[]}`,
+	}}
+	model := p.Models()[0]
+	factory := agent.NewAgentFactoryWithOptions(p, model, settings, nil, "", "", nil, ctxpkg.CompactionSettings{ReserveTokens: 16384, KeepRecentTokens: 20000}, nil, agent.AgentFactoryOptions{MultiAgentEnabled: true})
+	mgr := agent.NewAgentManager(factory)
+	a := NewApp(p, model, settings, sess, tools.NewRegistry(tmp, nil), "", "", "", nil, "agent", false, false, mgr, nil, nil)
+
+	cmd := a.handleCommand("/esm ship the real thing")
+	if cmd == nil {
+		t.Fatal("/esm create returned nil command")
+	}
+	msg := cmd()
+	start, ok := msg.(agentStreamStartMsg)
+	if !ok {
+		t.Fatalf("command message = %#v, want agentStreamStartMsg", msg)
+	}
+	for range start.eventCh {
+	}
+
+	store := esm.NewStore(sessionDir)
+	obj, err := store.Get(context.Background(), sess.GetHeader().ID)
+	if err != nil {
+		t.Fatalf("load ESM objective: %v", err)
+	}
+	if obj.Status != esm.StatusActive {
+		t.Fatalf("status = %s, want active after uninspected completion candidate; obj=%#v", obj.Status, obj)
+	}
+	if !strings.Contains(obj.CompletionReview, "without any tool-backed inspection") {
+		t.Fatalf("completion review = %q, want tool-backed rejection reason", obj.CompletionReview)
+	}
+}
+
+func TestESMRoleModeInheritsAppMode(t *testing.T) {
+	a := &App{mode: "yolo"}
+	if got := a.esmRoleMode(); got != "yolo" {
+		t.Fatalf("esmRoleMode = %q, want yolo", got)
+	}
+	a.mode = "agent"
+	if got := a.esmRoleMode(); got != "agent" {
+		t.Fatalf("esmRoleMode = %q, want agent", got)
+	}
+	a.mode = ""
+	if got := a.esmRoleMode(); got != "agent" {
+		t.Fatalf("empty esmRoleMode = %q, want agent fallback", got)
 	}
 }
 
@@ -2723,6 +2915,87 @@ func (p *historyInjectMockProvider) GetModel(id string) *provider.Model {
 		}
 	}
 	return nil
+}
+
+type esmSequenceProvider struct {
+	mu             sync.Mutex
+	name           string
+	responses      []string
+	withInspection bool
+	calls          int
+}
+
+func (p *esmSequenceProvider) Chat(ctx context.Context, params provider.ChatParams) <-chan provider.StreamEvent {
+	p.mu.Lock()
+	idx := p.calls
+	p.calls++
+	withInspection := p.withInspection
+	text := `{"status":"continue","summary":"default","evidence":[],"remaining_work":["not done"],"blockers":[]}`
+	responseIdx := idx
+	if withInspection {
+		responseIdx = idx / 2
+	}
+	if responseIdx >= 0 && responseIdx < len(p.responses) {
+		text = p.responses[responseIdx]
+	}
+	p.mu.Unlock()
+
+	ch := make(chan provider.StreamEvent, 3)
+	go func() {
+		defer close(ch)
+		if withInspection && idx%2 == 0 {
+			select {
+			case <-ctx.Done():
+				ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err()}
+				return
+			case ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: &provider.ToolCallBlock{
+				ID:        fmt.Sprintf("inspect-%d", idx),
+				Name:      "ls",
+				Arguments: []byte(`{"path":"."}`),
+			}}:
+			}
+			ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: &provider.Usage{Input: 3, Output: 1, TotalTokens: 4}}
+			ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: "tool_use"}
+			return
+		}
+		select {
+		case <-ctx.Done():
+			ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err()}
+			return
+		case ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: text}:
+		}
+		ch <- provider.StreamEvent{Type: provider.StreamUsage, Usage: &provider.Usage{Input: 5, Output: 5, TotalTokens: 10}}
+		ch <- provider.StreamEvent{Type: provider.StreamDone, StopReason: "end_turn"}
+	}()
+	return ch
+}
+
+func (p *esmSequenceProvider) Name() string {
+	if p.name != "" {
+		return p.name
+	}
+	return "mock"
+}
+
+func (p *esmSequenceProvider) API() string { return "openai-chat" }
+
+func (p *esmSequenceProvider) Models() []*provider.Model {
+	return []*provider.Model{{ID: "mock-model", Name: "Mock"}}
+}
+
+func (p *esmSequenceProvider) GetModel(id string) *provider.Model {
+	for _, m := range p.Models() {
+		if m.ID == id {
+			return m
+		}
+	}
+	return nil
+}
+
+func (p *esmSequenceProvider) getCalls() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
 }
 
 func cloneMessages(msgs []provider.Message) []provider.Message {

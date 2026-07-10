@@ -614,6 +614,7 @@ func (s *Server) newAgentManagerForSession(sess *APISession) *agent.AgentManager
 		MultiAgentEnabled: true,
 		DelegateEnabled:   sess.DelegateMode || s.cfg.EnableDelegate,
 		WorkflowsEnabled:  sess.Workflows,
+		ProviderName:      s.providerName,
 		Allow:             s.getAllow(),
 	})
 	return agent.NewAgentManager(factory)

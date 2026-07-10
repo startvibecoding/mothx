@@ -44,7 +44,7 @@ type rowQueryer interface {
 }
 
 func getObjective(ctx context.Context, q rowQueryer, sessionID string) (*Objective, error) {
-	row := q.QueryRowContext(ctx, `SELECT session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, created_at, updated_at
+	row := q.QueryRowContext(ctx, `SELECT session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, blocked_run_id, completion_reason, completion_run_id, completion_review, created_at, updated_at
 		FROM session_esm_objectives WHERE session_id = ?`, sessionID)
 	return scanObjective(row)
 }
@@ -53,7 +53,7 @@ func scanObjective(row *sql.Row) (*Objective, error) {
 	var obj Objective
 	var budget sql.NullInt64
 	var created, updated string
-	if err := row.Scan(&obj.SessionID, &obj.ESMID, &obj.Objective, &obj.Status, &budget, &obj.TokensUsed, &obj.TimeUsedMS, &obj.BlockedCount, &obj.BlockedReason, &created, &updated); err != nil {
+	if err := row.Scan(&obj.SessionID, &obj.ESMID, &obj.Objective, &obj.Status, &budget, &obj.TokensUsed, &obj.TimeUsedMS, &obj.BlockedCount, &obj.BlockedReason, &obj.BlockedRunID, &obj.CompletionReason, &obj.CompletionRunID, &obj.CompletionReview, &created, &updated); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -169,7 +169,7 @@ func (s *Store) Edit(ctx context.Context, sessionID, objective string) (*Objecti
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET objective = ?, blocked_count = 0, blocked_reason = '', updated_at = ?
+		SET objective = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', updated_at = ?
 		WHERE session_id = ?`, objective, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (s *Store) Resume(ctx context.Context, sessionID string) (*Objective, error
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, blocked_count = 0, blocked_reason = '', updated_at = ?
+		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', updated_at = ?
 		WHERE session_id = ?`, StatusActive, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
@@ -335,14 +335,34 @@ func (s *Store) AccountUsage(ctx context.Context, sessionID string, tokens, dura
 }
 
 // UpdateFromModel accepts the two model-controlled transitions: complete and
-// blocked. Blocked only becomes terminal after the same blocker repeats 3 times.
+// blocked. Complete records a candidate only; the orchestrator must audit the
+// candidate before marking the objective terminal complete. Blocked transitions
+// should normally use UpdateFromModelForRun so the repeated-blocker audit is
+// counted across consecutive agent runs.
 func (s *Store) UpdateFromModel(ctx context.Context, sessionID string, status Status, reason string) (*Objective, error) {
+	return s.UpdateFromModelForRun(ctx, sessionID, status, reason, "")
+}
+
+// UpdateFromModelForRun accepts model-controlled complete/blocked transitions.
+// Complete becomes complete_candidate, never terminal complete. The terminal
+// complete state is reserved for the ESM orchestrator after an independent
+// audit sub-agent passes.
+// Blocked only becomes terminal after the same blocker repeats in three
+// consecutive ESM agent runs. A run can contribute at most once to the audit.
+func (s *Store) UpdateFromModelForRun(ctx context.Context, sessionID string, status Status, reason, runID string) (*Objective, error) {
 	reason = strings.TrimSpace(reason)
+	runID = strings.TrimSpace(runID)
 	switch status {
 	case StatusComplete:
+		if reason == "" {
+			return nil, fmt.Errorf("complete status requires verification evidence")
+		}
 	case StatusBlocked:
 		if reason == "" {
 			return nil, fmt.Errorf("blocked status requires a concrete reason")
+		}
+		if runID == "" {
+			return nil, fmt.Errorf("blocked status requires an ESM run id")
 		}
 	default:
 		return nil, fmt.Errorf("model may only set esm status to %q or %q", StatusComplete, StatusBlocked)
@@ -372,30 +392,147 @@ func (s *Store) UpdateFromModel(ctx context.Context, sessionID string, status St
 	nextStatus := current.Status
 	nextCount := current.BlockedCount
 	nextReason := current.BlockedReason
+	nextRunID := current.BlockedRunID
+	nextCompletionReason := current.CompletionReason
+	nextCompletionRunID := current.CompletionRunID
+	nextCompletionReview := current.CompletionReview
 	switch status {
 	case StatusComplete:
-		nextStatus = StatusComplete
+		nextStatus = StatusCompleteCandidate
 		nextCount = 0
 		nextReason = ""
+		nextRunID = ""
+		nextCompletionReason = reason
+		nextCompletionRunID = runID
+		nextCompletionReview = ""
 	case StatusBlocked:
 		nextStatus = StatusActive
-		if sameBlockedReason(current.BlockedReason, reason) {
+		if current.BlockedRunID == runID && sameBlockedReason(current.BlockedReason, reason) {
+			nextCount = current.BlockedCount
+		} else if sameBlockedReason(current.BlockedReason, reason) {
 			nextCount++
 		} else {
 			nextCount = 1
 		}
 		nextReason = reason
+		nextRunID = runID
 		if nextCount >= 3 {
 			nextStatus = StatusBlocked
 		}
 	}
 
 	if _, err := tx.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, blocked_count = ?, blocked_reason = ?, updated_at = ?
-		WHERE session_id = ?`, nextStatus, nextCount, nextReason, s.timestamp(), sessionID); err != nil {
+		SET status = ?, blocked_count = ?, blocked_reason = ?, blocked_run_id = ?, completion_reason = ?, completion_run_id = ?, completion_review = ?, updated_at = ?
+		WHERE session_id = ?`, nextStatus, nextCount, nextReason, nextRunID, nextCompletionReason, nextCompletionRunID, nextCompletionReview, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// MarkCompleteFromAudit marks a completion candidate terminal complete after an
+// independent ESM audit has verified the objective against the current state.
+func (s *Store) MarkCompleteFromAudit(ctx context.Context, sessionID, review string) (*Objective, error) {
+	review = strings.TrimSpace(review)
+	if review == "" {
+		return nil, fmt.Errorf("complete audit requires a review")
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	current, err := getObjective(ctx, db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Status != StatusCompleteCandidate {
+		return current, ErrInvalidTransition
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_review = ?, updated_at = ?
+		WHERE session_id = ?`, StatusComplete, review, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// RejectCompletionCandidate returns a failed completion candidate to active so
+// the next ESM worker run can continue from the auditor's findings.
+func (s *Store) RejectCompletionCandidate(ctx context.Context, sessionID, review string) (*Objective, error) {
+	review = strings.TrimSpace(review)
+	if review == "" {
+		return nil, fmt.Errorf("completion rejection requires an audit review")
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	current, err := getObjective(ctx, db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Status != StatusCompleteCandidate {
+		return current, ErrInvalidTransition
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET status = ?, completion_review = ?, updated_at = ?
+		WHERE session_id = ?`, StatusActive, review, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// RecordCompletionReview stores a completion rejection/review note without
+// changing the current lifecycle state. This lets later worker runs learn why a
+// previous completion claim was not accepted.
+func (s *Store) RecordCompletionReview(ctx context.Context, sessionID, review string) (*Objective, error) {
+	review = strings.TrimSpace(review)
+	if review == "" {
+		return nil, fmt.Errorf("completion review cannot be empty")
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	current, err := getObjective(ctx, db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if !IsUnfinishedStatus(current.Status) {
+		return current, ErrInvalidTransition
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET completion_review = ?, updated_at = ?
+		WHERE session_id = ?`, review, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// FinishRun clears the repeated-blocker audit when an active ESM run finishes
+// without reporting the same blocker. This makes blocked require consecutive
+// ESM agent runs rather than repeated tool calls in one run.
+func (s *Store) FinishRun(ctx context.Context, sessionID, runID string) (*Objective, error) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return s.Get(ctx, sessionID)
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	current, err := getObjective(ctx, db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Status != StatusActive || current.BlockedCount == 0 || current.BlockedRunID == "" || current.BlockedRunID == runID {
+		return current, nil
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET blocked_count = 0, blocked_reason = '', blocked_run_id = '', updated_at = ?
+		WHERE session_id = ?`, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)

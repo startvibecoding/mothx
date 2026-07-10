@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const expectedMigrationCount = 10
+const expectedMigrationCount = 12
 
 func createTestDB(t *testing.T) *DB {
 	t.Helper()

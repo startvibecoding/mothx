@@ -6,27 +6,32 @@ import "time"
 type Status string
 
 const (
-	StatusActive        Status = "active"
-	StatusPaused        Status = "paused"
-	StatusBlocked       Status = "blocked"
-	StatusBudgetLimited Status = "budget_limited"
-	StatusUsageLimited  Status = "usage_limited"
-	StatusComplete      Status = "complete"
+	StatusActive            Status = "active"
+	StatusPaused            Status = "paused"
+	StatusBlocked           Status = "blocked"
+	StatusBudgetLimited     Status = "budget_limited"
+	StatusUsageLimited      Status = "usage_limited"
+	StatusCompleteCandidate Status = "complete_candidate"
+	StatusComplete          Status = "complete"
 )
 
 // Objective is the per-session Enable Supervisor Mode objective.
 type Objective struct {
-	SessionID     string
-	ESMID         string
-	Objective     string
-	Status        Status
-	TokenBudget   *int64
-	TokensUsed    int64
-	TimeUsedMS    int64
-	BlockedCount  int
-	BlockedReason string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	SessionID        string
+	ESMID            string
+	Objective        string
+	Status           Status
+	TokenBudget      *int64
+	TokensUsed       int64
+	TimeUsedMS       int64
+	BlockedCount     int
+	BlockedReason    string
+	BlockedRunID     string
+	CompletionReason string
+	CompletionRunID  string
+	CompletionReview string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // HasObjective reports whether the row contains a real objective.
@@ -36,7 +41,7 @@ func (o *Objective) HasObjective() bool {
 
 // CanAutoRun reports whether TUI idle continuation may start a new agent run.
 func (o *Objective) CanAutoRun() bool {
-	return o != nil && o.Status == StatusActive
+	return o != nil && (o.Status == StatusActive || o.Status == StatusCompleteCandidate)
 }
 
 // IsUnfinishedStatus reports whether a status still represents an open

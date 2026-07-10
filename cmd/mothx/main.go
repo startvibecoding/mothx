@@ -359,7 +359,7 @@ func run(args []string, opts runOptions) error {
 	if sessionSetup.manager != nil && sessionSetup.manager.GetHeader() != nil {
 		sessionID = sessionSetup.manager.GetHeader().ID
 	}
-	runtime, err := setupAgentRuntime(p, model, settings, opts, registry, sbMgr, extraContext, ruleContent, skillSetup.manager, sessionID, cwd)
+	runtime, err := setupAgentRuntime(p, selection.name, model, settings, opts, registry, sbMgr, extraContext, ruleContent, skillSetup.manager, sessionID, cwd)
 	if err != nil {
 		return err
 	}
@@ -369,7 +369,7 @@ func run(args []string, opts runOptions) error {
 		startUpdateCheck(settings, func(notice string) {
 			fmt.Fprintln(os.Stderr, notice)
 		})
-		return runPrint(args, p, model, selection.mode, provider.ThinkingLevel(selection.thinkingLevel), settings, registry, sessionSetup.manager, extraContext, ruleContent, opts.multiAgent, opts.delegate, opts.workflows, runtime.agentManager)
+		return runPrint(args, p, selection.name, model, selection.mode, provider.ThinkingLevel(selection.thinkingLevel), settings, registry, sessionSetup.manager, extraContext, ruleContent, opts.multiAgent, opts.delegate, opts.workflows, runtime.agentManager)
 	}
 
 	return runInteractive(runInteractiveConfig{
@@ -684,12 +684,13 @@ func registerA2AMasterTool(registry *tools.Registry, opts runOptions) error {
 	return nil
 }
 
-func setupAgentRuntime(p provider.Provider, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, ruleContent string, skillsMgr *skills.Manager, sessionID string, workDir string) (runtimeSetup, error) {
+func setupAgentRuntime(p provider.Provider, providerName string, model *provider.Model, settings *config.Settings, opts runOptions, registry *tools.Registry, sbMgr *sandbox.Manager, extraContext string, ruleContent string, skillsMgr *skills.Manager, sessionID string, workDir string) (runtimeSetup, error) {
 	allow := config.LoadAllow()
 	factory := agent.NewAgentFactoryWithOptions(p, model, settings, sbMgr, extraContext, ruleContent, skillsMgr, compactionSettingsFromConfig(settings), nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
 		DelegateEnabled:   opts.delegate,
 		WorkflowsEnabled:  opts.workflows,
+		ProviderName:      providerName,
 		Allow:             allow,
 	})
 	agentMgr := agent.NewAgentManager(factory)

@@ -11,6 +11,7 @@ import (
 )
 
 type sessionIDFunc func() string
+type runIDFunc func() string
 
 // NewGetTool returns the model-facing ESM state query tool.
 func NewGetTool(store *Store, sessionID sessionIDFunc) tools.Tool {
@@ -18,8 +19,12 @@ func NewGetTool(store *Store, sessionID sessionIDFunc) tools.Tool {
 }
 
 // NewUpdateTool returns the model-facing ESM status update tool.
-func NewUpdateTool(store *Store, sessionID sessionIDFunc) tools.Tool {
-	return &updateTool{store: store, sessionID: sessionID}
+func NewUpdateTool(store *Store, sessionID sessionIDFunc, runID ...runIDFunc) tools.Tool {
+	var runIDFn runIDFunc
+	if len(runID) > 0 {
+		runIDFn = runID[0]
+	}
+	return &updateTool{store: store, sessionID: sessionID, runID: runIDFn}
 }
 
 type getTool struct {
@@ -39,7 +44,7 @@ func (t *getTool) PromptSnippet() string {
 
 func (t *getTool) PromptGuidelines() []string {
 	return []string{
-		"When an ESM objective is active, use get_esm if you need current budget/status and update_esm only to mark complete or report a real blocker.",
+		"When an ESM objective is active, use get_esm if you need current budget/status and update_esm only to propose complete with evidence or report a real blocker.",
 	}
 }
 
@@ -64,22 +69,25 @@ func (t *getTool) Execute(ctx context.Context, params map[string]any) (tools.Too
 type updateTool struct {
 	store     *Store
 	sessionID sessionIDFunc
+	runID     runIDFunc
 }
 
 func (t *updateTool) Name() string { return "update_esm" }
 
 func (t *updateTool) Description() string {
-	return "Mark the current Enable Supervisor Mode objective complete or report a concrete blocker."
+	return "Propose the current Enable Supervisor Mode objective as complete with requirement-by-requirement evidence, or report a concrete repeated blocker."
 }
 
 func (t *updateTool) PromptSnippet() string {
-	return "Mark the current ESM objective complete, or report a blocker for the supervisor audit."
+	return "Propose the current ESM objective complete with verification evidence, or report a blocker for the supervisor audit."
 }
 
 func (t *updateTool) PromptGuidelines() []string {
 	return []string{
-		"Use update_esm status=complete only after the ESM objective is genuinely complete and no required work remains.",
-		"Use update_esm status=blocked only for the same concrete blocker that prevents meaningful progress; include the reason.",
+		"Use update_esm status=complete only to submit a complete_candidate when current evidence appears to prove every objective requirement is satisfied and no required work remains; include that evidence in reason.",
+		"status=complete is not terminal: ESM will run an independent audit before the objective can actually stop.",
+		"Do not mark complete for a demo, partial implementation, narrow passing check, plausible final answer, or because this run is ending.",
+		"Use update_esm status=blocked only after the same concrete blocker repeats across at least three consecutive ESM agent runs; include the blocker in reason.",
 	}
 }
 
@@ -88,9 +96,9 @@ func (t *updateTool) Parameters() json.RawMessage {
 		"type":"object",
 		"properties":{
 			"status":{"type":"string","enum":["complete","blocked"]},
-			"reason":{"type":"string","description":"Required when status is blocked; optional evidence summary when complete."}
+			"reason":{"type":"string","description":"Required. For complete, provide concise verification evidence covering the full objective. For blocked, provide the repeated concrete blocker."}
 		},
-		"required":["status"],
+		"required":["status","reason"],
 		"additionalProperties":false
 	}`)
 }
@@ -100,14 +108,20 @@ func (t *updateTool) Execute(ctx context.Context, params map[string]any) (tools.
 		return tools.ToolResult{}, fmt.Errorf("no ESM session is available")
 	}
 	status := Status(strings.TrimSpace(stringParam(params, "status")))
-	reason := stringParam(params, "reason")
-	obj, err := t.store.UpdateFromModel(ctx, t.sessionID(), status, reason)
+	reason := strings.TrimSpace(stringParam(params, "reason"))
+	runID := ""
+	if t.runID != nil {
+		runID = t.runID()
+	}
+	obj, err := t.store.UpdateFromModelForRun(ctx, t.sessionID(), status, reason, runID)
 	if err != nil {
 		return tools.ToolResult{}, err
 	}
 	switch obj.Status {
+	case StatusCompleteCandidate:
+		return tools.NewTextToolResult("ESM completion candidate recorded. An independent audit must pass before the objective is marked complete."), nil
 	case StatusComplete:
-		return tools.NewTextToolResult("ESM objective marked complete."), nil
+		return tools.NewTextToolResult("ESM objective marked complete. Report the verification evidence and final state to the user."), nil
 	case StatusBlocked:
 		return tools.NewTextToolResult("ESM objective marked blocked after 3 matching blocker reports."), nil
 	case StatusBudgetLimited:
@@ -155,6 +169,12 @@ func FormatObjective(obj *Objective) string {
 	}
 	if obj.BlockedCount > 0 && obj.BlockedReason != "" {
 		b.WriteString(fmt.Sprintf("Blocked audit: %d/3 (%s)\n", obj.BlockedCount, obj.BlockedReason))
+	}
+	if obj.CompletionReason != "" {
+		b.WriteString(fmt.Sprintf("Completion candidate: %s\n", obj.CompletionReason))
+	}
+	if obj.CompletionReview != "" {
+		b.WriteString(fmt.Sprintf("Completion audit: %s\n", obj.CompletionReview))
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

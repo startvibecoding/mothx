@@ -365,6 +365,7 @@ func Run(opts RunOptions) error {
 			MultiAgentEnabled: true,
 			DelegateEnabled:   opts.Delegate,
 			WorkflowsEnabled:  opts.Workflows,
+			ProviderName:      srv.providerName,
 			Allow:             srv.allow,
 		})
 		srv.agentMgr = agent.NewAgentManager(srv.factory)

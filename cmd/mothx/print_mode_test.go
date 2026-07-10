@@ -25,6 +25,7 @@ func TestRunPrintFailsWhenApprovalWouldBeRequired(t *testing.T) {
 	err := runPrint(
 		[]string{"run"},
 		p,
+		"configured-provider",
 		p.Models()[0],
 		"agent",
 		provider.ThinkingOff,

@@ -818,10 +818,7 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 		// Record usage stats
 		if a.config.Session != nil && usage != nil {
-			vendor := a.config.Vendor
-			if vendor == "" {
-				vendor = a.config.Provider.Name()
-			}
+			vendor := usageStatsProviderName(a.config.Config)
 			protocol := a.config.Provider.API()
 			modelID := a.config.Model.ID
 			durationMs := int(time.Since(streamStart).Milliseconds())
@@ -1030,6 +1027,16 @@ func (a *Agent) loop(ctx context.Context, ch chan<- Event) {
 
 	ch <- Event{Type: EventError, Error: fmt.Errorf("max iterations (%d) exceeded", a.config.MaxIterations), StopReason: "max_iterations"}
 	ch <- a.agentEndEvent()
+}
+
+func usageStatsProviderName(cfg Config) string {
+	if cfg.Vendor != "" {
+		return cfg.Vendor
+	}
+	if cfg.Provider != nil {
+		return cfg.Provider.Name()
+	}
+	return ""
 }
 
 // executeToolCallsSequential executes tool calls one by one.

@@ -696,6 +696,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 				return nil
 			}
 			a.model = newModel
+			a.syncAgentManagerRuntime()
 			// Reset agent so next message uses the new model
 			a.resetAgent(fmt.Errorf("model changed"))
 			a.addCommandStatus(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID))
@@ -741,7 +742,7 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 	case "/skills":
 		a.listSkills()
 	case "/esm":
-		a.handleESMCommand(cmd)
+		return a.handleESMCommand(cmd)
 	case "/skill":
 		if len(parts) > 1 {
 			a.activateSkill(parts[1])

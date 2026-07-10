@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/config"
+	"github.com/startvibecoding/mothx/internal/provider"
 )
 
 // --- AgentManager tests ---
@@ -40,6 +42,37 @@ func TestAgentManagerCreateAutoID(t *testing.T) {
 	}
 	if a.ID() == "" {
 		t.Error("expected non-empty auto-generated ID")
+	}
+}
+
+func TestAgentManagerUpdateRuntimeConfigAffectsFutureAgents(t *testing.T) {
+	oldModel := &provider.Model{ID: "old-model", Name: "Old", Provider: "old-provider"}
+	oldProvider := provider.NewMockProvider("old-provider", []*provider.Model{oldModel}, nil)
+	newModel := &provider.Model{ID: "new-model", Name: "New", Provider: "new-provider"}
+	newProvider := provider.NewMockProvider("new-provider", []*provider.Model{newModel}, nil)
+	settings := config.DefaultSettings()
+	settings.DefaultProvider = "new-provider"
+	settings.DefaultModel = "new-model"
+
+	m := NewAgentManager(NewAgentFactory(oldProvider, oldModel, config.DefaultSettings(), nil, "", "", nil, compactionSettings(), nil))
+	m.UpdateRuntimeConfig(newProvider, "new-provider", newModel, settings, nil)
+
+	a, err := m.Create(AgentOptions{ID: "future"})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	cfg, ok := runtimeConfigOfManagedAgent(a)
+	if !ok {
+		t.Fatal("future agent does not expose runtime config")
+	}
+	if cfg.Provider != newProvider {
+		t.Fatalf("Provider = %#v, want new provider", cfg.Provider)
+	}
+	if cfg.Model == nil || cfg.Model.ID != "new-model" {
+		t.Fatalf("Model = %#v, want new-model", cfg.Model)
+	}
+	if cfg.Settings == nil || cfg.Settings.DefaultProvider != "new-provider" || cfg.Settings.DefaultModel != "new-model" {
+		t.Fatalf("Settings defaults = %#v, want new-provider/new-model", cfg.Settings)
 	}
 }
 

@@ -257,7 +257,9 @@ func (a *App) saveDefaultModel(scope, providerID, modelID string) {
 
 	a.settings = runtimePatched
 	a.provider = p
+	a.providerName = providerID
 	a.model = m
+	a.syncAgentManagerRuntime()
 	a.resetAgent(fmt.Errorf("default model changed"))
 	a.closeDefaultModelDialog()
 	a.addCommandStatus(fmt.Sprintf("✅ Default model saved (%s): %s / %s", scope, providerID, modelID))

@@ -177,6 +177,7 @@ func (d *Dispatcher) ensureAgentManager() *agent.AgentManager {
 
 	factory := agent.NewAgentFactoryWithOptions(d.provider, d.model, d.settings, sandbox.NewManager("."), "", "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
+		ProviderName:      d.providerName,
 		Allow:             d.allow,
 	})
 	d.agentMgr = agent.NewAgentManager(factory)

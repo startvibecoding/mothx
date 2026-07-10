@@ -96,6 +96,7 @@ func (a *App) confirmModelDialog() {
 		return
 	}
 	a.model = newModel
+	a.syncAgentManagerRuntime()
 	a.resetAgent(fmt.Errorf("model changed"))
 	a.addCommandStatus(fmt.Sprintf("✅ Model switched to: %s (%s)", newModel.Name, newModel.ID))
 	a.closeModelDialog()
