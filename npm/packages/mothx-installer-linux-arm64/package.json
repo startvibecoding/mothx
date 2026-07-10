@@ -1,6 +1,6 @@
 {
   "name": "mothx-installer-linux-arm64",
-  "version": "1.1.61-pre",
+  "version": "1.1.62",
   "description": "MothX native binary for linux-arm64",
   "os": ["linux"],
   "cpu": ["arm64"],

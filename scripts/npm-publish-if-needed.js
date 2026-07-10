@@ -70,23 +70,93 @@ function packageVersionURL(registry, name, version) {
   return `${registry}/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
 }
 
+function getProxyUrl() {
+  return process.env.all_proxy || process.env.ALL_PROXY ||
+         process.env.https_proxy || process.env.HTTPS_PROXY ||
+         process.env.http_proxy || process.env.HTTP_PROXY || '';
+}
+
 function requestStatus(url) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
-    const client = parsed.protocol === 'http:' ? http : https;
-    const req = client.get(parsed, {
+    const proxyUrl = getProxyUrl();
+    const headers = {
+      Accept: 'application/json',
+      'User-Agent': 'mothx-release-script',
+      Host: parsed.host,
+    };
+
+    if (!proxyUrl) {
+      // No proxy: direct request
+      const client = parsed.protocol === 'http:' ? http : https;
+      const req = client.get(parsed, { headers }, (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      });
+      req.setTimeout(15000, () => req.destroy(new Error(`Timed out checking ${url}`)));
+      req.on('error', reject);
+      return;
+    }
+
+    const proxy = new URL(proxyUrl);
+    const isHttps = parsed.protocol === 'https:';
+
+    if (!isHttps) {
+      // HTTP over proxy: send full URL to proxy
+      const req = http.request({
+        hostname: proxy.hostname,
+        port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+        method: 'GET',
+        path: url,
+        headers,
+      }, (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      });
+      req.setTimeout(15000, () => req.destroy(new Error(`Timed out checking ${url}`)));
+      req.on('error', reject);
+      req.end();
+      return;
+    }
+
+    // HTTPS over proxy: use CONNECT tunnel
+    const connectReq = http.request({
+      hostname: proxy.hostname,
+      port: proxy.port || 8080,
+      method: 'CONNECT',
+      path: `${parsed.hostname}:${parsed.port || 443}`,
       headers: {
-        Accept: 'application/json',
-        'User-Agent': 'mothx-release-script',
+        Host: `${parsed.hostname}:${parsed.port || 443}`,
       },
-    }, (res) => {
-      res.resume();
-      res.on('end', () => resolve(res.statusCode));
     });
-    req.setTimeout(15000, () => {
-      req.destroy(new Error(`Timed out checking ${url}`));
+
+    connectReq.on('connect', (res, socket) => {
+      if (res.statusCode !== 200) {
+        socket.destroy();
+        reject(new Error(`Proxy CONNECT failed with status ${res.statusCode}`));
+        return;
+      }
+
+      const req = https.request({
+        hostname: parsed.hostname,
+        port: parsed.port || 443,
+        method: 'GET',
+        path: parsed.pathname + parsed.search,
+        socket,
+        agent: false,
+        headers,
+      }, (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      });
+      req.setTimeout(15000, () => req.destroy(new Error(`Timed out checking ${url}`)));
+      req.on('error', reject);
+      req.end();
     });
-    req.on('error', reject);
+
+    connectReq.setTimeout(15000, () => connectReq.destroy(new Error(`Timed out connecting to proxy`)));
+    connectReq.on('error', reject);
+    connectReq.end();
   });
 }
 
