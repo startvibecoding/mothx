@@ -2562,6 +2562,61 @@ func TestToolModalDefaultsMainAndSwitchesToSubAgent(t *testing.T) {
 	}
 }
 
+func TestToolModalSubAgentShowsFullActivityDetails(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", true, false, nil, nil, nil)
+	a.messages = []string{"main transcript"}
+	command := "printf '" + strings.Repeat("command-detail-", 30) + "end'"
+	thinking := "thinking-start " + strings.Repeat("reasoning-detail ", 30) + "thinking-end"
+	response := "response-start " + strings.Repeat("response-detail ", 30) + "response-end"
+	result := "result-start\n" + strings.Repeat("result-detail\n", 80) + "result-end"
+
+	a.recordAgentActivity(agent.Event{
+		Type:     agent.EventToolExecutionStart,
+		AgentID:  "sub-1",
+		ToolName: "bash",
+		ToolArgs: map[string]any{"command": command},
+	})
+	a.recordAgentActivity(agent.Event{Type: agent.EventThinkDelta, AgentID: "sub-1", ThinkDelta: thinking})
+	a.recordAgentActivity(agent.Event{Type: agent.EventTextDelta, AgentID: "sub-1", TextDelta: response})
+	a.recordAgentActivity(agent.Event{
+		Type:       agent.EventToolExecutionEnd,
+		AgentID:    "sub-1",
+		ToolName:   "bash",
+		ToolResult: result,
+	})
+
+	if !a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal = false, want true")
+	}
+	a.switchToolModalTarget(1)
+	content := stripANSI(a.renderExpandedTranscript())
+	for _, want := range []string{"printf", "command-detail-", "end'", "thinking-start", "thinking-end", "response-start", "response-end", "result-start", "result-end", "Activity timeline:"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("sub-agent details missing full content %q:\n%s", want, content)
+		}
+	}
+	if got, want := strings.Count(content, "command-detail-"), 60; got != want {
+		t.Fatalf("command detail occurrences = %d, want %d; content was truncated:\n%s", got, want, content)
+	}
+}
+
+func TestToolModalMainShowsRawAssistantAndThinkingContent(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", false, false, nil, nil, nil)
+	a.messages = []string{"", ""}
+	a.assistantRaw = map[int]string{0: "assistant raw: <tag>\n```go\nfmt.Println(\"detail\")\n```"}
+	a.thinkRaw = map[int]string{1: "thinking raw: investigate every branch"}
+
+	if !a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal = false, want true")
+	}
+	content := stripANSI(a.renderExpandedTranscript())
+	for _, want := range []string{"Assistant:", "assistant raw:", "<tag>", "```go", "Thinking:", "thinking raw:", "investigate every", "branch"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("main details missing raw content %q:\n%s", want, content)
+		}
+	}
+}
+
 func TestToolCallShowsRunningMessageBeforeResult(t *testing.T) {
 	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "yolo", false, false, nil, nil, nil)
 	a.messages = []string{"assistant start"}

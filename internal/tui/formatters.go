@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -82,12 +83,13 @@ func formatToolArgs(toolName string, args map[string]any) string {
 			parts = append(parts, fmt.Sprintf("command: %v", cmd))
 		}
 	default:
-		for k, v := range args {
-			vStr := fmt.Sprintf("%v", v)
-			if len(vStr) > 100 {
-				vStr = vStr[:100] + "..."
-			}
-			parts = append(parts, fmt.Sprintf("%s: %s", k, vStr))
+		keys := make([]string, 0, len(args))
+		for key := range args {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			parts = append(parts, fmt.Sprintf("%s: %v", key, args[key]))
 		}
 	}
 

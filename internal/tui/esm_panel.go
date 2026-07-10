@@ -114,7 +114,11 @@ func (a *App) renderESMPanel() string {
 	} else if height == 0 {
 		position = fmt.Sprintf("lines 0-0/%d", len(lines))
 	}
-	titleText := "ESM Progress  " + position + "  Up/Down:scroll  PgUp/PgDn:page  Ctrl+E/Esc:close"
+	statusText := ""
+	if obj := a.esmPanelObjective; obj != nil {
+		statusText = fmt.Sprintf("  %s / %s", obj.Status, effectiveESMPhase(obj))
+	}
+	titleText := "ESM Progress" + statusText + "  " + position + "  Up/Down:scroll  PgUp/PgDn:page  Ctrl+E/Esc:close"
 	suffix := "..."
 	if innerWidth < len(suffix) {
 		suffix = ""
@@ -168,6 +172,10 @@ func (a *App) esmPanelLines(width int) []string {
 	lines := []string{
 		"Enable Supervisor Mode",
 		"",
+		"Now: " + a.esmPanelNow(obj),
+		esmPanelProgress(obj, phase),
+		"Next: " + esmPanelNextStep(obj, phase),
+		"",
 		fmt.Sprintf("Status: %s", obj.Status),
 		fmt.Sprintf("Stage: %s", esmPhaseLabel(phase)),
 		"Pipeline: " + renderESMPipeline(phase, obj.Status),
@@ -204,7 +212,7 @@ func (a *App) esmPanelLines(width int) []string {
 	}
 
 	if activity := a.activeESMPanelActivity(width); len(activity) > 0 {
-		lines = append(lines, "", "Live activity:")
+		lines = append(lines, "", "Live details:")
 		lines = append(lines, activity...)
 	}
 
@@ -216,9 +224,113 @@ func (a *App) esmPanelLines(width int) []string {
 		lines = append(lines, "Time: "+formatDurationMSForPanel(obj.TimeUsedMS))
 	}
 	if !obj.UpdatedAt.IsZero() {
-		lines = append(lines, "Updated: "+obj.UpdatedAt.Local().Format("2006-01-02 15:04:05"))
+		lines = append(lines, "Last saved update: "+formatESMPanelUpdateTime(obj.UpdatedAt))
 	}
 	return wrapESMPanelLines(lines, width)
+}
+
+func (a *App) esmPanelNow(obj *esm.Objective) string {
+	phase := effectiveESMPhase(obj)
+	base := esmPhaseActivityLabel(phase, obj.Status)
+
+	a.esmMu.Lock()
+	id := a.esmActiveAgentID
+	a.esmMu.Unlock()
+	if id == "" {
+		return base
+	}
+	act := a.agentActivities[id]
+	if act == nil {
+		return base + "; sub-agent is starting"
+	}
+	if act.LastTool != "" {
+		return base + "; latest tool: " + act.LastTool
+	}
+	if act.LastResult != "" {
+		return base + "; latest result: " + act.LastResult
+	}
+	if act.LastText != "" {
+		return base + "; latest response: " + act.LastText
+	}
+	if act.LastThink != "" {
+		return base + "; reasoning in progress"
+	}
+	return base + "; sub-agent is running"
+}
+
+func esmCompletedStages(phase esm.Phase) int {
+	switch phase {
+	case esm.PhaseCritic:
+		return 1
+	case esm.PhaseAudit:
+		return 2
+	case esm.PhaseComplete:
+		return 3
+	default:
+		return 0
+	}
+}
+
+func esmPanelProgress(obj *esm.Objective, phase esm.Phase) string {
+	progress := fmt.Sprintf("Progress: %d/3 pipeline stages completed", esmCompletedStages(phase))
+	if remaining := len(obj.RemainingWork); remaining > 0 {
+		progress += fmt.Sprintf("; %d work item(s) remaining", remaining)
+	}
+	return progress
+}
+
+func esmPhaseActivityLabel(phase esm.Phase, status esm.Status) string {
+	switch status {
+	case esm.StatusPaused:
+		return "ESM is paused"
+	case esm.StatusBlocked:
+		return "ESM is blocked"
+	case esm.StatusBudgetLimited:
+		return "ESM is waiting for more token budget"
+	case esm.StatusUsageLimited:
+		return "ESM is waiting for the provider limit to clear"
+	case esm.StatusComplete:
+		return "The objective has passed final audit"
+	}
+	switch phase {
+	case esm.PhaseCritic:
+		return "Critic is independently reviewing the worker evidence"
+	case esm.PhaseAudit:
+		return "Audit is independently verifying completion"
+	default:
+		return "Worker is investigating and implementing the objective"
+	}
+}
+
+func esmPanelNextStep(obj *esm.Objective, phase esm.Phase) string {
+	switch obj.Status {
+	case esm.StatusPaused:
+		return "Review the outstanding work, then run /esm resume"
+	case esm.StatusBlocked:
+		return "Resolve the blocker, then run /esm resume"
+	case esm.StatusBudgetLimited:
+		return "Raise or remove the token budget, then run /esm resume"
+	case esm.StatusUsageLimited:
+		return "Resolve the provider usage limit, then run /esm resume"
+	case esm.StatusComplete:
+		return "No further ESM work is scheduled"
+	}
+	switch phase {
+	case esm.PhaseCritic:
+		return "A passing critic review advances the candidate to final audit"
+	case esm.PhaseAudit:
+		return "A passing audit marks the objective complete; a failure returns it to the worker"
+	default:
+		return "Worker will record concrete progress and remaining work before the next run"
+	}
+}
+
+func formatESMPanelUpdateTime(updatedAt time.Time) string {
+	ago := time.Since(updatedAt)
+	if ago < 0 {
+		ago = 0
+	}
+	return updatedAt.Local().Format("2006-01-02 15:04:05") + " (" + formatDuration(ago) + " ago)"
 }
 
 func (a *App) activeESMPanelActivity(width int) []string {

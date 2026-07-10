@@ -17,15 +17,20 @@ type activityLine struct {
 }
 
 type agentActivity struct {
-	AgentID    agentpkg.AgentID
-	Kind       string
-	State      string
-	LastThink  string
-	LastText   string
-	LastTool   string
-	LastResult string
-	UpdatedAt  time.Time
-	Events     []activityLine
+	AgentID      agentpkg.AgentID
+	Kind         string
+	State        string
+	LastThink    string
+	LastText     string
+	LastTool     string
+	LastResult   string
+	FullThink    string
+	FullText     string
+	FullResult   string
+	LastToolName string
+	LastToolArgs map[string]any
+	UpdatedAt    time.Time
+	Events       []activityLine
 }
 
 func (a *App) isBackgroundAgentEvent(event agent.Event) bool {
@@ -78,9 +83,11 @@ func (a *App) recordAgentActivity(event agent.Event) {
 	case agent.EventThinkDelta:
 		act.State = "running"
 		act.LastThink = truncatePlain(act.LastThink+event.ThinkDelta, 240)
+		act.FullThink += event.ThinkDelta
 	case agent.EventTextDelta:
 		act.State = "running"
 		act.LastText = truncatePlain(act.LastText+event.TextDelta, 320)
+		act.FullText += event.TextDelta
 	case agent.EventToolCall, agent.EventToolExecutionStart:
 		act.State = "running"
 		name := event.ToolName
@@ -89,7 +96,9 @@ func (a *App) recordAgentActivity(event agent.Event) {
 		}
 		if name != "" {
 			act.LastTool = formatActivityTool(name, event.ToolArgs)
-			act.Events = appendActivityLine(act.Events, now, "tool: "+act.LastTool)
+			act.LastToolName = name
+			act.LastToolArgs = event.ToolArgs
+			act.Events = appendActivityLine(act.Events, now, "tool started: "+formatDetailedActivityTool(name, event.ToolArgs))
 		}
 	case agent.EventToolResult, agent.EventToolExecutionEnd:
 		name := event.ToolName
@@ -103,15 +112,17 @@ func (a *App) recordAgentActivity(event agent.Event) {
 		}
 		if result != "" {
 			act.LastResult = truncatePlain(result, 320)
+			act.FullResult = result
 		}
 		if name != "" || result != "" {
-			line := truncatePlain(result, 140)
-			if name != "" && line != "" {
-				line = name + ": " + line
-			} else if name != "" {
-				line = name
+			line := "tool result"
+			if name != "" {
+				line += " [" + name + "]"
 			}
-			act.Events = appendActivityLine(act.Events, now, "result: "+line)
+			if result != "" {
+				line += ":\n" + result
+			}
+			act.Events = appendActivityLine(act.Events, now, line)
 		}
 	case agent.EventDone:
 		act.State = "done"
@@ -120,6 +131,7 @@ func (a *App) recordAgentActivity(event agent.Event) {
 		act.State = "error"
 		if event.Error != nil {
 			act.LastResult = truncatePlain(event.Error.Error(), 320)
+			act.FullResult = event.Error.Error()
 			act.Events = appendActivityLine(act.Events, now, "error: "+event.Error.Error())
 		}
 	}
@@ -139,11 +151,18 @@ func appendActivityLine(lines []activityLine, t time.Time, text string) []activi
 	if text == "" {
 		return lines
 	}
-	lines = append(lines, activityLine{Time: t, Text: truncatePlain(text, 500)})
+	lines = append(lines, activityLine{Time: t, Text: text})
 	if len(lines) > maxActivityLines {
 		lines = lines[len(lines)-maxActivityLines:]
 	}
 	return lines
+}
+
+func formatDetailedActivityTool(name string, args map[string]any) string {
+	if details := strings.TrimSpace(formatToolArgs(name, args)); details != "" {
+		return name + "\n" + details
+	}
+	return name
 }
 
 func formatActivityTool(name string, args map[string]any) string {

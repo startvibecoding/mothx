@@ -173,20 +173,28 @@ func (a *App) renderAgentActivity(id agentpkg.AgentID) string {
 		header += " updated " + formatActivityAge(act.UpdatedAt)
 	}
 	lines = append(lines, header)
-	if act.LastTool != "" {
-		lines = append(lines, "", "Tool: "+act.LastTool)
+	if act.LastToolName != "" {
+		lines = append(lines, "", "Latest tool:", formatDetailedActivityTool(act.LastToolName, act.LastToolArgs))
+	} else if act.LastTool != "" {
+		lines = append(lines, "", "Latest tool: "+act.LastTool)
 	}
-	if act.LastThink != "" {
+	if act.FullThink != "" {
+		lines = append(lines, "", "Thinking:", act.FullThink)
+	} else if act.LastThink != "" {
 		lines = append(lines, "", "Thinking: "+act.LastThink)
 	}
-	if act.LastText != "" {
-		lines = append(lines, "", "Text: "+act.LastText)
+	if act.FullText != "" {
+		lines = append(lines, "", "Response:", act.FullText)
+	} else if act.LastText != "" {
+		lines = append(lines, "", "Response: "+act.LastText)
 	}
-	if act.LastResult != "" {
-		lines = append(lines, "", "Result: "+act.LastResult)
+	if act.FullResult != "" {
+		lines = append(lines, "", "Latest result:", act.FullResult)
+	} else if act.LastResult != "" {
+		lines = append(lines, "", "Latest result: "+act.LastResult)
 	}
 	if len(act.Events) > 0 {
-		lines = append(lines, "", "Recent events:")
+		lines = append(lines, "", "Activity timeline:")
 		for _, ev := range act.Events {
 			prefix := ev.Time.Format("15:04:05")
 			lines = append(lines, "  "+prefix+"  "+ev.Text)
@@ -240,11 +248,17 @@ func (a *App) renderExpandedMessageAt(idx int) string {
 			return a.renderExpandedToolResultAt(i)
 		}
 	}
-	if _, ok := a.assistantRaw[idx]; ok {
-		return a.renderAssistantMessage(idx)
+	if raw, ok := a.assistantRaw[idx]; ok {
+		if raw == "" {
+			return ""
+		}
+		return "Assistant:\n" + raw
 	}
-	if _, ok := a.thinkRaw[idx]; ok {
-		return a.renderThinkMessage(idx)
+	if raw, ok := a.thinkRaw[idx]; ok {
+		if raw == "" {
+			return ""
+		}
+		return "Thinking:\n" + raw
 	}
 	if idx >= 0 && idx < len(a.messages) {
 		return a.messages[idx]

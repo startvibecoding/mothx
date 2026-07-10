@@ -71,6 +71,9 @@ func TestESMProgressPanelShowsPhaseMissingWorkAndCircuitBreaker(t *testing.T) {
 
 	content := strings.Join(a.esmPanelLines(74), "\n")
 	for _, want := range []string{
+		"Now: ESM is paused",
+		"Progress: 1/3 pipeline stages completed; 2 work item(s) remaining",
+		"Next: Review the outstanding work, then run /esm resume",
 		"Status: paused",
 		"Stage: Critic review",
 		"[x] Worker -> [!] Critic -> [ ] Audit",
