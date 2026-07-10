@@ -2739,6 +2739,42 @@ func TestToolModalHeightFitsTerminalWithoutCroppingTop(t *testing.T) {
 	}
 }
 
+func TestToolModalLongSubAgentLogDoesNotCropTop(t *testing.T) {
+	a := NewApp(nil, &provider.Model{Name: "test"}, config.DefaultSettings(), nil, nil, "", "", "", nil, "agent", true, false, nil, nil, nil)
+	a.ready = true
+	a.width = 80
+	a.height = 24
+	a.messages = []string{"main transcript"}
+	for range 12 {
+		a.recordAgentActivity(agent.Event{
+			Type:          agent.EventStatus,
+			AgentID:       "sub-1",
+			StatusMessage: strings.Repeat("long subagent output ", 40),
+		})
+	}
+
+	if !a.openLatestToolModal() {
+		t.Fatal("openLatestToolModal = false, want true")
+	}
+	a.switchToolModalTarget(1)
+	modal := a.renderToolModal()
+	availableHeight := a.height - lipgloss.Height(a.renderFooter())
+	if got := lipgloss.Height(modal); got != availableHeight {
+		t.Fatalf("modal height = %d, want available height %d", got, availableHeight)
+	}
+	view := stripANSI(a.View())
+	lines := strings.Split(view, "\n")
+	if got := len(lines); got != a.height {
+		t.Fatalf("View() height = %d, want %d", got, a.height)
+	}
+	if !strings.HasPrefix(lines[0], "╭") {
+		t.Fatalf("modal top border was cropped from view:\n%s", view)
+	}
+	if !strings.Contains(view, "Agent details") {
+		t.Fatalf("modal title was cropped from view:\n%s", view)
+	}
+}
+
 func TestShowNextQuestionTracksCurrentQuestionAndClearResetsIt(t *testing.T) {
 	a := &App{questionQueue: []pendingQuestion{{questionID: "q1", question: "Pick?", options: []string{"A", "B"}}}}
 	a.showNextQuestion()

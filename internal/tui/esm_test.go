@@ -25,6 +25,21 @@ const (
 	esmAuditFailReport      = `{"verdict":"fail","review":"missing requirement","requirements_checked":["objective -> gap"],"missing_work":["add test"],"evidence":["read file"]}`
 )
 
+func TestResolveESMStoreDirUsesSessionRoot(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "sessions")
+	if got := resolveESMStoreDir("", root); got != root {
+		t.Fatalf("empty session file resolved to %q, want %q", got, root)
+	}
+	direct := filepath.Join(root, "20260710_session.db")
+	if got := resolveESMStoreDir(direct, "fallback"); got != root {
+		t.Fatalf("direct session resolved to %q, want %q", got, root)
+	}
+	nested := filepath.Join(root, "--encoded-cwd--", "20260710_session.db")
+	if got := resolveESMStoreDir(nested, "fallback"); got != root {
+		t.Fatalf("nested session resolved to %q, want %q", got, root)
+	}
+}
+
 func newTUITestESMStore(t *testing.T) (*esm.Store, string) {
 	t.Helper()
 	tmp := t.TempDir()
@@ -203,6 +218,116 @@ func TestESMWorkerCompleteCandidateRequiresSuccessfulToolCall(t *testing.T) {
 	got := requireESMStatus(t, store, sessionID, esm.StatusActive)
 	if !strings.Contains(got.CompletionReview, "all inspection or validation tool calls failed") {
 		t.Fatalf("completion review = %q, want failed-tool rejection", got.CompletionReview)
+	}
+}
+
+func TestESMWorkerMissingWorkAliasRejectsCompletionBeforeCritic(t *testing.T) {
+	store, sessionID := newTUITestESMStore(t)
+	obj, err := store.Create(context.Background(), sessionID, "ship the full objective", nil)
+	if err != nil {
+		t.Fatalf("Create ESM objective: %v", err)
+	}
+	response := `{"status":"complete_candidate","summary":"not actually done","evidence":["read files"],"missing_work":["add tests","update docs"],"blockers":["await API access"]}`
+	app := esmAppWithRoleResult(esmToolBackedResult(response))
+	eventCh := make(chan internalagent.Event, 20)
+
+	if ok := app.runESMWorker(context.Background(), eventCh, nil, store, sessionID, "worker-run", "", "agent", obj); !ok {
+		t.Fatal("runESMWorker returned false")
+	}
+	got := requireESMStatus(t, store, sessionID, esm.StatusActive)
+	if got.RejectionCount != 1 || len(got.RemainingWork) != 3 {
+		t.Fatalf("worker precheck state = %#v", got)
+	}
+	for _, want := range []string{"remaining work (2)", "add tests", "update docs", "blockers (1)", "await API access"} {
+		if !strings.Contains(got.CompletionReview, want) {
+			t.Fatalf("completion review %q missing %q", got.CompletionReview, want)
+		}
+	}
+	close(eventCh)
+	var statusText string
+	for event := range eventCh {
+		statusText += event.StatusMessage
+	}
+	if !strings.Contains(statusText, "worker completion candidate rejected (1/3)") || !strings.Contains(statusText, "add tests") {
+		t.Fatalf("worker rejection status missing details: %q", statusText)
+	}
+}
+
+func TestESMWorkerCompletionRejectionCircuitBreakerPauses(t *testing.T) {
+	store, sessionID := newTUITestESMStore(t)
+	obj, err := store.Create(context.Background(), sessionID, "ship the full objective", nil)
+	if err != nil {
+		t.Fatalf("Create ESM objective: %v", err)
+	}
+	response := `{"status":"complete_candidate","summary":"not done","evidence":["read files"],"remaining_work":["finish implementation"],"blockers":[]}`
+	app := esmAppWithRoleResult(esmToolBackedResult(response))
+
+	for i := 1; i <= esm.CompletionRejectionLimit; i++ {
+		eventCh := make(chan internalagent.Event, 20)
+		if ok := app.runESMWorker(context.Background(), eventCh, nil, store, sessionID, fmt.Sprintf("worker-run-%d", i), "", "agent", obj); !ok {
+			t.Fatalf("runESMWorker %d returned false", i)
+		}
+		obj, err = store.Get(context.Background(), sessionID)
+		if err != nil {
+			t.Fatalf("Get ESM objective %d: %v", i, err)
+		}
+	}
+	if obj.Status != esm.StatusPaused || obj.RejectionCount != esm.CompletionRejectionLimit || obj.CanAutoRun() {
+		t.Fatalf("completion rejection breaker = %#v", obj)
+	}
+}
+
+func TestESMInvalidWorkerReportsUseRejectionCircuitBreaker(t *testing.T) {
+	tests := map[string]string{
+		"malformed":       "not json",
+		"missing blocker": `{"status":"blocked_candidate","summary":"blocked","evidence":["attempted request"],"remaining_work":["retry"],"blockers":[]}`,
+	}
+	for name, response := range tests {
+		t.Run(name, func(t *testing.T) {
+			store, sessionID := newTUITestESMStore(t)
+			obj, err := store.Create(context.Background(), sessionID, "ship the full objective", nil)
+			if err != nil {
+				t.Fatalf("Create ESM objective: %v", err)
+			}
+			app := esmAppWithRoleResult(esmToolBackedResult(response))
+			for i := 1; i <= esm.CompletionRejectionLimit; i++ {
+				eventCh := make(chan internalagent.Event, 20)
+				if ok := app.runESMWorker(context.Background(), eventCh, nil, store, sessionID, fmt.Sprintf("worker-run-%d", i), "", "agent", obj); !ok {
+					t.Fatalf("runESMWorker %d returned false", i)
+				}
+				obj, err = store.Get(context.Background(), sessionID)
+				if err != nil {
+					t.Fatalf("Get ESM objective %d: %v", i, err)
+				}
+			}
+			if obj.Status != esm.StatusPaused || obj.RejectionCount != esm.CompletionRejectionLimit || obj.CanAutoRun() {
+				t.Fatalf("invalid worker report breaker = %#v", obj)
+			}
+		})
+	}
+}
+
+func TestESMSupervisorPassWithMissingWorkLogsDetails(t *testing.T) {
+	for _, role := range []string{"critic", "audit"} {
+		t.Run(role, func(t *testing.T) {
+			store, sessionID := newTUITestESMStore(t)
+			obj := createESMCompletionCandidate(t, store, sessionID, nil)
+			result := esmToolBackedResult(`{"verdict":"pass","review":"claimed pass","requirements_checked":["objective -> gap"],"missing_work":["add test","finish docs"],"evidence":["read files"]}`)
+			app := esmAppWithRoleResult(result)
+
+			if ok := runESMSupervisorReview(t, role, app, store, sessionID, obj); !ok {
+				t.Fatalf("run %s returned false", role)
+			}
+			got := requireESMStatus(t, store, sessionID, esm.StatusActive)
+			for _, want := range []string{"missing_work (2)", "add test", "finish docs"} {
+				if !strings.Contains(got.CompletionReview, want) {
+					t.Fatalf("completion review %q missing %q", got.CompletionReview, want)
+				}
+			}
+			if got.RejectionCount != 1 || len(got.RemainingWork) != 2 {
+				t.Fatalf("supervisor rejection state = %#v", got)
+			}
+		})
 	}
 }
 

@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	xansi "github.com/charmbracelet/x/ansi"
 
 	agentpkg "github.com/startvibecoding/mothx/agent"
+	"github.com/startvibecoding/mothx/internal/tui/renderutil"
 )
 
 type toolModalTarget struct {
@@ -88,15 +90,20 @@ func (a *App) buildToolModalLines(targets []toolModalTarget) []string {
 }
 
 func (a *App) toolModalLines(targets []toolModalTarget) []string {
+	width := toolModalContentWidth(toolModalWidth(a.width))
 	if a.toolModalCacheValid &&
 		a.toolModalCacheActive == a.toolModalActive &&
-		a.toolModalCacheVersion == a.toolModalVersion {
+		a.toolModalCacheVersion == a.toolModalVersion &&
+		a.toolModalCacheWidth == width {
 		return a.toolModalCacheLines
 	}
 	lines := a.buildToolModalLines(targets)
+	content := strings.Join(lines, "\n")
+	lines = strings.Split(renderutil.WrapANSI(content, width), "\n")
 	a.toolModalCacheLines = lines
 	a.toolModalCacheActive = a.toolModalActive
 	a.toolModalCacheVersion = a.toolModalVersion
+	a.toolModalCacheWidth = width
 	a.toolModalCacheValid = true
 	return lines
 }
@@ -222,7 +229,7 @@ func (a *App) renderToolModalTabs(targets []toolModalTarget, width int) string {
 	}
 	row := strings.Join(parts, "  |  ")
 	if lipgloss.Width(row) > width {
-		return truncatePlain(row, width)
+		return xansi.Truncate(row, width, "…")
 	}
 	return row
 }
@@ -312,10 +319,8 @@ func (a *App) renderToolModal() string {
 }
 
 func (a *App) renderToolModalWithAvailableHeight(availableHeight int) string {
-	width := a.width - 4
-	if width < 20 {
-		width = 20
-	}
+	width := toolModalWidth(a.width)
+	contentWidth := toolModalContentWidth(width)
 	targets := a.toolModalTargets()
 	height := a.toolModalPageSizeFor(targets, availableHeight)
 	lines := a.toolModalLines(targets)
@@ -339,14 +344,31 @@ func (a *App) renderToolModalWithAvailableHeight(availableHeight int) string {
 		position = "lines 0-0/0"
 	}
 	title := fmt.Sprintf("Agent details  %s  Left/Right:switch target  PgUp/PgDn:page  Up/Down:scroll  Esc:close", position)
-	tabs := a.renderToolModalTabs(targets, width-2)
+	title = xansi.Truncate(title, contentWidth, "…")
+	tabs := a.renderToolModalTabs(targets, contentWidth)
 	header := title
 	if tabs != "" {
 		header += "\n" + tabs
 	}
-	content := header + "\n" + strings.Repeat("─", minInt(width-2, lipgloss.Width(title))) + "\n" + visible
+	content := header + "\n" + strings.Repeat("─", minInt(contentWidth, lipgloss.Width(title))) + "\n" + visible
 	chrome := toolModalChrome(len(targets) > 1)
 	return toolModalStyle.Width(width).Height(height + chrome).Render(content)
+}
+
+func toolModalWidth(terminalWidth int) int {
+	width := terminalWidth - 4
+	if width < 20 {
+		return 20
+	}
+	return width
+}
+
+func toolModalContentWidth(width int) int {
+	width -= toolModalStyle.GetHorizontalPadding()
+	if width < 1 {
+		return 1
+	}
+	return width
 }
 
 func (a *App) switchToolModalTarget(delta int) {

@@ -336,7 +336,7 @@ func (a *App) renderBuiltinFooter() string {
 		if a.toolModalOpen {
 			leftLine2 += " | Left/Right:switch PgUp/PgDn:page Up/Down:scroll Esc/Ctrl+O:close"
 		} else {
-			leftLine2 += " | Tab:mode Esc:abort Ctrl+O:details Ctrl+R:preview Ctrl+G:compact"
+			leftLine2 += " | Tab:mode Esc:abort Ctrl+O:details Ctrl+E:ESM Ctrl+R:preview Ctrl+G:compact"
 		}
 	}
 

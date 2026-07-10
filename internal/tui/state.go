@@ -28,6 +28,7 @@ func (a *App) resetTranscriptState() {
 	a.currentThinkIdx = -1
 	a.currentApprovalIdx = -1
 	a.closeToolModal()
+	a.closeESMPanel()
 }
 
 func (a *App) clearQueuedInput() {

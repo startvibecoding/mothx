@@ -22,6 +22,10 @@
   - 抑制父 TUI 流中冗余的角色代理生命周期事件，输出更清爽。
   - AgentFactory 追踪 `providerName`/`Vendor`，确保子 Agent 运行时同步。
   - 新增 `withRuntimeConfig` 用于灵活的工厂克隆。
+  - Worker 报告同时兼容 `remaining_work` 与 `missing_work`；存在任何遗留任务或 blocker 时，会在进入 Critic 前拒绝完成候选。
+  - 持久化当前 ESM 阶段、最新 Worker 进度、结构化遗留任务和连续完成驳回状态。
+  - 新增连续 3 次驳回熔断，自动暂停续跑，用户执行 `/esm resume` 后可恢复。
+  - 新增 `Ctrl+E` 打开的实时可滚动 ESM 进度面板，展示流水线阶段、遗留任务、阻塞点、审查详情、用量和当前子 Agent 活动。
 
 - **上下文压缩改进**
   - `/compact` 现在在 TUI、Channels 和 OpenAI API 运行时中立即执行（此前为延迟执行）。

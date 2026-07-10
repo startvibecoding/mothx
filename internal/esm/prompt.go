@@ -48,6 +48,15 @@ func SteeringPrompt(obj *Objective) string {
 	if obj.BlockedCount > 0 && obj.BlockedReason != "" {
 		b.WriteString(fmt.Sprintf("- repeated blocker audit: %d/3 (%s)\n", obj.BlockedCount, obj.BlockedReason))
 	}
+	if obj.ProgressSummary != "" {
+		b.WriteString("- latest worker progress: " + obj.ProgressSummary + "\n")
+	}
+	if len(obj.RemainingWork) > 0 {
+		b.WriteString(fmt.Sprintf("- remaining work (%d): %s\n", len(obj.RemainingWork), strings.Join(obj.RemainingWork, "; ")))
+	}
+	if obj.RejectionCount > 0 {
+		b.WriteString(fmt.Sprintf("- consecutive completion rejections: %d/%d\n", obj.RejectionCount, CompletionRejectionLimit))
+	}
 	if obj.CompletionReason != "" {
 		b.WriteString("- completion candidate evidence: ")
 		b.WriteString(obj.CompletionReason)
@@ -102,13 +111,26 @@ func WorkerTaskPrompt(obj *Objective) string {
 	b.WriteString("- Work toward the full objective, not a demo or minimal slice.\n")
 	b.WriteString("- Use the repository state and tools as the source of truth.\n")
 	b.WriteString("- If the objective is not fully done, make concrete progress and report continue.\n")
+	b.WriteString("- Before choosing complete_candidate, enumerate all remaining work. If any item or blocker remains, report continue or blocked_candidate instead.\n")
 	b.WriteString("- Use complete_candidate only after you have inspected the current state with tools, completed the real objective, and gathered matching validation evidence.\n")
+	b.WriteString("- complete_candidate requires both remaining_work and blockers to be empty. The supervisor rejects contradictory reports before critic review.\n")
 	b.WriteString("- Do not use complete_candidate for scaffolding, demos, partial slices, plausible answers, or unverified claims.\n")
 	b.WriteString("- Do not call get_esm or update_esm; this worker does not own ESM state.\n")
 	if obj.CompletionReview != "" {
 		b.WriteString("\nPrevious failed completion audit:\n")
 		b.WriteString(obj.CompletionReview)
 		b.WriteString("\n")
+	}
+	if obj.ProgressSummary != "" {
+		b.WriteString("\nLatest persisted worker progress:\n")
+		b.WriteString(obj.ProgressSummary)
+		b.WriteString("\n")
+	}
+	if len(obj.RemainingWork) > 0 {
+		b.WriteString(fmt.Sprintf("\nPersisted remaining work (%d):\n- %s\n", len(obj.RemainingWork), strings.Join(obj.RemainingWork, "\n- ")))
+	}
+	if obj.RejectionCount > 0 {
+		b.WriteString(fmt.Sprintf("\nConsecutive completion rejections: %d/%d. Resolve the recorded gaps before proposing completion again.\n", obj.RejectionCount, CompletionRejectionLimit))
 	}
 	if obj.BlockedCount > 0 && obj.BlockedReason != "" {
 		b.WriteString(fmt.Sprintf("\nRepeated blocker audit so far: %d/3 (%s)\n", obj.BlockedCount, obj.BlockedReason))

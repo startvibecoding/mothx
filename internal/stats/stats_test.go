@@ -11,7 +11,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const expectedMigrationCount = 13
+const expectedMigrationCount = 14
 
 func TestDashboardShareActivityUsesSevenDayFlameHeatmap(t *testing.T) {
 	for _, expected := range []string{

@@ -186,6 +186,7 @@ type App struct {
 	toolModalCacheValid   bool
 	toolModalCacheActive  int
 	toolModalCacheVersion int
+	toolModalCacheWidth   int
 	toolModalVersion      int
 	toolModalCacheLines   []string
 
@@ -248,6 +249,10 @@ type App struct {
 	esmActiveAgentID    agentpkg.AgentID
 	esmRunTokens        int64
 	esmRoleRunner       esmRoleRunner
+	esmPanelOpen        bool
+	esmPanelScroll      int
+	esmPanelObjective   *esm.Objective
+	esmPanelErr         error
 
 	// Spinner state
 	spinnerIndex int
@@ -765,6 +770,35 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if handled, cmd := a.handleAuthKey(msg); handled {
 			return a, cmd
 		}
+		if a.esmPanelOpen {
+			switch {
+			case msg.Type == tea.KeyCtrlC:
+				return a, tea.Quit
+			case msg.Type == tea.KeyEsc || msg.Type == tea.KeyCtrlE || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
+				a.closeESMPanel()
+				a.scheduleRender()
+				return a, nil
+			case msg.Type == tea.KeyUp:
+				a.scrollESMPanel(-1)
+				return a, nil
+			case msg.Type == tea.KeyDown:
+				a.scrollESMPanel(1)
+				return a, nil
+			case msg.Type == tea.KeyPgUp:
+				a.scrollESMPanel(-a.esmPanelPageSize())
+				return a, nil
+			case msg.Type == tea.KeyPgDown:
+				a.scrollESMPanel(a.esmPanelPageSize())
+				return a, nil
+			case msg.Type == tea.KeyHome:
+				a.esmPanelScroll = 0
+				return a, nil
+			case msg.Type == tea.KeyEnd:
+				a.esmPanelScroll = a.maxESMPanelOffset()
+				return a, nil
+			}
+			return a, nil
+		}
 		if a.btwOpen {
 			switch {
 			case msg.Type == tea.KeyEsc || (msg.Type == tea.KeyRunes && string(msg.Runes) == "q"):
@@ -915,6 +949,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return a, nil
 			}
 			a.addMessage(statusStyle.Render("No conversation details yet."))
+			return a, nil
+		case tea.KeyCtrlE:
+			a.openESMPanel()
+			a.scheduleRender()
 			return a, nil
 		case tea.KeyCtrlR:
 			return a, a.previewLastPastedImage()
@@ -1271,6 +1309,17 @@ func (a *App) View() string {
 	if !a.waitingForApproval && a.statsOverlayOpen {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderStatsOverlay(), footer))
 	}
+	if !a.waitingForApproval && a.esmPanelOpen {
+		panelFooter := footer
+		if a.height > 0 && a.height < 8 {
+			panelFooter = ""
+		}
+		panel := a.renderESMPanel()
+		if panelFooter != "" {
+			panel = lipgloss.JoinVertical(lipgloss.Left, panel, panelFooter)
+		}
+		return a.renderFixedHeight(panel)
+	}
 
 	var parts []string
 
@@ -1352,6 +1401,15 @@ func (a *App) abortPendingRequest(reason string) tea.Cmd {
 
 // handlePaste handles large pastes by creating markers
 func (a *App) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	if a.esmPanelOpen {
+		switch {
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp:
+			a.scrollESMPanel(-mouseWheelScrollLines)
+		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown:
+			a.scrollESMPanel(mouseWheelScrollLines)
+		}
+		return nil
+	}
 	if a.statsOverlayOpen {
 		switch {
 		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp:

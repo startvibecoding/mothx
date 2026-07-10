@@ -34,10 +34,14 @@ type AuditReport struct {
 }
 
 func ParseWorkerReport(text string) (WorkerReport, error) {
-	var report WorkerReport
-	if err := decodeReport(text, &report); err != nil {
-		return report, err
+	var payload struct {
+		WorkerReport
+		MissingWork []string `json:"missing_work"`
 	}
+	if err := decodeReport(text, &payload); err != nil {
+		return payload.WorkerReport, err
+	}
+	report := payload.WorkerReport
 	report.Status = strings.TrimSpace(report.Status)
 	switch report.Status {
 	case WorkerStatusContinue, WorkerStatusCompleteCandidate, WorkerStatusBlockedCandidate:
@@ -46,9 +50,28 @@ func ParseWorkerReport(text string) (WorkerReport, error) {
 	}
 	report.Summary = strings.TrimSpace(report.Summary)
 	report.Evidence = trimStringSlice(report.Evidence)
-	report.RemainingWork = trimStringSlice(report.RemainingWork)
+	report.RemainingWork = mergeTrimmedStringSlices(report.RemainingWork, payload.MissingWork)
 	report.Blockers = trimStringSlice(report.Blockers)
 	return report, nil
+}
+
+func mergeTrimmedStringSlices(slices ...[]string) []string {
+	seen := make(map[string]struct{})
+	var out []string
+	for _, values := range slices {
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			seen[value] = struct{}{}
+			out = append(out, value)
+		}
+	}
+	return out
 }
 
 func ParseAuditReport(text string) (AuditReport, error) {

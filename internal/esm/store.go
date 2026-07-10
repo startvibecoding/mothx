@@ -3,6 +3,7 @@ package esm
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -44,7 +45,7 @@ type rowQueryer interface {
 }
 
 func getObjective(ctx context.Context, q rowQueryer, sessionID string) (*Objective, error) {
-	row := q.QueryRowContext(ctx, `SELECT session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, blocked_run_id, completion_reason, completion_run_id, completion_review, created_at, updated_at
+	row := q.QueryRowContext(ctx, `SELECT session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, blocked_run_id, completion_reason, completion_run_id, completion_review, phase, progress_summary, remaining_work, completion_rejection_count, completion_rejection_run_id, created_at, updated_at
 		FROM session_esm_objectives WHERE session_id = ?`, sessionID)
 	return scanObjective(row)
 }
@@ -52,8 +53,9 @@ func getObjective(ctx context.Context, q rowQueryer, sessionID string) (*Objecti
 func scanObjective(row *sql.Row) (*Objective, error) {
 	var obj Objective
 	var budget sql.NullInt64
+	var remainingWork string
 	var created, updated string
-	if err := row.Scan(&obj.SessionID, &obj.ESMID, &obj.Objective, &obj.Status, &budget, &obj.TokensUsed, &obj.TimeUsedMS, &obj.BlockedCount, &obj.BlockedReason, &obj.BlockedRunID, &obj.CompletionReason, &obj.CompletionRunID, &obj.CompletionReview, &created, &updated); err != nil {
+	if err := row.Scan(&obj.SessionID, &obj.ESMID, &obj.Objective, &obj.Status, &budget, &obj.TokensUsed, &obj.TimeUsedMS, &obj.BlockedCount, &obj.BlockedReason, &obj.BlockedRunID, &obj.CompletionReason, &obj.CompletionRunID, &obj.CompletionReview, &obj.Phase, &obj.ProgressSummary, &remainingWork, &obj.RejectionCount, &obj.RejectionRunID, &created, &updated); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -62,6 +64,9 @@ func scanObjective(row *sql.Row) (*Objective, error) {
 	if budget.Valid {
 		v := budget.Int64
 		obj.TokenBudget = &v
+	}
+	if err := json.Unmarshal([]byte(remainingWork), &obj.RemainingWork); err != nil {
+		return nil, fmt.Errorf("decode esm remaining work: %w", err)
 	}
 	obj.CreatedAt = parseTime(created)
 	obj.UpdatedAt = parseTime(updated)
@@ -140,9 +145,9 @@ func (s *Store) Create(ctx context.Context, sessionID, objective string, budget 
 	}
 	esmID := "esm-" + session.GenerateID()
 	if _, err := tx.ExecContext(ctx, `INSERT INTO session_esm_objectives
-		(session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, 0, 0, 0, '', ?, ?)`,
-		sessionID, esmID, objective, StatusActive, budgetValue, now, now); err != nil {
+		(session_id, esm_id, objective, status, token_budget, tokens_used, time_used_ms, blocked_count, blocked_reason, phase, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, 0, 0, 0, '', ?, ?, ?)`,
+		sessionID, esmID, objective, StatusActive, budgetValue, PhaseWorker, now, now); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -169,8 +174,8 @@ func (s *Store) Edit(ctx context.Context, sessionID, objective string) (*Objecti
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET objective = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', updated_at = ?
-		WHERE session_id = ?`, objective, s.timestamp(), sessionID); err != nil {
+		SET objective = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', phase = ?, progress_summary = '', remaining_work = '[]', completion_rejection_count = 0, completion_rejection_run_id = '', updated_at = ?
+		WHERE session_id = ?`, objective, PhaseWorker, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)
@@ -258,8 +263,8 @@ func (s *Store) Resume(ctx context.Context, sessionID string) (*Objective, error
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', completion_review = '', updated_at = ?
-		WHERE session_id = ?`, StatusActive, s.timestamp(), sessionID); err != nil {
+		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_reason = '', completion_run_id = '', phase = ?, completion_rejection_count = 0, completion_rejection_run_id = '', updated_at = ?
+		WHERE session_id = ?`, StatusActive, PhaseWorker, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)
@@ -289,6 +294,67 @@ func (s *Store) SetBudget(ctx context.Context, sessionID string, budget *int64) 
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
 		SET token_budget = ?, updated_at = ?
 		WHERE session_id = ?`, value, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// SetPhase records the current role in the worker/critic/audit pipeline.
+func (s *Store) SetPhase(ctx context.Context, sessionID string, phase Phase) (*Objective, error) {
+	switch phase {
+	case PhaseWorker, PhaseCritic, PhaseAudit, PhaseComplete:
+	default:
+		return nil, fmt.Errorf("invalid esm phase %q", phase)
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	current, err := getObjective(ctx, db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	validTransition := false
+	switch phase {
+	case PhaseWorker:
+		validTransition = current.Status == StatusActive
+	case PhaseCritic, PhaseAudit:
+		validTransition = current.Status == StatusCompleteCandidate
+	case PhaseComplete:
+		validTransition = current.Status == StatusComplete
+	}
+	if !validTransition {
+		return current, ErrInvalidTransition
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET phase = ?, updated_at = ?
+		WHERE session_id = ?`, phase, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// RecordWorkerProgress persists the latest structured worker result so later
+// runs and the TUI can show concrete progress and remaining work.
+func (s *Store) RecordWorkerProgress(ctx context.Context, sessionID, summary string, remainingWork []string) (*Objective, error) {
+	encoded, err := encodeStringSlice(remainingWork)
+	if err != nil {
+		return nil, err
+	}
+	db, err := s.db()
+	if err != nil {
+		return nil, err
+	}
+	current, err := getObjective(ctx, db, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Status != StatusActive {
+		return current, ErrInvalidTransition
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET phase = ?, progress_summary = ?, remaining_work = ?, updated_at = ?
+		WHERE session_id = ?`, PhaseWorker, strings.TrimSpace(summary), encoded, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)
@@ -396,6 +462,9 @@ func (s *Store) UpdateFromModelForRun(ctx context.Context, sessionID string, sta
 	nextCompletionReason := current.CompletionReason
 	nextCompletionRunID := current.CompletionRunID
 	nextCompletionReview := current.CompletionReview
+	nextPhase := current.Phase
+	nextRejectionCount := current.RejectionCount
+	nextRejectionRunID := current.RejectionRunID
 	switch status {
 	case StatusComplete:
 		nextStatus = StatusCompleteCandidate
@@ -405,6 +474,7 @@ func (s *Store) UpdateFromModelForRun(ctx context.Context, sessionID string, sta
 		nextCompletionReason = reason
 		nextCompletionRunID = runID
 		nextCompletionReview = ""
+		nextPhase = PhaseCritic
 	case StatusBlocked:
 		nextStatus = StatusActive
 		if current.BlockedRunID == runID && sameBlockedReason(current.BlockedReason, reason) {
@@ -416,14 +486,19 @@ func (s *Store) UpdateFromModelForRun(ctx context.Context, sessionID string, sta
 		}
 		nextReason = reason
 		nextRunID = runID
+		nextCompletionReason = ""
+		nextCompletionRunID = ""
+		nextCompletionReview = ""
+		nextRejectionCount = 0
+		nextRejectionRunID = ""
 		if nextCount >= 3 {
 			nextStatus = StatusBlocked
 		}
 	}
 
 	if _, err := tx.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, blocked_count = ?, blocked_reason = ?, blocked_run_id = ?, completion_reason = ?, completion_run_id = ?, completion_review = ?, updated_at = ?
-		WHERE session_id = ?`, nextStatus, nextCount, nextReason, nextRunID, nextCompletionReason, nextCompletionRunID, nextCompletionReview, s.timestamp(), sessionID); err != nil {
+		SET status = ?, blocked_count = ?, blocked_reason = ?, blocked_run_id = ?, completion_reason = ?, completion_run_id = ?, completion_review = ?, phase = ?, completion_rejection_count = ?, completion_rejection_run_id = ?, updated_at = ?
+		WHERE session_id = ?`, nextStatus, nextCount, nextReason, nextRunID, nextCompletionReason, nextCompletionRunID, nextCompletionReview, nextPhase, nextRejectionCount, nextRejectionRunID, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -451,34 +526,78 @@ func (s *Store) MarkCompleteFromAudit(ctx context.Context, sessionID, review str
 		return current, ErrInvalidTransition
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_review = ?, updated_at = ?
-		WHERE session_id = ?`, StatusComplete, review, s.timestamp(), sessionID); err != nil {
+		SET status = ?, blocked_count = 0, blocked_reason = '', blocked_run_id = '', completion_review = ?, phase = ?, remaining_work = '[]', completion_rejection_count = 0, completion_rejection_run_id = '', updated_at = ?
+		WHERE session_id = ?`, StatusComplete, review, PhaseComplete, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)
 }
 
-// RejectCompletionCandidate returns a failed completion candidate to active so
-// the next ESM worker run can continue from the auditor's findings.
+// RejectCompletionCandidate records a failed completion candidate. Repeated
+// rejections pause unattended continuation at CompletionRejectionLimit.
 func (s *Store) RejectCompletionCandidate(ctx context.Context, sessionID, review string) (*Objective, error) {
+	current, err := s.Get(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return s.RejectCompletionCandidateForRun(ctx, sessionID, current.CompletionRunID, review, nil)
+}
+
+// RejectCompletionCandidateForRun records a critic/audit rejection with its
+// structured missing work. A run contributes at most once to the streak.
+func (s *Store) RejectCompletionCandidateForRun(ctx context.Context, sessionID, runID, review string, missingWork []string) (*Objective, error) {
+	return s.recordCompletionRejection(ctx, sessionID, runID, review, missingWork, StatusCompleteCandidate)
+}
+
+// RejectWorkerReport records a worker report rejected before supervisor review
+// while the objective is still active.
+func (s *Store) RejectWorkerReport(ctx context.Context, sessionID, runID, review string, remainingWork []string) (*Objective, error) {
+	return s.recordCompletionRejection(ctx, sessionID, runID, review, remainingWork, StatusActive)
+}
+
+func (s *Store) recordCompletionRejection(ctx context.Context, sessionID, runID, review string, remainingWork []string, expectedStatus Status) (*Objective, error) {
 	review = strings.TrimSpace(review)
 	if review == "" {
 		return nil, fmt.Errorf("completion rejection requires an audit review")
+	}
+	runID = strings.TrimSpace(runID)
+	encoded, err := encodeStringSlice(remainingWork)
+	if err != nil {
+		return nil, err
 	}
 	db, err := s.db()
 	if err != nil {
 		return nil, err
 	}
-	current, err := getObjective(ctx, db, sessionID)
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	if current.Status != StatusCompleteCandidate {
+	defer tx.Rollback()
+	current, err := getObjective(ctx, tx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if current.Status != expectedStatus {
+		if runID != "" && current.RejectionRunID == runID {
+			return current, nil
+		}
 		return current, ErrInvalidTransition
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET status = ?, completion_review = ?, updated_at = ?
-		WHERE session_id = ?`, StatusActive, review, s.timestamp(), sessionID); err != nil {
+	nextCount := current.RejectionCount
+	if runID == "" || current.RejectionRunID != runID {
+		nextCount++
+	}
+	nextStatus := StatusActive
+	if nextCount >= CompletionRejectionLimit {
+		nextStatus = StatusPaused
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE session_esm_objectives
+		SET status = ?, completion_review = ?, remaining_work = ?, completion_rejection_count = ?, completion_rejection_run_id = ?, updated_at = ?
+		WHERE session_id = ?`, nextStatus, review, encoded, nextCount, runID, s.timestamp(), sessionID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)
@@ -511,9 +630,8 @@ func (s *Store) RecordCompletionReview(ctx context.Context, sessionID, review st
 	return s.Get(ctx, sessionID)
 }
 
-// FinishRun clears the repeated-blocker audit when an active ESM run finishes
-// without reporting the same blocker. This makes blocked require consecutive
-// ESM agent runs rather than repeated tool calls in one run.
+// FinishRun clears repeated blocker/rejection streaks when an active ESM run
+// finishes without reporting the same condition.
 func (s *Store) FinishRun(ctx context.Context, sessionID, runID string) (*Objective, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
@@ -527,15 +645,44 @@ func (s *Store) FinishRun(ctx context.Context, sessionID, runID string) (*Object
 	if err != nil {
 		return nil, err
 	}
-	if current.Status != StatusActive || current.BlockedCount == 0 || current.BlockedRunID == "" || current.BlockedRunID == runID {
+	if current.Status != StatusActive {
+		return current, nil
+	}
+	nextBlockedCount := current.BlockedCount
+	nextBlockedReason := current.BlockedReason
+	nextBlockedRunID := current.BlockedRunID
+	if current.BlockedCount > 0 && current.BlockedRunID != "" && current.BlockedRunID != runID {
+		nextBlockedCount = 0
+		nextBlockedReason = ""
+		nextBlockedRunID = ""
+	}
+	nextRejectionCount := current.RejectionCount
+	nextRejectionRunID := current.RejectionRunID
+	if current.RejectionCount > 0 && current.RejectionRunID != "" && current.RejectionRunID != runID {
+		nextRejectionCount = 0
+		nextRejectionRunID = ""
+	}
+	if nextBlockedCount == current.BlockedCount && nextRejectionCount == current.RejectionCount {
 		return current, nil
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE session_esm_objectives
-		SET blocked_count = 0, blocked_reason = '', blocked_run_id = '', updated_at = ?
-		WHERE session_id = ?`, s.timestamp(), sessionID); err != nil {
+		SET blocked_count = ?, blocked_reason = ?, blocked_run_id = ?, completion_rejection_count = ?, completion_rejection_run_id = ?, updated_at = ?
+		WHERE session_id = ?`, nextBlockedCount, nextBlockedReason, nextBlockedRunID, nextRejectionCount, nextRejectionRunID, s.timestamp(), sessionID); err != nil {
 		return nil, err
 	}
 	return s.Get(ctx, sessionID)
+}
+
+func encodeStringSlice(values []string) (string, error) {
+	values = trimStringSlice(values)
+	if values == nil {
+		values = []string{}
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return "", fmt.Errorf("encode esm remaining work: %w", err)
+	}
+	return string(encoded), nil
 }
 
 func sameBlockedReason(a, b string) bool {

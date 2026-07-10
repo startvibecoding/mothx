@@ -90,10 +90,11 @@ func commandHelpText() string {
 		"  Tab               - Cycle mode (plan/agent/yolo)",
 		"  Esc               - Abort current operation",
 		"  Ctrl+O            - Open latest tool details",
+		"  Ctrl+E            - Open Enable Supervisor Mode progress",
 		"  Ctrl+R            - Preview latest pasted image",
 		"  Ctrl+G            - Toggle compact tool display",
 		"  Up/Down           - Move in multiline input; history at boundaries",
 		"  Left/Right       - Switch detail target when Ctrl+O modal is open",
-		"  PgUp/PgDn         - Page details when Ctrl+O modal is open",
+		"  PgUp/PgDn         - Page an open details or ESM progress panel",
 	}, "\n")
 }

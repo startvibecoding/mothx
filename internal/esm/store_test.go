@@ -3,6 +3,8 @@ package esm
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/startvibecoding/mothx/internal/session"
@@ -202,8 +204,136 @@ func TestStoreRejectCompletionCandidateReturnsActive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RejectCompletionCandidate: %v", err)
 	}
-	if obj.Status != StatusActive || obj.CompletionReview != "missing requirement" {
+	if obj.Status != StatusActive || obj.CompletionReview != "missing requirement" || obj.RejectionCount != 1 {
 		t.Fatalf("rejected candidate = %#v", obj)
+	}
+}
+
+func TestStorePersistsWorkerProgress(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	obj, err := store.RecordWorkerProgress(ctx, sessionID, "implemented parser", []string{"add tests", "update docs"})
+	if err != nil {
+		t.Fatalf("RecordWorkerProgress: %v", err)
+	}
+	if obj.Phase != PhaseWorker || obj.ProgressSummary != "implemented parser" {
+		t.Fatalf("worker progress = %#v", obj)
+	}
+	if len(obj.RemainingWork) != 2 || obj.RemainingWork[0] != "add tests" || obj.RemainingWork[1] != "update docs" {
+		t.Fatalf("remaining work = %#v", obj.RemainingWork)
+	}
+
+	obj, err = store.UpdateFromModelForRun(ctx, sessionID, StatusComplete, "worker evidence", "run-1")
+	if err != nil {
+		t.Fatalf("UpdateFromModelForRun: %v", err)
+	}
+	obj, err = store.SetPhase(ctx, sessionID, PhaseAudit)
+	if err != nil {
+		t.Fatalf("SetPhase: %v", err)
+	}
+	if obj.Phase != PhaseAudit || len(obj.RemainingWork) != 2 {
+		t.Fatalf("phase update lost progress = %#v", obj)
+	}
+}
+
+func TestStoreCompletionRejectionCircuitBreaker(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	for i := 1; i <= CompletionRejectionLimit; i++ {
+		runID := fmt.Sprintf("run-%d", i)
+		if _, err := store.UpdateFromModelForRun(ctx, sessionID, StatusComplete, "worker evidence", runID); err != nil {
+			t.Fatalf("candidate %d: %v", i, err)
+		}
+		obj, err := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, "missing requirement", []string{"add tests"})
+		if err != nil {
+			t.Fatalf("rejection %d: %v", i, err)
+		}
+		wantStatus := StatusActive
+		if i == CompletionRejectionLimit {
+			wantStatus = StatusPaused
+		}
+		if obj.Status != wantStatus || obj.RejectionCount != i || obj.RejectionRunID != runID {
+			t.Fatalf("rejection %d = %#v", i, obj)
+		}
+		if len(obj.RemainingWork) != 1 || obj.RemainingWork[0] != "add tests" {
+			t.Fatalf("rejection %d missing work = %#v", i, obj.RemainingWork)
+		}
+
+		duplicate, err := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, "duplicate", []string{"add tests"})
+		if err != nil {
+			t.Fatalf("duplicate rejection %d: %v", i, err)
+		}
+		if duplicate.RejectionCount != i {
+			t.Fatalf("duplicate rejection count = %d, want %d", duplicate.RejectionCount, i)
+		}
+	}
+
+	obj, err := store.Get(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Get paused objective: %v", err)
+	}
+	if obj.CanAutoRun() {
+		t.Fatal("paused rejection-limited objective can auto-run")
+	}
+	obj, err = store.Resume(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if obj.Status != StatusActive || obj.RejectionCount != 0 || obj.RejectionRunID != "" || obj.Phase != PhaseWorker || obj.CompletionReview != "missing requirement" {
+		t.Fatalf("resume did not reset rejection circuit = %#v", obj)
+	}
+	if prompt := WorkerTaskPrompt(obj); !strings.Contains(prompt, "missing requirement") {
+		t.Fatalf("resumed worker prompt lost rejection review:\n%s", prompt)
+	}
+}
+
+func TestStoreNonRejectedRunResetsCompletionRejectionStreak(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := store.UpdateFromModelForRun(ctx, sessionID, StatusComplete, "worker evidence", "run-1"); err != nil {
+		t.Fatalf("candidate: %v", err)
+	}
+	if _, err := store.RejectCompletionCandidateForRun(ctx, sessionID, "run-1", "missing test", []string{"add test"}); err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+
+	obj, err := store.FinishRun(ctx, sessionID, "run-2")
+	if err != nil {
+		t.Fatalf("FinishRun: %v", err)
+	}
+	if obj.RejectionCount != 0 || obj.RejectionRunID != "" {
+		t.Fatalf("non-rejected run did not reset streak: %#v", obj)
+	}
+}
+
+func TestStoreWorkerPrecheckRejectionUsesCircuitBreaker(t *testing.T) {
+	ctx := context.Background()
+	store, sessionID := newTestStore(t)
+	if _, err := store.Create(ctx, sessionID, "finish migration", nil); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	var obj *Objective
+	for i := 1; i <= CompletionRejectionLimit; i++ {
+		var err error
+		obj, err = store.RejectWorkerReport(ctx, sessionID, fmt.Sprintf("run-%d", i), "remaining work", []string{"finish implementation"})
+		if err != nil {
+			t.Fatalf("worker rejection %d: %v", i, err)
+		}
+	}
+	if obj.Status != StatusPaused || obj.RejectionCount != CompletionRejectionLimit {
+		t.Fatalf("worker rejection breaker = %#v", obj)
 	}
 }
 

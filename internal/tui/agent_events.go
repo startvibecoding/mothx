@@ -13,6 +13,9 @@ import (
 func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 	if a.isBackgroundAgentEvent(event) {
 		a.recordAgentActivity(event)
+		if event.Type == agent.EventStatus {
+			a.refreshESMPanel()
+		}
 		a.scheduleRender()
 		return a.listenAgentEvents()
 	}
@@ -173,6 +176,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		}
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
+		a.refreshESMPanel()
 		a.updateViewportContent()
 		return tea.Batch(a.timer.Stop(), a.listenAgentEvents(), a.finishESMRun(nil))
 
@@ -192,6 +196,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		a.pendingAbortReason = ""
 		a.currentAssistantIdx = -1
 		a.currentThinkIdx = -1
+		a.refreshESMPanel()
 		a.updateViewportContent()
 		return tea.Batch(a.timer.Stop(), a.listenAgentEvents(), a.finishESMRun(event.Error))
 
@@ -216,6 +221,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 			costStr := fmt.Sprintf("Tokens: %d↓/%d↑ $%.4f%s",
 				event.Usage.TotalInputTokens(), event.Usage.Output, event.Usage.Cost.Total, cacheInfo)
 			a.addMessage(statusStyle.Render(costStr))
+			a.refreshESMPanel()
 		}
 		a.scheduleRender()
 		return a.listenAgentEvents()
@@ -252,6 +258,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 		if event.StatusMessage != "" {
 			a.addMessage(statusStyle.Render(event.StatusMessage))
 		}
+		a.refreshESMPanel()
 		return a.listenAgentEvents()
 
 	case agent.EventMessageStart:

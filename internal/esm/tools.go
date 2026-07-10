@@ -158,6 +158,9 @@ func FormatObjective(obj *Objective) string {
 	var b strings.Builder
 	b.WriteString("Enable Supervisor Mode\n")
 	b.WriteString(fmt.Sprintf("Status: %s\n", obj.Status))
+	if obj.Phase != "" {
+		b.WriteString(fmt.Sprintf("Phase: %s\n", obj.Phase))
+	}
 	b.WriteString(fmt.Sprintf("Objective: %s\n", obj.Objective))
 	b.WriteString(fmt.Sprintf("Tokens: %d", obj.TokensUsed))
 	if obj.TokenBudget != nil {
@@ -169,6 +172,15 @@ func FormatObjective(obj *Objective) string {
 	}
 	if obj.BlockedCount > 0 && obj.BlockedReason != "" {
 		b.WriteString(fmt.Sprintf("Blocked audit: %d/3 (%s)\n", obj.BlockedCount, obj.BlockedReason))
+	}
+	if obj.ProgressSummary != "" {
+		b.WriteString(fmt.Sprintf("Latest progress: %s\n", obj.ProgressSummary))
+	}
+	if len(obj.RemainingWork) > 0 {
+		b.WriteString(fmt.Sprintf("Remaining work (%d): %s\n", len(obj.RemainingWork), strings.Join(obj.RemainingWork, "; ")))
+	}
+	if obj.RejectionCount > 0 {
+		b.WriteString(fmt.Sprintf("Completion rejections: %d/%d\n", obj.RejectionCount, CompletionRejectionLimit))
 	}
 	if obj.CompletionReason != "" {
 		b.WriteString(fmt.Sprintf("Completion candidate: %s\n", obj.CompletionReason))

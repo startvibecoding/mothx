@@ -22,6 +22,10 @@
   - Suppressed noisy role-agent lifecycle events in the parent TUI stream for cleaner output.
   - AgentFactory tracks `providerName`/`Vendor` for sub-agent runtime sync.
   - Added `withRuntimeConfig` for flexible factory cloning.
+  - Worker reports now accept both `remaining_work` and `missing_work`; any remaining work or blocker rejects a completion claim before critic review.
+  - Persisted the current ESM phase, latest worker progress, structured remaining work, and consecutive completion rejection state.
+  - Added a three-rejection circuit breaker that pauses automatic continuation until the user runs `/esm resume`.
+  - Added a live, scrollable ESM progress panel opened with `Ctrl+E`, including pipeline phase, remaining work, blockers, review details, usage, and current sub-agent activity.
 
 - **Context Compaction Improvements**
   - `/compact` now executes immediately across TUI, channels, and OpenAI API runtimes (was previously deferred).

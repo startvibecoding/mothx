@@ -1344,6 +1344,37 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	}
 }
 
+func TestApplyMigrationsRollsBackPartialMigration(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	defer db.Close()
+
+	original := migrations
+	migrations = []migration{{
+		Name: "test_partial_migration",
+		SQL:  `CREATE TABLE partial_migration_test (id INTEGER); THIS IS INVALID SQL;`,
+	}}
+	defer func() { migrations = original }()
+
+	if err := ApplyMigrations(db); err == nil {
+		t.Fatal("ApplyMigrations succeeded for invalid migration")
+	}
+	var name string
+	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'partial_migration_test'").Scan(&name)
+	if err != sql.ErrNoRows {
+		t.Fatalf("partial migration table survived rollback: name=%q err=%v", name, err)
+	}
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE name = 'test_partial_migration'").Scan(&count); err != nil {
+		t.Fatalf("query migration marker: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("partial migration marker count = %d, want 0", count)
+	}
+}
+
 func TestSessionCapabilitiesSaveLoadAndDelete(t *testing.T) {
 	sessionDir := t.TempDir()
 	m := New("/tmp/caps-project", sessionDir)

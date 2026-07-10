@@ -15,6 +15,20 @@ const (
 	StatusComplete          Status = "complete"
 )
 
+// CompletionRejectionLimit is the number of consecutive completion
+// rejections that pauses unattended ESM continuation.
+const CompletionRejectionLimit = 3
+
+// Phase identifies the current role in the ESM completion pipeline.
+type Phase string
+
+const (
+	PhaseWorker   Phase = "worker"
+	PhaseCritic   Phase = "critic"
+	PhaseAudit    Phase = "audit"
+	PhaseComplete Phase = "complete"
+)
+
 // Objective is the per-session Enable Supervisor Mode objective.
 type Objective struct {
 	SessionID        string
@@ -30,6 +44,11 @@ type Objective struct {
 	CompletionReason string
 	CompletionRunID  string
 	CompletionReview string
+	Phase            Phase
+	ProgressSummary  string
+	RemainingWork    []string
+	RejectionCount   int
+	RejectionRunID   string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

@@ -198,6 +198,14 @@ var migrations = []migration{
 		CREATE INDEX IF NOT EXISTS idx_sub_entries_type ON sub_entries(type);
 		CREATE INDEX IF NOT EXISTS idx_sub_session_cwd ON sub_session(cwd);`,
 	},
+	{
+		Name: "014_add_session_esm_progress",
+		SQL: `ALTER TABLE session_esm_objectives ADD COLUMN phase TEXT NOT NULL DEFAULT '';
+		      ALTER TABLE session_esm_objectives ADD COLUMN progress_summary TEXT NOT NULL DEFAULT '';
+		      ALTER TABLE session_esm_objectives ADD COLUMN remaining_work TEXT NOT NULL DEFAULT '[]';
+		      ALTER TABLE session_esm_objectives ADD COLUMN completion_rejection_count INTEGER NOT NULL DEFAULT 0;
+		      ALTER TABLE session_esm_objectives ADD COLUMN completion_rejection_run_id TEXT NOT NULL DEFAULT '';`,
+	},
 }
 
 // ensureSchemaMigrations creates the schema_migrations tracking table if it doesn't exist.
@@ -236,16 +244,25 @@ func ApplyMigrations(db *sql.DB) error {
 			continue
 		}
 
-		if _, err := db.Exec(m.SQL); err != nil {
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin migration %s: %w", m.Name, err)
+		}
+		if _, err := tx.Exec(m.SQL); err != nil {
+			_ = tx.Rollback()
 			return fmt.Errorf("apply migration %s: %w", m.Name, err)
 		}
 
-		_, err = db.Exec(
+		_, err = tx.Exec(
 			"INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)",
 			m.Name, time.Now().UTC().Format(time.RFC3339Nano),
 		)
 		if err != nil {
+			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", m.Name, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %s: %w", m.Name, err)
 		}
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,11 @@ const (
 )
 
 func (a *App) ensureESMStore() *esm.Store {
-	dir := a.getSessionDir()
+	sessionFile := ""
+	if a.session != nil {
+		sessionFile = a.session.GetFile()
+	}
+	dir := resolveESMStoreDir(sessionFile, a.getSessionDir())
 	if a.esmStore != nil && a.esmStoreDir == dir {
 		return a.esmStore
 	}
@@ -35,6 +40,20 @@ func (a *App) ensureESMStore() *esm.Store {
 	a.esmStore = esm.NewStore(dir)
 	a.esmStoreDir = dir
 	return a.esmStore
+}
+
+func resolveESMStoreDir(sessionFile, fallback string) string {
+	if sessionFile == "" {
+		return fallback
+	}
+	dir := filepath.Dir(filepath.Clean(sessionFile))
+	if dir == "." || dir == "" {
+		return fallback
+	}
+	if strings.Contains(filepath.Base(dir), "--") {
+		dir = filepath.Dir(dir)
+	}
+	return dir
 }
 
 func (a *App) currentSessionID() string {
@@ -98,7 +117,7 @@ func (a *App) setESMFooter(obj *esm.Objective) {
 		a.esmFooter = ""
 		return
 	}
-	parts := []string{"ESM", string(obj.Status)}
+	parts := []string{"ESM", string(obj.Status), string(effectiveESMPhase(obj))}
 	tokenPart := formatTokens(int(obj.TokensUsed))
 	if obj.TokenBudget != nil {
 		tokenPart += "/" + formatTokens(int(*obj.TokenBudget))
@@ -106,6 +125,9 @@ func (a *App) setESMFooter(obj *esm.Objective) {
 	parts = append(parts, tokenPart)
 	if obj.TimeUsedMS > 0 {
 		parts = append(parts, formatDuration(time.Duration(obj.TimeUsedMS)*time.Millisecond))
+	}
+	if obj.RejectionCount > 0 {
+		parts = append(parts, fmt.Sprintf("reject %d/%d", obj.RejectionCount, esm.CompletionRejectionLimit))
 	}
 	a.esmFooter = strings.Join(parts, " ")
 }
@@ -395,6 +417,7 @@ func (a *App) finishESMRun(err error) tea.Cmd {
 		a.addCommandError(fmt.Sprintf("Failed to sync ESM tools: %v", syncErr))
 		return nil
 	}
+	a.refreshESMPanel()
 	if err != nil {
 		return nil
 	}
@@ -519,6 +542,10 @@ func (a *App) runESMSubAgentSupervisor(ctx context.Context, eventCh chan<- inter
 }
 
 func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode string, obj *esm.Objective) bool {
+	if _, err := store.SetPhase(ctx, sessionID, esm.PhaseWorker); err != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
+		return false
+	}
 	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM worker sub-agent started"})
 	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-worker", workDir, mode, nil, 200, esm.WorkerTaskPrompt(obj))
 	if result.Tokens > 0 {
@@ -538,19 +565,30 @@ func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Eve
 	}
 	report, err := esm.ParseWorkerReport(result.Response)
 	if err != nil {
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM worker report was not structured; objective remains active"})
+		reason := "worker report was not structured: " + err.Error()
+		next, rejectErr := store.RejectWorkerReport(ctx, sessionID, runID, reason, nil)
+		if rejectErr != nil {
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
+			return false
+		}
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("worker report", next, reason)})
 		return true
+	}
+	if _, progressErr := store.RecordWorkerProgress(ctx, sessionID, report.Summary, report.RemainingWork); progressErr != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: progressErr})
+		return false
 	}
 	switch report.Status {
 	case esm.WorkerStatusContinue:
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM worker reported more work remains"})
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMWorkerContinueStatus(report)})
 	case esm.WorkerStatusCompleteCandidate:
 		if reason := invalidESMWorkerCandidateReason(result, report); reason != "" {
-			if _, reviewErr := store.RecordCompletionReview(ctx, sessionID, reason); reviewErr != nil && !errors.Is(reviewErr, esm.ErrNotFound) {
+			next, reviewErr := store.RejectWorkerReport(ctx, sessionID, runID, reason, workerOutstandingWork(report))
+			if reviewErr != nil && !errors.Is(reviewErr, esm.ErrNotFound) {
 				sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: reviewErr})
 				return false
 			}
-			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM worker completion candidate rejected: " + reason})
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("worker completion candidate", next, reason)})
 			return true
 		}
 		reason := formatESMWorkerCompletion(report, result.Response)
@@ -562,7 +600,13 @@ func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Eve
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM worker proposed completion; status: %s", next.Status)})
 	case esm.WorkerStatusBlockedCandidate:
 		if len(report.Blockers) == 0 {
-			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM worker blocker rejected: no concrete blocker was reported"})
+			reason := "worker blocked_candidate report did not include a concrete blocker"
+			next, rejectErr := store.RejectWorkerReport(ctx, sessionID, runID, reason, report.RemainingWork)
+			if rejectErr != nil {
+				sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
+				return false
+			}
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("worker blocker report", next, reason)})
 			return true
 		}
 		reason := formatESMWorkerBlocker(report)
@@ -577,6 +621,10 @@ func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Eve
 }
 
 func (a *App) runESMCritic(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode string, obj *esm.Objective) bool {
+	if _, err := store.SetPhase(ctx, sessionID, esm.PhaseCritic); err != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
+		return false
+	}
 	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM critic sub-agent started"})
 	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-critic", workDir, mode, []string{"read", "grep", "find", "ls"}, 80, esm.CriticTaskPrompt(obj))
 	if result.Tokens > 0 {
@@ -592,38 +640,43 @@ func (a *App) runESMCritic(ctx context.Context, eventCh chan<- internalagent.Eve
 	}
 	if err != nil {
 		review := "Critic sub-agent failed; completion candidate rejected: " + err.Error()
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, review); rejectErr != nil && !errors.Is(rejectErr, esm.ErrInvalidTransition) {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, review, nil)
+		if rejectErr != nil && !errors.Is(rejectErr, esm.ErrInvalidTransition) {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("critic completion candidate", next, review)})
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
 		return false
 	}
 	report, err := esm.ParseAuditReport(result.Response)
 	if err != nil {
 		review := "Critic report was not structured; completion candidate rejected: " + err.Error()
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, review); rejectErr != nil {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, review, nil)
+		if rejectErr != nil {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM critic rejected completion candidate"})
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("critic completion candidate", next, review)})
 		return true
 	}
 	if reason := invalidESMSupervisorPassReason("critic", result, report); reason != "" {
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, reason); rejectErr != nil {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, reason, report.MissingWork)
+		if rejectErr != nil {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM critic rejected completion candidate: " + reason})
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("critic completion candidate", next, reason)})
 		return true
 	}
 	if report.Verdict == esm.AuditVerdictFail {
 		review := formatESMAuditReview(report, result.Response)
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, review); rejectErr != nil {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, review, report.MissingWork)
+		if rejectErr != nil {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM critic found remaining work; objective stays active"})
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("critic completion candidate", next, review)})
 		return true
 	}
 	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM critic found no hard blocker; verifier will audit"})
@@ -631,6 +684,10 @@ func (a *App) runESMCritic(ctx context.Context, eventCh chan<- internalagent.Eve
 }
 
 func (a *App) runESMAudit(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode string, obj *esm.Objective) bool {
+	if _, err := store.SetPhase(ctx, sessionID, esm.PhaseAudit); err != nil {
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
+		return false
+	}
 	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM audit sub-agent started"})
 	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-audit", workDir, mode, []string{"read", "grep", "find", "ls"}, 80, esm.AuditTaskPrompt(obj))
 	if result.Tokens > 0 {
@@ -646,29 +703,33 @@ func (a *App) runESMAudit(ctx context.Context, eventCh chan<- internalagent.Even
 	}
 	if err != nil {
 		review := "Audit sub-agent failed; completion candidate rejected: " + err.Error()
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, review); rejectErr != nil && !errors.Is(rejectErr, esm.ErrInvalidTransition) {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, review, nil)
+		if rejectErr != nil && !errors.Is(rejectErr, esm.ErrInvalidTransition) {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("audit completion candidate", next, review)})
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: err})
 		return false
 	}
 	report, err := esm.ParseAuditReport(result.Response)
 	if err != nil {
 		review := "Audit report was not structured; completion candidate rejected: " + err.Error()
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, review); rejectErr != nil {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, review, nil)
+		if rejectErr != nil {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM audit rejected completion candidate"})
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("audit completion candidate", next, review)})
 		return true
 	}
 	if reason := invalidESMSupervisorPassReason("audit", result, report); reason != "" {
-		if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, reason); rejectErr != nil {
+		next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, reason, report.MissingWork)
+		if rejectErr != nil {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 			return false
 		}
-		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM audit rejected completion candidate: " + reason})
+		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("audit completion candidate", next, reason)})
 		return true
 	}
 	review := formatESMAuditReview(report, result.Response)
@@ -680,11 +741,12 @@ func (a *App) runESMAudit(ctx context.Context, eventCh chan<- internalagent.Even
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM audit passed; objective marked complete"})
 		return true
 	}
-	if _, rejectErr := store.RejectCompletionCandidate(ctx, sessionID, review); rejectErr != nil {
+	next, rejectErr := store.RejectCompletionCandidateForRun(ctx, sessionID, runID, review, report.MissingWork)
+	if rejectErr != nil {
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: rejectErr})
 		return false
 	}
-	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM audit found remaining work; objective stays active"})
+	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: formatESMRejectionStatus("audit completion candidate", next, review)})
 	return true
 }
 
@@ -783,6 +845,16 @@ func (a *App) runESMRoleAgent(ctx context.Context, eventCh chan<- internalagent.
 }
 
 func invalidESMWorkerCandidateReason(result esmRoleResult, report esm.WorkerReport) string {
+	if len(report.RemainingWork) > 0 || len(report.Blockers) > 0 {
+		var contradictions []string
+		if len(report.RemainingWork) > 0 {
+			contradictions = append(contradictions, formatESMItemDetail("remaining work", report.RemainingWork))
+		}
+		if len(report.Blockers) > 0 {
+			contradictions = append(contradictions, formatESMItemDetail("blockers", report.Blockers))
+		}
+		return "worker proposed completion while reporting " + strings.Join(contradictions, "; ")
+	}
 	if result.ToolCalls == 0 {
 		return "worker proposed completion without any tool-backed inspection or validation"
 	}
@@ -795,9 +867,6 @@ func invalidESMWorkerCandidateReason(result esmRoleResult, report esm.WorkerRepo
 	if len(report.Evidence) == 0 {
 		return "worker proposed completion without evidence"
 	}
-	if len(report.RemainingWork) > 0 {
-		return "worker proposed completion while reporting remaining work"
-	}
 	return ""
 }
 
@@ -806,6 +875,9 @@ func invalidESMSupervisorPassReason(role string, result esmRoleResult, report es
 		return ""
 	}
 	prefix := role + " pass rejected: "
+	if len(report.MissingWork) > 0 {
+		return prefix + formatESMItemDetail("missing_work", report.MissingWork)
+	}
 	if result.ToolCalls == 0 {
 		return prefix + "no independent tool-backed inspection was performed"
 	}
@@ -821,10 +893,46 @@ func invalidESMSupervisorPassReason(role string, result esmRoleResult, report es
 	if len(report.Evidence) == 0 {
 		return prefix + "evidence is empty"
 	}
-	if len(report.MissingWork) > 0 {
-		return prefix + "missing_work is not empty"
-	}
 	return ""
+}
+
+func workerOutstandingWork(report esm.WorkerReport) []string {
+	items := append([]string(nil), report.RemainingWork...)
+	for _, blocker := range report.Blockers {
+		items = append(items, "blocker: "+blocker)
+	}
+	return items
+}
+
+func formatESMWorkerContinueStatus(report esm.WorkerReport) string {
+	parts := []string{"ESM worker reported more work remains"}
+	if report.Summary != "" {
+		parts = append(parts, "progress: "+report.Summary)
+	}
+	if len(report.RemainingWork) > 0 {
+		parts = append(parts, formatESMItemDetail("remaining work", report.RemainingWork))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func formatESMRejectionStatus(subject string, obj *esm.Objective, reason string) string {
+	if obj == nil {
+		return fmt.Sprintf("ESM %s rejected: %s", subject, strings.ReplaceAll(reason, "\n", "; "))
+	}
+	message := fmt.Sprintf("ESM %s rejected (%d/%d)", subject, obj.RejectionCount, esm.CompletionRejectionLimit)
+	if obj.Status == esm.StatusPaused && obj.RejectionCount >= esm.CompletionRejectionLimit {
+		message = "WARNING: " + message + "; workflow paused by the rejection circuit breaker. Review the remaining work, then run /esm resume"
+	} else {
+		message += "; objective stays active"
+	}
+	if reason != "" {
+		message += ": " + strings.ReplaceAll(reason, "\n", "; ")
+	}
+	return message
+}
+
+func formatESMItemDetail(label string, items []string) string {
+	return fmt.Sprintf("%s (%d): %s", label, len(items), strings.Join(items, "; "))
 }
 
 func shouldForwardESMRoleEvent(eventType agentpkg.EventType) bool {
@@ -932,7 +1040,7 @@ func lastPublicAssistantResponse(a agentpkg.Agent) string {
 }
 
 func formatESMWorkerCompletion(report esm.WorkerReport, raw string) string {
-	return formatESMReportParts("summary", report.Summary, "evidence", report.Evidence, "remaining", report.RemainingWork, raw)
+	return formatESMReportParts("summary", report.Summary, "evidence", report.Evidence, fmt.Sprintf("remaining_work (%d)", len(report.RemainingWork)), report.RemainingWork, raw)
 }
 
 func formatESMWorkerBlocker(report esm.WorkerReport) string {
@@ -940,7 +1048,7 @@ func formatESMWorkerBlocker(report esm.WorkerReport) string {
 }
 
 func formatESMAuditReview(report esm.AuditReport, raw string) string {
-	return formatESMReportParts("review", report.Review, "requirements", report.RequirementsChecked, "missing", report.MissingWork, raw)
+	return formatESMReportParts("review", report.Review, "requirements", report.RequirementsChecked, fmt.Sprintf("missing_work (%d)", len(report.MissingWork)), report.MissingWork, raw)
 }
 
 func formatESMReportParts(primaryLabel, primary string, firstLabel string, first []string, secondLabel string, second []string, raw string) string {
