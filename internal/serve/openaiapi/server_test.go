@@ -70,11 +70,11 @@ func (p *recordingAPIProvider) GetModel(id string) *provider.Model {
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.Listen != ":8080" {
-		t.Errorf("default listen = %q, want :8080", cfg.Listen)
+	if cfg.Listen != "127.0.0.1:8080" {
+		t.Errorf("default listen = %q, want 127.0.0.1:8080", cfg.Listen)
 	}
-	if cfg.DefaultMode != "yolo" {
-		t.Errorf("default mode = %q, want yolo", cfg.DefaultMode)
+	if cfg.DefaultMode != "agent" {
+		t.Errorf("default mode = %q, want agent", cfg.DefaultMode)
 	}
 	if cfg.ToolVisibility.Mode != "content" {
 		t.Errorf("default tool visibility = %q, want content", cfg.ToolVisibility.Mode)
@@ -85,8 +85,33 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.RequestTimeoutSecs != 1800 {
 		t.Errorf("default timeout = %d, want 1800", cfg.RequestTimeoutSecs)
 	}
-	if cfg.Auth.Enabled {
-		t.Error("auth should be disabled by default")
+	if !cfg.Sandbox.Enabled {
+		t.Error("sandbox should be enabled by default")
+	}
+}
+
+func TestValidateListenSecurity(t *testing.T) {
+	tests := []struct {
+		name    string
+		listen  string
+		auth    AuthConfig
+		unsafe  bool
+		wantErr bool
+	}{
+		{"loopback without auth", "127.0.0.1:8080", AuthConfig{}, false, false},
+		{"localhost without auth", "localhost:8080", AuthConfig{}, false, false},
+		{"public without auth", "0.0.0.0:8080", AuthConfig{}, false, true},
+		{"wildcard without auth", ":8080", AuthConfig{}, false, true},
+		{"public with auth", "0.0.0.0:8080", AuthConfig{Enabled: true, Tokens: []string{"token"}}, false, false},
+		{"public unsafe", "0.0.0.0:8080", AuthConfig{}, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateListenSecurity(&Config{Listen: tt.listen, Auth: tt.auth}, tt.unsafe)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateListenSecurity() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -125,6 +150,21 @@ func TestValidateWorkDir(t *testing.T) {
 				t.Errorf("ValidateWorkDir(%q) error = %v, wantErr = %v", tt.dir, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestValidateWorkDirRejectsSymlinkEscape(t *testing.T) {
+	allowedDir := t.TempDir()
+	outsideDir := t.TempDir()
+	link := filepath.Join(allowedDir, "outside")
+	if err := os.Symlink(outsideDir, link); err != nil {
+		t.Skipf("create symlink: %v", err)
+	}
+	allowed := []string{allowedDir}
+	cfg := &Config{AllowedWorkDirs: &allowed}
+
+	if err := cfg.ValidateWorkDir(filepath.Join(link, "new-session")); err == nil {
+		t.Fatal("symlink escape was accepted")
 	}
 }
 
@@ -1336,6 +1376,30 @@ func TestChatHandler_WorkDirForbidden(t *testing.T) {
 	}
 }
 
+func TestChatHandler_ExistingSessionWorkDirForbidden(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	allowedDir := t.TempDir()
+	outsideDir := t.TempDir()
+	allowed := []string{allowedDir}
+	srv.cfg.AllowedWorkDirs = &allowed
+
+	mgr := session.New(outsideDir, srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("outside-session"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+
+	body := `{"messages":[{"role":"user","content":"hi"}],"x_session_id":"outside-session"}`
+	req := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403, body = %s", w.Code, w.Body.String())
+	}
+}
+
 func TestChatHandler_SessionWorkDirConflict(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.pool.Stop()
@@ -2203,6 +2267,51 @@ func TestSessionPool_EvictIdleKeepsFresh(t *testing.T) {
 	}
 }
 
+func TestSessionPool_EvictIdleKeepsPinnedSession(t *testing.T) {
+	pool := NewSessionPool(0, 50*time.Millisecond)
+	defer pool.Stop()
+
+	sess := &APISession{ID: "sess-1", LastUsed: time.Now()}
+	if err := pool.Put(sess); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
+	sess.lastUsedMu.Lock()
+	sess.LastUsed = time.Now().Add(-time.Hour)
+	sess.lastUsedMu.Unlock()
+	if !pool.Pin(sess) {
+		t.Fatal("pin session")
+	}
+	defer pool.Unpin(sess)
+
+	pool.evictIdle()
+	if got := pool.Get("sess-1"); got != sess {
+		t.Fatal("pinned session should not be evicted")
+	}
+}
+
+func TestSessionPool_ConcurrentTouchAndInspection(t *testing.T) {
+	pool := NewSessionPool(0, time.Hour)
+	defer pool.Stop()
+	sess := &APISession{ID: "sess-1"}
+	if err := pool.Put(sess); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1_000; i++ {
+			sess.Touch()
+		}
+	}()
+	for i := 0; i < 1_000; i++ {
+		_ = pool.listDetails()
+		pool.evictIdle()
+	}
+	wg.Wait()
+}
+
 func TestPoolFullError_Error(t *testing.T) {
 	e := &PoolFullError{Max: 5}
 	if e.Error() != "session pool is at capacity" {
@@ -2339,8 +2448,8 @@ func TestCommands_ModeShowCurrent(t *testing.T) {
 	if result.Error {
 		t.Error("unexpected error")
 	}
-	if !strings.Contains(result.Message, "YOLO") {
-		t.Errorf("expected current mode YOLO, got %q", result.Message)
+	if !strings.Contains(result.Message, "AGENT") {
+		t.Errorf("expected current mode AGENT, got %q", result.Message)
 	}
 }
 

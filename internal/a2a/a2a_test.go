@@ -111,6 +111,59 @@ func TestTaskStoreGetReturnsCopy(t *testing.T) {
 	}
 }
 
+type cancelAwareExecutor struct {
+	started  chan struct{}
+	canceled chan struct{}
+}
+
+func (e *cancelAwareExecutor) ExecuteTask(ctx context.Context, task *Task, msg *Message) (<-chan TaskEvent, error) {
+	ch := make(chan TaskEvent, 1)
+	go func() {
+		defer close(ch)
+		close(e.started)
+		<-ctx.Done()
+		close(e.canceled)
+		ch <- TaskEvent{TaskID: task.ID, State: TaskStateFailed, Error: &TaskError{Code: -32000, Message: ctx.Err().Error()}}
+	}()
+	return ch, nil
+}
+
+func TestHandlerCancelStopsExecutionAndPreservesTerminalState(t *testing.T) {
+	executor := &cancelAwareExecutor{started: make(chan struct{}), canceled: make(chan struct{})}
+	handler := NewHandler(executor)
+	handler.GetTaskStore().Create("cancel-task")
+
+	params, _ := json.Marshal(SendMessageParams{TaskID: "cancel-task", Message: &Message{Role: "user", Parts: []MessagePart{{Type: "text", Text: "work"}}}})
+	request, _ := json.Marshal(JSONRPCRequest{JSONRPC: "2.0", Method: "message/send", Params: params, ID: 1})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("POST", "/a2a", strings.NewReader(string(request))))
+	}()
+
+	select {
+	case <-executor.started:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for executor")
+	}
+	cancelParams, _ := json.Marshal(map[string]string{"task_id": "cancel-task"})
+	handler.handleCancelTask(httptest.NewRecorder(), &JSONRPCRequest{JSONRPC: "2.0", Params: cancelParams, ID: 2})
+
+	select {
+	case <-executor.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("cancel did not reach executor")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not finish")
+	}
+	if task := handler.GetTaskStore().Get("cancel-task"); task.State != TaskStateCanceled {
+		t.Fatalf("state = %s, want canceled", task.State)
+	}
+}
+
 func TestNewTaskIDConcurrentUnique(t *testing.T) {
 	const count = 500
 	var wg sync.WaitGroup

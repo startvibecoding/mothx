@@ -160,6 +160,9 @@ func Run(opts RunOptions, version string) error {
 	if err != nil {
 		return fmt.Errorf("load API config: %w", err)
 	}
+	if err := validateListenSecurity(gCfg, opts.Unsafe); err != nil {
+		return err
+	}
 	if gCfg.EnableWebSearch {
 		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}

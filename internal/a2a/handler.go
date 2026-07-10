@@ -49,6 +49,11 @@ type Handler struct {
 	executor    AgentExecutor
 	mu          sync.RWMutex
 	subscribers map[string][]chan TaskEvent
+	runs        map[string]*taskRun
+}
+
+type taskRun struct {
+	cancel context.CancelFunc
 }
 
 // NewHandler creates a new A2A handler.
@@ -57,6 +62,7 @@ func NewHandler(executor AgentExecutor) *Handler {
 		taskStore:   NewTaskStore(),
 		executor:    executor,
 		subscribers: make(map[string][]chan TaskEvent),
+		runs:        make(map[string]*taskRun),
 	}
 }
 
@@ -124,11 +130,13 @@ func (h *Handler) handleSendMessage(w http.ResponseWriter, r *http.Request, req 
 	task.Message = params.Message
 	task.State = TaskStateWorking
 	h.taskStore.Update(task)
+	runCtx, run := h.registerRun(r.Context(), task.ID)
+	defer h.unregisterRun(task.ID, run)
 
 	if isSSE {
-		h.streamResponse(w, r, task, params.Message)
+		h.streamResponse(w, r.WithContext(runCtx), task, params.Message)
 	} else {
-		h.syncResponse(w, r, task, params.Message, req.ID)
+		h.syncResponse(w, r.WithContext(runCtx), task, params.Message, req.ID)
 	}
 }
 
@@ -136,9 +144,7 @@ func (h *Handler) handleSendMessage(w http.ResponseWriter, r *http.Request, req 
 func (h *Handler) syncResponse(w http.ResponseWriter, r *http.Request, task *Task, msg *Message, reqID any) {
 	eventCh, err := h.executor.ExecuteTask(r.Context(), task, msg)
 	if err != nil {
-		task.State = TaskStateFailed
-		task.Error = &TaskError{Code: -32000, Message: err.Error()}
-		h.taskStore.Update(task)
+		h.taskStore.Finish(task.ID, TaskStateFailed, nil, &TaskError{Code: -32000, Message: err.Error()})
 		h.writeError(w, reqID, -32000, err.Error())
 		return
 	}
@@ -149,14 +155,12 @@ func (h *Handler) syncResponse(w http.ResponseWriter, r *http.Request, task *Tas
 		h.broadcast(task.ID, ev)
 	}
 
-	task.State = lastEvent.State
-	if lastEvent.Error != nil {
-		task.Error = lastEvent.Error
+	state := lastEvent.State
+	if state == "" {
+		state = TaskStateFailed
+		lastEvent.Error = &TaskError{Code: -32000, Message: "task ended without a terminal event"}
 	}
-	if lastEvent.Artifact != nil {
-		task.Artifacts = append(task.Artifacts, *lastEvent.Artifact)
-	}
-	h.taskStore.Update(task)
+	task = h.taskStore.Finish(task.ID, state, lastEvent.Artifact, lastEvent.Error)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JSONRPCResponse{JSONRPC: "2.0", Result: task, ID: reqID})
@@ -176,10 +180,8 @@ func (h *Handler) streamResponse(w http.ResponseWriter, r *http.Request, task *T
 
 	eventCh, err := h.executor.ExecuteTask(r.Context(), task, msg)
 	if err != nil {
-		task.State = TaskStateFailed
-		task.Error = &TaskError{Code: -32000, Message: err.Error()}
-		h.taskStore.Update(task)
-		h.writeSSE(w, flusher, TaskEvent{TaskID: task.ID, State: TaskStateFailed, Error: task.Error, Timestamp: time.Now()})
+		failed := h.taskStore.Finish(task.ID, TaskStateFailed, nil, &TaskError{Code: -32000, Message: err.Error()})
+		h.writeSSE(w, flusher, TaskEvent{TaskID: task.ID, State: failed.State, Error: failed.Error, Timestamp: time.Now()})
 		return
 	}
 
@@ -187,14 +189,7 @@ func (h *Handler) streamResponse(w http.ResponseWriter, r *http.Request, task *T
 		h.writeSSE(w, flusher, ev)
 		h.broadcast(task.ID, ev)
 		if ev.State == TaskStateCompleted || ev.State == TaskStateFailed {
-			task.State = ev.State
-			if ev.Error != nil {
-				task.Error = ev.Error
-			}
-			if ev.Artifact != nil {
-				task.Artifacts = append(task.Artifacts, *ev.Artifact)
-			}
-			h.taskStore.Update(task)
+			h.taskStore.Finish(task.ID, ev.State, ev.Artifact, ev.Error)
 		}
 	}
 }
@@ -235,10 +230,39 @@ func (h *Handler) handleCancelTask(w http.ResponseWriter, req *JSONRPCRequest) {
 		h.writeError(w, req.ID, -32000, "Task cannot be canceled in state: "+string(task.State))
 		return
 	}
-	task.State = TaskStateCanceled
-	h.taskStore.Update(task)
+	h.cancelRun(params.TaskID)
+	task = h.taskStore.Cancel(params.TaskID)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(JSONRPCResponse{JSONRPC: "2.0", Result: task, ID: req.ID})
+}
+
+func (h *Handler) registerRun(ctx context.Context, taskID string) (context.Context, *taskRun) {
+	runCtx, cancel := context.WithCancel(ctx)
+	run := &taskRun{cancel: cancel}
+	h.mu.Lock()
+	h.runs[taskID] = run
+	h.mu.Unlock()
+	return runCtx, run
+}
+
+func (h *Handler) unregisterRun(taskID string, run *taskRun) {
+	h.mu.Lock()
+	if h.runs[taskID] == run {
+		delete(h.runs, taskID)
+	}
+	h.mu.Unlock()
+	if run != nil && run.cancel != nil {
+		run.cancel()
+	}
+}
+
+func (h *Handler) cancelRun(taskID string) {
+	h.mu.RLock()
+	run := h.runs[taskID]
+	h.mu.RUnlock()
+	if run != nil && run.cancel != nil {
+		run.cancel()
+	}
 }
 
 // Subscribe adds an SSE subscriber for task events.

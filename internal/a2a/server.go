@@ -104,10 +104,12 @@ func (s *Server) registerRoutes() {
 		task.Message = req.Message
 		task.State = TaskStateWorking
 		s.handler.taskStore.Update(task)
+		runCtx, run := s.handler.registerRun(r.Context(), task.ID)
+		defer s.handler.unregisterRun(task.ID, run)
 		if isSSE {
-			s.handler.streamResponse(w, r, task, req.Message)
+			s.handler.streamResponse(w, r.WithContext(runCtx), task, req.Message)
 		} else {
-			s.handler.syncResponse(w, r, task, req.Message, nil)
+			s.handler.syncResponse(w, r.WithContext(runCtx), task, req.Message, nil)
 		}
 	}))
 
@@ -151,8 +153,8 @@ func (s *Server) registerRoutes() {
 			http.Error(w, "cannot cancel task in state: "+string(task.State), http.StatusConflict)
 			return
 		}
-		task.State = TaskStateCanceled
-		s.handler.taskStore.Update(task)
+		s.handler.cancelRun(req.TaskID)
+		task = s.handler.taskStore.Cancel(req.TaskID)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(task)
 	}))

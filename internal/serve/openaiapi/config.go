@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 // Config holds the OpenAI-compatible API configuration used by serve.
@@ -77,14 +79,14 @@ type ToolVisibilityConfig struct {
 // DefaultConfig returns the default OpenAI-compatible API configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		Listen:               ":8080",
+		Listen:               "127.0.0.1:8080",
 		Auth:                 AuthConfig{Enabled: false},
-		DefaultMode:          "yolo",
+		DefaultMode:          "agent",
 		DefaultThinkingLevel: "medium",
 		EnableSubAgents:      false,
 		EnableDelegate:       false,
 		EnableWorkflows:      false,
-		Sandbox:              SandboxConfig{Enabled: false},
+		Sandbox:              SandboxConfig{Enabled: true},
 		Session:              SessionConfig{IdleTimeoutSeconds: 1800},
 		CORS:                 CORSConfig{Enabled: false, AllowOrigins: []string{"*"}},
 		ToolVisibility:       ToolVisibilityConfig{Mode: "content", Detail: "collapsed"},
@@ -111,10 +113,10 @@ func cloneConfig(cfg *Config) *Config {
 // normalizeConfig fills in defaults for empty fields.
 func normalizeConfig(cfg *Config) {
 	if cfg.Listen == "" {
-		cfg.Listen = ":8080"
+		cfg.Listen = "127.0.0.1:8080"
 	}
 	if cfg.DefaultMode == "" {
-		cfg.DefaultMode = "yolo"
+		cfg.DefaultMode = "agent"
 	}
 	if cfg.ToolVisibility.Mode == "" {
 		cfg.ToolVisibility.Mode = "content"
@@ -128,6 +130,28 @@ func normalizeConfig(cfg *Config) {
 	if cfg.RequestTimeoutSecs <= 0 {
 		cfg.RequestTimeoutSecs = 1800
 	}
+}
+
+func validateListenSecurity(cfg *Config, unsafe bool) error {
+	if cfg == nil || unsafe || isLoopbackListen(cfg.GetListenAddr()) {
+		return nil
+	}
+	if !cfg.Auth.Enabled || len(cfg.Auth.Tokens) == 0 {
+		return fmt.Errorf("public listen address %q requires at least one configured API token; use --unsafe to override", cfg.GetListenAddr())
+	}
+	return nil
+}
+
+func isLoopbackListen(addr string) bool {
+	host, _, err := net.SplitHostPort(strings.TrimSpace(addr))
+	if err != nil {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // GetListenAddr returns the effective listen address.
@@ -217,15 +241,20 @@ func (c *Config) ValidateWorkDir(dir string) error {
 		return fmt.Errorf("x_working_dir overrides are disabled")
 	}
 
-	cleanDir := filepath.Clean(dir)
+	resolvedDir, err := util.ResolvePathWithExistingSymlinks(dir)
+	if err != nil {
+		return fmt.Errorf("resolve directory %q: %w", dir, err)
+	}
 	for _, a := range allowed {
-		cleanAllowed := filepath.Clean(a)
-		if cleanDir == cleanAllowed {
+		resolvedAllowed, err := util.ResolvePathWithExistingSymlinks(a)
+		if err != nil {
+			return fmt.Errorf("resolve allowedWorkDirs entry %q: %w", a, err)
+		}
+		if resolvedDir == resolvedAllowed {
 			return nil
 		}
-		// Prefix match with path separator boundary
-		prefix := cleanAllowed + string(filepath.Separator)
-		if strings.HasPrefix(cleanDir, prefix) {
+		rel, err := filepath.Rel(resolvedAllowed, resolvedDir)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return nil
 		}
 	}

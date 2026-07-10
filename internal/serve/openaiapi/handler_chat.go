@@ -93,13 +93,19 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("model %q does not support image input", currentModel.ID), "invalid_request_error")
 		return
 	}
-	if req.XSessionID != "" && req.XWorkingDir != "" {
+	if req.XSessionID != "" {
 		sessionWorkDir, found, err := s.findSessionWorkDir(req.XSessionID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 			return
 		}
-		if found && !sameWorkDir(sessionWorkDir, workDir) {
+		if found && !sameWorkDir(sessionWorkDir, s.cfg.GetWorkDir()) {
+			if err := s.cfg.ValidateWorkDir(sessionWorkDir); err != nil {
+				writeError(w, http.StatusForbidden, err.Error(), "permission_error")
+				return
+			}
+		}
+		if found && req.XWorkingDir != "" && !sameWorkDir(sessionWorkDir, workDir) {
 			writeError(w, http.StatusConflict, fmt.Sprintf("x_working_dir %q does not match session %q workDir %q", workDir, req.XSessionID, sessionWorkDir), "conflict_error")
 			return
 		}
@@ -113,15 +119,22 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		sessionID = s.defaultSessionIDs[workDir]
 		s.mu.RUnlock()
 	}
-	sess, err := s.getOrCreateSession(sessionID, workDir)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
-		return
+	var sess *APISession
+	for {
+		sess, err = s.getOrCreateSession(sessionID, workDir)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+			return
+		}
+		if sess == nil {
+			writeError(w, http.StatusServiceUnavailable, "session pool is at capacity", "server_error")
+			return
+		}
+		if s.pool.Pin(sess) {
+			break
+		}
 	}
-	if sess == nil {
-		writeError(w, http.StatusServiceUnavailable, "session pool is at capacity", "server_error")
-		return
-	}
+	defer s.pool.Unpin(sess)
 
 	sess.Lock()
 	defer sess.Unlock()
@@ -695,6 +708,9 @@ func (s *Server) writeCommandResponseStreaming(w http.ResponseWriter, result *Co
 func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, error) {
 	if sessionID != "" {
 		if sess := s.pool.Get(sessionID); sess != nil {
+			if err := s.validatePersistedSessionWorkDir(sess.WorkDir); err != nil {
+				return nil, err
+			}
 			return sess, nil
 		}
 	}
@@ -706,12 +722,18 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 
 	if sessionID != "" {
 		if sess := s.pool.Get(sessionID); sess != nil {
+			if err := s.validatePersistedSessionWorkDir(sess.WorkDir); err != nil {
+				return nil, err
+			}
 			return sess, nil
 		}
 		if sess, err := session.OpenByIDExact(s.settings.GetSessionDir(), sessionID); err == nil {
 			sessWorkDir := workDir
 			if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
 				sessWorkDir = sess.GetHeader().Cwd
+			}
+			if err := s.validatePersistedSessionWorkDir(sessWorkDir); err != nil {
+				return nil, err
 			}
 			resources, err := s.buildSessionResources(sessWorkDir)
 			if err != nil {
@@ -757,6 +779,9 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 				sessWorkDir := workDir
 				if sess.GetHeader() != nil && sess.GetHeader().Cwd != "" {
 					sessWorkDir = sess.GetHeader().Cwd
+				}
+				if err := s.validatePersistedSessionWorkDir(sessWorkDir); err != nil {
+					return nil, err
 				}
 				resources, err := s.buildSessionResources(sessWorkDir)
 				if err != nil {
@@ -862,6 +887,16 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 	}
 
 	return sess, nil
+}
+
+// validatePersistedSessionWorkDir applies the current policy when restoring a
+// session. The configured default remains trusted even when overrides are
+// disabled, preserving the documented default-workdir behavior.
+func (s *Server) validatePersistedSessionWorkDir(workDir string) error {
+	if sameWorkDir(workDir, s.cfg.GetWorkDir()) {
+		return nil
+	}
+	return s.cfg.ValidateWorkDir(workDir)
 }
 
 type sessionResources struct {
@@ -1098,7 +1133,7 @@ func (s *Server) clearSession(sess *APISession, workDir string) error {
 	}
 	sess.Manager = newMgr
 	sess.WorkDir = workDir
-	sess.LastUsed = time.Now()
+	sess.Touch()
 	sess.ForceCompact = false
 	s.mu.Lock()
 	if s.defaultSessionIDs == nil {

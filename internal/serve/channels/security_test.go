@@ -1,6 +1,7 @@
 package channels
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,6 +48,19 @@ func TestCheckUserAllowed(t *testing.T) {
 	sec2 := NewSecurity(cfg2)
 	if err := sec2.CheckUserAllowed("wechat", "anyone"); err != nil {
 		t.Errorf("empty whitelist should allow all: %v", err)
+	}
+}
+
+func TestCheckWorkDirAllowedRejectsSymlinkEscape(t *testing.T) {
+	allowedDir := t.TempDir()
+	outsideDir := t.TempDir()
+	link := filepath.Join(allowedDir, "outside")
+	if err := os.Symlink(outsideDir, link); err != nil {
+		t.Skipf("create symlink: %v", err)
+	}
+	sec := NewSecurity(&Config{Security: SecurityConfig{AllowedWorkDirs: []string{allowedDir}}})
+	if err := sec.CheckWorkDirAllowed(filepath.Join(link, "child")); err == nil {
+		t.Fatal("symlink escape was accepted")
 	}
 }
 

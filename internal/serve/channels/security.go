@@ -2,8 +2,9 @@ package channels
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
+
+	"github.com/startvibecoding/mothx/internal/util"
 )
 
 // Security provides user whitelist validation and smart approval logic for messaging channel mode.
@@ -55,11 +56,9 @@ func (s *Security) CheckWorkDirAllowed(workDir string) error {
 		return nil
 	}
 
-	cleanWorkDir := filepath.Clean(workDir)
 	for _, dir := range allowed {
-		cleanAllowed := filepath.Clean(dir)
-		rel, err := filepath.Rel(cleanAllowed, cleanWorkDir)
-		if err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))) {
+		within, err := util.IsWithinPath(dir, workDir)
+		if err == nil && within {
 			return nil
 		}
 	}

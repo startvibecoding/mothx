@@ -166,6 +166,41 @@ func TestSQLiteCronStoreDeleteNotFound(t *testing.T) {
 	}
 }
 
+func TestSQLiteCronStoreClaimDueIsAtomic(t *testing.T) {
+	store := NewSQLiteCronStore(t.TempDir())
+	if _, err := store.Create(CronJob{ID: "due", Name: "due", Enabled: true}); err != nil {
+		t.Fatalf("create job: %v", err)
+	}
+
+	const contenders = 2
+	var wg sync.WaitGroup
+	claimed := make(chan bool, contenders)
+	for i := 0; i < contenders; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ok, err := store.ClaimDue("due", time.Now())
+			if err != nil {
+				t.Errorf("claim due: %v", err)
+				return
+			}
+			claimed <- ok
+		}()
+	}
+	wg.Wait()
+	close(claimed)
+
+	count := 0
+	for ok := range claimed {
+		if ok {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("claims = %d, want 1", count)
+	}
+}
+
 func TestSQLiteCronStorePersistence(t *testing.T) {
 	tmp := t.TempDir()
 

@@ -37,8 +37,10 @@ type APISession struct {
 	MultiAgent   bool   // session-level sub-agent tools toggle
 	LastUsed     time.Time
 	mu           sync.Mutex // serializes requests within this session
+	lastUsedMu   sync.RWMutex
 	runMu        sync.RWMutex
 	running      bool
+	uses         int
 
 	// ForceCompact is a legacy/session flag consumed by the next agent run.
 	// The /compact command now executes compaction immediately.
@@ -139,7 +141,46 @@ func (s *APISession) Lock() { s.mu.Lock() }
 func (s *APISession) Unlock() { s.mu.Unlock() }
 
 // Touch updates the last-used timestamp.
-func (s *APISession) Touch() { s.LastUsed = time.Now() }
+func (s *APISession) Touch() {
+	if s == nil {
+		return
+	}
+	s.lastUsedMu.Lock()
+	s.LastUsed = time.Now()
+	s.lastUsedMu.Unlock()
+}
+
+func (s *APISession) lastUsedAt() time.Time {
+	if s == nil {
+		return time.Time{}
+	}
+	s.lastUsedMu.RLock()
+	defer s.lastUsedMu.RUnlock()
+	return s.LastUsed
+}
+
+func (s *APISession) pin() {
+	s.runMu.Lock()
+	s.uses++
+	s.runMu.Unlock()
+}
+
+func (s *APISession) unpin() {
+	s.runMu.Lock()
+	if s.uses > 0 {
+		s.uses--
+	}
+	s.runMu.Unlock()
+}
+
+func (s *APISession) isInUse() bool {
+	if s == nil {
+		return false
+	}
+	s.runMu.RLock()
+	defer s.runMu.RUnlock()
+	return s.uses > 0
+}
 
 // SetRunning records whether a chat run is currently active for this session.
 func (s *APISession) SetRunning(running bool) {
@@ -211,6 +252,29 @@ func (p *SessionPool) GetForWorkDir(workDir, id string) *APISession {
 		found = s
 	}
 	return found
+}
+
+// Pin keeps a session resident while a caller is about to use it. The pool
+// lock closes the gap between lookup and session locking, so idle eviction
+// cannot replace a live session with a second instance.
+func (p *SessionPool) Pin(s *APISession) bool {
+	if p == nil || s == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sessions[sessionPoolKey(s.WorkDir, s.ID)] != s {
+		return false
+	}
+	s.pin()
+	return true
+}
+
+// Unpin releases a residency reference acquired by Pin.
+func (p *SessionPool) Unpin(s *APISession) {
+	if s != nil {
+		s.unpin()
+	}
 }
 
 // Put adds a session to the pool. Returns an error if the pool is at capacity.
@@ -333,6 +397,7 @@ func (p *SessionPool) listDetails() []ActiveSessionInfo {
 
 	sessions := make([]ActiveSessionInfo, 0, len(p.sessions))
 	for _, s := range p.sessions {
+		lastUsed := s.lastUsedAt()
 		messageCount := 0
 		if s.Manager != nil {
 			messageCount = len(s.Manager.GetMessages())
@@ -349,7 +414,7 @@ func (p *SessionPool) listDetails() []ActiveSessionInfo {
 			MultiAgent:   s.MultiAgent,
 			Active:       true,
 			Running:      s.IsRunning(),
-			LastUsed:     s.LastUsed,
+			LastUsed:     lastUsed,
 			MessageCount: messageCount,
 		})
 	}
@@ -432,7 +497,10 @@ func (p *SessionPool) evictIdle() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for id, s := range p.sessions {
-		if now.Sub(s.LastUsed) > p.idleTTL {
+		if s.isInUse() || s.IsRunning() {
+			continue
+		}
+		if now.Sub(s.lastUsedAt()) > p.idleTTL {
 			delete(p.sessions, id)
 		}
 	}
@@ -576,6 +644,10 @@ func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatc
 	if sess == nil {
 		return nil, ErrSessionNotFound
 	}
+	if !s.pool.Pin(sess) {
+		return nil, ErrSessionNotFound
+	}
+	defer s.pool.Unpin(sess)
 	sess.Lock()
 	defer sess.Unlock()
 

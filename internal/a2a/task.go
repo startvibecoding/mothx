@@ -140,6 +140,43 @@ func (s *TaskStore) SetState(id string, state TaskState) {
 	}
 }
 
+// Cancel marks a task terminally canceled. Later completion attempts preserve
+// this state so a canceled execution cannot be reported as successful.
+func (s *TaskStore) Cancel(id string) *Task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	task := s.tasks[id]
+	if task == nil {
+		return nil
+	}
+	task.State = TaskStateCanceled
+	task.UpdatedAt = time.Now()
+	return task.Clone()
+}
+
+// Finish records a terminal execution result unless the task was canceled.
+func (s *TaskStore) Finish(id string, state TaskState, artifact *Artifact, taskErr *TaskError) *Task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	task := s.tasks[id]
+	if task == nil {
+		return nil
+	}
+	if task.State == TaskStateCanceled {
+		return task.Clone()
+	}
+	task.State = state
+	if artifact != nil {
+		task.Artifacts = append(task.Artifacts, cloneArtifact(*artifact))
+	}
+	if taskErr != nil {
+		copy := *taskErr
+		task.Error = &copy
+	}
+	task.UpdatedAt = time.Now()
+	return task.Clone()
+}
+
 // Clone returns a deep copy of the task value.
 func (t *Task) Clone() *Task {
 	if t == nil {

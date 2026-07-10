@@ -561,7 +561,11 @@ func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Eve
 		}
 		sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: fmt.Sprintf("ESM worker proposed completion; status: %s", next.Status)})
 	case esm.WorkerStatusBlockedCandidate:
-		reason := formatESMWorkerBlocker(report, result.Response)
+		if len(report.Blockers) == 0 {
+			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM worker blocker rejected: no concrete blocker was reported"})
+			return true
+		}
+		reason := formatESMWorkerBlocker(report)
 		next, updateErr := store.UpdateFromModelForRun(ctx, sessionID, esm.StatusBlocked, reason, runID)
 		if updateErr != nil {
 			sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventError, Error: updateErr})
@@ -574,7 +578,7 @@ func (a *App) runESMWorker(ctx context.Context, eventCh chan<- internalagent.Eve
 
 func (a *App) runESMCritic(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode string, obj *esm.Objective) bool {
 	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM critic sub-agent started"})
-	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-critic", workDir, mode, []string{"read", "grep", "find", "ls", "bash"}, 80, esm.CriticTaskPrompt(obj))
+	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-critic", workDir, mode, []string{"read", "grep", "find", "ls"}, 80, esm.CriticTaskPrompt(obj))
 	if result.Tokens > 0 {
 		if next, accountErr := store.AccountUsage(ctx, sessionID, result.Tokens, 0); accountErr == nil {
 			if next.Status == esm.StatusBudgetLimited {
@@ -628,7 +632,7 @@ func (a *App) runESMCritic(ctx context.Context, eventCh chan<- internalagent.Eve
 
 func (a *App) runESMAudit(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, store *esm.Store, sessionID, runID, workDir, mode string, obj *esm.Objective) bool {
 	sendESMEvent(ctx, eventCh, internalagent.Event{Type: internalagent.EventStatus, StatusMessage: "ESM audit sub-agent started"})
-	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-audit", workDir, mode, []string{"read", "grep", "find", "ls", "bash"}, 80, esm.AuditTaskPrompt(obj))
+	result, err := a.runESMRoleAgent(ctx, eventCh, manager, runID+"-audit", workDir, mode, []string{"read", "grep", "find", "ls"}, 80, esm.AuditTaskPrompt(obj))
 	if result.Tokens > 0 {
 		if next, accountErr := store.AccountUsage(ctx, sessionID, result.Tokens, 0); accountErr == nil {
 			if next.Status == esm.StatusBudgetLimited {
@@ -754,7 +758,9 @@ func (a *App) runESMRoleAgent(ctx context.Context, eventCh chan<- internalagent.
 				result.ToolError[ev.ToolCallID] = true
 			}
 		}
-		sendESMEvent(ctx, eventCh, publicAgentEventToInternal(ev, childID))
+		if shouldForwardESMRoleEvent(ev.Type) {
+			sendESMEvent(ctx, eventCh, publicAgentEventToInternal(ev, childID))
+		}
 		switch ev.Type {
 		case agentpkg.EventDone:
 			completed = true
@@ -818,6 +824,15 @@ func invalidESMSupervisorPassReason(role string, result esmRoleResult, report es
 		return prefix + "missing_work is not empty"
 	}
 	return ""
+}
+
+func shouldForwardESMRoleEvent(eventType agentpkg.EventType) bool {
+	switch eventType {
+	case agentpkg.EventAgentStart, agentpkg.EventAgentEnd, agentpkg.EventDone, agentpkg.EventError:
+		return false
+	default:
+		return true
+	}
 }
 
 func (a *App) setActiveESMAgent(id agentpkg.AgentID) {
@@ -919,8 +934,8 @@ func formatESMWorkerCompletion(report esm.WorkerReport, raw string) string {
 	return formatESMReportParts("summary", report.Summary, "evidence", report.Evidence, "remaining", report.RemainingWork, raw)
 }
 
-func formatESMWorkerBlocker(report esm.WorkerReport, raw string) string {
-	return formatESMReportParts("summary", report.Summary, "blockers", report.Blockers, "evidence", report.Evidence, raw)
+func formatESMWorkerBlocker(report esm.WorkerReport) string {
+	return strings.Join(report.Blockers, "; ")
 }
 
 func formatESMAuditReview(report esm.AuditReport, raw string) string {

@@ -398,7 +398,7 @@ func TestInitConfig_WritesFlatTemplate(t *testing.T) {
 		t.Fatalf("read generated config: %v", err)
 	}
 	text := string(data)
-	if !strings.Contains(text, `"listen": ":8080"`) {
+	if !strings.Contains(text, `"listen": "127.0.0.1:8080"`) {
 		t.Fatalf("generated config missing flat listen field:\n%s", text)
 	}
 	if !strings.Contains(text, `"features": {`) {

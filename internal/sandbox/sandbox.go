@@ -69,6 +69,12 @@ type Sandbox interface {
 	Level() Level
 }
 
+// CommandCleanupProvider is implemented by sandboxes that create temporary
+// command-side resources which must remain available until the process exits.
+type CommandCleanupProvider interface {
+	CleanupCommand(*exec.Cmd)
+}
+
 // Manager manages sandbox selection based on mode and availability.
 type Manager struct {
 	sandboxes map[Level]Sandbox

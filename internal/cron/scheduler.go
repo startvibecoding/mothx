@@ -23,12 +23,17 @@ type Scheduler struct {
 	sessionDir string
 	quit       chan struct{}
 	running    bool
+	claims     map[string]struct{}
 	mu         sync.Mutex
 }
 
 var a2aHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 const maxA2AResponseBytes = 1 << 20
+
+type dueJobClaimer interface {
+	ClaimDue(id string, now time.Time) (bool, error)
+}
 
 // NewScheduler creates a new cron scheduler.
 func NewScheduler(store CronStore, manager *agent.AgentManager, interval time.Duration) *Scheduler {
@@ -47,6 +52,7 @@ func NewSchedulerWithSessionDir(store CronStore, manager *agent.AgentManager, in
 		interval:   interval,
 		sessionDir: sessionDir,
 		quit:       make(chan struct{}),
+		claims:     make(map[string]struct{}),
 	}
 }
 
@@ -116,9 +122,40 @@ func (s *Scheduler) checkAndRun() {
 			continue // Don't start a job that's already running
 		}
 		if s.isDue(job, now) {
-			go s.executeJob(job)
+			claimed, release, err := s.claimJob(job.ID, now)
+			if err != nil {
+				log.Printf("[cron] claim job %s: %v", job.ID, err)
+				continue
+			}
+			if claimed {
+				go func() {
+					defer release()
+					s.executeJob(job)
+				}()
+			}
 		}
 	}
+}
+
+func (s *Scheduler) claimJob(id string, now time.Time) (bool, func(), error) {
+	if claimer, ok := s.store.(dueJobClaimer); ok {
+		claimed, err := claimer.ClaimDue(id, now)
+		return claimed, func() {}, err
+	}
+
+	// In-memory stores cannot coordinate across processes, but retain the
+	// previous single-scheduler behavior without allowing overlapping ticks.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, claimed := s.claims[id]; claimed {
+		return false, func() {}, nil
+	}
+	s.claims[id] = struct{}{}
+	return true, func() {
+		s.mu.Lock()
+		delete(s.claims, id)
+		s.mu.Unlock()
+	}, nil
 }
 
 // isDue checks if a job should run now.
@@ -136,13 +173,6 @@ func (s *Scheduler) isDue(job CronJob, now time.Time) bool {
 
 // executeJob runs a cron job by spawning a sub-agent or sending to A2A server.
 func (s *Scheduler) executeJob(job CronJob) {
-	// Mark as running
-	startedAt := time.Now()
-	s.updateJob(job.ID, func(current *CronJob) {
-		current.LastStatus = "running"
-		current.LastRun = startedAt
-	})
-
 	var lastErr error
 
 	// A2A target mode: send task to remote A2A server

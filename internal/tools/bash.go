@@ -174,7 +174,7 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 		shells := t.windowsShellCandidates()
 		for i, candidate := range shells {
 			cmd, runtimeLabel := t.buildWindowsCommand(cmdCtx, sb, candidate, command, workDir, env, timeout)
-			result, err, launchErr := t.runCommand(cmd, command, workDir, async, cancel, runtimeLabel)
+			result, err, launchErr := t.runCommand(cmd, command, workDir, async, cancel, runtimeLabel, nil)
 			if launchErr && i < len(shells)-1 {
 				continue
 			}
@@ -184,14 +184,18 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	}
 
 	var cmd *exec.Cmd
+	var cleanup func()
 	if sb != nil && sb.IsAvailable() {
 		opts := sandbox.ExecOpts{WorkDir: workDir, Timeout: timeout}
 		cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
 		t.configureCommand(cmd)
+		if cleaner, ok := sb.(sandbox.CommandCleanupProvider); ok {
+			cleanup = func() { cleaner.CleanupCommand(cmd) }
+		}
 	} else {
 		cmd = t.buildCommand(cmdCtx, shell, command, workDir, env)
 	}
-	result, err, _ := t.runCommand(cmd, command, workDir, async, cancel, runtimeForShell(shell))
+	result, err, _ := t.runCommand(cmd, command, workDir, async, cancel, runtimeForShell(shell), cleanup)
 	return result, err
 }
 
@@ -257,7 +261,7 @@ func (t *BashTool) buildWindowsCommand(ctx context.Context, sb sandbox.Sandbox, 
 	return cmd, runtimeForShell(shell)
 }
 
-func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool, cancel context.CancelFunc, runtimeLabel string) (ToolResult, error, bool) {
+func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool, cancel context.CancelFunc, runtimeLabel string, cleanup func()) (ToolResult, error, bool) {
 	if async {
 		const maxJobOutput = 1000000 // 1 MB limit per stream
 		stdout := newLimitedBuffer(maxJobOutput)
@@ -266,6 +270,9 @@ func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool
 		cmd.Stderr = stderr
 
 		if err := cmd.Start(); err != nil {
+			if cleanup != nil {
+				cleanup()
+			}
 			if cancel != nil {
 				cancel()
 			}
@@ -274,6 +281,11 @@ func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool
 
 		job := t.jobManager.AddJob(cmd, command, cancel)
 		go func() {
+			defer func() {
+				if cleanup != nil {
+					cleanup()
+				}
+			}()
 			err := cmd.Wait()
 			if errors.Is(err, exec.ErrWaitDelay) {
 				err = nil
@@ -290,6 +302,9 @@ func (t *BashTool) runCommand(cmd *exec.Cmd, command, workDir string, async bool
 	cmd.Stderr = stderr
 
 	err := cmd.Run()
+	if cleanup != nil {
+		cleanup()
+	}
 	if err != nil && isLaunchError(err) {
 		return ToolResult{}, err, true
 	}

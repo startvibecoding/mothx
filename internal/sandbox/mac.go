@@ -20,6 +20,8 @@ type macSandbox struct {
 	projectDir string
 	availMu    sync.Mutex
 	available  *bool
+	profileMu  sync.Mutex
+	profiles   map[*exec.Cmd]string
 }
 
 // newMacSandbox creates a new macOS sandbox.
@@ -29,6 +31,7 @@ func newMacSandbox(projectDir string, level Level) *macSandbox {
 	return &macSandbox{
 		level:      level,
 		projectDir: absDir,
+		profiles:   make(map[*exec.Cmd]string),
 	}
 }
 
@@ -102,8 +105,26 @@ func (s *macSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts Ex
 	for k, v := range opts.EnvVars {
 		c.Env = append(c.Env, k+"="+v)
 	}
+	s.profileMu.Lock()
+	s.profiles[c] = profilePath
+	s.profileMu.Unlock()
 
 	return c
+}
+
+// CleanupCommand removes the temporary Seatbelt profile after its command has
+// stopped. It is safe to call more than once.
+func (s *macSandbox) CleanupCommand(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	s.profileMu.Lock()
+	path := s.profiles[cmd]
+	delete(s.profiles, cmd)
+	s.profileMu.Unlock()
+	if path != "" {
+		_ = os.Remove(path)
+	}
 }
 
 // buildProfile generates a sandbox profile based on the level.

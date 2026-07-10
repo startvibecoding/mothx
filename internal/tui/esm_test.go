@@ -2,11 +2,14 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 
+	agentpkg "github.com/startvibecoding/mothx/agent"
 	internalagent "github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/config"
 	ctxpkg "github.com/startvibecoding/mothx/internal/context"
@@ -260,6 +263,67 @@ func TestESMWorkerBlockedCandidatePath(t *testing.T) {
 		if obj.BlockedReason == "" || !strings.Contains(obj.BlockedReason, "missing API token") {
 			t.Fatalf("blocked reason = %q, want worker blocker", obj.BlockedReason)
 		}
+	}
+}
+
+func TestESMWorkerBlockedCandidateUsesStableBlockerReason(t *testing.T) {
+	store, sessionID := newTUITestESMStore(t)
+	obj, err := store.Create(context.Background(), sessionID, "ship the full objective", nil)
+	if err != nil {
+		t.Fatalf("Create ESM objective: %v", err)
+	}
+	reports := []string{
+		`{"status":"blocked_candidate","summary":"first attempt","evidence":["curl failed"],"remaining_work":["retry"],"blockers":["missing API token"]}`,
+		`{"status":"blocked_candidate","summary":"second attempt","evidence":["request returned 401"],"remaining_work":["retry"],"blockers":["missing API token"]}`,
+		`{"status":"blocked_candidate","summary":"third attempt","evidence":["authentication still unavailable"],"remaining_work":["need credentials"],"blockers":["missing API token"]}`,
+	}
+
+	for i, response := range reports {
+		app := esmAppWithRoleResult(esmToolBackedResult(response))
+		eventCh := make(chan internalagent.Event, 20)
+		if ok := app.runESMWorker(context.Background(), eventCh, nil, store, sessionID, fmt.Sprintf("worker-run-%d", i+1), "", "agent", obj); !ok {
+			t.Fatalf("runESMWorker %d returned false", i+1)
+		}
+		want := esm.StatusActive
+		if i == len(reports)-1 {
+			want = esm.StatusBlocked
+		}
+		obj = requireESMStatus(t, store, sessionID, want)
+	}
+	if obj.BlockedReason != "missing API token" {
+		t.Fatalf("blocked reason = %q, want stable blocker", obj.BlockedReason)
+	}
+}
+
+func TestESMRoleTerminalEventsAreNotForwarded(t *testing.T) {
+	for _, eventType := range []agentpkg.EventType{agentpkg.EventAgentStart, agentpkg.EventAgentEnd, agentpkg.EventDone, agentpkg.EventError} {
+		if shouldForwardESMRoleEvent(eventType) {
+			t.Fatalf("event %v should not be forwarded", eventType)
+		}
+	}
+	if !shouldForwardESMRoleEvent(agentpkg.EventStatus) {
+		t.Fatal("status event should be forwarded")
+	}
+}
+
+func TestESMSupervisorRolesOnlyReceiveReadOnlyTools(t *testing.T) {
+	for _, role := range []string{"critic", "audit"} {
+		t.Run(role, func(t *testing.T) {
+			store, sessionID := newTUITestESMStore(t)
+			obj := createESMCompletionCandidate(t, store, sessionID, nil)
+			var gotTools []string
+			app := &App{esmRoleRunner: func(ctx context.Context, eventCh chan<- internalagent.Event, manager *internalagent.AgentManager, id, workDir, mode string, toolFilter []string, maxIterations int, task string) (esmRoleResult, error) {
+				gotTools = append([]string(nil), toolFilter...)
+				return esmToolBackedResult(esmAuditFailReport), nil
+			}}
+			if ok := runESMSupervisorReview(t, role, app, store, sessionID, obj); !ok {
+				t.Fatalf("run %s returned false", role)
+			}
+			want := []string{"read", "grep", "find", "ls"}
+			if !reflect.DeepEqual(gotTools, want) {
+				t.Fatalf("tools = %v, want %v", gotTools, want)
+			}
+		})
 	}
 }
 

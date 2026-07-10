@@ -128,6 +128,25 @@ func (s *SQLiteCronStore) Delete(id string) error {
 	return nil
 }
 
+// ClaimDue atomically marks a due job as running. Only the caller that updates
+// a row may execute it, preventing duplicate runs across scheduler instances.
+func (s *SQLiteCronStore) ClaimDue(id string, now time.Time) (bool, error) {
+	db, err := s.db()
+	if err != nil {
+		return false, err
+	}
+	stamp := formatCronTime(now)
+	res, err := db.Exec(`UPDATE cron_jobs
+		SET last_status = 'running', last_run = ?, last_error = ''
+		WHERE id = ? AND enabled = 1 AND last_status != 'running'
+		AND (last_run = '' OR (next_run != '' AND next_run <= ?))`, stamp, id, stamp)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
 type cronRow interface {
 	Scan(dest ...any) error
 }
