@@ -229,13 +229,42 @@ type openAIFunction struct {
 }
 
 type openAIToolCall struct {
-	ID       string `json:"id"`
-	Index    int    `json:"index"`
-	Type     string `json:"type"`
-	Function struct {
-		Name      string `json:"name"`
-		Arguments string `json:"arguments"`
-	} `json:"function"`
+	ID       string             `json:"id"`
+	Index    int                `json:"index"`
+	Type     string             `json:"type"`
+	Function openAIToolFunction `json:"function"`
+}
+
+type openAIToolFunction struct {
+	Name      string              `json:"name"`
+	Arguments openAIToolArguments `json:"arguments"`
+}
+
+// openAIToolArguments accepts both the OpenAI-standard JSON string and the
+// JSON object returned by some OpenAI-compatible APIs, including Volcengine.
+// Internally, tool arguments are always kept as their raw JSON object.
+type openAIToolArguments json.RawMessage
+
+func (a *openAIToolArguments) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, []byte("null")) {
+		*a = nil
+		return nil
+	}
+
+	var encoded string
+	if err := json.Unmarshal(data, &encoded); err == nil {
+		*a = openAIToolArguments(encoded)
+		return nil
+	}
+	if !json.Valid(data) {
+		return fmt.Errorf("invalid tool arguments JSON")
+	}
+	*a = append((*a)[:0], data...)
+	return nil
+}
+
+func (a openAIToolArguments) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(a))
 }
 
 type openAIResponse struct {
@@ -538,8 +567,8 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				if tc.Function.Name != "" {
 					toolCalls[idx].Name = tc.Function.Name
 				}
-				if tc.Function.Arguments != "" {
-					toolCallBuffers[idx].WriteString(tc.Function.Arguments)
+				if len(tc.Function.Arguments) > 0 {
+					toolCallBuffers[idx].Write(tc.Function.Arguments)
 				}
 			}
 			if choice.FinishReason != nil {
@@ -756,10 +785,10 @@ func (p *Provider) convertMessages(params provider.ChatParams, forceAssistantRea
 		if msg.Role == "assistant" {
 			for _, c := range msg.Contents {
 				if c.Type == "toolCall" && c.ToolCall != nil {
-					om.ToolCalls = append(om.ToolCalls, openAIToolCall{ID: c.ToolCall.ID, Type: "function", Function: struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					}{Name: c.ToolCall.Name, Arguments: string(c.ToolCall.Arguments)}})
+					om.ToolCalls = append(om.ToolCalls, openAIToolCall{ID: c.ToolCall.ID, Type: "function", Function: openAIToolFunction{
+						Name:      c.ToolCall.Name,
+						Arguments: openAIToolArguments(c.ToolCall.Arguments),
+					}})
 				}
 			}
 		}

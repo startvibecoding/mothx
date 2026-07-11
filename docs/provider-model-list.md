@@ -495,13 +495,12 @@
 
 ### 16. Kimi Coding
 
-- **BaseURL**: `https://api.kimi.com/coding`
-- **API**: `anthropic-messages`
+- **BaseURL**: `https://api.kimi.com/coding/v1`
+- **API**: `openai-chat`
 - **Headers**: `User-Agent: opencode/1.17.18`
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
-| k2p7 | 262K | 32K | **是** | text,image |
 | kimi-for-coding | 262K | 32K | **是** | text,image |
 | kimi-k2-thinking | 262K | 32K | **是** | text |
 

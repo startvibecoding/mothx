@@ -50,6 +50,15 @@ func TestDefaultSettings(t *testing.T) {
 	if got := s.Providers["kimi-coding"].Headers["User-Agent"]; got != "opencode/1.17.18" {
 		t.Fatalf("kimi-coding User-Agent = %q, want %q", got, "opencode/1.17.18")
 	}
+	kimiCoding := s.Providers["kimi-coding"]
+	if kimiCoding.BaseURL != "https://api.kimi.com/coding/v1" || kimiCoding.API != "openai-chat" {
+		t.Fatalf("kimi-coding endpoint = (%q, %q), want (%q, %q)", kimiCoding.BaseURL, kimiCoding.API, "https://api.kimi.com/coding/v1", "openai-chat")
+	}
+	for _, model := range kimiCoding.Models {
+		if model.ID == "k2p7" {
+			t.Fatal("kimi-coding must not include k2p7")
+		}
+	}
 
 	if s.DefaultThinkingLevel != "medium" {
 		t.Errorf("expected thinking level 'medium', got '%s'", s.DefaultThinkingLevel)

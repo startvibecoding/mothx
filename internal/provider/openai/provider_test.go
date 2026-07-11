@@ -914,6 +914,34 @@ func TestOpenAIToolCall_MissingIDGetsFallback(t *testing.T) {
 	}
 }
 
+func TestOpenAIToolCall_AcceptsObjectArguments(t *testing.T) {
+	sse := "data: {\"id\":\"chatcmpl-tool-object\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_write\",\"type\":\"function\",\"function\":{\"name\":\"write\",\"arguments\":{\"path\":\"internal/raft/node.go\",\"content\":\"package raft\\n\"}}}]},\"finish_reason\":\"tool_calls\"}]}\n" +
+		"data: [DONE]\n"
+
+	p := newMockOpenAIProvider(t, []*provider.Model{{ID: "mock"}}, sse, nil, nil)
+	events := chatAndCollect(t, p, provider.ChatParams{
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	})
+
+	var got *provider.ToolCallBlock
+	for _, e := range events {
+		if e.Type == provider.StreamToolCall {
+			got = e.ToolCall
+			break
+		}
+	}
+	if got == nil {
+		t.Fatal("expected StreamToolCall event")
+	}
+	if got.ID != "call_write" || got.Name != "write" {
+		t.Fatalf("tool call = %#v, want write call_write", got)
+	}
+	if string(got.Arguments) != `{"path":"internal/raft/node.go","content":"package raft\n"}` {
+		t.Fatalf("ToolCall.Arguments = %q", string(got.Arguments))
+	}
+}
+
 func TestOpenAIResponsesAPICompatDisablesOptionalParams(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	no := false
