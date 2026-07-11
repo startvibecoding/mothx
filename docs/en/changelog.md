@@ -17,6 +17,23 @@
   - Worker progress resets recovery counters on successful continuation.
   - Recovery observer uses the same read-only tool restriction as critic/audit sub-agents.
 
+### 🔧 Improvements
+
+- **TUI ESM Panel & Tool Modal Enhancements**
+  - Track `FullThink`, `FullText`, `FullResult`, `LastToolName`, and `LastToolArgs` in agent activity for complete sub-agent activity inspection in the ESM panel.
+  - ESM panel now shows `Now / Progress / Next` status with pipeline stage count and remaining work items.
+  - Tool modal renders raw assistant/thinking content directly for the main agent; activity timeline entries preserved without truncation.
+  - Tool argument keys sorted alphabetically for deterministic display.
+
+### 🐛 Fixes
+
+- **OpenAI-Compatible Provider Tool Argument Parsing**
+  - Fixed tool call failures against providers (e.g. Volcengine Ark) that stream tool arguments as raw JSON objects instead of the escaped JSON string returned by the OpenAI API.
+  - Introduced `openAIToolArguments` with a custom `UnmarshalJSON` accepting both string-encoded and raw object forms, normalizing to raw JSON.
+  - Stream raw argument bytes directly into tool call buffers; marshal back to the OpenAI string form on outbound messages to keep conversation history wire-compatible.
+  - Added unit tests covering string, object, null, and streamed tool call round-trip cases.
+  - Registered Volcengine Ark as a known provider default and listed it in the provider/model docs.
+
 ## v1.1.62
 
 ### ✨ Features

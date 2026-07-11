@@ -17,6 +17,23 @@
   - Worker 进度成功续跑时重置恢复计数器。
   - Recovery observer 使用和 critic/audit 子代理相同的只读工具限制。
 
+### 🔧 改进
+
+- **TUI ESM 面板与工具弹窗增强**
+  - 在 agent activity 中追踪 `FullThink`、`FullText`、`FullResult`、`LastToolName`、`LastToolArgs`，便于在 ESM 面板中完整查看子代理活动。
+  - ESM 面板新增 `Now / Progress / Next` 状态，展示流水线阶段计数和剩余任务。
+  - 工具弹窗直接渲染主代理的原始 assistant/thinking 内容；活动时间线条目不截断保留。
+  - 工具参数键按字母序排序，确保显示结果稳定。
+
+### 🐛 修复
+
+- **OpenAI 兼容 Provider 工具参数解析**
+  - 修复部分 OpenAI 兼容 provider（如火山引擎 Ark）以原始 JSON 对象而非 OpenAI 约定的转义字符串流式返回工具参数时，参数缓冲不是合法 JSON 导致工具执行失败的问题。
+  - 引入 `openAIToolArguments`，通过自定义 `UnmarshalJSON` 同时接受字符串编码和原始对象两种形式，统一归一为原始 JSON。
+  - 直接将原始参数字节流写入工具调用缓冲；在出站消息中回 Marshal 为 OpenAI 字符串形式，保持会话历史的 wire 兼容。
+  - 新增覆盖字符串、对象、null 以及流式工具调用往返场景的单元测试。
+  - 将火山引擎 Ark 注册为已知 provider 默认项，并加入 provider/model 文档列表。
+
 ## v1.1.62
 
 ### ✨ 新功能

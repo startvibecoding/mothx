@@ -1,6 +1,6 @@
 {
   "name": "mothx-installer-linux-musl-x64",
-  "version": "1.1.62",
+  "version": "1.1.63",
   "description": "MothX native binary for linux-x64 (musl static)",
   "os": ["linux"],
   "cpu": ["x64"],
