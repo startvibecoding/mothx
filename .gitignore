@@ -50,3 +50,4 @@ pypi/*.egg-info/
 internal/vendored/bin/
 .vibe
 .mothx
+debug.log

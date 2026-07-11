@@ -12,6 +12,8 @@ Enable Supervisor Mode（ESM）是计划引入到 MothX 的长期任务监督机
 
 ESM 参考 Codex CLI Goal Mode 的产品思路，但不照搬 Codex Rust extension 架构。第一版只在 TUI 中实现自动续跑，但核心能力仍拆成可复用模块，按现有 Go 代码组织落地：agent loop、session migration、TUI slash command 和内置 tool registry。
 
+后续新增了 **自动恢复中断角色** 机制：当 ESM worker/critic/audit 子代理因超时或 provider 传输故障中断时，系统自动恢复而不是让 TUI 永久卡在 thinking 状态。
+
 ## 2. 目标
 
 - 将单次用户请求提升为跨 agent run 的持久化 supervised objective。
@@ -289,6 +291,18 @@ TUI receives EventDone / EventError
 - Plan mode 下不自动续跑；`/esm resume` 可以恢复状态，但不会在 plan mode 自动启动。
 - 真正达到 budget 后不再额外启动 budget-limit LLM run；预算接近耗尽时可以在当前 run 或下一次 continuation prompt 中提示模型收尾。
 - Serve API 和 channels 第一版不启动后台 continuation。
+
+## 9.1 自动恢复中断角色
+
+当 ESM 的 worker、critic 或 audit 子代理因超时或 provider 传输故障中断时，TUI 的 `recoverInterruptedESMRole` 将错误转化为干净的 supervisor completion，让正常 ESM 续跑可以启动新 worker。
+
+恢复机制：
+- **超时触发**：spawn 一个只读 RecoveryObserver 子代理（5 分钟超时），检查仓库当前状态，确定是否可以安全续跑。Observer 返回 `resume`（附剩余工作列表）或 `blocked`（附具体阻塞原因）。
+- **传输故障**：provider 内建重试失败后，直接记录恢复并启动新 worker 从当前状态重试，无需 observer。
+- **恢复限制**：`RecoveryLimit = 2` 次连续自动恢复；超过后暂停续跑，需要 `/esm resume`。恢复状态显示在 TUI 底部栏（`recover N/2`）。
+- **计数器重置**：worker 成功续跑后重置恢复计数器。
+- **DB 支持**：migration 015 添加 `recovery_count` 和 `recovery_reason` 列到 `session_esm_objectives` 表。
+- **Prompt 注入**：recovery 信息包含在 steering prompt 和 worker prompt 中，让模型知晓之前的中断情况。
 
 ## 10. 用量与限制
 

@@ -266,9 +266,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("marshal request: %w", err)}
 			return
 		}
-		if os.Getenv("VIBECODING_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "[DEBUG] Google request body: %s\n", string(body))
-		}
+		provider.DebugJSON("Google request JSON", body)
 
 		maxRetries := 0
 		baseDelayMs := 2000
@@ -306,6 +304,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
+				provider.DebugJSON("Google response JSON", bodyBytes)
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
 					err := fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))
 					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, err) {
@@ -572,11 +571,19 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
-	ch <- provider.StreamEvent{Type: provider.StreamStart}
+	var textContent, reasoning strings.Builder
+	var toolCalls []provider.ToolCallBlock
 	var usage *provider.Usage
 	var stopReason string
 	var visibleOutput bool
 
+	ch <- provider.StreamEvent{Type: provider.StreamStart}
+	defer func() {
+		provider.DebugCompleteResponse(provider.DebugResponse{
+			Provider: p.Name(), API: string(p.apiKind), Content: textContent.String(), Reasoning: reasoning.String(),
+			ToolCalls: toolCalls, StopReason: stopReason, Usage: usage,
+		})
+	}()
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
@@ -617,8 +624,10 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 				if part.Text != "" {
 					visibleOutput = true
 					if part.Thought {
+						reasoning.WriteString(part.Text)
 						ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: part.Text}
 					} else {
+						textContent.WriteString(part.Text)
 						ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: part.Text}
 					}
 				}
@@ -638,6 +647,7 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 						Arguments:        args,
 						ThoughtSignature: part.ThoughtSignature,
 					}
+					toolCalls = append(toolCalls, *tc)
 					ch <- provider.StreamEvent{Type: provider.StreamToolCall, ToolCall: tc}
 				}
 			}

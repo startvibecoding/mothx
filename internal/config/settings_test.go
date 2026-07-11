@@ -47,6 +47,9 @@ func TestDefaultSettings(t *testing.T) {
 			t.Fatalf("expected default %s provider", name)
 		}
 	}
+	if got := s.Providers["kimi-coding"].Headers["User-Agent"]; got != "opencode/1.17.18" {
+		t.Fatalf("kimi-coding User-Agent = %q, want %q", got, "opencode/1.17.18")
+	}
 
 	if s.DefaultThinkingLevel != "medium" {
 		t.Errorf("expected thinking level 'medium', got '%s'", s.DefaultThinkingLevel)

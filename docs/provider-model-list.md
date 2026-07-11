@@ -497,7 +497,7 @@
 
 - **BaseURL**: `https://api.kimi.com/coding`
 - **API**: `anthropic-messages`
-- **Headers**: `User-Agent: KimiCLI/1.5`
+- **Headers**: `User-Agent: opencode/1.17.18`
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|

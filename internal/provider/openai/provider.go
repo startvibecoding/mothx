@@ -344,10 +344,7 @@ func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatPara
 			return
 		}
 
-		// Debug: dump request body
-		if os.Getenv("VIBECODING_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "[DEBUG] Request body: %s\n", string(body))
-		}
+		provider.DebugJSON("OpenAI request JSON", body)
 
 		// Retry loop covers initial HTTP failures and early SSE read failures.
 		// Once visible streamed content has been emitted, retrying could duplicate output.
@@ -390,6 +387,7 @@ func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatPara
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
+				provider.DebugJSON("OpenAI response JSON", bodyBytes)
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
 					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))) {
 						return
@@ -444,6 +442,8 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var (
+		textContent     strings.Builder
+		reasoning       strings.Builder
 		toolCalls       []provider.ToolCallBlock
 		toolCallBuffers = make(map[int]*strings.Builder)
 		stopReason      string
@@ -457,6 +457,12 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	}
 
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
+	defer func() {
+		provider.DebugCompleteResponse(provider.DebugResponse{
+			Provider: "openai", API: "chat-completions", Content: textContent.String(),
+			Reasoning: reasoning.String(), ToolCalls: toolCalls, StopReason: stopReason, Usage: usage,
+		})
+	}()
 
 	for scanner.Scan() {
 		select {
@@ -493,19 +499,23 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 					text, think := splitter.push(choice.Delta.Content)
 					if think != "" {
 						visibleOutput = true
+						reasoning.WriteString(think)
 						ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: think}
 					}
 					if text != "" {
 						visibleOutput = true
+						textContent.WriteString(text)
 						ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: text}
 					}
 				} else {
 					visibleOutput = true
+					textContent.WriteString(choice.Delta.Content)
 					ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: choice.Delta.Content}
 				}
 			}
 			if !p.disableReasoning && choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
 				visibleOutput = true
+				reasoning.WriteString(*choice.Delta.Reasoning)
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: *choice.Delta.Reasoning}
 			}
 			for _, tc := range choice.Delta.ToolCalls {
@@ -546,10 +556,12 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 		text, think := splitter.flush()
 		if think != "" {
 			visibleOutput = true
+			reasoning.WriteString(think)
 			ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: think}
 		}
 		if text != "" {
 			visibleOutput = true
+			textContent.WriteString(text)
 			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: text}
 		}
 	}

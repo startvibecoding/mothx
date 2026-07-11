@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +34,8 @@ import (
 
 const protocolVersion = 1
 const maxRequestBytes = 10 << 20
+
+const mothxExtensionNamespace = "mothx.dev"
 
 type RunOptions struct {
 	Provider   string
@@ -96,9 +99,13 @@ type sessionRuntime struct {
 	registry *tools.Registry
 	cancel   context.CancelFunc
 	promptID string
+	closed   bool
 	cancelMu sync.Mutex
 	mcp      []*mcp.Client
 	agentMgr *agent.AgentManager
+
+	usageMu sync.Mutex
+	cost    float64
 }
 
 type rpcRequest struct {
@@ -130,17 +137,29 @@ type initializeRequest struct {
 }
 
 type initializeResult struct {
-	ProtocolVersion   int        `json:"protocolVersion"`
-	AgentCapabilities agentCaps  `json:"agentCapabilities"`
-	AgentInfo         clientInfo `json:"agentInfo"`
-	AuthMethods       []string   `json:"authMethods"`
+	ProtocolVersion   int          `json:"protocolVersion"`
+	AgentCapabilities agentCaps    `json:"agentCapabilities"`
+	AgentInfo         clientInfo   `json:"agentInfo"`
+	AuthMethods       []authMethod `json:"authMethods"`
+}
+
+type authMethod struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 type agentCaps struct {
-	LoadSession         bool            `json:"loadSession"`
-	PromptCapabilities  promptCaps      `json:"promptCapabilities"`
-	SessionCapabilities sessionCaps     `json:"sessionCapabilities"`
-	McPCapabilities     map[string]bool `json:"mcpCapabilities,omitempty"`
+	LoadSession         bool           `json:"loadSession"`
+	PromptCapabilities  promptCaps     `json:"promptCapabilities"`
+	SessionCapabilities sessionCaps    `json:"sessionCapabilities"`
+	McPCapabilities     mcpCaps        `json:"mcpCapabilities"`
+	Meta                map[string]any `json:"_meta,omitempty"`
+}
+
+type mcpCaps struct {
+	HTTP bool `json:"http"`
+	SSE  bool `json:"sse"`
 }
 
 type promptCaps struct {
@@ -150,9 +169,12 @@ type promptCaps struct {
 }
 
 type sessionCaps struct {
-	Cancel bool `json:"cancel"`
-	Close  bool `json:"close,omitempty"`
-	List   bool `json:"list,omitempty"`
+	// session/new, session/prompt, session/cancel, and session/update are
+	// required ACP v1 baseline methods, so they are not capability flags.
+	Close  *struct{} `json:"close,omitempty"`
+	Delete *struct{} `json:"delete,omitempty"`
+	List   *struct{} `json:"list,omitempty"`
+	Resume *struct{} `json:"resume,omitempty"`
 }
 
 type newSessionRequest struct {
@@ -168,22 +190,55 @@ type loadSessionRequest struct {
 	SessionID  string             `json:"sessionId"`
 	Cwd        string             `json:"cwd"`
 	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
-	Limit      int                `json:"limit,omitempty"`
+}
+
+type resumeSessionRequest struct {
+	SessionID  string             `json:"sessionId"`
+	Cwd        string             `json:"cwd"`
+	McpServers []mcp.ServerConfig `json:"mcpServers,omitempty"`
 }
 
 type promptRequest struct {
 	SessionID string         `json:"sessionId"`
-	MessageID string         `json:"messageId,omitempty"`
 	Prompt    []contentBlock `json:"prompt"`
 }
 
 type promptResult struct {
-	StopReason    string `json:"stopReason"`
-	UserMessageID string `json:"userMessageId,omitempty"`
+	StopReason string `json:"stopReason"`
 }
 
 type cancelRequest struct {
 	SessionID string `json:"sessionId"`
+}
+
+type closeSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+type deleteSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+type cancelRequestNotification struct {
+	RequestID json.RawMessage `json:"requestId"`
+}
+
+type listSessionsRequest struct {
+	Cwd    string `json:"cwd,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+}
+
+type listSessionsResult struct {
+	Sessions   []listedSession `json:"sessions"`
+	NextCursor string          `json:"nextCursor,omitempty"`
+}
+
+type listedSession struct {
+	SessionID string         `json:"sessionId"`
+	Cwd       string         `json:"cwd"`
+	Title     string         `json:"title,omitempty"`
+	UpdatedAt string         `json:"updatedAt,omitempty"`
+	Meta      map[string]any `json:"_meta,omitempty"`
 }
 
 type requestPermissionRequest struct {
@@ -203,18 +258,40 @@ type contentBlock struct {
 	Text     string `json:"text,omitempty"`
 	MimeType string `json:"mimeType,omitempty"`
 	Data     string `json:"data,omitempty"`
+	Name     string `json:"name,omitempty"`
 	URI      string `json:"uri,omitempty"`
 }
 
 type sessionUpdate struct {
 	SessionUpdate string         `json:"sessionUpdate"`
-	Content       *contentBlock  `json:"content,omitempty"`
+	Content       any            `json:"content,omitempty"`
 	ToolCallID    string         `json:"toolCallId,omitempty"`
 	Title         string         `json:"title,omitempty"`
 	Kind          string         `json:"kind,omitempty"`
 	Status        string         `json:"status,omitempty"`
 	RawInput      map[string]any `json:"rawInput,omitempty"`
 	RawOutput     map[string]any `json:"rawOutput,omitempty"`
+	Used          *int           `json:"used,omitempty"`
+	Size          *int           `json:"size,omitempty"`
+	Cost          *usageCost     `json:"cost,omitempty"`
+	Entries       []planEntry    `json:"entries,omitempty"`
+	Meta          map[string]any `json:"_meta,omitempty"`
+}
+
+type toolCallContent struct {
+	Type    string       `json:"type"`
+	Content contentBlock `json:"content"`
+}
+
+type planEntry struct {
+	Content  string `json:"content"`
+	Priority string `json:"priority"`
+	Status   string `json:"status"`
+}
+
+type usageCost struct {
+	Amount   float64 `json:"amount"`
+	Currency string  `json:"currency"`
 }
 
 type permissionToolCall struct {
@@ -223,6 +300,18 @@ type permissionToolCall struct {
 	Kind       string         `json:"kind,omitempty"`
 	Status     string         `json:"status,omitempty"`
 	RawInput   map[string]any `json:"rawInput,omitempty"`
+}
+
+type questionRequest struct {
+	SessionID   string   `json:"sessionId"`
+	Question    string   `json:"question"`
+	Options     []string `json:"options"`
+	Explanation string   `json:"explanation,omitempty"`
+	TimeoutMs   int64    `json:"timeoutMs"`
+}
+
+type questionResult struct {
+	Answer string `json:"answer,omitempty"`
 }
 
 type permissionResult struct {
@@ -398,10 +487,20 @@ func Run(opts RunOptions) error {
 			srv.handleNewSession(req)
 		case "session/load":
 			srv.handleLoadSession(req)
+		case "session/resume":
+			srv.handleResumeSession(req)
 		case "session/prompt":
 			srv.handlePrompt(req)
 		case "session/cancel":
 			srv.handleCancel(req)
+		case "$/cancel_request":
+			srv.handleCancelRequest(req)
+		case "session/close":
+			srv.handleCloseSession(req)
+		case "session/delete":
+			srv.handleDeleteSession(req)
+		case "session/list":
+			srv.handleListSessions(req)
 		default:
 			if len(req.ID) > 0 {
 				srv.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32601, Message: "method not found"})
@@ -460,16 +559,25 @@ func (s *server) handleInitialize(req rpcRequest) {
 				EmbeddedContext: false,
 			},
 			SessionCapabilities: sessionCaps{
-				Cancel: true,
+				Close:  &struct{}{},
+				Delete: &struct{}{},
+				List:   &struct{}{},
+				Resume: &struct{}{},
 			},
-			McPCapabilities: map[string]bool{"stdio": true, "http": true, "sse": true},
+			McPCapabilities: mcpCaps{HTTP: true, SSE: true},
+			Meta: map[string]any{
+				mothxExtensionNamespace: map[string]any{
+					"requestQuestion": true,
+					"sessionEvent":    true,
+				},
+			},
 		},
 		AgentInfo: clientInfo{
 			Name:    "vibecoding",
 			Title:   "VibeCoding",
 			Version: "dev",
 		},
-		AuthMethods: []string{},
+		AuthMethods: []authMethod{},
 	}
 	s.writeResponse(req.ID, result, nil)
 }
@@ -521,36 +629,74 @@ func (s *server) handleLoadSession(req rpcRequest) {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "cwd must be an absolute path"})
 		return
 	}
-	registry := s.newToolRegistry(in.Cwd)
-	mcpClients, err := mcp.ConnectServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(in.SessionID))
+	rt, err := s.openSessionRuntime(in.SessionID, in.Cwd, in.McpServers)
 	if err != nil {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
 		return
 	}
-	mgr, err := session.OpenByID(in.Cwd, s.settings.GetSessionDir(), in.SessionID)
-	if err != nil {
-		mcp.CloseClients(mcpClients)
-		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
-		return
-	}
-	s.mu.Lock()
-	if old := s.sessions[in.SessionID]; old != nil {
-		mcp.CloseClients(old.mcp)
-	}
-	s.sessions[in.SessionID] = &sessionRuntime{id: in.SessionID, mgr: mgr, registry: registry, mcp: mcpClients}
-	s.mu.Unlock()
-	allMsgs := mgr.GetMessages()
-	limit := in.Limit
-	if limit <= 0 {
-		limit = 40
-	}
-	if len(allMsgs) > limit {
-		allMsgs = allMsgs[len(allMsgs)-limit:]
-	}
+	s.installSessionRuntime(rt)
+	allMsgs := rt.mgr.GetMessages()
 	for _, msg := range allMsgs {
 		s.emitMessage(in.SessionID, msg)
 	}
 	s.writeResponse(req.ID, nil, nil)
+}
+
+func (s *server) handleResumeSession(req rpcRequest) {
+	var in resumeSessionRequest
+	if err := json.Unmarshal(req.Params, &in); err != nil {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
+		return
+	}
+	if !filepath.IsAbs(in.Cwd) {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "cwd must be an absolute path"})
+		return
+	}
+	rt, err := s.openSessionRuntime(in.SessionID, in.Cwd, in.McpServers)
+	if err != nil {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
+		return
+	}
+	s.installSessionRuntime(rt)
+	s.writeResponse(req.ID, map[string]any{}, nil)
+}
+
+func (s *server) openSessionRuntime(sessionID, cwd string, servers []mcp.ServerConfig) (*sessionRuntime, error) {
+	registry := s.newToolRegistry(cwd)
+	mcpClients, err := mcp.ConnectServers(context.Background(), servers, registry, s.buildMCPCallbacks(sessionID))
+	if err != nil {
+		return nil, err
+	}
+	mgr, err := session.OpenByID(cwd, s.settings.GetSessionDir(), sessionID)
+	if err != nil {
+		mcp.CloseClients(mcpClients)
+		return nil, err
+	}
+	return &sessionRuntime{
+		id:       sessionID,
+		mgr:      mgr,
+		registry: registry,
+		mcp:      mcpClients,
+		cost:     s.persistedSessionCost(mgr),
+	}, nil
+}
+
+func (s *server) installSessionRuntime(rt *sessionRuntime) {
+	s.mu.Lock()
+	old := s.sessions[rt.id]
+	s.sessions[rt.id] = rt
+	s.mu.Unlock()
+	if old != nil {
+		old.cancelMu.Lock()
+		old.closed = true
+		cancel := old.cancel
+		old.cancelMu.Unlock()
+		if cancel != nil {
+			cancel()
+		} else {
+			mcp.CloseClients(old.mcp)
+		}
+	}
 }
 
 func (s *server) handlePrompt(req rpcRequest) {
@@ -564,7 +710,11 @@ func (s *server) handlePrompt(req rpcRequest) {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: "unknown session"})
 		return
 	}
-	userText := promptToText(in.Prompt)
+	userText, err := promptToText(in.Prompt)
+	if err != nil {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: err.Error()})
+		return
+	}
 	if userText == "" {
 		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "empty prompt"})
 		return
@@ -627,7 +777,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 				KeepRecentTokens: s.settings.Compaction.KeepRecentTokens,
 			},
 			ApprovalHandler: func(toolCallID, toolName string, args map[string]any) bool {
-				return s.requestPermission(rt.id, toolCallID, toolName, args)
+				return s.requestPermissionContext(ctx, rt.id, toolCallID, toolName, args)
 			},
 			MultiAgent:   s.multiAgent,
 			DelegateMode: s.delegate,
@@ -644,11 +794,15 @@ func (s *server) handlePrompt(req rpcRequest) {
 				s.agentMgr.Finish(rt.agent.ID(), runErr)
 			}
 			rt.cancelMu.Lock()
+			closed := rt.closed
 			if rt.promptID == promptKey {
 				rt.cancel = nil
 				rt.promptID = ""
 			}
 			rt.cancelMu.Unlock()
+			if closed {
+				mcp.CloseClients(rt.mcp)
+			}
 			cancel()
 		}()
 		events := rt.agent.Run(ctx, userText)
@@ -656,7 +810,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			s.handleAgentEvent(rt.id, ev)
 			switch ev.Type {
 			case agentpkg.EventQuestionRequest:
-				go s.handleQuestion(rt, ev)
+				go s.handleQuestion(ctx, rt, ev)
 			case agentpkg.EventDone:
 				stopReason = normalizeStopReason(ev.StopReason)
 			case agentpkg.EventError:
@@ -670,7 +824,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: runErr.Error()})
 			return
 		}
-		s.writeResponse(req.ID, promptResult{StopReason: stopReason, UserMessageID: in.MessageID}, nil)
+		s.writeResponse(req.ID, promptResult{StopReason: stopReason}, nil)
 	}()
 }
 
@@ -692,19 +846,161 @@ func (s *server) handleCancel(req rpcRequest) {
 	}
 }
 
+func (s *server) handleCancelRequest(req rpcRequest) {
+	var in cancelRequestNotification
+	if err := json.Unmarshal(req.Params, &in); err != nil || len(in.RequestID) == 0 {
+		return
+	}
+	key := mcp.RawIDKey(in.RequestID)
+	s.mu.Lock()
+	pending := s.pending[key]
+	if pending != nil {
+		delete(s.pending, key)
+	}
+	var cancel context.CancelFunc
+	for _, rt := range s.sessions {
+		rt.cancelMu.Lock()
+		if rt.promptID == key {
+			cancel = rt.cancel
+		}
+		rt.cancelMu.Unlock()
+		if cancel != nil {
+			break
+		}
+	}
+	s.mu.Unlock()
+	if pending != nil {
+		pending <- json.RawMessage(`{"outcome":{"outcome":"cancelled"}}`)
+	}
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (s *server) handleCloseSession(req rpcRequest) {
+	var in closeSessionRequest
+	if err := json.Unmarshal(req.Params, &in); err != nil || strings.TrimSpace(in.SessionID) == "" {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
+		return
+	}
+
+	s.closeSessionRuntime(in.SessionID)
+	s.writeResponse(req.ID, map[string]any{}, nil)
+}
+
+func (s *server) closeSessionRuntime(sessionID string) *sessionRuntime {
+	s.mu.Lock()
+	rt := s.sessions[sessionID]
+	delete(s.sessions, sessionID)
+	s.mu.Unlock()
+	if rt == nil {
+		return nil
+	}
+	rt.cancelMu.Lock()
+	rt.closed = true
+	cancel := rt.cancel
+	rt.cancelMu.Unlock()
+	if cancel != nil {
+		cancel()
+	} else {
+		mcp.CloseClients(rt.mcp)
+	}
+	return rt
+}
+
+func (s *server) handleDeleteSession(req rpcRequest) {
+	var in deleteSessionRequest
+	if err := json.Unmarshal(req.Params, &in); err != nil || strings.TrimSpace(in.SessionID) == "" {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
+		return
+	}
+	s.mu.Lock()
+	active := s.sessions[in.SessionID]
+	s.mu.Unlock()
+	if active != nil {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: "cannot delete an active session"})
+		return
+	}
+	mgr, err := session.OpenByIDExact(s.settings.GetSessionDir(), in.SessionID)
+	if err == nil {
+		err = session.DeleteSession(mgr.GetFile(), s.settings.GetSessionDir())
+	}
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
+		return
+	}
+	s.writeResponse(req.ID, map[string]any{}, nil)
+}
+
+const sessionListPageSize = 50
+
+func (s *server) handleListSessions(req rpcRequest) {
+	var in listSessionsRequest
+	if len(req.Params) > 0 && json.Unmarshal(req.Params, &in) != nil {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid params"})
+		return
+	}
+	if in.Cwd != "" && !filepath.IsAbs(in.Cwd) {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "cwd must be an absolute path"})
+		return
+	}
+
+	offset := 0
+	if in.Cursor != "" {
+		var err error
+		offset, err = strconv.Atoi(in.Cursor)
+		if err != nil || offset < 0 {
+			s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid cursor"})
+			return
+		}
+	}
+
+	var (
+		details []session.SessionDetail
+		err     error
+	)
+	if in.Cwd == "" {
+		details, err = session.ListAllDetailed(s.settings.GetSessionDir())
+	} else {
+		details, err = session.ListForDirDetailed(in.Cwd, s.settings.GetSessionDir())
+	}
+	if err != nil {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
+		return
+	}
+	if offset > len(details) {
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32602, Message: "invalid cursor"})
+		return
+	}
+
+	end := offset + sessionListPageSize
+	if end > len(details) {
+		end = len(details)
+	}
+	result := listSessionsResult{Sessions: make([]listedSession, 0, end-offset)}
+	for _, detail := range details[offset:end] {
+		title := detail.Name
+		if title == "" {
+			title = detail.Preview
+		}
+		result.Sessions = append(result.Sessions, listedSession{
+			SessionID: detail.ID,
+			Cwd:       detail.Cwd,
+			Title:     title,
+			UpdatedAt: detail.ModTime.UTC().Format(time.RFC3339),
+			Meta:      map[string]any{"messageCount": detail.MessageCount},
+		})
+	}
+	if end < len(details) {
+		result.NextCursor = strconv.Itoa(end)
+	}
+	s.writeResponse(req.ID, result, nil)
+}
+
 func (s *server) sessionForPrompt(sessionID string) *sessionRuntime {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if rt, ok := s.sessions[sessionID]; ok {
-		return rt
-	}
-	mgr := session.New(s.cwd, s.settings.GetSessionDir())
-	if err := mgr.InitWithID(sessionID); err != nil {
-		return nil
-	}
-	rt := &sessionRuntime{id: sessionID, mgr: mgr, registry: s.newToolRegistry(mgr.GetHeader().Cwd)}
-	s.sessions[sessionID] = rt
-	return rt
+	return s.sessions[sessionID]
 }
 
 func (s *server) handleAgentEvent(sessionID string, ev agentpkg.Event) {
@@ -726,7 +1022,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agentpkg.Event) {
 				SessionUpdate: "tool_call",
 				ToolCallID:    ev.ToolCall.ID,
 				Title:         title,
-				Kind:          "other",
+				Kind:          acpToolKind(ev.ToolCall.Name),
 				Status:        "pending",
 				RawInput:      toolRawInput(ev.ToolArgs),
 			})
@@ -737,6 +1033,7 @@ func (s *server) handleAgentEvent(sessionID string, ev agentpkg.Event) {
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    ev.ToolCallID,
 			Title:         title,
+			Kind:          acpToolKind(ev.ToolName),
 			Status:        "in_progress",
 			RawInput:      toolRawInput(ev.ToolArgs),
 		})
@@ -753,20 +1050,167 @@ func (s *server) handleAgentEvent(sessionID string, ev agentpkg.Event) {
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    ev.ToolCallID,
 			Title:         s.toolTitleFor(ev.ToolCallID, ev.ToolName),
+			Kind:          acpToolKind(ev.ToolName),
 			Status:        status,
+			Content:       textToolContent(ev.ToolResult),
 			RawOutput:     rawOutput,
+		})
+	case agentpkg.EventToolExecutionUpdate:
+		s.notify(sessionID, sessionUpdate{
+			SessionUpdate: "tool_call_update",
+			ToolCallID:    ev.ToolCallID,
+			Content:       textToolContent(fmt.Sprint(ev.PartialResult)),
 		})
 	case agentpkg.EventToolResult:
 	case agentpkg.EventPlanUpdate:
 		if ev.Plan != nil {
 			s.notify(sessionID, sessionUpdate{
-				SessionUpdate: "agent_message_chunk",
-				Content:       &contentBlock{Type: "text", Text: formatACPPlan(ev.Plan)},
+				SessionUpdate: "plan",
+				Entries:       acpPlanEntries(ev.Plan),
+				Meta:          acpPlanMeta(ev.Plan),
 			})
 		}
 	case agentpkg.EventUsage:
+		s.emitUsageUpdate(sessionID, ev, true)
 	case agentpkg.EventDone:
+		s.emitUsageUpdate(sessionID, ev, false)
+	case agentpkg.EventStatus:
+		s.notifyExtension("_mothx/session_event", map[string]any{
+			"sessionId": sessionID,
+			"event":     "status",
+			"message":   ev.StatusMessage,
+		})
+	case agentpkg.EventCompactionStart, agentpkg.EventCompactionEnd, agentpkg.EventTurnStart, agentpkg.EventTurnEnd:
+		s.notifyExtension("_mothx/session_event", map[string]any{
+			"sessionId": sessionID,
+			"event":     acpEventName(ev.Type),
+			"message":   ev.StatusMessage,
+		})
 	}
+}
+
+func acpEventName(eventType agentpkg.EventType) string {
+	switch eventType {
+	case agentpkg.EventCompactionStart:
+		return "compaction_started"
+	case agentpkg.EventCompactionEnd:
+		return "compaction_finished"
+	case agentpkg.EventTurnStart:
+		return "turn_started"
+	case agentpkg.EventTurnEnd:
+		return "turn_finished"
+	default:
+		return "unknown"
+	}
+}
+
+func acpToolKind(name string) string {
+	switch name {
+	case "read", "ls":
+		return "read"
+	case "write", "edit":
+		return "edit"
+	case "grep", "find":
+		return "search"
+	case "bash":
+		return "execute"
+	case "plan":
+		return "think"
+	default:
+		return "other"
+	}
+}
+
+func textToolContent(text string) []toolCallContent {
+	if text == "" {
+		return nil
+	}
+	return []toolCallContent{{Type: "content", Content: contentBlock{Type: "text", Text: text}}}
+}
+
+func acpPlanEntries(plan *agentpkg.TaskPlan) []planEntry {
+	entries := make([]planEntry, 0, len(plan.Steps))
+	for _, step := range plan.Steps {
+		status := "pending"
+		switch step.Status {
+		case "running":
+			status = "in_progress"
+		case "done", "failed":
+			status = "completed"
+		}
+		entries = append(entries, planEntry{Content: step.Title, Priority: "medium", Status: status})
+	}
+	return entries
+}
+
+func acpPlanMeta(plan *agentpkg.TaskPlan) map[string]any {
+	if plan.Title == "" && plan.Note == "" {
+		return nil
+	}
+	return map[string]any{mothxExtensionNamespace: map[string]string{"title": plan.Title, "note": plan.Note}}
+}
+
+func (s *server) emitUsageUpdate(sessionID string, ev agentpkg.Event, addCost bool) {
+	s.mu.Lock()
+	rt := s.sessions[sessionID]
+	s.mu.Unlock()
+	if rt == nil {
+		return
+	}
+
+	used, size := usageContext(ev.ContextUsage, ev.Usage, s.m)
+	rt.usageMu.Lock()
+	if addCost && ev.Usage != nil {
+		if s.m != nil {
+			ev.Usage.CalculateCost(s.m.Cost.Input, s.m.Cost.Output, s.m.Cost.CacheRead, s.m.Cost.CacheWrite)
+		}
+		rt.cost += ev.Usage.Cost.Total
+	}
+	cost := rt.cost
+	rt.usageMu.Unlock()
+
+	update := sessionUpdate{
+		SessionUpdate: "usage_update",
+		Used:          &used,
+		Size:          &size,
+	}
+	if cost > 0 {
+		update.Cost = &usageCost{Amount: cost, Currency: "USD"}
+	}
+	s.notify(sessionID, update)
+}
+
+func usageContext(contextUsage *agentpkg.ContextUsage, usage *agentpkg.Usage, model *provider.Model) (int, int) {
+	used := 0
+	size := 0
+	if contextUsage != nil {
+		used = contextUsage.Tokens
+		size = contextUsage.ContextWindow
+	}
+	if used == 0 && usage != nil {
+		used = usage.TotalTokens
+	}
+	if size == 0 && model != nil {
+		size = model.ContextWindow
+	}
+	return used, size
+}
+
+func (s *server) persistedSessionCost(mgr *session.Manager) float64 {
+	if mgr == nil {
+		return 0
+	}
+	var total float64
+	for _, msg := range mgr.GetMessages() {
+		if msg.Usage == nil {
+			continue
+		}
+		if msg.Usage.Cost.Total == 0 {
+			msg.Usage.CalculateCost(s.m)
+		}
+		total += msg.Usage.Cost.Total
+	}
+	return total
 }
 
 func formatACPPlan(plan *agentpkg.TaskPlan) string {
@@ -987,64 +1431,49 @@ func parseJSONRawToMap(raw json.RawMessage) map[string]any {
 	return m
 }
 
-// handleQuestion answers an agent question (e.g. from /systeminit) by surfacing
-// it to the ACP client as a permission-style request with the question's
-// options, then routing the chosen answer back to the agent.
-func (s *server) handleQuestion(rt *sessionRuntime, ev agentpkg.Event) {
+// handleQuestion routes MothX's interactive question tool through its own ACP
+// extension instead of overloading the standard permission request.
+func (s *server) handleQuestion(ctx context.Context, rt *sessionRuntime, ev agentpkg.Event) {
 	qh, ok := rt.agent.(agentpkg.QuestionHandler)
 	if !ok {
 		return
 	}
-	answer := s.requestQuestion(rt.id, ev.QuestionText, ev.QuestionOptions, ev.QuestionContext)
+	answer := s.requestQuestion(ctx, rt.id, ev.QuestionText, ev.QuestionOptions, ev.QuestionContext)
 	qh.HandleQuestionResponse(ev.QuestionID, answer)
 }
 
-// requestQuestion sends a multiple-choice question to the ACP client using the
-// request_permission channel (the only interactive primitive available) and
-// returns the selected option text, or empty if cancelled/timed out.
-func (s *server) requestQuestion(sessionID, question string, options []string, explanation string) string {
+// requestQuestion sends a multiple-choice question to ACP clients that opt into
+// the MothX extension and returns an empty answer if cancelled or timed out.
+func (s *server) requestQuestion(ctx context.Context, sessionID, question string, options []string, explanation string) string {
 	id := s.nextRequestID()
 	ch := make(chan json.RawMessage, 1)
 	s.mu.Lock()
 	s.pending[id] = ch
 	s.mu.Unlock()
 
-	opts := make([]permissionOption, 0, len(options))
-	for i, o := range options {
-		opts = append(opts, permissionOption{
-			OptionID: fmt.Sprintf("qopt-%d", i),
-			Name:     o,
-			Kind:     "allow_once",
-		})
-	}
-	title := question
-	if strings.TrimSpace(explanation) != "" {
-		title = question + "\n" + explanation
-	}
-	if err := s.notifyRequest(id, "session/request_permission", requestPermissionRequest{
-		SessionID: sessionID,
-		ToolCall: permissionToolCall{
-			ToolCallID: id,
-			Title:      title,
-			Kind:       "other",
-			Status:     "pending",
-		},
-		Options: opts,
+	if err := s.notifyRequest(id, "_mothx/request_question", questionRequest{
+		SessionID:   sessionID,
+		Question:    question,
+		Options:     options,
+		Explanation: explanation,
+		TimeoutMs:   int64((5 * time.Minute).Milliseconds()),
 	}); err != nil {
 		s.deletePending(id)
 		return ""
 	}
 	select {
+	case <-ctx.Done():
+		s.deletePending(id)
+		return ""
 	case <-time.After(5 * time.Minute):
 		s.deletePending(id)
 		return ""
 	case resp := <-ch:
-		var out permissionResult
+		var out questionResult
 		_ = json.Unmarshal(resp, &out)
-		if out.Outcome != nil && out.Outcome.Outcome == "selected" {
-			var idx int
-			if _, err := fmt.Sscanf(out.Outcome.OptionID, "qopt-%d", &idx); err == nil && idx >= 0 && idx < len(options) {
-				return options[idx]
+		for _, option := range options {
+			if out.Answer == option {
+				return option
 			}
 		}
 		return ""
@@ -1052,6 +1481,10 @@ func (s *server) requestQuestion(sessionID, question string, options []string, e
 }
 
 func (s *server) requestPermission(sessionID, toolCallID, toolName string, args map[string]any) bool {
+	return s.requestPermissionContext(context.Background(), sessionID, toolCallID, toolName, args)
+}
+
+func (s *server) requestPermissionContext(ctx context.Context, sessionID, toolCallID, toolName string, args map[string]any) bool {
 	id := s.nextRequestID()
 	ch := make(chan json.RawMessage, 1)
 	s.mu.Lock()
@@ -1062,7 +1495,7 @@ func (s *server) requestPermission(sessionID, toolCallID, toolName string, args 
 		ToolCall: permissionToolCall{
 			ToolCallID: toolCallID,
 			Title:      toolName,
-			Kind:       "execute",
+			Kind:       acpToolKind(toolName),
 			Status:     "pending",
 			RawInput:   toolRawInput(args),
 		},
@@ -1079,6 +1512,9 @@ func (s *server) requestPermission(sessionID, toolCallID, toolName string, args 
 		timeout = 30 * time.Second
 	}
 	select {
+	case <-ctx.Done():
+		s.deletePending(id)
+		return false
 	case <-time.After(timeout):
 		s.deletePending(id)
 		return false
@@ -1096,7 +1532,7 @@ func (s *server) deletePending(id string) {
 }
 
 func (s *server) deliverResponse(id json.RawMessage, result json.RawMessage, errMsg json.RawMessage) {
-	key := strings.Trim(string(id), "\"")
+	key := mcp.RawIDKey(id)
 	s.mu.Lock()
 	ch, ok := s.pending[key]
 	if ok {
@@ -1127,7 +1563,7 @@ func (s *server) emitMessage(sessionID string, msg provider.Message) {
 					SessionUpdate: "tool_call",
 					ToolCallID:    c.ToolCall.ID,
 					Title:         title,
-					Kind:          "other",
+					Kind:          acpToolKind(c.ToolCall.Name),
 					Status:        "pending",
 					RawInput:      toolRawInput(rawInput),
 				})
@@ -1161,13 +1597,15 @@ func (s *server) emitMessage(sessionID string, msg provider.Message) {
 			SessionUpdate: "tool_call_update",
 			ToolCallID:    msg.ToolCallID,
 			Title:         title,
+			Kind:          acpToolKind(msg.ToolName),
 			Status:        status,
+			Content:       textToolContent(msg.Content),
 			RawOutput:     rawOutput,
 		})
 	}
 }
 
-func promptToText(blocks []contentBlock) string {
+func promptToText(blocks []contentBlock) (string, error) {
 	var parts []string
 	for _, b := range blocks {
 		switch b.Type {
@@ -1176,12 +1614,17 @@ func promptToText(blocks []contentBlock) string {
 				parts = append(parts, b.Text)
 			}
 		case "resource_link":
-			if b.URI != "" {
-				parts = append(parts, b.URI)
+			if b.Name == "" || b.URI == "" {
+				return "", fmt.Errorf("resource_link requires name and uri")
 			}
+			parts = append(parts, b.Name+": "+b.URI)
+		case "image", "audio", "resource":
+			return "", fmt.Errorf("unsupported prompt content type: %s", b.Type)
+		default:
+			return "", fmt.Errorf("unsupported prompt content type: %s", b.Type)
 		}
 	}
-	return strings.Join(parts, "\n")
+	return strings.Join(parts, "\n"), nil
 }
 
 func toolRawInput(args map[string]any) map[string]any {
@@ -1334,6 +1777,14 @@ func (s *server) notify(sessionID string, update sessionUpdate) error {
 			"sessionId": sessionID,
 			"update":    update,
 		},
+	})
+}
+
+func (s *server) notifyExtension(method string, params any) error {
+	return s.writeMessage(map[string]any{
+		"jsonrpc": "2.0",
+		"method":  method,
+		"params":  params,
 	})
 }
 

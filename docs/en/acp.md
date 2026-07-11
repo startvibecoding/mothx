@@ -77,7 +77,7 @@ mothx acp --multi-agent
 
 ## Protocol Details
 
-ACP uses JSON-RPC 2.0 over stdio for communication. The protocol supports:
+ACP uses JSON-RPC 2.0 over stdio and follows the ACP v1 schema. MothX-specific behavior is isolated in `_mothx/*` methods and `_meta` capability declarations; standard ACP objects never receive custom root fields.
 
 ### Methods
 
@@ -86,8 +86,13 @@ ACP uses JSON-RPC 2.0 over stdio for communication. The protocol supports:
 | `initialize` | Handshake and capability negotiation |
 | `session/new` | Create a new session |
 | `session/load` | Load an existing session |
+| `session/list` | List persisted sessions, optionally filtered by working directory |
+| `session/resume` | Restore a session without replaying history |
 | `session/prompt` | Send a prompt to the agent |
 | `session/cancel` | Cancel an active prompt |
+| `session/close` | Cancel active work and release session runtime resources |
+| `session/delete` | Delete an inactive session from persisted session history |
+| `$/cancel_request` | Cancel an in-flight request by JSON-RPC request ID |
 | `session/update` | Server notification: session state changes |
 
 ### Capabilities
@@ -95,8 +100,8 @@ ACP uses JSON-RPC 2.0 over stdio for communication. The protocol supports:
 MothX advertises the following ACP capabilities during initialization:
 
 - **Load Session**: Load and continue previous sessions
-- **Prompt Capabilities**: Text prompts; ACP prompt image/audio inputs are not advertised
-- **Session Capabilities**: Cancel active prompts
+- **Prompt Capabilities**: Text and `resource_link`; image, audio, and embedded resource inputs are not advertised
+- **Session Capabilities**: Load, list, resume, close, and delete sessions
 - **MCP Capabilities**: stdio / http / sse transport supported
 - **Multi-Agent Workflows**: Available when the ACP server is started with `--multi-agent`
 
@@ -111,6 +116,18 @@ The server sends `session/update` notifications with the following event types:
 | `user_message_chunk` | historical user message |
 | `tool_call` | tool being called |
 | `tool_call_update` | tool status update (pending/in_progress/completed/failed) |
+| `usage_update` | Current context usage, context window size, and cumulative cost |
+
+`session/load` replays the full conversation history before returning.
+
+## MothX Extensions
+
+MothX keeps non-standard interactions separate from ACP. Clients use these methods only after the matching capability appears in `agentCapabilities._meta["mothx.dev"]`; ACP clients that do not support the extension can ignore it without affecting the standard session flow.
+
+| Method | Purpose |
+|------|------|
+| `_mothx/request_question` | Multiple-choice question request; clients return `{ "answer": "option text" }` |
+| `_mothx/session_event` | MothX runtime status, turn, and context-compaction events |
 
 ## MCP Server Integration
 

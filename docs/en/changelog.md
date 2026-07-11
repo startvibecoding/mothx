@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v1.1.63
+
+### ✨ Features
+
+- **ESM Automatic Recovery for Interrupted Roles**
+  - Added `RecoveryObserver` read-only sub-agent that inspects repository state after an ESM role (worker, critic, or audit) is interrupted by timeout or transport failure.
+  - Added `RecoveryObserverTaskPrompt`, `RecoveryReport`, and `ParseRecoveryReport` for structured recovery decision (`resume` / `blocked`).
+  - TUI `recoverInterruptedESMRole` converts bounded, recoverable role failures into clean supervisor completions so the next ESM continuation can launch a fresh worker.
+  - Timeout-triggered recovery spawns a RecoveryObserver (5 min timeout) to verify repo state and list concrete remaining work.
+  - Transport failures (provider errors after built-in retries) are auto-recovered without spawning an observer; a fresh worker retries from current state.
+  - DB migration 015 adds `recovery_count` and `recovery_reason` columns to `session_esm_objectives`.
+  - `RecoveryLimit = 2` consecutive automatic recoveries permitted; further interruptions pause continuation until `/esm resume`.
+  - Recovery state shown in TUI footer (`recover N/2`) and included in steering/worker prompts.
+  - Worker progress resets recovery counters on successful continuation.
+  - Recovery observer uses the same read-only tool restriction as critic/audit sub-agents.
+
 ## v1.1.62
 
 ### ✨ Features

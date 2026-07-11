@@ -1,6 +1,22 @@
 # 更新日志
 
 
+## v1.1.63
+
+### ✨ 新功能
+
+- **ESM 自动恢复中断角色**
+  - 新增 `RecoveryObserver` 只读子代理，在 ESM 角色（worker、critic 或 audit）因超时或传输故障中断后检查仓库状态。
+  - 新增 `RecoveryObserverTaskPrompt`、`RecoveryReport` 和 `ParseRecoveryReport`，用于结构化的恢复决策（`resume` / `blocked`）。
+  - TUI `recoverInterruptedESMRole` 将有限的可恢复角色失败转化为干净的 supervisor 完成，使下次 ESM 续跑可以启动新 worker。
+  - 超时触发的恢复会启动 RecoveryObserver（5 分钟超时）来验证仓库状态并列出具体剩余任务。
+  - 传输故障（provider 内建重试后的错误）自动恢复而无需启动 observer；新 worker 从当前状态重试。
+  - DB 迁移 015 为 `session_esm_objectives` 表新增 `recovery_count` 和 `recovery_reason` 列。
+  - `RecoveryLimit = 2` 允许的连续自动恢复次数；超过后暂停续跑，需 `/esm resume` 恢复。
+  - 恢复状态显示在 TUI 底部栏（`recover N/2`）并包含在 steering/worker prompt 中。
+  - Worker 进度成功续跑时重置恢复计数器。
+  - Recovery observer 使用和 critic/audit 子代理相同的只读工具限制。
+
 ## v1.1.62
 
 ### ✨ 新功能

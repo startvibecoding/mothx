@@ -77,7 +77,7 @@ mothx acp --multi-agent
 
 ## 协议细节
 
-ACP 使用 JSON-RPC 2.0 通过 stdio 进行通信。协议支持以下方法：
+ACP 使用 JSON-RPC 2.0 通过 stdio 进行通信，并遵循 ACP v1 schema。MothX 的业务扩展使用独立的 `_mothx/*` 方法和 `_meta` 能力声明，不会向标准 ACP 对象添加自定义根字段。
 
 ### 方法
 
@@ -86,8 +86,13 @@ ACP 使用 JSON-RPC 2.0 通过 stdio 进行通信。协议支持以下方法：
 | `initialize` | 握手和能力协商 |
 | `session/new` | 创建新会话 |
 | `session/load` | 加载已有会话 |
+| `session/list` | 列出持久化会话，支持按工作目录筛选和游标分页 |
+| `session/resume` | 恢复已有会话而不重放历史 |
 | `session/prompt` | 向代理发送提示 |
 | `session/cancel` | 取消活动的提示 |
+| `session/close` | 取消活动工作并释放该会话的 MCP 等运行时资源 |
+| `session/delete` | 从持久化会话列表中删除非活动会话 |
+| `$/cancel_request` | 按 JSON-RPC 请求 ID 取消进行中的请求 |
 | `session/update` | 服务器通知：会话状态变更 |
 
 ### 能力
@@ -95,8 +100,8 @@ ACP 使用 JSON-RPC 2.0 通过 stdio 进行通信。协议支持以下方法：
 MothX 在初始化时声明以下 ACP 能力：
 
 - **加载会话**: 加载和继续之前的会话
-- **提示能力**: 文本提示；ACP prompt 不声明图像/音频输入能力
-- **会话能力**: 取消活动中的提示
+- **提示能力**: 文本和 `resource_link`；不声明图像、音频或嵌入资源输入能力
+- **会话能力**: 支持加载、列出、恢复、关闭和删除会话
 - **MCP 能力**: 支持 stdio / http / sse 传输
 - **多 Agent 工作流**: 使用 `--multi-agent` 启动 ACP 服务器后可用
 
@@ -111,6 +116,18 @@ MothX 在初始化时声明以下 ACP 能力：
 | `user_message_chunk` | 历史用户消息 |
 | `tool_call` | 正在调用的工具 |
 | `tool_call_update` | 工具状态更新 (pending/in_progress/completed/failed) |
+| `usage_update` | 当前上下文 token 使用量、上下文窗口和累计成本 |
+
+`session/load` 会在响应前完整重放会话历史。
+
+## MothX 扩展
+
+MothX 将非 ACP 标准的交互隔离为扩展。客户端仅在 `initialize` 响应的 `agentCapabilities._meta["mothx.dev"]` 声明对应能力后使用这些方法；不支持扩展的 ACP 客户端可以忽略它们且不影响标准会话流程。
+
+| 方法 | 用途 |
+|------|------|
+| `_mothx/request_question` | 多选问题请求；客户端响应 `{ "answer": "选项文本" }` |
+| `_mothx/session_event` | 状态、回合和上下文压缩等 MothX 运行时事件 |
 
 ## MCP 服务器集成
 

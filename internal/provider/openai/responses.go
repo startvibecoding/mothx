@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -158,9 +157,7 @@ func (p *Provider) chatResponses(ctx context.Context, params provider.ChatParams
 			ch <- provider.StreamEvent{Type: provider.StreamError, Error: fmt.Errorf("marshal request: %w", err)}
 			return
 		}
-		if os.Getenv("VIBECODING_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "[DEBUG] Responses request body: %s\n", string(body))
-		}
+		provider.DebugJSON("OpenAI Responses request JSON", body)
 
 		maxRetries := 0
 		baseDelayMs := 2000
@@ -201,6 +198,7 @@ func (p *Provider) chatResponses(ctx context.Context, params provider.ChatParams
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
+				provider.DebugJSON("OpenAI Responses response JSON", bodyBytes)
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
 					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyBytes))) {
 						return
@@ -319,6 +317,8 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var (
+		textContent     strings.Builder
+		reasoning       strings.Builder
 		usage           *provider.Usage
 		stopReason      string
 		toolCallsByKey  = make(map[string]*provider.ToolCallBlock)
@@ -328,6 +328,18 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 	)
 
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
+	defer func() {
+		toolCalls := make([]provider.ToolCallBlock, 0, len(toolCallOrder))
+		for _, key := range toolCallOrder {
+			if tc := toolCallsByKey[key]; tc != nil {
+				toolCalls = append(toolCalls, *tc)
+			}
+		}
+		provider.DebugCompleteResponse(provider.DebugResponse{
+			Provider: "openai", API: "responses", Content: textContent.String(),
+			Reasoning: reasoning.String(), ToolCalls: toolCalls, StopReason: stopReason, Usage: usage,
+		})
+	}()
 
 	for scanner.Scan() {
 		select {
@@ -358,11 +370,13 @@ func (p *Provider) parseResponsesSSE(ctx context.Context, body io.Reader, ch cha
 		case "response.output_text.delta":
 			if event.Delta != "" {
 				visibleOutput = true
+				textContent.WriteString(event.Delta)
 				ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: event.Delta}
 			}
 		case "response.reasoning_text.delta":
 			if !p.disableReasoning && event.Delta != "" {
 				visibleOutput = true
+				reasoning.WriteString(event.Delta)
 				ch <- provider.StreamEvent{Type: provider.StreamThinkDelta, ThinkDelta: event.Delta}
 			}
 		case "response.function_call_arguments.delta":

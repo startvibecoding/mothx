@@ -319,10 +319,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			return
 		}
 
-		// Debug: dump request body
-		if os.Getenv("VIBECODING_DEBUG") != "" {
-			fmt.Fprintf(os.Stderr, "[DEBUG] Request body: %s\n", string(body))
-		}
+		provider.DebugJSON("Anthropic request JSON", body)
 
 		// Retry loop: retries only the initial HTTP connection, not the SSE stream.
 		maxRetries := 0
@@ -365,10 +362,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			if resp.StatusCode != http.StatusOK {
 				b, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
-				if os.Getenv("VIBECODING_DEBUG") != "" {
-					fmt.Fprintf(os.Stderr, "[DEBUG] API Error %d: %s\n", resp.StatusCode, string(b))
-					fmt.Fprintf(os.Stderr, "[DEBUG] Request body was: %s\n", string(body))
-				}
+				provider.DebugJSON("Anthropic response JSON", b)
 				if attempt < maxRetries && provider.IsRetryable(nil, resp.StatusCode) {
 					if !sendRetryEventAndWait(ctx, ch, attempt, maxRetries, baseDelayMs, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))) {
 						return
@@ -445,6 +439,12 @@ func (p *Provider) parseSSE(ctx context.Context, body io.Reader, ch chan<- provi
 	)
 
 	ch <- provider.StreamEvent{Type: provider.StreamStart}
+	defer func() {
+		provider.DebugCompleteResponse(provider.DebugResponse{
+			Provider: "anthropic", API: "messages", Content: textContent, Reasoning: reasonContent,
+			ToolCalls: toolCalls, StopReason: stopReason, Usage: usage,
+		})
+	}()
 
 	for scanner.Scan() {
 		select {
