@@ -65,8 +65,8 @@ jobs:
           publish_if_needed() {
             package_dir="$1"
             package_json="$package_dir/package.json"
-            package_name="$(node -p "require(process.argv[1]).name" "$package_json")"
-            package_version="$(node -p "require(process.argv[1]).version" "$package_json")"
+            package_name="$(node -p "require(require('path').resolve(process.argv[1])).name" "$package_json")"
+            package_version="$(node -p "require(require('path').resolve(process.argv[1])).version" "$package_json")"
             if npm view "$package_name@$package_version" version --registry "$registry" >/dev/null 2>&1; then
               echo "Skipping $package_name@$package_version: already published"
               return
