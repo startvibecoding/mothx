@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -399,14 +400,19 @@ func initRunEnvironment(opts runOptions) {
 	}
 
 	debugEnabled = opts.debug
-	if debugEnabled {
+	if debugEnabled && opts.print {
 		fmt.Fprintf(os.Stderr, "[DEBUG] Debug logging enabled\n")
 	}
 
 	config.Verbose = opts.verbose || opts.debug
 	if opts.debug {
 		_ = os.Setenv("VIBECODING_DEBUG", "1")
-		debugpprof.StartForDebug(os.Stderr)
+		if opts.print {
+			debugpprof.StartForDebug(os.Stderr)
+		} else {
+			_ = os.Setenv(provider.DebugLogOnlyEnv, "1")
+			debugpprof.StartForDebug(io.Discard)
+		}
 	}
 }
 

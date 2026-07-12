@@ -44,7 +44,7 @@ func clearStdin() {
 
 // debugLog prints debug messages to stderr if debug mode is enabled.
 func debugLog(format string, args ...interface{}) {
-	if debugEnabled {
+	if debugEnabled && os.Getenv(provider.DebugLogOnlyEnv) == "" {
 		fmt.Fprintf(os.Stderr, "[DEBUG] "+format+"\n", args...)
 	}
 }
@@ -94,7 +94,7 @@ func runPrint(args []string, p provider.Provider, providerName string, model *pr
 		Model:              model,
 		Mode:               mode,
 		ThinkingLevel:      thinkingLevel,
-		MaxTokens:          agent.ResolveMaxTokens(settings, model),
+		MaxTokens:          agent.ResolveMaxTokens(model),
 		Settings:           settings,
 		Allow:              config.LoadAllow(),
 		Session:            sess,

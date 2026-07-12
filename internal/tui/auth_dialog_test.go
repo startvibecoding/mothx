@@ -238,7 +238,7 @@ func TestSettingsFieldPatchSavesGlobalTopLevelOnly(t *testing.T) {
 			Open:       true,
 			View:       authViewSettingsBehavior,
 			Mode:       "settings",
-			ParamField: "maxOutputTokens",
+			ParamField: "maxContextTokens",
 		},
 	}
 
@@ -248,8 +248,8 @@ func TestSettingsFieldPatchSavesGlobalTopLevelOnly(t *testing.T) {
 	if a.auth.ParamField != "" {
 		t.Fatalf("ParamField = %q, want cleared", a.auth.ParamField)
 	}
-	if a.settings.MaxOutputTokens != 4242 {
-		t.Fatalf("MaxOutputTokens = %d, want 4242", a.settings.MaxOutputTokens)
+	if a.settings.MaxContextTokens != 4242 {
+		t.Fatalf("MaxContextTokens = %d, want 4242", a.settings.MaxContextTokens)
 	}
 	if a.mode != "agent" {
 		t.Fatalf("mode = %q, want unchanged agent", a.mode)
@@ -259,7 +259,7 @@ func TestSettingsFieldPatchSavesGlobalTopLevelOnly(t *testing.T) {
 		t.Fatalf("read settings: %v", err)
 	}
 	text := string(out)
-	if !strings.Contains(text, `"maxOutputTokens": 4242`) || !strings.Contains(text, `"defaultProvider": "deepseek-openai"`) {
+	if !strings.Contains(text, `"maxContextTokens": 4242`) || !strings.Contains(text, `"defaultProvider": "deepseek-openai"`) {
 		t.Fatalf("settings patch missing expected fields:\n%s", text)
 	}
 	if strings.Contains(text, `"providers"`) || strings.Contains(text, `"statusLine"`) || strings.Contains(text, `"sandbox"`) {

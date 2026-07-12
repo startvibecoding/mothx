@@ -15,7 +15,7 @@ func (a *App) authSettingsRootOptions() []authOption {
 	return []authOption{
 		{Title: "Providers", Description: fmt.Sprintf("%d provider(s), default %s / %s", len(s.Providers), valueOrDefault(s.DefaultProvider, "(unset)"), valueOrDefault(s.DefaultModel, "(unset)")), Value: "providers"},
 		{Title: "Defaults", Description: fmt.Sprintf("mode=%s  thinking=%s", valueOrDefault(s.DefaultMode, "agent"), valueOrDefault(s.DefaultThinkingLevel, "medium")), Value: "defaults"},
-		{Title: "Behavior", Description: fmt.Sprintf("theme=%s  planTool=%s  maxOut=%s", valueOrDefault(s.Theme, "dark"), boolPtrSummary(s.EnablePlanTool, true), authItoa(s.MaxOutputTokens)), Value: "behavior"},
+		{Title: "Behavior", Description: fmt.Sprintf("theme=%s  planTool=%s", valueOrDefault(s.Theme, "dark"), boolPtrSummary(s.EnablePlanTool, true)), Value: "behavior"},
 		{Title: "Web Search", Description: fmt.Sprintf("enabled=%s  provider=%s", boolPtrSummary(s.WebSearch.Enabled, false), valueOrDefault(s.WebSearch.Provider, "openai")), Value: "webSearch"},
 		{Title: "Context Files", Description: fmt.Sprintf("enabled=%s  extra=%d", boolYesNo(s.ContextFiles.Enabled), len(s.ContextFiles.ExtraFiles)), Value: "contextFiles"},
 		{Title: "Status Line", Description: fmt.Sprintf("enabled=%s  type=%s", boolYesNo(s.StatusLine.Enabled), valueOrDefault(s.StatusLine.Type, "command")), Value: "statusLine"},
@@ -69,7 +69,6 @@ func (a *App) authSettingsTopLevelOptions(v authView) []authOption {
 			{Title: "Theme", Description: valueOrDefault(s.Theme, "dark"), Value: "theme"},
 			{Title: "Enable Plan Tool", Description: boolPtrSummary(s.EnablePlanTool, true), Value: "enablePlanTool"},
 			{Title: "Max Context Tokens", Description: zeroAsUnset(s.MaxContextTokens), Value: "maxContextTokens"},
-			{Title: "Max Output Tokens", Description: zeroAsUnset(s.MaxOutputTokens), Value: "maxOutputTokens"},
 			{Title: "Update Check", Description: boolPtrSummary(s.UpdateCheck, true), Value: "updateCheck"},
 		}
 	case authViewSettingsWebSearch:
@@ -220,8 +219,6 @@ func (a *App) authSettingsInputPrompt() string {
 		return "Enter theme:"
 	case "maxContextTokens":
 		return "Enter max context tokens (0 = unset):"
-	case "maxOutputTokens":
-		return "Enter max output tokens (0 = unset):"
 	case "webSearch.provider":
 		return "Enter web search provider:"
 	case "webSearch.providerType":
@@ -288,8 +285,6 @@ func (a *App) authSettingsInputValue() string {
 		return s.Theme
 	case "maxContextTokens":
 		return intInputValue(s.MaxContextTokens)
-	case "maxOutputTokens":
-		return intInputValue(s.MaxOutputTokens)
 	case "webSearch.provider":
 		return s.WebSearch.Provider
 	case "webSearch.providerType":
@@ -375,13 +370,6 @@ func (a *App) authSettingsSubmitInput() error {
 		}
 		next.MaxContextTokens = v
 		updates["maxContextTokens"] = next.MaxContextTokens
-	case "maxOutputTokens":
-		v, err := parseNonNegativeInt(value)
-		if err != nil {
-			return err
-		}
-		next.MaxOutputTokens = v
-		updates["maxOutputTokens"] = next.MaxOutputTokens
 	case "webSearch.provider":
 		next.WebSearch.Provider = value
 		updates["webSearch"] = next.WebSearch

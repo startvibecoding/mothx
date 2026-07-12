@@ -85,7 +85,6 @@ Project-level configuration overrides global configuration. When both exist, sca
   },
   "enablePlanTool": true,
   "maxContextTokens": 1000000,
-  "maxOutputTokens": 384000,
   "contextFiles": {
     "enabled": true,
     "extraFiles": ["/path/to/extra-context.md"]
@@ -143,7 +142,6 @@ Project-level configuration overrides global configuration. When both exist, sca
 | `statusLine` | object | *(see below)* | External status line command settings for TUI only |
 | `enablePlanTool` | bool | `true` | Register the built-in `plan` tool |
 | `maxContextTokens` | int | `0` (auto) | Override maximum context token count |
-| `maxOutputTokens` | int | `0` (auto) | Override maximum output token count |
 | `contextFiles` | object | *(see below)* | Context file loading settings |
 | `skillsDir` | string | `"~/.mothx/skills"` | Global skills directory path |
 | `compaction` | object | *(see below)* | Context compaction settings |
@@ -523,16 +521,6 @@ Override the maximum context token count. When set to `0` (default), the value i
 ```json
 { "maxContextTokens": 200000 }
 ```
-
-### maxOutputTokens
-
-Override the maximum output token count. When set to `0` (default), the value is derived from the model's `maxTokens`.
-
-```json
-{ "maxOutputTokens": 16384 }
-```
-
----
 
 ### contextFiles
 

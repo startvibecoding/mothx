@@ -1,4 +1,4 @@
-.PHONY: help build build-all install test lint fmt clean run serve
+.PHONY: help build build-all install test fuzz lint fmt clean run serve
 .PHONY: ui-install ui-build ui-dev ui-preview
 .PHONY: build-linux build-linux-loong64 build-linux-musl build-darwin build-windows
 .PHONY: build-freebsd build-openbsd build-netbsd
@@ -13,6 +13,7 @@
 # Variables
 BINARY_NAME=mothx
 VERSION=$(shell git describe --tags --abbrev=0 2>/dev/null || echo "dev")
+FUZZTIME ?= 10s
 PRE_VERSION=$(if $(filter %-pre,$(VERSION)),$(VERSION),$(VERSION)-pre)
 LDFLAGS=-ldflags "-s -w -X main.version=$(VERSION) -X github.com/startvibecoding/mothx/internal/ua.Version=$(VERSION)"
 GOBUILD_FLAGS=-trimpath
@@ -107,6 +108,7 @@ help:
 	@echo "Other targets:"
 	@echo "  install        Install via go install"
 	@echo "  test           Run tests"
+	@echo "  fuzz           Run fuzz targets (set FUZZTIME to change duration)"
 	@echo "  lint           Run linter"
 	@echo "  fmt            Format code"
 	@echo "  clean          Remove build artifacts"
@@ -191,6 +193,13 @@ install:
 # Test
 test:
 	go test -v -race ./...
+
+# Fuzz tests must run one package at a time because Go fuzzing does not accept
+# multiple packages in a single invocation.
+fuzz:
+	go test ./internal/esm -run='^$$' -fuzz=. -fuzztime=$(FUZZTIME)
+	go test ./internal/mcp -run='^$$' -fuzz=. -fuzztime=$(FUZZTIME)
+	go test ./internal/util -run='^$$' -fuzz=. -fuzztime=$(FUZZTIME)
 
 # Serve Web UI
 ui-install:

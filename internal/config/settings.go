@@ -26,7 +26,6 @@ type Settings struct {
 	EnablePlanTool       *bool                      `json:"enablePlanTool,omitempty"`
 	WebSearch            WebSearchSettings          `json:"webSearch"`
 	MaxContextTokens     int                        `json:"maxContextTokens,omitempty"`
-	MaxOutputTokens      int                        `json:"maxOutputTokens,omitempty"`
 	ContextFiles         ContextFilesSettings       `json:"contextFiles"`
 	SkillsDir            string                     `json:"skillsDir,omitempty"`
 	Compaction           CompactionSettings         `json:"compaction"`
@@ -428,30 +427,30 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "mimo-v2.5-pro-ultraspeed", Name: "MiMo-V2.5-Pro-UltraSpeed", Reasoning: true, ContextWindow: 1048576, MaxTokens: 131072, Cost: &CostConfig{Input: 1.305, Output: 2.61, CacheRead: 0.0108}, Input: []string{"text"}},
 	}},
 	"volcengine-agentplan": {Vendor: "volcengine-agentplan", BaseURL: "https://ark.cn-beijing.volces.com/api/plan/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text", "image"}},
-		{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text"}},
-		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text", "image"}},
-		{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 4096, Input: []string{"text", "image"}},
-		{ID: "minimax-m2.7", Name: "MiniMax M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "kimi-k2.6", Name: "Kimi K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
+		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "minimax-m2.7", Name: "MiniMax M2.7", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "kimi-k2.6", Name: "Kimi K2.6", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
 	}},
 	"volcengine-codingplan": {Vendor: "volcengine-codingplan", BaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{
-		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}},
-		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 131072, Input: []string{"text", "image"}},
-		{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}},
-		{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text"}},
-		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 384000, Input: []string{"text", "image"}},
-		{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 4096, Input: []string{"text", "image"}},
+		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "kimi-k2.7-code", Name: "Kimi K2.7 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "deepseek-v4-pro", Name: "DeepSeek V4 Pro", Reasoning: true, ContextWindow: 1048576, MaxTokens: 100000, Input: []string{"text"}},
+		{ID: "deepseek-v4-flash", Name: "DeepSeek V4 Flash", Reasoning: true, ContextWindow: 1048576, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "minimax-m3", Name: "MiniMax M3", Reasoning: true, ContextWindow: 1048576, MaxTokens: 100000, Input: []string{"text", "image"}},
 	}},
 	"volcengine": {Vendor: "volcengine", BaseURL: "https://ark.cn-beijing.volces.com/api/v3", APIKey: "${VOLCENGINE_API_KEY}", API: "openai-chat", Models: []ModelConfig{{ID: "doubao-seed-2-1-turbo-260628", Name: "Doubao Seed 2.1 Turbo", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text"}}, {ID: "doubao-seed-evolving", Name: "Doubao Seed Evolving", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}, {ID: "doubao-seed-2-1-pro-260628", Name: "Doubao Seed 2.1 Pro", ContextWindow: 262144, MaxTokens: 262144, Input: []string{"text", "image"}}}},
 	"openrouter": {Vendor: "openrouter", BaseURL: "https://openrouter.ai/api/v1", APIKey: "${OPENROUTER_API_KEY}", API: "openai-chat", Models: []ModelConfig{
@@ -1055,6 +1054,9 @@ func SaveGlobalSettingsPatch(updates map[string]any) error {
 	} else if !os.IsNotExist(err) {
 		return fmt.Errorf("read global settings %s: %w", settingsPath, err)
 	}
+	// Output limits are configured per model. Drop the retired global setting
+	// whenever this sparse file is rewritten.
+	delete(existing, "maxOutputTokens")
 	for key, value := range updates {
 		if key == "" {
 			continue

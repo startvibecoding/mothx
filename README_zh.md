@@ -201,7 +201,6 @@ mothx --no-sandbox
   "defaultMode": "agent",
   "enablePlanTool": true,
   "maxContextTokens": 1000000,
-  "maxOutputTokens": 384000,
   "compaction": {
     "enabled": true,
     "reserveTokens": 16384,

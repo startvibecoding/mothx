@@ -164,7 +164,7 @@ mothx --debug
 1. **Use cheaper models**: `deepseek-v4-flash` has the best value
 2. **Enable caching**: Repeated prompt prefixes are cached
 3. **Compress context**: Use `/compact` command
-4. **Limit output length**: Set `maxOutputTokens` in config
+4. **Limit output length**: Set `maxTokens` for the relevant provider model
 5. **Use Plan mode**: Analyze first, then execute
 
 ---

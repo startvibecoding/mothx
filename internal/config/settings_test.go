@@ -175,6 +175,21 @@ func TestMoarkModelMaxTokens(t *testing.T) {
 	}
 }
 
+func TestVolcenginePlanModelsUseSharedMaxTokens(t *testing.T) {
+	s := DefaultSettings()
+	for _, providerName := range []string{"volcengine-agentplan", "volcengine-codingplan"} {
+		p := s.Providers[providerName]
+		if p == nil {
+			t.Fatalf("expected %s provider", providerName)
+		}
+		for _, model := range p.Models {
+			if model.MaxTokens != 100000 {
+				t.Fatalf("%s %s MaxTokens = %d, want 100000", providerName, model.ID, model.MaxTokens)
+			}
+		}
+	}
+}
+
 func TestRoutedProviderModelMaxTokensAreExplicit(t *testing.T) {
 	s := DefaultSettings()
 	wantByProvider := map[string]map[string]int{

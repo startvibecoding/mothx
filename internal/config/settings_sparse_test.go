@@ -39,7 +39,8 @@ func TestSaveGlobalSettingsPatchPreservesSparseFile(t *testing.T) {
 		"providers": {
 			"xiaomi": {"api": "openai-chat", "baseUrl": "https://x.test", "models": [{"id": "m"}]}
 		},
-		"defaultProvider": "xiaomi"
+		"defaultProvider": "xiaomi",
+		"maxOutputTokens": 4096
 	}`)
 	path := filepath.Join(tmpDir, "settings.json")
 	if err := os.WriteFile(path, data, 0600); err != nil {
@@ -60,7 +61,7 @@ func TestSaveGlobalSettingsPatchPreservesSparseFile(t *testing.T) {
 			t.Fatalf("settings missing %s:\n%s", want, text)
 		}
 	}
-	for _, unexpected := range []string{`"deepseek-openai"`, `"statusLine"`, `"contextFiles"`, `"compaction"`, `"sandbox"`} {
+	for _, unexpected := range []string{`"deepseek-openai"`, `"statusLine"`, `"contextFiles"`, `"compaction"`, `"sandbox"`, `"maxOutputTokens"`} {
 		if strings.Contains(text, unexpected) {
 			t.Fatalf("settings patch expanded defaults with %s:\n%s", unexpected, text)
 		}

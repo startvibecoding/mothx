@@ -27,7 +27,6 @@ func TestLoadSettingsProjectSupportsFalseAndZeroOverrides(t *testing.T) {
 	}
 	data := []byte(`{
 		"maxContextTokens": 0,
-		"maxOutputTokens": 0,
 		"webSearch": {"model": "search-model"},
 		"contextFiles": {"enabled": false},
 		"compaction": {"enabled": false, "reserveTokens": 0, "keepRecentTokens": 0},
@@ -41,8 +40,8 @@ func TestLoadSettingsProjectSupportsFalseAndZeroOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load settings: %v", err)
 	}
-	if s.MaxContextTokens != 0 || s.MaxOutputTokens != 0 {
-		t.Fatalf("max token zero overrides not applied: %d/%d", s.MaxContextTokens, s.MaxOutputTokens)
+	if s.MaxContextTokens != 0 {
+		t.Fatalf("max context token zero override not applied: %d", s.MaxContextTokens)
 	}
 	if s.WebSearch.Model != "search-model" {
 		t.Fatalf("webSearch.model = %q, want search-model", s.WebSearch.Model)

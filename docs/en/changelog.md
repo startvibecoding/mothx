@@ -1,6 +1,37 @@
 # Changelog
 
 
+## v1.1.66
+
+### ✨ Features
+
+- **Fuzz Test Targets & Make Target**
+  - Added fuzz tests for ESM report parsing (`internal/esm/report_fuzz_test.go`), MCP JSON-RPC message handling (`internal/mcp/mcp_fuzz_test.go`), and utility truncation (`internal/util/truncate_fuzz_test.go`).
+  - Added `make fuzz` target that runs every registered fuzz target for a configurable duration (`FUZZTIME`, default `10s`), since Go fuzzing accepts only one package per invocation.
+
+### 🔧 Improvements
+
+- **Per-Model Output Token Limits**
+  - Removed the global `maxOutputTokens` setting from `settings.json`. Output limits now always come from the active model's `maxTokens`, avoiding truncation or oversized outputs caused by a one-size-fits-all global cap across providers.
+  - Simplified `agent.ResolveMaxTokens` to take only the model; dropped the `MaxTokensSet` gate so built-in model defaults apply automatically without requiring user configuration.
+  - Updated CLI/print, ACP server, TUI (`/model` cycling, `ensureAgent`, `?` / BTW help), OpenAI-compatible API (`/compact` and chat completions), AgentFactory, and ESM sub-agent paths to use the new signature.
+  - Removed the Max Output Tokens field from the TUI `/settings` Behavior panel; `SaveGlobalSettingsPatch` now strips legacy `maxOutputTokens` keys from existing sparse settings files.
+  - Updated `docs/en/configuration.md`, `docs/en/faq.md`, and `README_zh.md` to remove the retired setting; the FAQ now points users at per-model `maxTokens`.
+
+- **Volcengine Plan Default Max Tokens**
+  - Lowered the default `MaxTokens` for every model under the `volcengine-agentplan` and `volcengine-codingplan` providers (Ark Code, Doubao Seed 2.0 series, GLM-5.2, Kimi K2.x, DeepSeek V4 Pro/Flash, MiniMax M3/M2.7) to 100K, matching current upstream limits and the CodingPlan model-set note.
+  - Corrected the CodingPlan doc note (MiniMax M2.7 is excluded, not M3) and added a `TestVolcenginePlanModelsUseSharedMaxTokens` regression test.
+
+- **TUI Debug Output Cleanup**
+  - Interactive TUI runs no longer leak streaming JSON debug lines into the Bubble Tea view while `--debug` is on: debug output still goes to `debug.log` and the pprof server starts as before, but stderr chatter is suppressed via a new `VIBECODING_DEBUG_LOG_ONLY` env var.
+  - CLI `--print` mode (and other non-TUI entry points) continues to print `[DEBUG]` lines and pprof status to stderr, and the startup "Debug logging enabled" banner is also limited to print mode.
+  - `DebugCompleteResponse` now falls back to a structured string dump when `json.Marshal` fails (e.g. for tool calls that accumulated invalid `json.RawMessage` arguments mid-stream), so malformed payloads never disappear from `debug.log`.
+  - `debugpprof.Start` accepts a writer for its log lines; added coverage for the marshal-failure debug path.
+
+- **Test Suite Maintenance**
+  - Updated stats dashboard migration expectation to 15 (post-ESM recovery columns).
+  - TUI auth-dialog, settings-sparse, and zero-override tests rewritten to exercise `maxContextTokens` instead of the removed `maxOutputTokens` field.
+
 ## v1.1.65
 
 ### 🔧 Improvements

@@ -764,7 +764,7 @@ func (s *server) handlePrompt(req rpcRequest) {
 			Model:         s.m,
 			Mode:          effectiveMode,
 			ThinkingLevel: s.thinkingLevel,
-			MaxTokens:     agent.ResolveMaxTokens(s.settings, s.m),
+			MaxTokens:     agent.ResolveMaxTokens(s.m),
 			SandboxMgr:    s.sbMgr,
 			Settings:      s.settings,
 			Allow:         s.allow,
@@ -1302,7 +1302,7 @@ func (s *server) handleMCPSamplingCreateMessage(ctx context.Context, sessionID, 
 		return nil, &mcp.RPCError{Code: -32602, Message: "sampling/createMessage requires non-empty messages"}
 	}
 	if maxTokens <= 0 {
-		maxTokens = agent.ResolveMaxTokens(s.settings, s.m)
+		maxTokens = agent.ResolveMaxTokens(s.m)
 	}
 	modelID := ""
 	if s.m != nil {

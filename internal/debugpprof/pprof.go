@@ -28,6 +28,13 @@ var (
 
 // Start starts the pprof HTTP server once per process.
 func Start() (addr string, startedNow bool, err error) {
+	return start(os.Stderr)
+}
+
+func start(logWriter io.Writer) (addr string, startedNow bool, err error) {
+	if logWriter == nil {
+		logWriter = io.Discard
+	}
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -50,7 +57,7 @@ func Start() (addr string, startedNow bool, err error) {
 
 	go func() {
 		if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Fprintf(os.Stderr, "[DEBUG] pprof server stopped: %v\n", err)
+			fmt.Fprintf(logWriter, "[DEBUG] pprof server stopped: %v\n", err)
 		}
 	}()
 
@@ -62,7 +69,7 @@ func StartForDebug(w io.Writer) {
 	if w == nil {
 		w = io.Discard
 	}
-	addr, startedNow, err := Start()
+	addr, startedNow, err := start(w)
 	if err != nil {
 		fmt.Fprintf(w, "[DEBUG] pprof unavailable: %v\n", err)
 		return

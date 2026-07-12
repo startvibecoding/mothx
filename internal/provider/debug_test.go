@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 func TestDebugJSONWritesRequestAndCompleteResponse(t *testing.T) {
 	t.Setenv("VIBECODING_DEBUG", "1")
+	t.Setenv(DebugLogOnlyEnv, "1")
 	workDir := t.TempDir()
 	oldWD, err := os.Getwd()
 	if err != nil {
@@ -39,5 +41,41 @@ func TestDebugJSONWritesRequestAndCompleteResponse(t *testing.T) {
 	}
 	if strings.Contains(log, "data:") {
 		t.Fatalf("debug log contains an SSE fragment: %s", log)
+	}
+}
+
+func TestDebugCompleteResponseLogsResponseWhenJSONMarshalFails(t *testing.T) {
+	t.Setenv("VIBECODING_DEBUG", "1")
+	t.Setenv(DebugLogOnlyEnv, "1")
+	workDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(workDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	DebugCompleteResponse(DebugResponse{
+		Provider: "openai",
+		API:      "chat-completions",
+		ToolCalls: []ToolCallBlock{{
+			ID:        "call_1",
+			Name:      "read_file",
+			Arguments: json.RawMessage(`not valid json`),
+		}},
+	})
+
+	data, err := os.ReadFile(filepath.Join(workDir, "debug.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := string(data)
+	if !strings.Contains(log, "Response JSON marshal error") {
+		t.Fatalf("debug log missing marshal error: %s", log)
+	}
+	if !strings.Contains(log, "call_1") || !strings.Contains(log, "not valid json") {
+		t.Fatalf("debug log missing unmarshalable response content: %s", log)
 	}
 }

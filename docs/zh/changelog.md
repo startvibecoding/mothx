@@ -1,6 +1,37 @@
 # 更新日志
 
 
+## v1.1.66
+
+### ✨ 新功能
+
+- **Fuzz 测试目标与 Make 目标**
+  - 为 ESM 报告解析（`internal/esm/report_fuzz_test.go`）、MCP JSON-RPC 消息处理（`internal/mcp/mcp_fuzz_test.go`）以及工具类截断函数（`internal/util/truncate_fuzz_test.go`）新增 fuzz 测试。
+  - 新增 `make fuzz` 目标，按可配置时长（`FUZZTIME`，默认 `10s`）依次运行所有已注册的 fuzz 目标，适配 Go fuzzing 每次只能跑一个包的限制。
+
+### 🔧 改进
+
+- **按模型配置输出 Token 上限**
+  - 从 `settings.json` 中移除全局 `maxOutputTokens` 设置。输出上限现在完全由当前模型的 `maxTokens` 决定，避免因一个全局值在不同 provider 上造成截断或超长输出。
+  - 简化 `agent.ResolveMaxTokens`，仅接收 model 参数；去掉 `MaxTokensSet` 门限，内建模型默认值自动生效，无需用户额外配置。
+  - 更新 CLI/print、ACP 服务、TUI（`/model` 切换、`ensureAgent`、`?`/BTW 帮助）、OpenAI 兼容 API（`/compact` 与 chat completions）、AgentFactory 以及 ESM 子代理路径以使用新签名。
+  - 从 TUI `/settings` 的 Behavior 面板移除 Max Output Tokens 字段；`SaveGlobalSettingsPatch` 会在重写稀疏配置时自动清理遗留的 `maxOutputTokens` 键。
+  - 同步更新 `docs/en/configuration.md`、`docs/en/faq.md`、`README_zh.md`，移除该已废弃设置；FAQ 改为指引用户在对应模型上配置 `maxTokens`。
+
+- **火山方舟 Plan 默认 Max Tokens 调整**
+  - 将 `volcengine-agentplan` 与 `volcengine-codingplan` 下所有模型（Ark Code、Doubao Seed 2.0 系列、GLM-5.2、Kimi K2.x、DeepSeek V4 Pro/Flash、MiniMax M3/M2.7）的默认 `MaxTokens` 下调至 100K，对齐当前上游限制并统一 CodingPlan 的模型说明。
+  - 修正 CodingPlan 文档备注（排除的是 MiniMax M2.7 而非 M3），新增 `TestVolcenginePlanModelsUseSharedMaxTokens` 回归测试。
+
+- **TUI Debug 输出清理**
+  - 启用 `--debug` 时，交互式 TUI 不再把流式 JSON 调试行混入 Bubble Tea 视图：调试信息仍然写入 `debug.log`，pprof 服务也照常启动，但通过新增的 `VIBECODING_DEBUG_LOG_ONLY` 环境变量抑制 stderr 输出。
+  - CLI `--print` 模式（及其他非 TUI 入口）继续在 stderr 输出 `[DEBUG]` 行和 pprof 状态，启动时的 “Debug logging enabled” 横幅也仅限 print 模式。
+  - `DebugCompleteResponse` 在 `json.Marshal` 失败时（例如工具调用在流式过程中累积了非法的 `json.RawMessage` 参数）会回退到结构化字符串 dump，确保畸形负载不会从 `debug.log` 中消失。
+  - `debugpprof.Start` 支持传入日志写入 writer；新增 marshal 失败调试路径的测试覆盖。
+
+- **测试套件维护**
+  - 将 stats 面板的迁移期望值更新为 15（ESM 恢复列之后）。
+  - 重写 TUI auth-dialog、settings-sparse 以及 zero-override 测试，改用 `maxContextTokens` 替代已移除的 `maxOutputTokens` 字段。
+
 ## v1.1.65
 
 ### 🔧 改进

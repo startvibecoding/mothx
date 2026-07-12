@@ -85,7 +85,6 @@ MothX 使用两个配置文件:
   },
   "enablePlanTool": true,
   "maxContextTokens": 1000000,
-  "maxOutputTokens": 384000,
   "contextFiles": {
     "enabled": true,
     "extraFiles": ["/path/to/extra-context.md"]
@@ -143,7 +142,6 @@ MothX 使用两个配置文件:
 | `statusLine` | object | *(见下文)* | 仅 TUI 生效的外部状态行命令设置 |
 | `enablePlanTool` | bool | `true` | 是否注册内置 `plan` 工具 |
 | `maxContextTokens` | int | `0` (自动) | 覆盖最大上下文 token 数 |
-| `maxOutputTokens` | int | `0` (自动) | 覆盖最大输出 token 数 |
 | `contextFiles` | object | *(见下文)* | 上下文文件加载设置 |
 | `skillsDir` | string | `"~/.mothx/skills"` | 全局技能目录路径 |
 | `compaction` | object | *(见下文)* | 上下文压缩设置 |
@@ -523,16 +521,6 @@ Google 原生 provider 可以直接配置：
 ```json
 { "maxContextTokens": 200000 }
 ```
-
-### maxOutputTokens
-
-覆盖最大输出 token 数。设为 `0` (默认) 时，根据模型的 `maxTokens` 自动确定。
-
-```json
-{ "maxOutputTokens": 16384 }
-```
-
----
 
 ### contextFiles
 

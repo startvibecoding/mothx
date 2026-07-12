@@ -220,15 +220,15 @@
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
-| ark-code-latest | 262K | 262K | **是** | text |
-| doubao-seed-2-0-code/pro/lite/mini | 262K | 262K | **是** | text(,image) |
-| glm-5.2 | 1M | 128K | **是** | text,image |
-| kimi-k2.7-code | 262K | 262K | **是** | text,image |
-| deepseek-v4-pro | 1M | 384K | **是** | text |
-| deepseek-v4-flash | 1M | 384K | **是** | text,image |
-| minimax-m3 | 1M | 4K | **是** | text,image |
-| minimax-m2.7 | 262K | 262K | **是** | text |
-| kimi-k2.6 | 262K | 262K | **是** | text,image |
+| ark-code-latest | 262K | 100K | **是** | text |
+| doubao-seed-2-0-code/pro/lite/mini | 262K | 100K | **是** | text(,image) |
+| glm-5.2 | 1M | 100K | **是** | text,image |
+| kimi-k2.7-code | 262K | 100K | **是** | text,image |
+| deepseek-v4-pro | 1M | 100K | **是** | text |
+| deepseek-v4-flash | 1M | 100K | **是** | text,image |
+| minimax-m3 | 1M | 100K | **是** | text,image |
+| minimax-m2.7 | 262K | 100K | **是** | text |
+| kimi-k2.6 | 262K | 100K | **是** | text,image |
 
 #### 7c. CodingPlan（编码模式）
 
@@ -236,7 +236,7 @@
 - **BaseURL**: `https://ark.cn-beijing.volces.com/api/coding/v3`
 - **API**: `openai-chat`
 
-> 模型列表同 AgentPlan（不含 kimi-k2.6 和 minimax-m3）
+> 模型列表同 AgentPlan（不含 kimi-k2.6 和 minimax-m2.7），所有模型 MaxTokens 均为 100K。
 
 ---
 

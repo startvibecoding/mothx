@@ -1,18 +1,12 @@
 package agent
 
 import (
-	"github.com/startvibecoding/mothx/internal/config"
 	"github.com/startvibecoding/mothx/internal/provider"
 )
 
-// ResolveMaxTokens returns the explicit global override when set, then a
-// per-model maxTokens value only when it came from user/runtime config. A zero
-// return means the caller/provider should omit the output-token limit when the
-// upstream API permits it.
-func ResolveMaxTokens(settings *config.Settings, model *provider.Model) int {
-	if settings != nil && settings.MaxOutputTokens > 0 {
-		return settings.MaxOutputTokens
-	}
+// ResolveMaxTokens returns the output limit configured for the active model.
+// Output limits are model-specific because provider defaults vary widely.
+func ResolveMaxTokens(model *provider.Model) int {
 	return ResolveMaxTokensValue(0, model)
 }
 
@@ -22,7 +16,7 @@ func ResolveMaxTokensValue(explicit int, model *provider.Model) int {
 	if explicit > 0 {
 		return explicit
 	}
-	if model != nil && model.MaxTokensSet && model.MaxTokens > 0 {
+	if model != nil && model.MaxTokens > 0 {
 		return model.MaxTokens
 	}
 	return 0

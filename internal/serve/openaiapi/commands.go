@@ -526,7 +526,7 @@ func (s *Server) agentForCommandCompaction(sess *APISession) *agent.Agent {
 		Model:              s.model,
 		Mode:               mode,
 		ThinkingLevel:      "",
-		MaxTokens:          agent.ResolveMaxTokens(runtimeSettings, s.model),
+		MaxTokens:          agent.ResolveMaxTokens(s.model),
 		SandboxMgr:         s.sandboxMgr,
 		Settings:           runtimeSettings,
 		Allow:              s.getAllow(),

@@ -206,7 +206,7 @@ func (f *AgentFactory) Create(opts AgentOptions) agentpkg.Agent {
 			return provider.ThinkingLevel(agentpkg.ThinkingMedium)
 		}(),
 		MaxTokens: func() int {
-			return ResolveMaxTokens(f.settings, model)
+			return ResolveMaxTokens(model)
 		}(),
 		SandboxMgr:         f.sandboxMgr,
 		Settings:           f.settings,
