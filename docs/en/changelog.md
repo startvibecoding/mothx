@@ -1,6 +1,23 @@
 # Changelog
 
 
+## v1.1.65
+
+### 🔧 Improvements
+
+- **GitHub Release Automation**
+  - Added `.github/workflows/release.yml` to automatically build and publish release artifacts when a Git tag is pushed.
+  - Workflow builds the Web UI (Node.js 22) and Go binaries (via `make dist`), then creates a GitHub Release with tarballs, `.deb` packages, zip archives, and SHA-256 checksums attached.
+  - Pre-release tags (containing `-`, e.g. `v1.1.65-pre`) are automatically marked as prereleases on GitHub; release notes are auto-generated from merged PRs.
+- **GitHub npm Packages Publish Workflow**
+  - Added `.github/workflows/github-npm-publish.yml` to build and publish the npm installer packages (binary wrappers + the `@scope/mothx` meta package) to GitHub Packages on every tag push, with a `workflow_dispatch` input for manual version overrides.
+  - Includes an idempotent `publish_if_needed` check so re-running the workflow against an already-published version skips instead of failing.
+
+### 🐛 Fixes
+
+- **CI npm Package Build Path**
+  - Fixed the GitHub npm publish workflow to resolve `package.json` paths correctly when packaging per-platform binary tarballs, preventing publish failures caused by an incorrect working directory.
+
 ## v1.1.63
 
 ### ✨ Features

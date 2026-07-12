@@ -1,6 +1,23 @@
 # 更新日志
 
 
+## v1.1.65
+
+### 🔧 改进
+
+- **GitHub Release 自动化**
+  - 新增 `.github/workflows/release.yml`，在推送 Git tag 时自动构建并发布发布产物。
+  - 工作流会先构建 Web UI（Node.js 22）和 Go 二进制文件（通过 `make dist`），然后创建 GitHub Release，并附带上 tar.gz 压缩包、`.deb` 安装包、zip 压缩包以及 SHA-256 校验和文件。
+  - 包含 `-` 的预发布 tag（例如 `v1.1.65-pre`）会在 GitHub 上自动标记为 prerelease；release notes 由合并的 PR 自动生成。
+- **GitHub npm 包发布工作流**
+  - 新增 `.github/workflows/github-npm-publish.yml`，在每次 tag 推送时构建并发布 npm 安装包（各平台二进制包装器 + `@scope/mothx` 元包）到 GitHub Packages，并提供 `workflow_dispatch` 输入用于手动覆盖版本号。
+  - 加入幂等的 `publish_if_needed` 检查，对已发布版本重复运行工作流会跳过而不是报错失败。
+
+### 🐛 修复
+
+- **CI npm 包构建路径**
+  - 修复 GitHub npm 发布工作流在打包各平台二进制 tarball 时 `package.json` 路径解析错误的问题，避免因工作目录不正确导致发布失败。
+
 ## v1.1.63
 
 ### ✨ 新功能
