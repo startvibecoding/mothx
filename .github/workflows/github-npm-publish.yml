@@ -1,0 +1,80 @@
+name: Build and Publish GitHub npm Packages
+
+on:
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional npm version override (for manual runs outside a tag)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish GitHub Packages npm artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@${{ github.repository_owner }}"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build web UI
+        run: |
+          make ui-install
+          make ui-build
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Go binaries
+        run: make build-all
+
+      - name: Build GitHub npm packages
+        env:
+          GITHUB_NPM_SCOPE: "@${{ github.repository_owner }}"
+          VERSION: ${{ inputs.version }}
+        run: ./scripts/build-github-npm-packages.sh
+
+      - name: Publish GitHub npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          registry="https://npm.pkg.github.com"
+
+          publish_if_needed() {
+            package_dir="$1"
+            package_json="$package_dir/package.json"
+            package_name="$(node -p "require(process.argv[1]).name" "$package_json")"
+            package_version="$(node -p "require(process.argv[1]).version" "$package_json")"
+            if npm view "$package_name@$package_version" version --registry "$registry" >/dev/null 2>&1; then
+              echo "Skipping $package_name@$package_version: already published"
+              return
+            fi
+            npm publish "$package_dir" --registry "$registry"
+          }
+
+          for package_dir in dist/github-npm/packages/*; do
+            publish_if_needed "$package_dir"
+          done
+          publish_if_needed dist/github-npm/mothx
