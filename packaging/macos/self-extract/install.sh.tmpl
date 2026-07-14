@@ -1,0 +1,285 @@
+#!/bin/sh
+set -eu
+
+VERSION="{{VERSION}}"
+PLATFORM="{{PLATFORM}}"
+EXPECTED_MACHINE="{{EXPECTED_MACHINE}}"
+PAYLOAD_SHA256="{{PAYLOAD_SHA256}}"
+PAYLOAD_MARKER="__MOTHX_PAYLOAD_BELOW__"
+
+PREFIX="${HOME}/.local"
+QUIET=0
+UNINSTALL=0
+DRY_RUN=0
+
+usage() {
+    echo "MothX ${VERSION} self-extracting installer for ${PLATFORM}"
+    echo ""
+    echo "Usage:"
+    echo "  sh $0 [--prefix DIR] [--quiet] [--dry-run]"
+    echo "  sh $0 --uninstall [--prefix DIR] [--quiet]"
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --prefix)
+            if [ "$#" -lt 2 ]; then
+                echo "Error: --prefix requires a directory." >&2
+                exit 2
+            fi
+            PREFIX=$2
+            shift 2
+            ;;
+        --quiet)
+            QUIET=1
+            shift
+            ;;
+        --uninstall)
+            UNINSTALL=1
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Error: unknown option $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ -z "$PREFIX" ] || [ "$PREFIX" = "/" ]; then
+    echo "Error: unsafe prefix: $PREFIX" >&2
+    exit 1
+fi
+
+BIN_DIR="${PREFIX}/bin"
+SHARE_DIR="${PREFIX}/share/mothx"
+INSTALL_BIN="${BIN_DIR}/mothx"
+UNINSTALLER="${SHARE_DIR}/uninstall-mothx.sh"
+BLOCK_START="# >>> mothx path >>>"
+BLOCK_END="# <<< mothx path <<<"
+
+log() {
+    if [ "$QUIET" -eq 0 ]; then
+        echo "$@"
+    fi
+}
+
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+assert_platform() {
+    os_name=$(uname -s)
+    machine=$(uname -m)
+
+    if [ "$os_name" != "Darwin" ]; then
+        echo "Error: this installer is for macOS. Detected: $os_name" >&2
+        exit 1
+    fi
+
+    if [ "$machine" != "$EXPECTED_MACHINE" ]; then
+        echo "Error: this installer is for $EXPECTED_MACHINE. Detected: $machine" >&2
+        exit 1
+    fi
+}
+
+payload_to_file() {
+    out=$1
+    awk -v marker="$PAYLOAD_MARKER" '
+        {
+            line = $0
+            sub(/\r$/, "", line)
+        }
+        found == 1 { print line }
+        line == marker { found = 1 }
+    ' "$0" > "${out}.b64"
+
+    if base64 -d "${out}.b64" > "$out" 2>/dev/null; then
+        rm -f "${out}.b64"
+        return 0
+    fi
+    if base64 -D -i "${out}.b64" -o "$out" 2>/dev/null; then
+        rm -f "${out}.b64"
+        return 0
+    fi
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import base64, pathlib, sys; pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(pathlib.Path(sys.argv[1]).read_text()))' "${out}.b64" "$out"
+        rm -f "${out}.b64"
+        return 0
+    fi
+
+    rm -f "${out}.b64"
+    echo "Error: could not decode payload. Need base64 or python3." >&2
+    return 1
+}
+
+sha256_file() {
+    file=$1
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" | awk '{print $1}'
+        return 0
+    fi
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+        return 0
+    fi
+    echo "Error: shasum or sha256sum is required." >&2
+    return 1
+}
+
+choose_shell_rc() {
+    shell_name=$(basename "${SHELL:-}")
+    case "$shell_name" in
+        zsh)
+            echo "${HOME}/.zshrc"
+            ;;
+        bash)
+            if [ -f "${HOME}/.bash_profile" ]; then
+                echo "${HOME}/.bash_profile"
+            elif [ -f "${HOME}/.bashrc" ]; then
+                echo "${HOME}/.bashrc"
+            else
+                echo "${HOME}/.bash_profile"
+            fi
+            ;;
+        fish)
+            mkdir -p "${HOME}/.config/fish"
+            echo "${HOME}/.config/fish/config.fish"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+ensure_path_block() {
+    rc_file=$1
+    [ -n "$rc_file" ] || return 1
+
+    if [ -f "$rc_file" ] && grep -F "$BLOCK_START" "$rc_file" >/dev/null 2>&1; then
+        log "PATH block already exists in $rc_file"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$rc_file")"
+    shell_name=$(basename "${SHELL:-}")
+    {
+        echo ""
+        echo "$BLOCK_START"
+        if [ "$shell_name" = "fish" ]; then
+            echo "set -gx PATH \"${BIN_DIR}\" \$PATH"
+        else
+            echo "export PATH=\"${BIN_DIR}:\$PATH\""
+        fi
+        echo "$BLOCK_END"
+    } >> "$rc_file"
+
+    log "Added PATH block to $rc_file"
+    return 0
+}
+
+run_uninstall() {
+    if [ -x "$UNINSTALLER" ]; then
+        if [ "$QUIET" -eq 1 ]; then
+            exec "$UNINSTALLER" --prefix "$PREFIX" --quiet
+        fi
+        exec "$UNINSTALLER" --prefix "$PREFIX"
+    fi
+
+    echo "Error: uninstaller not found: $UNINSTALLER" >&2
+    exit 1
+}
+
+assert_platform
+
+if [ "$UNINSTALL" -eq 1 ]; then
+    run_uninstall
+fi
+
+log "MothX ${VERSION} installer (${PLATFORM})"
+log "Install prefix:  $PREFIX"
+log "Binary path:     $INSTALL_BIN"
+log "Payload SHA256:  $PAYLOAD_SHA256"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+    log "Dry run only. No files were changed."
+    exit 0
+fi
+
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/mothx-install.XXXXXX")
+cleanup() {
+    rm -rf "$tmp_dir"
+}
+trap cleanup EXIT INT TERM
+
+archive="${tmp_dir}/payload.tar.gz"
+extract_dir="${tmp_dir}/payload"
+mkdir -p "$extract_dir"
+
+payload_to_file "$archive"
+actual_sha=$(sha256_file "$archive")
+if [ "$actual_sha" != "$PAYLOAD_SHA256" ]; then
+    echo "Error: payload checksum mismatch. Expected $PAYLOAD_SHA256, got $actual_sha." >&2
+    exit 1
+fi
+
+tar -xzf "$archive" -C "$extract_dir"
+
+if [ ! -f "${extract_dir}/mothx" ]; then
+    echo "Error: payload did not contain mothx." >&2
+    exit 1
+fi
+
+mkdir -p "$BIN_DIR" "$SHARE_DIR"
+cp "${extract_dir}/mothx" "$INSTALL_BIN"
+chmod 755 "$INSTALL_BIN"
+
+[ -f "${extract_dir}/README.txt" ] && cp "${extract_dir}/README.txt" "${SHARE_DIR}/README.txt"
+if [ -f "${extract_dir}/uninstall-mothx.sh" ]; then
+    cp "${extract_dir}/uninstall-mothx.sh" "$UNINSTALLER"
+    chmod 755 "$UNINSTALLER"
+fi
+
+installed_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+{
+    echo "{"
+    echo "  \"version\": \"$(json_escape "$VERSION")\","
+    echo "  \"platform\": \"$(json_escape "$PLATFORM")\","
+    echo "  \"installDir\": \"$(json_escape "$PREFIX")\","
+    echo "  \"installedAt\": \"$(json_escape "$installed_at")\""
+    echo "}"
+} > "${SHARE_DIR}/install.json"
+
+case ":$PATH:" in
+    *":${BIN_DIR}:"*)
+        log "Current PATH already contains $BIN_DIR"
+        ;;
+    *)
+        rc_file=$(choose_shell_rc)
+        if ! ensure_path_block "$rc_file"; then
+            log "Could not detect a shell rc file. Add this to your shell config:"
+            log "  export PATH=\"${BIN_DIR}:\$PATH\""
+        fi
+        ;;
+esac
+
+log ""
+log "Installed MothX:"
+"$INSTALL_BIN" --version
+
+log ""
+log "Installation complete. Open a new terminal and run: mothx"
+log "Uninstall with: $UNINSTALLER"
+log "User data was not changed."
+exit 0
+
+__MOTHX_PAYLOAD_BELOW__
+

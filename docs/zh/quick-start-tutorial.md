@@ -6,7 +6,7 @@
 
 ```bash
 # 方式一：npm（推荐，自动下载对应平台二进制文件）
-npm install -g mothx
+npm install -g mothx-installer
 
 # 方式二：PyPI
 pipx install mothx-installer
@@ -22,7 +22,7 @@ go install github.com/startvibecoding/mothx/cmd/mothx@latest
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # PyPI
 pipx uninstall mothx-installer

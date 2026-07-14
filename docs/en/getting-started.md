@@ -13,7 +13,7 @@ This guide helps you get started with MothX in 5 minutes.
 ### Method 1: npm (Recommended)
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 This will automatically download the correct binary for your platform.
@@ -60,7 +60,7 @@ $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercon
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # PyPI
 pipx uninstall mothx-installer

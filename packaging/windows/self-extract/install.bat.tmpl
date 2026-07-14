@@ -1,0 +1,259 @@
+@echo off
+setlocal EnableExtensions
+
+set "MOTHX_SELF=%~f0"
+set "MOTHX_TMPPS=%TEMP%\mothx-install-%RANDOM%-%RANDOM%.ps1"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $self=$env:MOTHX_SELF; $out=$env:MOTHX_TMPPS; $text=[IO.File]::ReadAllText($self); $startMarker=('### MOTHX_POWERSHELL' + '_INSTALLER_BELOW ###'); $payloadMarker=('__MOTHX_PAYLOAD' + '_BELOW__'); $start=$text.LastIndexOf($startMarker); $end=$text.LastIndexOf($payloadMarker); if($start -lt 0 -or $end -lt 0 -or $end -le $start){ throw 'Installer script markers were not found.' }; $start += $startMarker.Length; $ps=$text.Substring($start, $end - $start).TrimStart([char]13,[char]10); [IO.File]::WriteAllText($out, $ps, [Text.UTF8Encoding]::new($false))"
+if errorlevel 1 (
+    echo Failed to extract installer logic.
+    exit /b 1
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%MOTHX_TMPPS%" %*
+set "MOTHX_EXIT=%ERRORLEVEL%"
+del /F /Q "%MOTHX_TMPPS%" >nul 2>nul
+exit /b %MOTHX_EXIT%
+
+### MOTHX_POWERSHELL_INSTALLER_BELOW ###
+$ErrorActionPreference = "Stop"
+$Version = "{{VERSION}}"
+$Platform = "windows-x64"
+$PayloadSha256 = "{{PAYLOAD_SHA256}}"
+$PayloadMarker = "__MOTHX_PAYLOAD" + "_BELOW__"
+$Target = ""
+$Quiet = $false
+$Uninstall = $false
+$DryRun = $false
+$Help = $false
+
+for ($i = 0; $i -lt $args.Count; $i++) {
+    $arg = [string]$args[$i]
+    switch -Regex ($arg) {
+        '^(--target|-Target)$' {
+            if ($i + 1 -ge $args.Count) {
+                throw "$arg requires a directory."
+            }
+            $i++
+            $Target = [string]$args[$i]
+            continue
+        }
+        '^(--quiet|-Quiet)$' {
+            $Quiet = $true
+            continue
+        }
+        '^(--uninstall|-Uninstall)$' {
+            $Uninstall = $true
+            continue
+        }
+        '^(--dry-run|-DryRun)$' {
+            $DryRun = $true
+            continue
+        }
+        '^(--help|-Help|-h|/\?)$' {
+            $Help = $true
+            continue
+        }
+        default {
+            throw "Unknown option: $arg"
+        }
+    }
+}
+
+function Finish([int]$Code) {
+    if (-not $Quiet) {
+        Write-Host ""
+        try {
+            [void](Read-Host "Press Enter to close")
+        } catch {
+        }
+    }
+    exit $Code
+}
+
+function Show-Usage {
+    Write-Host "MothX $Version self-extracting installer for Windows x64"
+    Write-Host ""
+    Write-Host "Usage:"
+    Write-Host "  mothx-$Version-windows-x64-install.bat [--target DIR] [--quiet] [--dry-run]"
+    Write-Host "  mothx-$Version-windows-x64-install.bat --uninstall [--target DIR] [--quiet]"
+}
+
+function Assert-WindowsX64 {
+    $arch = $env:PROCESSOR_ARCHITECTURE
+    $wow = $env:PROCESSOR_ARCHITEW6432
+    if ($arch -notin @("AMD64", "x86_64") -and $wow -notin @("AMD64", "x86_64")) {
+        throw "This installer is for Windows x64. Detected PROCESSOR_ARCHITECTURE=$arch PROCESSOR_ARCHITEW6432=$wow"
+    }
+}
+
+function Add-UserPath([string]$InstallBin) {
+    $current = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts = @()
+    if (-not [string]::IsNullOrWhiteSpace($current)) {
+        $parts = @($current -split ";" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    $normalizedInstall = $InstallBin.TrimEnd("\")
+    $exists = $false
+    foreach ($part in $parts) {
+        if ($part.TrimEnd("\") -ieq $normalizedInstall) {
+            $exists = $true
+            break
+        }
+    }
+
+    if (-not $exists) {
+        $parts += $InstallBin
+        [Environment]::SetEnvironmentVariable("Path", ($parts -join ";"), "User")
+        Write-Host "Added to user PATH: $InstallBin"
+    } else {
+        Write-Host "User PATH already contains: $InstallBin"
+    }
+}
+
+function New-MothXServeShortcut([string]$InstallBin) {
+    $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory)
+    if ([string]::IsNullOrWhiteSpace($desktop)) {
+        return
+    }
+
+    $shortcutPath = Join-Path $desktop "MothX Serve.lnk"
+    $mothxExe = Join-Path $InstallBin "mothx.exe"
+    $powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $powershell
+    $shortcut.Arguments = "-NoExit -ExecutionPolicy Bypass -Command `"& '$mothxExe' serve`""
+    $shortcut.WorkingDirectory = $env:USERPROFILE
+    $shortcut.Description = "Start MothX serve mode"
+    $shortcut.Save()
+    Write-Host "Created desktop shortcut: $shortcutPath"
+}
+
+function Extract-Payload([string]$DestinationZip) {
+    $self = $env:MOTHX_SELF
+    if ([string]::IsNullOrWhiteSpace($self) -or -not (Test-Path -LiteralPath $self)) {
+        throw "Cannot locate installer file."
+    }
+
+    $text = [IO.File]::ReadAllText($self)
+    $idx = $text.LastIndexOf($PayloadMarker)
+    if ($idx -lt 0) {
+        throw "Payload marker was not found."
+    }
+
+    $b64 = $text.Substring($idx + $PayloadMarker.Length) -replace "\s", ""
+    if ([string]::IsNullOrWhiteSpace($b64)) {
+        throw "Payload is empty."
+    }
+
+    [IO.File]::WriteAllBytes($DestinationZip, [Convert]::FromBase64String($b64))
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $DestinationZip).Hash.ToLowerInvariant()
+    if ($actual -ne $PayloadSha256.ToLowerInvariant()) {
+        throw "Payload checksum mismatch. Expected $PayloadSha256, got $actual."
+    }
+}
+
+function Invoke-Uninstall([string]$TargetDir) {
+    $uninstaller = Join-Path $TargetDir "uninstall.bat"
+    if (-not (Test-Path -LiteralPath $uninstaller)) {
+        throw "Uninstaller not found: $uninstaller"
+    }
+
+    $args = @("--target", $TargetDir)
+    if ($Quiet) {
+        $args += "--quiet"
+    }
+    & $uninstaller @args
+    exit $LASTEXITCODE
+}
+
+try {
+    if ($Help) {
+        Show-Usage
+        Finish 0
+    }
+
+    Assert-WindowsX64
+
+    if ([string]::IsNullOrWhiteSpace($Target)) {
+        $Target = Join-Path $env:LOCALAPPDATA "Programs\MothX"
+    }
+    $InstallBin = Join-Path $Target "bin"
+
+    if ($Uninstall) {
+        Invoke-Uninstall $Target
+    }
+
+    Write-Host "MothX $Version installer ($Platform)"
+    Write-Host "Install directory: $Target"
+    Write-Host "Binary directory:  $InstallBin"
+    Write-Host "Payload SHA256:   $PayloadSha256"
+
+    if ($DryRun) {
+        Write-Host "Dry run only. No files were changed."
+        Finish 0
+    }
+
+    $tmpRoot = Join-Path ([IO.Path]::GetTempPath()) ("mothx-install-" + [Guid]::NewGuid().ToString("N"))
+    $extractDir = Join-Path $tmpRoot "payload"
+    $zipPath = Join-Path $tmpRoot "payload.zip"
+
+    try {
+        New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+        Extract-Payload $zipPath
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
+
+        $sourceExe = Join-Path $extractDir "mothx.exe"
+        if (-not (Test-Path -LiteralPath $sourceExe)) {
+            throw "Payload did not contain mothx.exe."
+        }
+
+        New-Item -ItemType Directory -Force -Path $InstallBin | Out-Null
+        Copy-Item -LiteralPath $sourceExe -Destination (Join-Path $InstallBin "mothx.exe") -Force
+
+        foreach ($name in @("README.txt", "uninstall.bat")) {
+            $source = Join-Path $extractDir $name
+            if (Test-Path -LiteralPath $source) {
+                Copy-Item -LiteralPath $source -Destination (Join-Path $Target $name) -Force
+            }
+        }
+
+        $metadata = [ordered]@{
+            version = $Version
+            platform = $Platform
+            installDir = $Target
+            installedAt = (Get-Date).ToUniversalTime().ToString("o")
+        } | ConvertTo-Json
+        Set-Content -LiteralPath (Join-Path $Target "install.json") -Value $metadata -Encoding UTF8
+
+        Add-UserPath $InstallBin
+        $env:Path = "$InstallBin;$env:Path"
+        try {
+            New-MothXServeShortcut $InstallBin
+        } catch {
+            Write-Host "Warning: could not create desktop shortcut: $($_.Exception.Message)"
+        }
+
+        Write-Host ""
+        Write-Host "Installed MothX:"
+        & (Join-Path $InstallBin "mothx.exe") --version
+
+        Write-Host ""
+        Write-Host "Installation complete. Open a new terminal and run: mothx"
+        Write-Host "Desktop shortcut: MothX Serve"
+        Write-Host "Uninstall with: $Target\uninstall.bat"
+        Write-Host "User data was not changed."
+    } finally {
+        Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Finish 0
+} catch {
+    Write-Host ""
+    Write-Host "Installation failed:" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Finish 1
+}
+__MOTHX_PAYLOAD_BELOW__

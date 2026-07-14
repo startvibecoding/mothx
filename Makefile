@@ -5,7 +5,7 @@
 .PHONY: dist dist-linux dist-darwin dist-windows
 .PHONY: dist-freebsd dist-openbsd dist-netbsd
 .PHONY: dist-linux-loong64
-.PHONY: dist-deb dist-tarball dist-zip
+.PHONY: dist-deb dist-tarball dist-zip dist-installers
 .PHONY: clean-all checksums
 .PHONY: npm-version npm-binaries npm-packages npm-pack npm-verify-platforms npm-publish-all npm-publish-pre npm-publish
 .PHONY: pypi-version pypi-packages pypi-pack pypi-publish pypi-publish-pre
@@ -81,6 +81,7 @@ help:
 	@echo "  dist-deb       Build Debian packages only"
 	@echo "  dist-tarball   Build tarball packages only"
 	@echo "  dist-zip       Build zip packages only"
+	@echo "  dist-installers Build self-extracting Windows/macOS installers"
 	@echo ""
 	@echo "NPM targets:"
 	@echo "  npm-version       Sync version to npm package"
@@ -289,6 +290,13 @@ dist-zip: build-windows
 		echo "  Packaging $(BINARY_NAME)-windows-$${arch}.zip..."; \
 		./scripts/build-zip.sh $${arch} $(VERSION); \
 	done
+
+# Distribution: self-extracting installers for non-developer desktop users.
+# These are intentionally Linux-buildable and do not require Windows/macOS signing tools.
+dist-installers: build-windows build-darwin
+	@echo ""
+	@echo "Creating self-extracting desktop installers..."
+	./scripts/build-self-extract-installers.sh $(VERSION)
 
 # Platform distributions
 dist-linux: dist-deb dist-tarball

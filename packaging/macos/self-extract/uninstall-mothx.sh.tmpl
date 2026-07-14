@@ -1,0 +1,75 @@
+#!/bin/sh
+set -eu
+
+PREFIX="${HOME}/.local"
+QUIET=0
+
+usage() {
+    echo "Usage: uninstall-mothx.sh [--prefix DIR] [--quiet]"
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --prefix)
+            if [ "$#" -lt 2 ]; then
+                echo "Error: --prefix requires a directory." >&2
+                exit 2
+            fi
+            PREFIX=$2
+            shift 2
+            ;;
+        --quiet)
+            QUIET=1
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Error: unknown option $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+if [ -z "$PREFIX" ] || [ "$PREFIX" = "/" ]; then
+    echo "Error: unsafe prefix: $PREFIX" >&2
+    exit 1
+fi
+
+BIN_DIR="${PREFIX}/bin"
+SHARE_DIR="${PREFIX}/share/mothx"
+BLOCK_START="# >>> mothx path >>>"
+BLOCK_END="# <<< mothx path <<<"
+
+remove_path_block() {
+    file=$1
+    [ -f "$file" ] || return 0
+    tmp="${file}.mothx-tmp.$$"
+    awk -v start="$BLOCK_START" -v end="$BLOCK_END" '
+        $0 == start { skip = 1; next }
+        $0 == end { skip = 0; next }
+        skip != 1 { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+
+[ "$QUIET" -eq 1 ] || echo "Uninstalling MothX from $PREFIX..."
+
+rm -f "${BIN_DIR}/mothx"
+
+remove_path_block "${HOME}/.zshrc"
+remove_path_block "${HOME}/.bash_profile"
+remove_path_block "${HOME}/.bashrc"
+remove_path_block "${HOME}/.profile"
+remove_path_block "${HOME}/.config/fish/config.fish"
+
+rm -rf "$SHARE_DIR"
+
+if [ "$QUIET" -eq 0 ]; then
+    echo "MothX program files were removed."
+    echo "User data was kept: ${HOME}/.mothx"
+fi
+

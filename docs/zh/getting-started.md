@@ -13,7 +13,7 @@
 ### 方法一: npm 安装 (推荐)
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 这将自动下载适合你平台的二进制文件。
@@ -60,7 +60,7 @@ $env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvi
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # PyPI
 pipx uninstall mothx-installer

@@ -189,7 +189,7 @@ mothx serve cron add "daily-review" \
 ### 步骤 1：安装
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ### 步骤 2：配置 VS Code

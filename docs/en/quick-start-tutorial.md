@@ -6,7 +6,7 @@
 
 ```bash
 # Option 1: npm (recommended, auto-downloads correct binary)
-npm install -g mothx
+npm install -g mothx-installer
 
 # Option 2: PyPI
 pipx install mothx-installer
@@ -22,7 +22,7 @@ go install github.com/startvibecoding/mothx/cmd/mothx@latest
 
 ```bash
 # npm
-npm uninstall -g mothx
+npm uninstall -g mothx-installer
 
 # PyPI
 pipx uninstall mothx-installer

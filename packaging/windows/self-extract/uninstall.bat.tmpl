@@ -1,0 +1,56 @@
+@echo off
+setlocal EnableExtensions
+
+set "TARGET_DIR=%LOCALAPPDATA%\Programs\MothX"
+set "QUIET=0"
+
+:parse_args
+if "%~1"=="" goto args_done
+if /I "%~1"=="--target" (
+    if "%~2"=="" (
+        echo Error: --target requires a directory.
+        exit /b 2
+    )
+    set "TARGET_DIR=%~2"
+    shift
+    shift
+    goto parse_args
+)
+if /I "%~1"=="--quiet" (
+    set "QUIET=1"
+    shift
+    goto parse_args
+)
+if /I "%~1"=="--help" (
+    echo Usage: uninstall.bat [--target DIR] [--quiet]
+    exit /b 0
+)
+echo Error: unknown option %~1
+exit /b 2
+
+:args_done
+set "INSTALL_BIN=%TARGET_DIR%\bin"
+set "MOTHX_UNINSTALL_TARGET=%TARGET_DIR%"
+
+if "%QUIET%"=="0" (
+    echo Uninstalling MothX from %TARGET_DIR%...
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $target=$env:MOTHX_UNINSTALL_TARGET; $bin=Join-Path $target 'bin'; $userPath=[Environment]::GetEnvironmentVariable('Path','User'); if($userPath){ $parts=@($userPath -split ';' | Where-Object { $_ -and ($_.TrimEnd('\') -ine $bin.TrimEnd('\')) }); [Environment]::SetEnvironmentVariable('Path', ($parts -join ';'), 'User') }; $desktop=[Environment]::GetFolderPath([Environment+SpecialFolder]::DesktopDirectory); if($desktop){ Remove-Item -LiteralPath (Join-Path $desktop 'MothX Serve.lnk') -Force -ErrorAction SilentlyContinue }"
+if errorlevel 1 exit /b 1
+
+if exist "%INSTALL_BIN%\mothx.exe" del /F /Q "%INSTALL_BIN%\mothx.exe" >nul 2>nul
+if exist "%TARGET_DIR%\install.json" del /F /Q "%TARGET_DIR%\install.json" >nul 2>nul
+if exist "%TARGET_DIR%\README.txt" del /F /Q "%TARGET_DIR%\README.txt" >nul 2>nul
+
+if "%QUIET%"=="0" (
+    echo MothX program files were removed.
+    echo User data was kept:
+    echo   %%APPDATA%%\mothx
+    echo   %%USERPROFILE%%\.mothx
+    echo.
+    echo This install directory will be removed after this window exits.
+)
+
+start "" /b cmd /c "timeout /t 2 >nul & rmdir /S /Q ""%TARGET_DIR%"" >nul 2>nul"
+exit /b 0

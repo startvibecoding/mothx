@@ -214,7 +214,7 @@ Client                                    Server (mothx acp)
 ### Step 1: Install MothX
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 # or
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
@@ -244,7 +244,7 @@ Open your project in VS Code, launch the ACP agent, and start asking questions o
 ### Step 1: Install MothX
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ### Step 2: Configure in JetBrains IDE

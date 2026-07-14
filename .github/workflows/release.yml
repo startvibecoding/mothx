@@ -38,7 +38,9 @@ jobs:
           cache: true
 
       - name: Build release artifacts
-        run: make dist
+        run: |
+          make dist
+          make dist-installers
 
       - name: Create GitHub Release and upload artifacts
         uses: softprops/action-gh-release@v2
@@ -46,6 +48,9 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
+            dist/installers/*.bat
+            dist/installers/*.sh
+            dist/installers/installer-checksums.txt
             dist/**/*.tar.gz
             dist/**/*.deb
             dist/**/*.zip

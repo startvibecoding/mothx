@@ -430,7 +430,7 @@ make npm-publish-pre
 Users can install via npm:
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ### Publish to PyPI

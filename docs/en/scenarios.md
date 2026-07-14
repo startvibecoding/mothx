@@ -190,7 +190,7 @@ Use MothX directly in VS Code as an AI coding assistant.
 ### Step 1: Install
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ### Step 2: Configure VS Code

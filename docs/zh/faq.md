@@ -22,7 +22,7 @@ npm root -g
 export PATH="$HOME/.local/bin:$PATH"
 
 # 或者重新安装到系统路径
-sudo npm install -g mothx
+sudo npm install -g mothx-installer
 ```
 
 ### Q: npm 安装失败，提示权限错误

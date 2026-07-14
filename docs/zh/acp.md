@@ -214,7 +214,7 @@ MCP 服务器由 IDE 客户端配置，并在创建或加载会话时传递给 M
 ### 步骤 1：安装 MothX
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 # 或
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ```
@@ -244,7 +244,7 @@ go install github.com/startvibecoding/mothx/cmd/mothx@latest
 ### 步骤 1：安装 MothX
 
 ```bash
-npm install -g mothx
+npm install -g mothx-installer
 ```
 
 ### 步骤 2：在 JetBrains IDE 中配置
