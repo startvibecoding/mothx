@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/startvibecoding/mothx/internal/platform"
 )
@@ -943,8 +944,14 @@ func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
 		fmt.Fprintf(os.Stderr, "[config] Loading global settings: %s\n", globalPath)
 	}
 	if data, err := os.ReadFile(globalPath); err == nil {
-		if err := json.Unmarshal(data, s); err != nil {
-			return nil, meta, fmt.Errorf("parse global settings: %w", err)
+		candidate := *s
+		if err := json.Unmarshal(data, &candidate); err != nil {
+			if backupErr := backupCorruptSettings(globalPath); backupErr != nil {
+				return nil, meta, fmt.Errorf("parse global settings: %w (backup failed: %v)", err, backupErr)
+			}
+			fmt.Fprintf(os.Stderr, "Warning: invalid global settings backed up; using defaults: %v\n", err)
+		} else {
+			s = &candidate
 		}
 		if Verbose {
 			fmt.Fprintf(os.Stderr, "[config] Loaded global settings\n")
@@ -960,8 +967,14 @@ func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
 		fmt.Fprintf(os.Stderr, "[config] Loading project settings: %s\n", projectPath)
 	}
 	if data, err := os.ReadFile(projectPath); err == nil {
-		if err := json.Unmarshal(data, s); err != nil {
-			return nil, meta, fmt.Errorf("parse project settings: %w", err)
+		candidate := *s
+		if err := json.Unmarshal(data, &candidate); err != nil {
+			if backupErr := backupCorruptSettings(projectPath); backupErr != nil {
+				return nil, meta, fmt.Errorf("parse project settings: %w (backup failed: %v)", err, backupErr)
+			}
+			fmt.Fprintf(os.Stderr, "Warning: invalid project settings backed up and ignored: %v\n", err)
+		} else {
+			s = &candidate
 		}
 		if Verbose {
 			fmt.Fprintf(os.Stderr, "[config] Loaded project settings\n")
@@ -990,6 +1003,27 @@ func LoadSettingsWithMeta() (*Settings, LoadMeta, error) {
 	}
 
 	return s, meta, nil
+}
+
+func backupCorruptSettings(path string) error {
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("resolve settings path %s: %w", path, err)
+	}
+
+	stamp := time.Now().Format("20060102-150405")
+	backupPath := absolutePath + ".bak_" + stamp
+	for i := 1; ; i++ {
+		if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+			break
+		}
+		backupPath = fmt.Sprintf("%s.bak_%s_%d", absolutePath, stamp, i)
+	}
+	if err := os.Rename(absolutePath, backupPath); err != nil {
+		return fmt.Errorf("rename %s to %s: %w", absolutePath, backupPath, err)
+	}
+	fmt.Fprintf(os.Stderr, "Warning: corrupt settings backed up to %s\n", backupPath)
+	return nil
 }
 
 func ensureConfigExists() (bool, error) {
