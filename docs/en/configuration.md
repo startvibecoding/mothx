@@ -10,11 +10,15 @@ MothX uses two configuration files:
 | `%APPDATA%\mothx\settings.json` | Windows | Global (all projects) | Low |
 | `.mothx/settings.json` | All | Project-level | High |
 
-> **Tip:** You can override the global config directory with the `MOTHX_DIR` environment variable.
+> **Tip:** You can override the global config directory with `MOTHX_DIR`. The legacy-compatible `VIBECODING_DIR` variable is also supported; `MOTHX_DIR` takes precedence when both are set.
 
 > **Windows:** `%APPDATA%` resolves to `C:\Users\<Username>\AppData\Roaming`, so the full path is typically `C:\Users\<Username>\AppData\Roaming\mothx\settings.json`.
 
-Project-level configuration overrides global configuration. When both exist, scalar fields from the project file overwrite the global values; the `providers` map is deep-merged per-key (project providers are added to or replace global providers, not the entire map).
+Project-level configuration overrides global configuration. Providers are merged by provider ID and then by fields explicitly present in the project file. An explicitly supplied `models` array replaces that provider's inherited model list.
+
+### Legacy Directory Migration
+
+MothX automatically migrates the old default global directory (`~/.vibecoding`, or `%APPDATA%\vibecoding` on Windows) to the current `.mothx` location. It also migrates `.vibe` in the current project to `.mothx`. Migration occurs only when the destination directory does not already exist; if both directories exist, MothX keeps both and prints a warning. Setting a custom `MOTHX_DIR` or `VIBECODING_DIR` disables migration of the default global directory.
 
 ## Configuration Structure
 
@@ -1110,13 +1114,28 @@ With default config, MothX will look for `DEEPSEEK_OPENAI_API_KEY` for the `deep
 
 ---
 
+## Invalid Settings Recovery
+
+When a global or project-level `settings.json` cannot be parsed during startup, MothX attempts to rename it to a timestamped backup in the same directory, for example:
+
+```text
+settings.json.bak_20260715-143000
+```
+
+If that name already exists, MothX appends a numeric suffix such as `_1`. The warning printed to stderr includes the platform-native absolute backup path.
+
+After a successful backup, an invalid global file is replaced by built-in defaults for the current run, while an invalid project file is ignored and the valid global settings remain active. The default global `settings.json` is recreated on the next startup. If the backup cannot be created—for example because the directory is read-only—configuration loading returns an error.
+
+---
+
 ## Environment Variable Overrides
 
 These environment variables override settings at runtime:
 
 | Environment Variable | Overrides | Example |
 |---------------------|-----------|---------|
-| `VIBECODING_DIR` | Global config directory | `export VIBECODING_DIR=/custom/config` |
+| `MOTHX_DIR` | Global config directory (preferred; takes precedence over `VIBECODING_DIR`) | `export MOTHX_DIR=/custom/config` |
+| `VIBECODING_DIR` | Legacy-compatible global config directory override | `export VIBECODING_DIR=/custom/config` |
 | `VIBECODING_PROVIDER` | `defaultProvider` | `export VIBECODING_PROVIDER=anthropic` |
 | `VIBECODING_MODEL` | `defaultModel` | `export VIBECODING_MODEL=claude-sonnet-4-20250514` |
 | `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |

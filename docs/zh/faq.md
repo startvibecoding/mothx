@@ -547,7 +547,7 @@ mothx doctor
 ```
 
 常见问题：
-- **Config**: 配置文件格式错误 → 检查 JSON 语法
+- **Config**: 配置文件格式错误 → 检查 JSON 语法。正常启动时，MothX 会将无效的 `settings.json` 备份为 `.bak_<时间戳>`，并在 stderr 中打印其绝对路径；可从该备份恢复有效配置。如果错误中包含 `backup failed`，请检查文件及目录权限或文件系统是否为只读。
 - **Provider**: API 密钥缺失或无效 → 重新配置
 - **Sandbox**: bubblewrap 未安装 → 安装或忽略
 - **MCP**: MCP 服务器配置错误 → 检查 mcp.json

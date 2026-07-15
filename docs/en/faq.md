@@ -547,7 +547,7 @@ mothx doctor
 ```
 
 Common issues:
-- **Config**: Config file format error → Check JSON syntax
+- **Config**: Config file format error → Check the JSON syntax. During normal startup, MothX backs up an invalid `settings.json` to `.bak_<timestamp>` and prints its absolute path to stderr. You can recover valid values from that backup. If the error includes `backup failed`, check file and directory permissions or whether the filesystem is read-only.
 - **Provider**: API key missing or invalid → Reconfigure
 - **Sandbox**: bubblewrap not installed → Install or ignore
 - **MCP**: MCP server config error → Check mcp.json

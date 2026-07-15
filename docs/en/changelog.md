@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.67
+
+### 🐛 Fixes
+
+- **Corrupt Settings Recovery**
+  - Invalid global or project-level `settings.json` files no longer prevent MothX from starting when the malformed file can be backed up successfully.
+  - Malformed files are renamed to timestamped backups such as `settings.json.bak_20260715-143000`; name collisions receive a numeric suffix.
+  - A warning reports the platform-native absolute backup path. Global failures fall back to defaults, while invalid project settings are ignored without discarding valid global settings.
 
 ## v1.1.66
 

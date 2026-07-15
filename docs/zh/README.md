@@ -233,7 +233,7 @@ mothx serve   # 部署为微信/飞书机器人
 | 位置 | 平台 | 作用域 |
 |------|------|--------|
 | `~/.mothx/settings.json` | Linux/macOS | 全局 |
-| `%APPDATA%\vibecoding\settings.json` | Windows | 全局 |
+| `%APPDATA%\mothx\settings.json` | Windows | 全局 |
 | `.mothx/settings.json` | 所有 | 项目（覆盖全局） |
 
 ### 环境变量
@@ -241,7 +241,8 @@ mothx serve   # 部署为微信/飞书机器人
 | 变量 | 描述 |
 |------|------|
 | `DEEPSEEK_API_KEY` | DeepSeek API 密钥 |
-| `VIBECODING_DIR` | 覆盖配置目录 |
+| `MOTHX_DIR` | 覆盖全局配置目录（首选） |
+| `VIBECODING_DIR` | 兼容旧版本的配置目录覆盖变量 |
 | `VIBECODING_PROVIDER` | 覆盖默认提供商 |
 | `VIBECODING_MODEL` | 覆盖默认模型 |
 | `VIBECODING_MODE` | 覆盖默认模式 |

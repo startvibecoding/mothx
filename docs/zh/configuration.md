@@ -10,11 +10,15 @@ MothX 使用两个配置文件:
 | `%APPDATA%\mothx\settings.json` | Windows | 全局 (所有项目) | 低 |
 | `.mothx/settings.json` | 全部 | 项目级 | 高 |
 
-> **提示:** 可以通过 `MOTHX_DIR` 环境变量覆盖全局配置目录。
+> **提示:** 可以通过 `MOTHX_DIR` 覆盖全局配置目录，同时仍兼容旧环境变量 `VIBECODING_DIR`；两者同时设置时优先使用 `MOTHX_DIR`。
 
 > **Windows 用户：** `%APPDATA%` 实际展开为 `C:\Users\<用户名>\AppData\Roaming`，所以完整路径通常是 `C:\Users\<用户名>\AppData\Roaming\mothx\settings.json`。
 
-项目级配置会覆盖全局配置。当两者同时存在时，标量字段会被项目配置覆盖；`providers` 是按 key 做深度合并的（项目中的 provider 会被添加到全局 providers 或替换同名的 provider，而不是替换整个 map）。
+项目级配置会覆盖全局配置。`providers` 先按 provider ID 合并，再按项目文件中显式出现的 provider 字段覆盖；若显式提供 `models`，该数组会替换继承的模型列表。
+
+### 旧目录自动迁移
+
+MothX 会自动将旧的默认全局目录（Linux/macOS 上的 `~/.vibecoding`，Windows 上的 `%APPDATA%\vibecoding`）迁移到当前 `.mothx` 位置，同时将当前项目中的 `.vibe` 迁移为 `.mothx`。只有目标目录不存在时才会迁移；若新旧目录同时存在，MothX 会保留两者并输出 Warning。设置自定义 `MOTHX_DIR` 或 `VIBECODING_DIR` 后，不会迁移默认的全局旧目录。
 
 ## 配置结构
 
@@ -1110,13 +1114,28 @@ export DEEPSEEK_API_KEY=sk-...
 
 ---
 
+## 损坏配置自动恢复
+
+启动时，如果全局或项目级 `settings.json` 无法解析，MothX 会尝试将其重命名为同一目录下带时间戳的备份，例如：
+
+```text
+settings.json.bak_20260715-143000
+```
+
+如果该名称已存在，会追加 `_1` 等数字序号。stderr 中的 Warning 会显示适配当前操作系统格式的绝对备份路径。
+
+备份成功后，全局配置损坏时本次运行使用内建默认设置；项目配置损坏时忽略该文件并保留已加载的有效全局设置。默认的全局 `settings.json` 会在下一次启动时重新创建。如果无法创建备份（例如目录为只读），配置加载会返回错误。
+
+---
+
 ## 环境变量覆盖
 
 以下环境变量在运行时覆盖设置：
 
 | 环境变量 | 覆盖的设置 | 示例 |
 |---------|-----------|------|
-| `VIBECODING_DIR` | 全局配置目录 | `export VIBECODING_DIR=/custom/config` |
+| `MOTHX_DIR` | 全局配置目录（首选，优先于 `VIBECODING_DIR`） | `export MOTHX_DIR=/custom/config` |
+| `VIBECODING_DIR` | 兼容旧版本的全局配置目录覆盖变量 | `export VIBECODING_DIR=/custom/config` |
 | `VIBECODING_PROVIDER` | `defaultProvider` | `export VIBECODING_PROVIDER=anthropic` |
 | `VIBECODING_MODEL` | `defaultModel` | `export VIBECODING_MODEL=claude-sonnet-4-20250514` |
 | `VIBECODING_MODE` | `defaultMode` | `export VIBECODING_MODE=yolo` |
