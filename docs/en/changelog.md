@@ -9,6 +9,13 @@
   - Malformed files are renamed to timestamped backups such as `settings.json.bak_20260715-143000`; name collisions receive a numeric suffix.
   - A warning reports the platform-native absolute backup path. Global failures fall back to defaults, while invalid project settings are ignored without discarding valid global settings.
 
+- **TUI Managed Agent Status**
+  - Fixed TUI managed-agent state tracking so main-agent runs in multi-agent, delegate, and workflow modes are marked `running` at turn start and `done` or `error` when the turn finishes.
+  - Workflow-mode failures now update the managed agent status to `error` instead of leaving the tab/status UI stuck in `running`.
+
+- **Delegate Sub-Agent Completion**
+  - Added regression coverage ensuring the delegate sub-agent tool blocks until the child agent completes and returns the child's final result instead of returning early.
+
 ## v1.1.66
 
 ### ✨ Features

@@ -126,6 +126,7 @@ func (a *App) registerManagedAgent() {
 	if _, ok := a.agentMgr.Get(id); !ok {
 		a.agentMgr.Register(agent.NewAgentAdapter(a.agent))
 	}
+	a.agentMgr.MarkRunning(id)
 	a.activeAgent = id
 }
 

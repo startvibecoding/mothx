@@ -265,6 +265,91 @@ func TestDelegateSubAgentTool(t *testing.T) {
 	}
 }
 
+func TestDelegateSubAgentToolBlocksUntilChildCompletes(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	mockProvider := &blockingSubAgentProvider{
+		model:   &provider.Model{ID: "model1", Name: "Model 1"},
+		started: started,
+		release: release,
+	}
+	sandboxMgr := sandbox.NewManager(t.TempDir())
+	sandboxMgr.SetLevel(sandbox.LevelNone)
+	settings := &config.Settings{SessionDir: t.TempDir()}
+	factory := NewAgentFactory(mockProvider, mockProvider.model, settings, sandboxMgr, "", "", nil, ctxpkg.CompactionSettings{}, nil)
+	mgr := NewAgentManager(factory)
+	if _, err := mgr.Create(AgentOptions{ID: "main"}); err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+
+	resultCh := make(chan tools.ToolResult, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		result, err := NewDelegateSubAgentTool(mgr).Execute(ContextWithAgentID(context.Background(), "main"), map[string]any{"task": "wait for final result"})
+		resultCh <- result
+		errCh <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("delegated child did not start")
+	}
+	select {
+	case <-resultCh:
+		t.Fatal("delegate returned before the child completed")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(release)
+	select {
+	case result := <-resultCh:
+		if err := <-errCh; err != nil {
+			t.Fatalf("delegate returned error: %v", err)
+		}
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(result.Text), &parsed); err != nil {
+			t.Fatalf("parse delegate result: %v", err)
+		}
+		if parsed["status"] != "done" || parsed["result"] != "final child result" {
+			t.Fatalf("delegate result = %#v, want completed child result", parsed)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("delegate did not return after the child completed")
+	}
+}
+
+type blockingSubAgentProvider struct {
+	model   *provider.Model
+	started chan struct{}
+	release chan struct{}
+}
+
+func (p *blockingSubAgentProvider) Chat(ctx context.Context, _ provider.ChatParams) <-chan provider.StreamEvent {
+	ch := make(chan provider.StreamEvent, 2)
+	go func() {
+		defer close(ch)
+		select {
+		case <-p.started:
+		default:
+			close(p.started)
+		}
+		select {
+		case <-ctx.Done():
+			ch <- provider.StreamEvent{Type: provider.StreamError, Error: ctx.Err()}
+		case <-p.release:
+			ch <- provider.StreamEvent{Type: provider.StreamTextDelta, TextDelta: "final child result"}
+			ch <- provider.StreamEvent{Type: provider.StreamDone}
+		}
+	}()
+	return ch
+}
+
+func (p *blockingSubAgentProvider) Name() string                    { return "blocking" }
+func (p *blockingSubAgentProvider) API() string                     { return "mock" }
+func (p *blockingSubAgentProvider) Models() []*provider.Model       { return []*provider.Model{p.model} }
+func (p *blockingSubAgentProvider) GetModel(string) *provider.Model { return p.model }
+
 func TestSubAgentSpawnInheritsYoloMode(t *testing.T) {
 	_, mgr := newTestFactoryAndManager(t)
 	parent, err := mgr.Create(AgentOptions{ID: "main", Mode: "yolo"})

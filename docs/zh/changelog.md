@@ -9,6 +9,13 @@
   - 自动将损坏文件重命名为带时间戳的备份，例如 `settings.json.bak_20260715-143000`；文件名冲突时会追加数字序号。
   - Warning 会显示适配当前操作系统格式的真实绝对备份路径。全局配置损坏时回退到默认设置，项目配置损坏时忽略该配置并保留有效的全局设置。
 
+- **TUI 托管 Agent 状态**
+  - 修复 TUI 中托管主 Agent 的状态同步：multi-agent、delegate 和 workflow 模式下，回合开始会标记为 `running`，结束时会标记为 `done` 或 `error`。
+  - workflow 模式失败时现在会把托管 Agent 状态更新为 `error`，避免标签页/状态 UI 一直停留在 `running`。
+
+- **Delegate 子 Agent 完成等待**
+  - 新增回归测试，确保 delegate 子 Agent 工具会阻塞等待子 Agent 完成，并返回子 Agent 的最终结果，而不是提前返回。
+
 ## v1.1.66
 
 ### ✨ 新功能

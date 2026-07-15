@@ -3522,10 +3522,64 @@ func TestTUIDoneKeepsManagedMainAgentForNextTurn(t *testing.T) {
 		t.Fatal("processInput returned nil command")
 	}
 	id := app.agent.ID()
+	if status, ok := mgr.Status(id); !ok || status.State != "running" {
+		t.Fatalf("managed main status before completion = %#v, ok=%v; want running", status, ok)
+	}
 	app.handleAgentEvent(agent.Event{Type: agent.EventDone})
 
 	if _, ok := mgr.Get(id); !ok {
 		t.Fatalf("managed main agent %s was removed after EventDone", id)
+	}
+	if status, ok := mgr.Status(id); !ok || status.State != "done" {
+		t.Fatalf("managed main status after completion = %#v, ok=%v; want done", status, ok)
+	}
+}
+
+func TestTUIWorkflowErrorMarksManagedMainAgentError(t *testing.T) {
+	tmp := t.TempDir()
+	cwd := filepath.Join(tmp, "project")
+	if err := os.MkdirAll(cwd, 0755); err != nil {
+		t.Fatalf("mkdir cwd: %v", err)
+	}
+
+	settings := config.DefaultSettings()
+	settings.DefaultThinkingLevel = "off"
+	mockProvider := &historyInjectMockProvider{}
+	mgr := agent.NewAgentManager(&agent.AgentFactory{})
+	app := NewAppWithWorkflows(
+		mockProvider,
+		&provider.Model{ID: "mock-model", Name: "Mock"},
+		settings,
+		session.New(cwd, filepath.Join(tmp, "sessions")),
+		tools.NewRegistry(cwd, nil),
+		"",
+		"",
+		"",
+		nil,
+		"agent",
+		false,
+		false,
+		true,
+		mgr,
+		nil,
+		nil,
+	)
+
+	if cmd := app.processInput("first"); cmd == nil {
+		t.Fatal("processInput returned nil command")
+	}
+	id := app.agent.ID()
+	if status, ok := mgr.Status(id); !ok || status.State != "running" {
+		t.Fatalf("managed workflow status before error = %#v, ok=%v; want running", status, ok)
+	}
+	app.handleAgentEvent(agent.Event{Type: agent.EventError, Error: assertErr("workflow failed")})
+
+	status, ok := mgr.Status(id)
+	if !ok {
+		t.Fatalf("managed workflow agent %s missing after EventError", id)
+	}
+	if status.State != "error" || status.Error != "workflow failed" {
+		t.Fatalf("managed workflow status after error = %#v; want error with message", status)
 	}
 }
 

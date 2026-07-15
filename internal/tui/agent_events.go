@@ -161,6 +161,9 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventDone:
 		a.invalidateToolModalCache()
+		if (a.multiAgent || a.delegateMode || a.workflows) && a.agentMgr != nil && a.agent != nil {
+			a.agentMgr.MarkDone(a.agent.ID(), "")
+		}
 		a.isThinking = false
 		a.finishRequestTimer()
 		if event.ContextUsage != nil {
@@ -182,7 +185,7 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventError:
 		a.commitActiveStream()
-		if (a.multiAgent || a.delegateMode) && a.agentMgr != nil && a.agent != nil {
+		if (a.multiAgent || a.delegateMode || a.workflows) && a.agentMgr != nil && a.agent != nil {
 			a.agentMgr.MarkError(a.agent.ID(), event.Error)
 		}
 		a.isThinking = false
