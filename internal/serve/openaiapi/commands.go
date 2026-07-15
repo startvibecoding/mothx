@@ -633,6 +633,12 @@ func (s *Server) cmdSkill(sess *APISession, parts []string) *CommandResult {
 	if skill == nil {
 		return &CommandResult{Message: fmt.Sprintf("Skill not found: %s", name), Error: true}
 	}
+	if sess == nil {
+		return &CommandResult{Message: "No active session.", Error: true}
+	}
+	if err := s.activateSkillForSession(sess, name); err != nil {
+		return &CommandResult{Message: fmt.Sprintf("Failed to activate skill: %v", err), Error: true}
+	}
 	return &CommandResult{Message: fmt.Sprintf("✅ Skill '%s' activated: %s", name, skill.Description)}
 }
 

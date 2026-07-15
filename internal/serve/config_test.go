@@ -18,6 +18,7 @@ import (
 	channels "github.com/startvibecoding/mothx/internal/serve/channels"
 	openaiapi "github.com/startvibecoding/mothx/internal/serve/openaiapi"
 	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/skillhub"
 	"github.com/startvibecoding/mothx/internal/stats"
 )
 
@@ -707,6 +708,26 @@ func TestRegisterServeRoutes_SessionsRequireAPIServer(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("/api/sessions status = %d, want 503", w.Code)
+	}
+}
+
+func TestSkillHubRouteRequiresAPIServer(t *testing.T) {
+	rt := &channelRuntime{cfg: DefaultConfig()}
+	req := httptest.NewRequest(http.MethodGet, "/api/skillhub/markets", nil)
+	w := httptest.NewRecorder()
+	rt.handleSkillHub(nil)(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("SkillHub status = %d, want 503", w.Code)
+	}
+}
+
+func TestParseSkillHubPathSupportsNamespacedIDs(t *testing.T) {
+	market, id, err := parseSkillHubPath("clawhub.ai/openclaw/git")
+	if err != nil || market != skillhub.MarketClawHub || id != "openclaw/git" {
+		t.Fatalf("parseSkillHubPath() = %q, %q, %v", market, id, err)
+	}
+	if _, _, err := parseSkillHubPath("unknown/demo"); err == nil {
+		t.Fatal("unsupported market was accepted")
 	}
 }
 

@@ -2,7 +2,7 @@
   <img src="assets/mothx-small.png" alt="MothX" width="128" height="128">
 </p>
 
-<h1 align="center">MothX</h1>
+<h1 align="center">默思 (MothX)</h1>
 
 <p align="center">
   <strong>🚀 一个二进制文件搞定一切 — 你的终端 AI 编程助手</strong>

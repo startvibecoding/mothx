@@ -26,6 +26,7 @@ type APISession struct {
 	Registry     *tools.Registry
 	AgentMgr     *agent.AgentManager // nil unless sub-agents/delegate/workflows enabled
 	SkillsMgr    *skills.Manager
+	ActiveSkills map[string]bool
 	ExtraContext string
 	RuleContent  string
 	Mode         string // session-level mode override

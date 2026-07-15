@@ -2,7 +2,7 @@
   <img src="docs/assets/mothx.png" alt="MothX" width="128" height="128">
 </p>
 
-<h1 align="center">MothX</h1>
+<h1 align="center">默思 (MothX)</h1>
 
 <p align="center">
   一个基于终端的 AI 编码助手，使用约 10,000 行 Go 代码编写，灵感来源于 <a href="https://pi.dev">pi.dev</a>

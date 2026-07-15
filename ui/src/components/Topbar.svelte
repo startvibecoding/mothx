@@ -5,6 +5,7 @@
   const titles = {
     chat: 'nav.newChat',
     sessions: 'nav.sessions',
+    skills: 'nav.skills',
     stats: 'nav.stats',
     cron: 'nav.cron',
     settings: 'nav.settings'
@@ -13,6 +14,7 @@
   const subtitles = {
     chat: 'topbar.chat.subtitle',
     sessions: 'topbar.sessions.subtitle',
+    skills: 'topbar.skills.subtitle',
     stats: 'topbar.stats.subtitle',
     cron: 'topbar.cron.subtitle',
     settings: 'topbar.settings.subtitle'

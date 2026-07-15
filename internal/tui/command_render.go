@@ -47,6 +47,7 @@ func commandHelpText() string {
 		"  /auth                  - Configure provider token, base URL and models",
 		"  /settings              - Configure settings.json groups, including providers",
 		"  /skills                 - List available skills",
+		"  /skillhub [search <q>]  - Browse, search and install marketplace skills",
 		"  /skill <name>           - Activate a skill",
 		"  /paste-image            - Save clipboard image and insert its local file path",
 		"  /clear                  - Clear conversation",

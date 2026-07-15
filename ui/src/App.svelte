@@ -8,6 +8,7 @@
   import Sessions from './views/Sessions.svelte';
   import Stats from './views/Stats.svelte';
   import Cron from './views/Cron.svelte';
+  import Skills from './views/Skills.svelte';
   import Settings from './views/Settings.svelte';
   import { route, navigate } from './lib/router.js';
   import { refreshAll, disconnectLogs, currentSession } from './lib/stores.js';
@@ -59,6 +60,8 @@
         <Stats />
       {:else if $route.section === 'cron'}
         <Cron />
+      {:else if $route.section === 'skills'}
+        <Skills />
       {:else if $route.section === 'settings'}
         <Settings />
       {:else}

@@ -18,6 +18,7 @@ func commandSuggestionItems() []suggest.Item {
 		{Label: "/model", Value: "/model ", Description: "Switch or show model"},
 		{Label: "/defaultModel", Value: "/defaultModel ", Description: "Set default provider/model; defaults to global settings"},
 		{Label: "/skills", Value: "/skills", Description: "List available skills"},
+		{Label: "/skillhub", Value: "/skillhub", Description: "Browse and install marketplace skills"},
 		{Label: "/skill", Value: "/skill ", Description: "Activate a skill"},
 		{Label: "/paste-image", Value: "/paste-image", Description: "Paste clipboard image as a local file path"},
 		{Label: "/clear", Value: "/clear", Description: "Clear conversation"},
@@ -46,7 +47,7 @@ func commandSuggestionItems() []suggest.Item {
 func (a *App) updateCommandSuggestions() {
 	value := a.input.Value()
 	items, query, ok := commandSuggestionItemsForInput(value)
-	if a.auth.Open || a.defaultModelDialog.Open || a.modelDialog.Open || a.sessionsDialog.Open || a.toolModalOpen || a.statsOverlayOpen || a.esmPanelOpen || a.waitingForApproval || a.waitingForQuestion || !ok {
+	if a.auth.Open || a.defaultModelDialog.Open || a.modelDialog.Open || a.sessionsDialog.Open || a.toolModalOpen || a.statsOverlayOpen || a.skillHubOpen || a.esmPanelOpen || a.waitingForApproval || a.waitingForQuestion || !ok {
 		a.suggest = a.suggest.SetItems(commandSuggestionItems())
 		a.suggest = a.suggest.Update("")
 		return

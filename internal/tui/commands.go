@@ -741,6 +741,8 @@ func (a *App) handleCommand(cmd string) tea.Cmd {
 		}
 	case "/skills":
 		a.listSkills()
+	case "/skillhub":
+		return a.handleSkillHubCommand(parts)
 	case "/esm":
 		return a.handleESMCommand(cmd)
 	case "/skill":

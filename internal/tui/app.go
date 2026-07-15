@@ -22,6 +22,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/esm"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/session"
+	"github.com/startvibecoding/mothx/internal/skillhub"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/stats"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -119,6 +120,7 @@ type App struct {
 	extraContext string
 	ruleContent  string
 	skillsMgr    *skills.Manager
+	skillHub     *skillhub.Service
 
 	// Skills state: base extraContext (without skills) and active skill names
 	baseExtraContext string            // extraContext without skill content
@@ -189,6 +191,30 @@ type App struct {
 	toolModalCacheWidth   int
 	toolModalVersion      int
 	toolModalCacheLines   []string
+
+	// SkillHub marketplace overlay.
+	skillHubOpen           bool
+	skillHubMarket         skillhub.Market
+	skillHubView           skillHubView
+	skillHubScope          string
+	skillHubQuery          string
+	skillHubSearchFocused  bool
+	skillHubResults        []skillhub.SkillSummary
+	skillHubSelected       int
+	skillHubPage           int
+	skillHubTotal          int64
+	skillHubCursor         string
+	skillHubNextCursor     string
+	skillHubCursorHistory  []string
+	skillHubCategories     []skillhub.Category
+	skillHubCategory       string
+	skillHubSort           string
+	skillHubDetail         *skillhub.SkillDetail
+	skillHubDetailExpanded bool
+	skillHubDetailScroll   int
+	skillHubLoading        bool
+	skillHubInstalling     bool
+	skillHubMessage        string
 
 	// /btw side-question floating layer
 	btwOpen     bool
@@ -405,6 +431,14 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 	if providerName == "" {
 		providerName = safeProviderName(p)
 	}
+	globalSkillsDir := ""
+	officialSkillHandles := []string{config.DefaultSkillHubOfficialHandle}
+	if settings != nil {
+		globalSkillsDir = settings.GetGlobalSkillsDir()
+		if len(settings.SkillHub.OfficialHandles) > 0 {
+			officialSkillHandles = settings.SkillHub.OfficialHandles
+		}
+	}
 
 	app := &App{
 		provider:            p,
@@ -422,6 +456,7 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 		baseExtraContext:    extraContext,
 		activeSkills:        make(map[string]string),
 		skillsMgr:           skillsMgr,
+		skillHub:            skillhub.NewServiceForWorkDir(globalSkillsDir, currentWorkingDir(sess), officialSkillHandles),
 		input:               input,
 		authInput:           editor.New(80).SetPlaceholder("").SetMaxLines(3),
 		suggest:             suggest.New(80).SetItems(commandSuggestionItems()),
@@ -673,6 +708,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		oldWidth := a.width
+		oldSkillHubPageSize := a.skillHubPageSize()
 		a.width = msg.Width
 		a.height = msg.Height
 		a.ready = true
@@ -687,6 +723,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		a.updateViewportContent()
+		if a.skillHubOpen && oldSkillHubPageSize != a.skillHubPageSize() {
+			a.resetSkillHubPaging()
+			if cmd := a.loadSkillHub(); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
 		if a.statusLineEnabled() {
 			if !a.statusLineIntervalInit {
 				a.statusLineIntervalInit = true
@@ -769,6 +811,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if handled, cmd := a.handleAuthKey(msg); handled {
 			return a, cmd
+		}
+		if a.skillHubOpen {
+			return a, a.handleSkillHubKey(msg)
 		}
 		if a.esmPanelOpen {
 			switch {
@@ -1028,6 +1073,26 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statsOverlayLoadedMsg:
 		a.handleStatsOverlayLoaded(msg)
+		a.scheduleRender()
+		return a, nil
+
+	case skillHubLoadedMsg:
+		a.handleSkillHubLoaded(msg)
+		a.scheduleRender()
+		return a, nil
+
+	case skillHubDetailLoadedMsg:
+		a.handleSkillHubDetailLoaded(msg)
+		a.scheduleRender()
+		return a, nil
+
+	case skillHubCategoriesLoadedMsg:
+		a.handleSkillHubCategoriesLoaded(msg)
+		a.scheduleRender()
+		return a, nil
+
+	case skillHubInstalledMsg:
+		a.handleSkillHubInstalled(msg)
 		a.scheduleRender()
 		return a, nil
 
@@ -1309,6 +1374,9 @@ func (a *App) View() string {
 	if !a.waitingForApproval && a.statsOverlayOpen {
 		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderStatsOverlay(), footer))
 	}
+	if !a.waitingForApproval && a.skillHubOpen {
+		return a.renderFixedHeight(lipgloss.JoinVertical(lipgloss.Left, a.renderSkillHub(), footer))
+	}
 	if !a.waitingForApproval && a.esmPanelOpen {
 		panelFooter := footer
 		if a.height > 0 && a.height < 8 {
@@ -1417,6 +1485,9 @@ func (a *App) handleMouse(msg tea.MouseMsg) tea.Cmd {
 		case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown:
 			a.scrollStatsOverlay(mouseWheelScrollLines)
 		}
+		return nil
+	}
+	if a.skillHubOpen {
 		return nil
 	}
 	if a.toolModalOpen {

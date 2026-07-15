@@ -7,14 +7,12 @@ MothX is compatible with existing skill marketplaces (SkillHub / ClawHub). Skill
 | **SkillHub** | [https://skillhub.cn](https://skillhub.cn/) | China |
 | **ClawHub** | [https://clawhub.ai](https://clawhub.ai/) | International |
 
-> **Note:** MothX does not have a built-in skill marketplace, but uses the standard
-> skill directory format (`SKILL.md`) that is fully compatible with SkillHub / ClawHub
-> packages. Skills downloaded from these platforms work out of the box — just drop them
-> into your skills directory.
+MothX includes a built-in TUI marketplace for browsing, searching, inspecting, and
+installing public SkillHub / ClawHub packages. Open it with `/skillhub`.
 
 This guide covers:
 
-1. [Installing Skills from Marketplaces](#installing-skills-from-marketplaces) — three steps
+1. [Installing Skills from Marketplaces](#installing-skills-from-marketplaces) — TUI and command usage
 2. [Skill Format Compatibility](#skill-format-compatibility) — standard format details
 3. [Local Skill System](#local-skill-system) — built-in features
 4. [Cron Foundation](#cron-foundation) — scheduled task infrastructure
@@ -23,36 +21,58 @@ This guide covers:
 
 ## Installing Skills from Marketplaces
 
-Installing skills from SkillHub / ClawHub takes three steps:
+Open the built-in marketplace with `/skillhub`.
 
-### 1. Download the Skill Package
+In the `mothx serve` Web UI, open **Skills** from the sidebar. The Web UI and TUI share
+the same SkillHub / ClawHub adapters and safe installer, including Official, Browse,
+Search, detail, install, update, and current-session activation. Project installs are
+derived from the current session workDir and constrained by `allowedWorkDirs`.
 
-Download the skill package from the marketplace (typically a directory or archive containing `SKILL.md`).
+| Key | Action |
+|-----|--------|
+| `Tab` / `Shift+Tab` | Switch SkillHub.cn / ClawHub.ai |
+| `[` / `]` | Switch Browse / Search / Official |
+| `/` | Edit the search query; `Enter` searches |
+| `Up` / `Down` | Select a skill |
+| `Left` / `Right` | Page through SkillHub results or ClawHub cursors |
+| `Enter` | Load details and file list |
+| `d` | Open the scrollable files, security, and evaluation detail view |
+| `c` / `s` | Cycle category / sort in SkillHub.cn Browse |
+| `i` | Install to the selected scope |
+| `u` | Update an installed skill when a newer version is available |
+| `a` | Install and activate for the current session |
+| `g` / `p` | Select global / project scope |
+| `r` | Refresh |
+| `Esc` | Close the marketplace |
 
-### 2. Extract to Skills Directory
+Lists show download counts as `DL`. SkillHub.cn Browse is ordered by downloads.
+`[official]` means the skill is published by a configured Official account;
+`[certified]` identifies a verified publisher; `[verified]` is the marketplace's
+skill verification flag; and `[risk]` marks a suspicious result. These labels are
+kept separate because account origin is not the same as platform verification.
+Details also show source, category, tags, security scan summaries, evaluation availability, and download endpoints when provided by the market. The `d` view distinguishes primary and fallback download sources.
+SkillHub.cn Browse supports category filters and descending downloads, stars, installs, score, or updated-time sorting.
+Installed skills with a newer version show `[update]`; press `u` to update. Active skills are reloaded into the current session after an update.
 
-```bash
-# Global install (available to all projects)
-# Linux/macOS:
-unzip go-expert.zip -d ~/.mothx/skills/
-# Windows:
-Expand-Archive go-expert.zip -DestinationPath "$env:APPDATA\vibecoding\skills\"
+The command form is also available:
 
-# Project-level install (current project only)
-unzip go-expert.zip -d .skills/
+```text
+/skillhub search <query>
+/skillhub detail <market>/<id>
+/skillhub install <market>/<id> [--global|--project] [--activate]
+/skillhub installed
 ```
 
-### 3. Verify Installation
+Installation and activation are separate. Installation writes the package and refreshes
+the local skill list. Activation also rebuilds the current session agent so the next
+request includes the skill.
 
-```
-> /skills
-Loaded 3 skills:
-  - go-expert (global)        ← just installed
-  - coding-standards (global)
-  - project-conventions (project)
-```
+Downloaded archives are size-limited and checked for path traversal, absolute paths,
+Windows drive paths, and symbolic links. Existing hand-written skills are not overwritten;
+updates can only replace a managed directory installed from the same marketplace entry.
 
-That's it. The skill is automatically loaded and injected into the system prompt.
+Manual installation remains supported by placing a compatible skill directory in one of
+the local skill directories.
 
 ---
 
@@ -107,7 +127,7 @@ In addition to marketplace downloads, you can create local skills directly.
 | Type | Location | Scope |
 |------|----------|-------|
 | Global | `~/.mothx/skills/` (Linux/macOS) or `%APPDATA%\mothx\skills\` (Windows) | All projects |
-| Project | `.skills/` (project root) | Current project, overrides global |
+| Project | `.mothx/skills/`, `.skills/`, or `skills/` | Current project, overrides global in that order |
 
 ### Creating a Skill
 
@@ -151,11 +171,17 @@ Configure the global skills directory in `settings.json`:
 
 ```json
 {
-  "skillsDir": "~/.mothx/skills"
+  "skillsDir": "~/.mothx/skills",
+  "skillHub": {
+    "defaultMarket": "skillhub.cn",
+    "defaultInstallScope": "project",
+    "officialHandles": ["user_0064faa7"]
+  }
 }
 ```
 
-Project skills load automatically from `.skills/` without extra configuration.
+`officialHandles` controls the accounts aggregated in the SkillHub.cn Official tab.
+Project skills load automatically without extra configuration.
 
 ---
 

@@ -1054,8 +1054,12 @@ func (s *Server) refreshSessionContext(sess *APISession) error {
 	if err != nil {
 		return err
 	}
+	activeContext, err := buildActiveSkillsContext(skillsMgr, sess.ActiveSkills)
+	if err != nil {
+		return err
+	}
 	sess.SkillsMgr = skillsMgr
-	sess.ExtraContext = extraContext
+	sess.ExtraContext = extraContext + activeContext
 	sess.RuleContent = contextfiles.LoadRuleFile(sess.WorkDir)
 	if sess.Registry != nil && skillsMgr != nil {
 		sess.Registry.Register(tools.NewSkillRefTool(skillsMgr))

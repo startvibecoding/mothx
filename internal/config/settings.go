@@ -28,6 +28,7 @@ type Settings struct {
 	MaxContextTokens     int                        `json:"maxContextTokens,omitempty"`
 	ContextFiles         ContextFilesSettings       `json:"contextFiles"`
 	SkillsDir            string                     `json:"skillsDir,omitempty"`
+	SkillHub             SkillHubSettings           `json:"skillHub,omitempty"`
 	Compaction           CompactionSettings         `json:"compaction"`
 	Sandbox              SandboxSettings            `json:"sandbox"`
 	SessionDir           string                     `json:"sessionDir,omitempty"`
@@ -110,6 +111,14 @@ type WebSearchSettings struct {
 	ProviderType string `json:"providerType,omitempty"`
 	Model        string `json:"model,omitempty"`
 }
+
+type SkillHubSettings struct {
+	DefaultMarket       string   `json:"defaultMarket,omitempty"`
+	DefaultInstallScope string   `json:"defaultInstallScope,omitempty"`
+	OfficialHandles     []string `json:"officialHandles,omitempty"`
+}
+
+const DefaultSkillHubOfficialHandle = "user_0064faa7"
 
 type StatusLineSettings struct {
 	Enabled         bool   `json:"enabled,omitempty"`
@@ -709,7 +718,12 @@ func DefaultSettings() *Settings {
 		WebSearch:      WebSearchSettings{Enabled: boolPtr(false), Provider: "openai", ProviderType: "responses"},
 		ContextFiles:   ContextFilesSettings{Enabled: true},
 		SkillsDir:      platform.SkillsDir(),
-		Compaction:     CompactionSettings{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000},
+		SkillHub: SkillHubSettings{
+			DefaultMarket:       "skillhub.cn",
+			DefaultInstallScope: "project",
+			OfficialHandles:     []string{DefaultSkillHubOfficialHandle},
+		},
+		Compaction: CompactionSettings{Enabled: true, ReserveTokens: 16384, KeepRecentTokens: 20000},
 		Sandbox: SandboxSettings{
 			Enabled:     false,
 			Level:       "none",

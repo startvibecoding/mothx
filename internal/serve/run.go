@@ -518,6 +518,7 @@ func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *htt
 		mux.Handle("/ws/logs", rt.handleLogs(sessions))
 		mux.HandleFunc("/ws", rt.handleWebSocket)
 		mux.HandleFunc("/api/browse", rt.handleBrowse)
+		mux.HandleFunc("/api/skillhub/", rt.handleSkillHub(srv))
 		mux.HandleFunc("/", rt.handleWebUI)
 	}
 }

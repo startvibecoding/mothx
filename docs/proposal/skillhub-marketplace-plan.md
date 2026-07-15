@@ -1,9 +1,62 @@
 # SkillHub / ClawHub 市场集成方案
 
-> 状态: Draft
+> 状态: In Progress（Phase 1 核心、Phase 2 TUI 与 Phase 3 Serve/Web UI 主流程已落地）
 > 日期: 2026-07-14
+> 最近核对: 2026-07-15
 > 目标: 在 MothX 中内置 Skill 市场浏览、搜索、下载、安装能力，并同时提供 TUI 与 Web UI 入口。
 > 输入资料: `docs/proposal/skillhub-api-research.md`、ClawHub 官方 HTTP API 文档。
+
+## 0. 当前实施状态
+
+### 0.1 已完成
+
+- [x] `internal/skillhub` 统一数据模型、market capability 和 service。
+- [x] SkillHub.cn / ClawHub.ai 搜索、列表、详情、文件清单和下载 adapter。
+- [x] 兼容两个市场当前实际响应中的对象型 `latestVersion`、对象型 `tags` 和嵌套 `stats`。
+- [x] Official 默认账号确定为 `@user_0064faa7`；拉取该用户全部 Skill 后按下载量降序，本地分页。
+- [x] SkillHub.cn Browse 使用服务端 `sortBy=downloads&order=desc` 并支持页码分页。
+- [x] 列表显示下载量及 `[official]`、`[certified]`、`[verified]`、`[enterprise]`、`[risk]`、`[installed]`、`[update]` 标记。
+- [x] 安全 zip 安装：大小/数量限制、路径穿越/绝对路径/Windows drive/symlink 拒绝、根目录识别、`SKILL.md` 校验、metadata、备份与 rename。
+- [x] 全局/项目安装目录选择和 managed Skill 本地索引。
+- [x] `/skillhub` TUI 覆盖页、双市场 tab、Official/Browse/Search、搜索、详情、文件列表、安装、安装并激活。
+- [x] Official、SkillHub.cn Browse 页码分页，以及 ClawHub Browse/Search cursor 前后翻页。
+- [x] 详情展示来源、分类、tags、安全扫描状态摘要和 evaluation 维度摘要。
+- [x] SkillHub.cn Browse 分类过滤与 `downloads/stars/installs/score/updated_at` 降序切换。
+- [x] `d` 详情明细视图：完整文件清单、安全报告 JSON、evaluation JSON 和滚动。
+- [x] 详情展示主下载端点和回退来源；TUI `u` 更新 managed Skill，并在原 Skill 已激活时重载上下文。
+- [x] `/skillhub search|detail|install|installed` 命令入口。
+- [x] 安装后重载 `skillsMgr`、更新 `skill_ref`；激活后重建 extra context 和 agent。
+- [x] `settings.skillHub.defaultMarket/defaultInstallScope/officialHandles` additive 配置。
+- [x] API fixture、安装、恶意 zip、metadata、官方聚合、分页、下载量和认证字段测试。
+- [x] Serve `/api/skillhub/...`：markets、categories、official、search、detail/files、installed、install/update、activate。
+- [x] Serve workDir 复用 `allowedWorkDirs` 校验；安装目标只从全局目录或已校验项目目录推导，不接受任意 `TargetDir`。
+- [x] Serve session 级 active skills、`SkillsMgr` / `skill_ref` / extra context / `AgentMgr` factory 刷新；`/skill` 也会真正注入当前 session。
+- [x] Web UI 一级 `Skills` 工作台、双市场、Official/Browse/Search、分页/筛选/排序、下载量/认证标记、详情、安装、更新与激活。
+- [x] Web UI 中英文文案、桌面/移动响应式布局，以及 Playwright 真实市场切换、搜索、详情和溢出检查。
+
+### 0.2 部分完成
+
+- [x] 详情：摘要与 `d` 明细视图已覆盖来源、分类、tags、完整文件清单、安全报告、evaluation 和实际下载回退来源。
+- [~] 本地状态：已识别带 `.mothx-skillhub.json` 的 managed Skill 并按远端版本计算 `UpdateAvailable`；尚未把无 metadata 的手写 Skill 作为 `local` 合并到市场状态。
+- [x] 分页：SkillHub.cn Browse / Official 页码分页和 ClawHub Browse/Search cursor 翻页均已接入 TUI。
+- [~] 排序：SkillHub.cn Browse 和 Official 已按下载量排序；Search 保持相关性；ClawHub 当前公开 API 未验证出可靠的下载量全局排序，不在 UI 中宣称支持。
+- [~] 配置：默认项和 Official handles 已实现；自定义 market、启停 market、API URL 和设置页编辑入口未实现。
+- [x] 覆盖/更新：安装器仅允许覆盖相同 market/id 的 managed Skill，支持备份和回滚；TUI 提供 Update 操作和版本更新提示。
+- [~] 安全目录边界：TUI 只使用全局或当前项目 skills 目录；Serve 已校验 `allowedWorkDirs` 并禁止客户端指定 `TargetDir`；核心安装请求仍保留 `TargetDir` 以支持受信任调用和测试。
+
+### 0.3 尚未开始
+
+- [ ] 短 TTL 内存缓存。
+- [ ] SkillHub.cn showcase，以及 ClawHub 文件内容/安全接口的完整 service 编排；SkillHub.cn evaluation 请求已完成。
+- [ ] 卸载、批量 SkillSet、企业 registry/token、自定义 market。
+- [ ] TUI 真实网络安装与激活的端到端/集成测试；当前以 fixture 和状态机测试为主。
+
+### 0.4 建议后续顺序
+
+1. 收尾 Phase 2：真实网络安装激活集成测试。
+2. 收尾 Phase 3：补安装/激活浏览器自动化 fixture，减少对真实市场可用性的依赖。
+3. 回补核心增强：cache、无 metadata 本地 Skill 合并。
+4. 最后进入 Phase 4：Uninstall、SkillSet、企业 registry、自定义 market。
 
 ## 1. 目标
 
@@ -52,12 +105,11 @@ SkillHub
 
 [ Official ] [ Browse ] [ Search ]
 
-Search: go testing________________________  Sort: Relevance  Scope: Project
+Search: go testing________________________  Sort: Downloads  Scope: Project  Page: 1
 
 ┌ Results ─────────────────────────────┐ ┌ Detail ───────────────────────────────┐
-│ [installed] go-expert        1.2.0    │ │ go-expert                              │
-│             Go testing...    823 ★    │ │ Author: xxx     Downloads: 12.3k       │
-│             tdd-helper       0.4.1    │ │ Category: dev-programming              │
+│ [official] go-expert  DL 12,300 1.2.0 │ │ go-expert                              │
+│ [certified] tdd-helper DL 823    0.4.1 │ │ Author: xxx     Downloads: 12.3k       │
 │             ...                       │ │ Summary: ...                           │
 └───────────────────────────────────────┘ │ Files: SKILL.md, references/...        │
                                           │ Security: verified / reports / warnings│
@@ -73,7 +125,11 @@ Search: go testing________________________  Sort: Relevance  Scope: Project
 | `[` / `]` | 切换当前市场下的 Official / Browse / Search 子视图 |
 | `/` | 聚焦搜索框 |
 | `Enter` | 打开当前 skill 详情 |
+| `d` | 打开/关闭可滚动的详情、安全报告和 evaluation 明细 |
+| `Left` / `Right` | SkillHub.cn Browse / Official 页码翻页；ClawHub Browse / Search cursor 翻页 |
+| `c` / `s` | SkillHub.cn Browse 切换分类 / 排序 |
 | `i` | 安装到当前 scope |
+| `u` | 更新有新版本的 managed Skill |
 | `a` | 安装并激活到当前 session |
 | `g` / `p` | 切换全局 / 项目安装 scope |
 | `r` | 刷新 |
@@ -87,6 +143,15 @@ Search: go testing________________________  Sort: Relevance  Scope: Project
 /skillhub detail <market>/<slug>
 /skillhub installed
 ```
+
+当前排序与标记规则：
+
+- SkillHub.cn Browse 使用服务端下载量降序。
+- SkillHub.cn Browse 可循环切换分类，以及 `downloads/stars/installs/score/updated_at` 降序。
+- Official 默认聚合 `@user_0064faa7`，拉取全部发布 Skill 后按下载量降序并本地分页。
+- Search 保持相关性排序，因为 SkillHub.cn 搜索接口会忽略下载量排序参数。
+- ClawHub 当前只展示 `stats.downloads`，不宣称支持按下载量全局排序。
+- `[official]` 表示配置的 Official 账号来源；`[certified]` 表示 `publisher.verified`；`[verified]` 表示 Skill 认证字段；`[risk]` 表示可疑风险。来源与认证不得混为同一状态。
 
 ### 2.3 Web UI
 
@@ -117,20 +182,23 @@ internal/skillhub/
   service.go           # 业务编排: search/detail/install/installed
   install.go           # 下载、校验、解压、原子安装
   local.go             # 扫描本地 installed 状态
-  cache.go             # 短 TTL 内存缓存
-  skillhubcn/client.go # skillhub.cn adapter
-  clawhub/client.go    # clawhub.ai adapter
+  http.go              # HTTP JSON 请求和错误处理
+  client_helpers.go    # adapter 公共辅助函数
+  skillhubcn.go        # skillhub.cn adapter
+  clawhub.go           # clawhub.ai adapter
+  cache.go             # 待实现：短 TTL 内存缓存
 ```
 
 ### 3.1 统一接口
 
 ```go
 type MarketClient interface {
-    Market() Market
+    Market() MarketInfo
     Search(ctx context.Context, q SearchQuery) (SearchPage, error)
     UserSkills(ctx context.Context, handle string, q UserSkillsQuery) (SearchPage, error)
     Detail(ctx context.Context, id SkillID) (SkillDetail, error)
     Files(ctx context.Context, id SkillID, version string) ([]SkillFile, error)
+    Evaluation(ctx context.Context, id SkillID) (any, error)
     Download(ctx context.Context, id SkillID, version string) (io.ReadCloser, DownloadMeta, error)
     Categories(ctx context.Context) ([]Category, error)
 }
@@ -175,6 +243,10 @@ type SkillSummary struct {
     IconURL     string
     Homepage    string
     SourceURL   string
+    Source      string
+    PublisherName string
+    CertifiedName string
+    PublisherVerified bool
     Downloads   int64
     Installs    int64
     Stars       int64
@@ -213,6 +285,8 @@ type SkillSummary struct {
 - `/api/v1/search` 不支持分页、分类、排序、用户过滤。
 - `/api/skills` 的 `sortBy` 只能是 `updated_at/downloads/stars/installs/score`。
 - `/api/v1/users/{handle}/skills` 是按用户拉 skill 的正确接口，但只支持 `page/pageSize`；关键词、分类和排序需要本地过滤。
+- 当前默认 Official handle 为 `user_0064faa7`。实现会拉取其完整列表、按 `downloads` 降序后再做 TUI 分页。
+- `/api/v1/skills/{slug}` 当前部署的 `latestVersion` 和 `tags` 可能是对象，统计位于 `stats`；adapter 已同时兼容旧字符串/数组形式。
 - v1 错误是 HTTP 状态码 + `{"error":"..."}`；旧 `/api/skills` 是 `code != 0`。
 - 时间戳是毫秒。
 
@@ -233,6 +307,9 @@ type SkillSummary struct {
 - ClawHub 的分页是 cursor，不是 page/pageSize。
 - 错误响应可能是 `text/plain`，不能假设都是 JSON。
 - `skill-id` 需要统一支持 slug 或 `org/slug` 形式，避免跨组织重名。
+- 当前列表与详情响应提供嵌套 `stats.downloads`，但没有稳定返回可直接展示的 verified/suspicious 布尔字段；没有字段时 UI 不生成认证标记。
+- 当前实测 `order=downloads` 未形成可靠的下载量全局排序，因此首版只展示下载量，保留 API 默认顺序。
+- TUI 已保存 cursor 历史栈，支持 `Right` 前进和 `Left` 返回上一 cursor 页。
 
 ## 4. Serve API
 
@@ -360,7 +437,7 @@ MVP 策略：
   "skillHub": {
     "defaultMarket": "skillhub.cn",
     "defaultInstallScope": "project",
-    "officialHandles": ["mothx-official"],
+    "officialHandles": ["user_0064faa7"],
     "markets": [
       {
         "id": "skillhub.cn",
@@ -381,6 +458,8 @@ MVP 策略：
 }
 ```
 
+当前实现范围：`defaultMarket`、`defaultInstallScope`、`officialHandles` 已进入 `settings.json` schema；`markets` 自定义数组尚未实现，两个市场 URL 仍使用内置默认值。
+
 配置位置：
 
 - `settings.json`: app 级能力，TUI 和 serve 都会用，适合作为默认配置来源。
@@ -388,7 +467,7 @@ MVP 策略：
 
 如果不想第一阶段改 settings schema，也可以先用代码内置默认市场，后续再做可配置市场。
 
-官方推荐的 handle 列表建议先内置默认值，后续再暴露到设置页。这样首版可以先落地官方推荐，不要求用户理解 SkillHub 用户 handle。
+官方推荐默认 handle 已确定为 `user_0064faa7`。JSON 配置可覆盖 handle 列表；TUI `/settings` 编辑入口尚未实现。
 
 ## 7. 安全边界
 
@@ -431,7 +510,7 @@ type InstalledState struct {
 
 ## 9. 分期
 
-### Phase 1: Core + installer
+### Phase 1: Core + installer（核心验收已完成，增强项待补）
 
 交付：
 
@@ -449,7 +528,9 @@ type InstalledState struct {
 - 能把一个 zip skill 安装到临时项目目录。
 - 恶意 zip 不会写出目标目录。
 
-### Phase 2: TUI
+剩余：短 TTL cache、showcase 编排、无 metadata 本地 Skill 合并，以及 zip limit/symlink 专项测试。
+
+### Phase 2: TUI（主流程已完成，体验与集成测试待补）
 
 交付：
 
@@ -464,7 +545,9 @@ type InstalledState struct {
 - 安装后 `/skills` 能看到新 skill。
 - `Install & Activate` 后下一轮 agent prompt 包含该 skill。
 
-### Phase 3: Serve API + Web UI
+剩余：真实网络安装激活集成测试。
+
+### Phase 3: Serve API + Web UI（主流程已完成）
 
 交付：
 
@@ -480,24 +563,27 @@ type InstalledState struct {
 - 安装写入当前 session workDir 对应项目 skill 目录。
 - 激活后当前 session agent 会重建。
 
-### Phase 4: 更新、卸载、扩展市场
+当前状态：Serve API、目录校验、session 激活刷新、Web UI 工作台与双市场真实浏览/搜索/详情检查均已完成。剩余是使用本地下载 fixture 的浏览器安装/激活自动化，避免测试依赖外部市场。
+
+### Phase 4: 卸载、批量与扩展市场（未开始）
 
 交付：
 
-- 更新检查。
 - 卸载。
 - 批量安装 skillset。
 - 企业 registry / token 支持。
 - 可配置自定义 market。
 
-## 10. 需要提前确认的问题
+## 10. 决策与待确认问题
 
-1. 项目安装目录默认是否使用当前代码最高优先级 `.mothx/skills`，还是为了用户直觉强制用 `.skills`。建议用 `skills.ProjectSkillDirs(workDir)[0]` 保持一致。
-2. Web UI 是否把 `Skills` 放一级导航，还是放到 Settings / Project Context 下。建议放一级导航，因为它是高频安装入口。
-3. SkillHub.cn 搜索结果中的 `source=clawhub` 与独立 `clawhub.ai` 市场可能有重复 skill，是否需要跨市场去重。MVP 不去重，只在详情页显示 market/source。
-4. 是否允许未登录下载 ClawHub 全部公开 skill。按官方文档可以先实现公开 API，登录能力后置。
-5. 现有 Serve `/skill` 激活逻辑需要补齐 session active skills 状态；否则 Web UI 的 `Activate` 只能显示成功但不会改变 frozen prompt。
-6. 官方推荐默认 handle 用哪个账号或哪些账号。技术方案按 `officialHandles` 支持多个 handle，产品上需要确定初始列表。
+1. **已确认**：项目安装目录使用 `skills.ProjectSkillDirs(workDir)[0]`，即 `.mothx/skills`，保持现有优先级。
+2. **待确认**：Web UI 是否把 `Skills` 放一级导航，还是放到 Settings / Project Context 下。当前建议仍是一级导航。
+3. **已确认（MVP）**：SkillHub.cn 的 `source=clawhub` 与独立 `clawhub.ai` 不跨市场去重，保留 market/source 标识。
+4. **部分验证**：ClawHub 公开列表、详情和下载接口按无需登录设计；正式接入 Serve/Web 前仍需做真实公开包下载集成测试。
+5. **已实现**：Serve 保存 session 级 active skills，激活/安装/更新后重建 `SkillsMgr`、`skill_ref`、`sess.ExtraContext` 和 `AgentMgr` factory。Serve 每次请求创建新的主 agent，因此下一轮会直接使用刷新后的 frozen system prompt。
+6. **已确认**：Official 默认 handle 为 `user_0064faa7`，配置结构仍支持多个 handle。
+7. **已确认**：列表展示下载量。SkillHub.cn Browse 与 Official 按下载量降序；Search 保持相关性；ClawHub 未确认可靠全局下载排序前只展示下载量。
+8. **已确认**：Official 来源、publisher 认证、Skill verified 和 risk 必须使用独立标记，不能相互替代。
 
 ## 11. 参考
 

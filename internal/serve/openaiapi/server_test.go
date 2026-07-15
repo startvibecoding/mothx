@@ -2610,6 +2610,70 @@ func TestCommands_SkillNotFound(t *testing.T) {
 	}
 }
 
+func TestSkillHubSessionActivationReloadsSkillContext(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := srv.cfg.GetWorkDir()
+	skillDir := filepath.Join(skills.ProjectSkillDirs(workDir)[0], "market-demo")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("# Market Demo\n\nUse the marketplace workflow."), 0644); err != nil {
+		t.Fatal(err)
+	}
+	state, err := srv.RefreshSkillHubSession("skillhub-session", workDir, "market-demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.SessionID != "skillhub-session" || len(state.ActiveSkills) != 1 || state.ActiveSkills[0] != "market-demo" {
+		t.Fatalf("session state = %#v", state)
+	}
+	sess := srv.pool.GetForWorkDir(workDir, "skillhub-session")
+	if sess == nil || !strings.Contains(sess.ExtraContext, "## Active Skill: market-demo") || !strings.Contains(sess.ExtraContext, "Use the marketplace workflow.") {
+		t.Fatalf("session context was not refreshed: %#v", sess)
+	}
+	if sess.Registry == nil || sess.SkillsMgr == nil || sess.SkillsMgr.Get("market-demo") == nil {
+		t.Fatal("session skill resources were not refreshed")
+	}
+}
+
+func TestCommandsSkillActivatesCurrentSession(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := srv.cfg.GetWorkDir()
+	skillDir := filepath.Join(skills.ProjectSkillDirs(workDir)[0], "command-demo")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("# Command Demo"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sess, err := srv.getOrCreateSession("command-session", workDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := srv.cmdSkill(sess, []string{"/skill", "command-demo"})
+	if result.Error || !sess.ActiveSkills["command-demo"] || !strings.Contains(sess.ExtraContext, "## Active Skill: command-demo") {
+		t.Fatalf("activation result=%#v active=%#v context=%q", result, sess.ActiveSkills, sess.ExtraContext)
+	}
+}
+
+func TestResolveSkillHubWorkDirUsesAllowlist(t *testing.T) {
+	srv := newTestServer(t)
+	allowedRoot := t.TempDir()
+	allowedWorkDir := filepath.Join(allowedRoot, "project")
+	if err := os.MkdirAll(allowedWorkDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	allowed := []string{allowedRoot}
+	srv.cfg.AllowedWorkDirs = &allowed
+	if got, err := srv.ResolveSkillHubWorkDir("", allowedWorkDir); err != nil || got != allowedWorkDir {
+		t.Fatalf("allowed workDir = %q, %v", got, err)
+	}
+	outside := t.TempDir()
+	if _, err := srv.ResolveSkillHubWorkDir("", outside); err == nil {
+		t.Fatal("outside workDir was accepted")
+	}
+}
+
 func TestCommands_SkillsEmpty(t *testing.T) {
 	srv := newTestServer(t)
 	result := srv.cmdSkills(nil)

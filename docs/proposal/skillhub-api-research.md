@@ -298,7 +298,11 @@ curl -s "https://api.skillhub.cn/api/v1/users/user_0064faa7/skills?pageSize=100"
     "last_synced_at": ...
   },
   "owner": { /* 发布者信息，同 /api/v1/users/{handle} 中的 user 对象 */ },
-  "latestVersion": "1.0.0",
+  "latestVersion": {
+    "version": "1.0.0",
+    "changelog": "Synced by skillhub pipeline",
+    "createdAt": 1774758863165
+  },
   "contentZhAvailable": true,
   "securityReports": []
 }
@@ -332,7 +336,7 @@ Content-Type: application/json
 }
 ```
 
-`items[i]` 的结构与 `/api/v1/skills/{slug}` 的顶层一致（含 `skill`/`owner`/`latestVersion`/`securityReports`）。
+`items[i]` 的结构与 `/api/v1/skills/{slug}` 的顶层一致（含 `skill`/`owner`/`latestVersion`/`securityReports`）。当前部署的 `latestVersion` 是包含 `version` 的对象；客户端应同时兼容旧部署曾返回的字符串形式。
 
 ---
 

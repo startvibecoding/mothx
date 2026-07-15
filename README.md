@@ -5,6 +5,10 @@
 <h1 align="center">MothX</h1>
 
 <p align="center">
+  <strong>默思</strong> | 中文名称
+</p>
+
+<p align="center">
   <strong>🚀 One Binary to Rule Them All — Your AI Coding Assistant in the Terminal</strong>
 </p>
 

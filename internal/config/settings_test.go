@@ -777,6 +777,19 @@ func TestGetGlobalSkillsDirNormalizesLegacyDefault(t *testing.T) {
 	}
 }
 
+func TestDefaultSkillHubSettings(t *testing.T) {
+	settings := DefaultSettings()
+	if settings.SkillHub.DefaultMarket != "skillhub.cn" {
+		t.Fatalf("default SkillHub market = %q", settings.SkillHub.DefaultMarket)
+	}
+	if settings.SkillHub.DefaultInstallScope != "project" {
+		t.Fatalf("default SkillHub scope = %q", settings.SkillHub.DefaultInstallScope)
+	}
+	if len(settings.SkillHub.OfficialHandles) != 1 || settings.SkillHub.OfficialHandles[0] != DefaultSkillHubOfficialHandle {
+		t.Fatalf("default SkillHub official handles = %#v", settings.SkillHub.OfficialHandles)
+	}
+}
+
 func TestSaveGlobalSettings(t *testing.T) {
 	// Create temp directory
 	tmpDir := t.TempDir()
