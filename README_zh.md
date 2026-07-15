@@ -50,42 +50,20 @@
 
 ### 安装
 
-**选项 1：npm（推荐）**
+**一键安装（推荐）**
 
-```bash
-npm install -g mothx-installer
-```
-
-旧 npm 包 `vibecoding-installer` 本版本仍保留兼容，但后续更新请切换到 `mothx-installer`。
-
-**选项 2：PyPI**
-
-```bash
-pipx install mothx-installer
-```
-
-**选项 3：一键安装**
+脚本会优先使用已有 Node.js；如果没有，则先自动安装对应系统的 Node.js LTS，再通过 npm 安装最新版 MothX。
 
 Linux/macOS：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 ```
 
-Windows（PowerShell）：
+Windows（命令提示符）：
 
-```powershell
-irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
-```
-
-或自定义安装目录：
-
-```bash
-# Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
-
-# Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
+```bat
+curl.exe -fsSL https://mothx.net/install.bat -o install.bat && install.bat
 ```
 
 **选项 4：Docker（GHCR）**

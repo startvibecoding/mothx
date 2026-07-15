@@ -152,6 +152,8 @@
   $: activeSession = $sessions.find((s) => s.id === $currentSession);
   $: sessionToolKey = $currentSession || '__new__';
   $: sessionTools = sessionToolsFor($sessionToolOptions, sessionToolKey, activeSession || $features);
+  $: availableToolToggles = toolToggles.filter(isToolToggleVisible);
+  $: visibleSessionTools = filterHiddenSessionTools(sessionTools, $features);
   $: recentTools = chatEvents.slice(-6).reverse();
   $: sessionEventSummary = buildSessionEventSummary(sessionRunEvents, sessionCapabilityEvents, activeSessionWorkDir, $selectedModel);
   $: subAgentSummary = buildSubAgentSummary(subAgents);
@@ -238,7 +240,7 @@
         stream: true,
         x_session_id: $currentSession || undefined,
         x_working_dir: isNewSession ? workDir.trim() : activeSessionWorkDir,
-        x_tools: sessionTools,
+        x_tools: visibleSessionTools,
         x_transcript: true,
         messages: requestMessages
       });
@@ -326,10 +328,10 @@
   async function updateToolOption(key, event) {
     const targetSession = $currentSession;
     const previousTools = sessionTools;
-    const nextTools = {
+    const nextTools = filterHiddenSessionTools({
       ...sessionTools,
       [key]: Boolean(event.currentTarget.checked)
-    };
+    }, $features);
     setSessionTools(sessionToolKey, nextTools);
     if (!targetSession) return;
     try {
@@ -346,6 +348,21 @@
       setSessionTools(targetSession, previousTools);
       setError(err);
     }
+  }
+
+  function isToolToggleVisible(item) {
+    if (item?.key === 'webSearch' || item?.key === 'a2aMaster') {
+      return $features[item.key] === true;
+    }
+    return true;
+  }
+
+  function filterHiddenSessionTools(tools = {}, featureState = {}) {
+    return {
+      ...tools,
+      webSearch: featureState.webSearch === true && tools.webSearch === true,
+      a2aMaster: featureState.a2aMaster === true && tools.a2aMaster === true
+    };
   }
 
   function onDirSelect(e) {
@@ -2393,7 +2410,7 @@
           {/if}
         </select>
         <div class="tool-toggles" aria-label={$t('chat.tools')}>
-          {#each toolToggles as item}
+          {#each availableToolToggles as item}
             <label class="tool-toggle" title={$t(`chat.toolToggle.${item.key}`)}>
               <input
                 type="checkbox"

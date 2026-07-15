@@ -12,7 +12,7 @@ npm install -g mothx-installer
 pipx install mothx-installer
 
 # Option 3: One-line install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 
 # Option 4: Go install
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
@@ -28,7 +28,7 @@ npm uninstall -g mothx-installer
 pipx uninstall mothx-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 ```
 
 ## Step 2: Configure API Key (30 seconds)

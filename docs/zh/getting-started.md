@@ -10,50 +10,20 @@
 
 ## 安装
 
-### 方法一: npm 安装 (推荐)
+### 方法一：一键安装（推荐）
+
+脚本会优先使用已有 Node.js。如果没有 Node.js，则先自动安装对应系统的最新 Node.js LTS，再通过 npm 安装最新版 MothX。
+
+**Linux/macOS：**
 
 ```bash
-npm install -g mothx-installer
+curl -fsSL https://mothx.net/install.sh | bash
 ```
 
-这将自动下载适合你平台的二进制文件。
+**Windows（命令提示符）：**
 
-### 方法二: PyPI 安装
-
-```bash
-pipx install mothx-installer
-```
-
-不使用 pipx 时也可以安装到用户目录：
-
-```bash
-python -m pip install --user mothx-installer
-```
-
-这会安装适合当前平台的 wheel 包。
-
-### 方法三: 一键安装
-
-**Linux/macOS:**
-
-```bash
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash
-```
-
-**Windows (PowerShell):**
-
-```powershell
-irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
-```
-
-或者指定安装目录:
-
-```bash
-# Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash
-
-# Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex
+```bat
+curl.exe -fsSL https://mothx.net/install.bat -o install.bat && install.bat
 ```
 
 **卸载:**
@@ -66,15 +36,13 @@ npm uninstall -g mothx-installer
 pipx uninstall mothx-installer
 
 # Linux/macOS
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 
 # Windows
-irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
+npm uninstall -g mothx-installer
 ```
 
-这将自动从 Gitee 下载最新版本并安装二进制文件。默认安装位置：
-- Linux/macOS: `/usr/local/bin`
-- Windows: `%LOCALAPPDATA%\vibecoding`
+在线安装脚本最终会执行 `npm install -g mothx-installer`。
 
 ### 方法四: Docker (GHCR)
 

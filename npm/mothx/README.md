@@ -82,10 +82,10 @@ Or configure in `~/.mothx/settings.json`:
 npm uninstall -g mothx-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 
 # Windows (one-line install)
-irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
+npm uninstall -g mothx-installer
 ```
 
 ## License

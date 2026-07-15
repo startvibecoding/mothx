@@ -113,7 +113,7 @@ npm install -g vibecoding-installer
 pipx install mothx-installer
 
 # One-line install (Linux/macOS)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 
 # Docker (GHCR, Linux amd64/arm64)
 docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
@@ -136,10 +136,10 @@ npm uninstall -g vibecoding-installer
 pipx uninstall mothx-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 
 # Windows (one-line install)
-irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex; Uninstall-MothX
+npm uninstall -g mothx-installer
 ```
 
 ## 🎮 Three Modes for Every Situation

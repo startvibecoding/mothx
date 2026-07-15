@@ -10,50 +10,22 @@ This guide helps you get started with MothX in 5 minutes.
 
 ## Installation
 
-### Method 1: npm (Recommended)
+### Method 1: One-line Install (Recommended)
 
-```bash
-npm install -g mothx-installer
-```
-
-This will automatically download the correct binary for your platform.
-
-### Method 2: PyPI
-
-```bash
-pipx install mothx-installer
-```
-
-Or without pipx:
-
-```bash
-python -m pip install --user mothx-installer
-```
-
-This installs the platform-specific wheel for your machine.
-
-### Method 3: One-line Install
+The script uses an existing Node.js installation when available. If Node.js is
+missing, it installs the latest Node.js LTS release first and then installs the
+latest MothX package through npm.
 
 **Linux/macOS:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 ```
 
-**Windows (PowerShell):**
+**Windows (Command Prompt):**
 
-```powershell
-irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
-```
-
-Or with custom install directory:
-
-```bash
-# Linux/macOS
-INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
-
-# Windows
-$env:VIBECODING_INSTALL_DIR="C:\Tools\vibecoding"; irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex
+```bat
+curl.exe -fsSL https://mothx.net/install.bat -o install.bat && install.bat
 ```
 
 **Uninstall:**
@@ -66,15 +38,13 @@ npm uninstall -g mothx-installer
 pipx uninstall mothx-installer
 
 # Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 
 # Windows
-irm https://raw.githubusercontent.com/startvibecoding/mothx/main/install.ps1 | iex; Uninstall-MothX
+npm uninstall -g mothx-installer
 ```
 
-This will automatically download the latest release from GitHub and install the binary. Default install locations:
-- Linux/macOS: `/usr/local/bin`
-- Windows: `%LOCALAPPDATA%\vibecoding`
+The online installers ultimately run `npm install -g mothx-installer`.
 
 ### Method 4: Docker (GHCR)
 

@@ -39,7 +39,7 @@ export PATH=~/.npm-global/bin:$PATH
 npx mothx
 
 # Option 3: Use one-line install script
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 ```
 
 ### Q: After starting, nothing happens, cursor just blinks

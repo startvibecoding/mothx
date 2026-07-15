@@ -207,6 +207,15 @@ When changing code, prefer the least risky approach that satisfies the request.
 - Do not create separate release note files.
 - Update README files only for user-visible major changes.
 
+### Online Install Scripts
+
+- The public site is deployed by Cloudflare from the `docs/` directory. Public installer URLs map directly to `docs/install.sh` and `docs/install.bat`:
+  - `https://mothx.net/install.sh`
+  - `https://mothx.net/install.bat`
+- Keep the root `install.sh` / `install.bat` copies synchronized with the corresponding files under `docs/` when changing installer behavior.
+- Online installers must prefer an existing Node.js installation. If Node.js is missing, install the latest supported Node.js LTS release for the current OS/architecture, then run `npm install -g mothx-installer`.
+- User-facing documentation should use the `mothx.net` installer URLs rather than GitHub raw or Gitee raw URLs.
+
 ## Validation
 
 When appropriate, verify with the smallest useful scope first.

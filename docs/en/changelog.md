@@ -2,6 +2,12 @@
 
 ## v1.1.67
 
+### ✨ Features
+
+- **Unified Online Installer**
+  - Online installation now uses `https://mothx.net/install.sh` on Unix-like systems and `https://mothx.net/install.bat` on Windows.
+  - The scripts reuse an existing Node.js installation or install Node.js LTS when missing, then install the latest release with `npm install -g mothx-installer`.
+
 ### 🐛 Fixes
 
 - **Corrupt Settings Recovery**

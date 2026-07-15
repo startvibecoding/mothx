@@ -39,7 +39,7 @@ export PATH=~/.npm-global/bin:$PATH
 npx mothx
 
 # 方案三：使用一键安装脚本
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 ```
 
 ### Q: 启动后没有任何反应，光标闪烁

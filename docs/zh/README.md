@@ -65,7 +65,7 @@
 npm install -g mothx-installer               # npm（推荐）
 npm install -g vibecoding-installer          # 兼容包，本过渡版本保留
 pipx install mothx-installer               # PyPI
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS
+curl -fsSL https://mothx.net/install.sh | bash  # Linux/macOS
 
 # Docker（GHCR，Linux amd64/arm64）
 docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
@@ -91,10 +91,10 @@ npm uninstall -g vibecoding-installer        # 如果曾安装旧兼容包
 pipx uninstall mothx-installer
 
 # Linux/macOS（一键安装）
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 
 # Windows（一键安装）
-irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
+npm uninstall -g mothx-installer
 ```
 
 ---

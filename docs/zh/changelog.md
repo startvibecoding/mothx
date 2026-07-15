@@ -2,6 +2,12 @@
 
 ## v1.1.67
 
+### ✨ 新功能
+
+- **统一在线安装入口**
+  - Unix 类系统在线安装统一使用 `https://mothx.net/install.sh`，Windows 使用 `https://mothx.net/install.bat`。
+  - 脚本会复用已有 Node.js；缺少 Node.js 时先安装 Node.js LTS，再执行 `npm install -g mothx-installer` 安装最新版。
+
 ### 🐛 修复
 
 - **损坏配置自动恢复**

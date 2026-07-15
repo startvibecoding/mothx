@@ -12,7 +12,7 @@ npm install -g mothx-installer
 pipx install mothx-installer
 
 # 方式三：一键安装（Linux/macOS）
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash
+curl -fsSL https://mothx.net/install.sh | bash
 
 # 方式四：Go 安装
 go install github.com/startvibecoding/mothx/cmd/mothx@latest
@@ -28,7 +28,7 @@ npm uninstall -g mothx-installer
 pipx uninstall mothx-installer
 
 # Linux/macOS（一键安装）
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 ```
 
 ## 第二步：配置 API 密钥（30 秒）

@@ -70,10 +70,9 @@
 
 ```bash
 # Install (pick one)
-npm install -g mothx-installer               # npm (recommended)
-pipx install mothx-installer                # PyPI
-curl -fsSL https://raw.githubusercontent.com/startvibecoding/mothx/main/install.sh | bash  # Linux/macOS/FreeBSD (GitHub)
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash  # Linux/macOS/FreeBSD (Gitee 国内镜像)
+curl -fsSL https://mothx.net/install.sh | bash       # Linux/macOS/FreeBSD; installs Node.js LTS if needed
+# Windows (Command Prompt):
+curl.exe -fsSL https://mothx.net/install.bat -o install.bat && install.bat
 
 # Docker (GHCR, Linux amd64/arm64)
 docker run --rm -it --entrypoint bash ghcr.io/startvibecoding/mothx:latest
@@ -103,10 +102,10 @@ npm uninstall -g vibecoding-installer
 pipx uninstall mothx-installer
 
 # Linux/macOS (one-line install)
-curl -fsSL https://gitee.com/startvibecoding/mothx/raw/main/install.sh | bash -s -- --uninstall
+curl -fsSL https://mothx.net/install.sh | bash -s -- --uninstall
 
-# Windows (one-line install)
-irm https://gitee.com/startvibecoding/mothx/raw/main/install.ps1 | iex; Uninstall-MothX
+# Windows
+npm uninstall -g mothx-installer
 ```
 
 ---
