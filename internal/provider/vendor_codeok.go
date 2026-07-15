@@ -2,8 +2,8 @@ package provider
 
 func init() {
 	RegisterVendorAdapter(simpleVendorAdapter{
-		name:       "openai",
-		domains:    []string{"api.openai.com"},
+		name:       "codeok",
+		domains:    []string{"codeok.cc"},
 		defaultAPI: "openai-responses",
 	})
 }

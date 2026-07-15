@@ -32,6 +32,29 @@ func TestResolveAdapterConfigExplicitVendorDefaultAPI(t *testing.T) {
 	}
 }
 
+func TestResolveAdapterConfigResponsesVendorsDefaultAPI(t *testing.T) {
+	tests := []struct {
+		baseURL string
+		vendor  string
+	}{
+		{"https://api.openai.com/v1", "openai"},
+		{"https://www.codeok.cc/v1", "codeok"},
+		{"https://co.yes.vg/v1", "yescode"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.vendor, func(t *testing.T) {
+			resolved := ResolveAdapterConfig(&config.ProviderConfig{BaseURL: tt.baseURL})
+			if resolved.Vendor != tt.vendor {
+				t.Fatalf("Vendor = %q, want %q", resolved.Vendor, tt.vendor)
+			}
+			if resolved.API != "openai-responses" {
+				t.Fatalf("API = %q, want openai-responses", resolved.API)
+			}
+		})
+	}
+}
+
 func TestResolveAdapterConfigBaseURLDetect(t *testing.T) {
 	resolved := ResolveAdapterConfig(&config.ProviderConfig{
 		BaseURL: "https://api.deepseek.com/anthropic",

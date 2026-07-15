@@ -66,6 +66,7 @@
 - **API**: `openai-responses`
 - **ThinkingFormat**: `openai`
 - **API Key**: `${OPENAI_API_KEY}`
+- **Headers**: `User-Agent: codex_cli_rs/0.144.4`
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
@@ -92,10 +93,41 @@
 | gpt-5.4-pro | 1.05M | 128K | **是** | text,image |
 | gpt-5.5 | 272K | 128K | **是** | text,image |
 | gpt-5.5-pro | 1.05M | 128K | **是** | text,image |
+| gpt-5.6-sol / gpt-5.6-terra / gpt-5.6-luna | 未公开 | 未公开 | **是** | text,image |
 | o1 / o1-pro | 200K | 100K | **是** | text,image |
 | o3 / o3-deep-research / o3-pro | 200K | 100K | **是** | text,image |
 | o3-mini | 200K | 100K | **是** | text |
 | o4-mini / o4-mini-deep-research | 200K | 100K | **是** | text,image |
+
+---
+
+### 2a. CodeOK
+
+- **Vendor**: `codeok`
+- **BaseURL**: `https://www.codeok.cc/v1`
+- **API**: `openai-responses`
+- **API Key**: `${CODEOK_API_KEY}`
+- **Headers**: `User-Agent: codex_cli_rs/0.144.4`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| gpt-5.5 | 272K | 128K | **是** | text,image |
+| gpt-5.6-sol / gpt-5.6-terra / gpt-5.6-luna | 未公开 | 未公开 | **是** | text,image |
+
+---
+
+### 2b. YesCode
+
+- **Vendor**: `yescode`
+- **BaseURL**: `https://co.yes.vg/v1`
+- **API**: `openai-responses`
+- **API Key**: `${YESCODE_API_KEY}`
+- **Headers**: `User-Agent: codex_cli_rs/0.144.4`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| gpt-5.5 | 272K | 128K | **是** | text,image |
+| gpt-5.6-sol / gpt-5.6-terra / gpt-5.6-luna | 未公开 | 未公开 | **是** | text,image |
 
 ---
 
@@ -927,7 +959,9 @@
 | 供应商 | Vendor 名 | API 协议 | Thinking 格式 | 模型数 |
 |--------|-----------|----------|--------------|--------|
 | Anthropic | `anthropic` | anthropic-messages | anthropic | 22 |
-| OpenAI | `openai` | openai-responses | openai | 35 |
+| OpenAI | `openai` | openai-responses | openai | 45 |
+| CodeOK | `codeok` | openai-responses | - | 4 |
+| YesCode | `yescode` | openai-responses | - | 4 |
 | DeepSeek | `deepseek` | anthropic/openai-chat | deepseek | 2×2 |
 | Google Gemini | `google-gemini` | google-gemini | - | 17 |
 | Google Vertex | `google-vertex` | google-vertex | - | 9 |

@@ -50,6 +50,11 @@ func TestDefaultSettings(t *testing.T) {
 	if got := s.Providers["kimi-coding"].Headers["User-Agent"]; got != "opencode/1.17.18" {
 		t.Fatalf("kimi-coding User-Agent = %q, want %q", got, "opencode/1.17.18")
 	}
+	for _, name := range []string{"openai", "codeok", "yescode"} {
+		if got := s.Providers[name].Headers["User-Agent"]; got != "codex_cli_rs/0.144.4" {
+			t.Fatalf("%s User-Agent = %q, want %q", name, got, "codex_cli_rs/0.144.4")
+		}
+	}
 	kimiCoding := s.Providers["kimi-coding"]
 	if kimiCoding.BaseURL != "https://api.kimi.com/coding/v1" || kimiCoding.API != "openai-chat" {
 		t.Fatalf("kimi-coding endpoint = (%q, %q), want (%q, %q)", kimiCoding.BaseURL, kimiCoding.API, "https://api.kimi.com/coding/v1", "openai-chat")

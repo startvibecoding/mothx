@@ -84,6 +84,8 @@ func TestVendorFromBaseURL(t *testing.T) {
 		{"https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/google/models", "google-vertex"},
 		{"https://ai-gateway.vercel.sh/v1", "vercel-ai-gateway"},
 		{"https://api.x.ai/v1", "xai"},
+		{"https://www.codeok.cc/v1", "codeok"},
+		{"https://co.yes.vg/v1", "yescode"},
 		{"https://unknown.example.com/v1", ""},
 		{"", ""},
 	}

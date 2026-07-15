@@ -2,8 +2,8 @@ package provider
 
 func init() {
 	RegisterVendorAdapter(simpleVendorAdapter{
-		name:       "openai",
-		domains:    []string{"api.openai.com"},
+		name:       "yescode",
+		domains:    []string{"co.yes.vg"},
 		defaultAPI: "openai-responses",
 	})
 }
