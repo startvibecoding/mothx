@@ -215,28 +215,17 @@ func Run(opts RunOptions, version string) error {
 	sbMgr := sandbox.NewManagerWithOptions(cwd, settings.Sandbox.Options())
 	sbEnabled := gCfg.Sandbox.Enabled
 	if !sbEnabled {
-		sbMgr.SetLevel(sandbox.LevelNone)
+		_ = sbMgr.SetLevel(sandbox.LevelNone)
 	} else {
 		level := sandbox.LevelStandard
-		if gCfg.Sandbox.Level != "" {
-			switch gCfg.Sandbox.Level {
-			case "none":
-				level = sandbox.LevelNone
-			case "strict":
-				level = sandbox.LevelStrict
-			default:
-				level = sandbox.LevelStandard
-			}
-		} else {
-			switch gCfg.DefaultMode {
-			case "plan":
-				level = sandbox.LevelStrict
-			case "yolo":
-				level = sandbox.LevelNone
-			}
+		if gCfg.Sandbox.Level == "strict" {
+			level = sandbox.LevelStrict
 		}
 		if err := sbMgr.SetLevel(level); err != nil {
-			return fmt.Errorf("sandbox enabled but unavailable: %w", err)
+			return fmt.Errorf("strict sandbox enabled but unavailable: %w", err)
+		}
+		if err := sbMgr.FallbackError(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable; using direct execution: %v\n", err)
 		}
 	}
 

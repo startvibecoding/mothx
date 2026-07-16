@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,6 +38,13 @@ func newWinSandbox(projectDir string, level Level) *winSandbox {
 // standard sandbox requests.
 func (s *winSandbox) IsAvailable() bool {
 	return false
+}
+
+// AvailabilityError explains why this backend is unavailable. The current
+// implementation intentionally refuses to advertise env-only filtering as a
+// real filesystem/network sandbox.
+func (s *winSandbox) AvailabilityError() error {
+	return fmt.Errorf("Windows sandbox backend is not configured; refusing env-only isolation")
 }
 
 // Name returns "windows-sandbox".

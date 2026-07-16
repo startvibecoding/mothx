@@ -84,6 +84,19 @@ func TestSortSpeedtestResultsOrdersSuccessesByTokensPerSecond(t *testing.T) {
 	}
 }
 
+func TestAverageSpeedtestResultsAveragesSuccessfulRuns(t *testing.T) {
+	results := averageSpeedtestResults([]speedtestResult{
+		{Target: speedtestTarget{Provider: "p", ModelID: "m"}, TokensPerSecond: 10, NetworkLatency: 10 * time.Millisecond, FirstTokenLatency: 100 * time.Millisecond, TotalDuration: time.Second, OutputTokens: 100},
+		{Target: speedtestTarget{Provider: "p", ModelID: "m"}, TokensPerSecond: 20, NetworkLatency: 20 * time.Millisecond, FirstTokenLatency: 200 * time.Millisecond, TotalDuration: 2 * time.Second, OutputTokens: 200},
+		{Target: speedtestTarget{Provider: "p", ModelID: "m"}, Error: errors.New("temporary failure")},
+	})
+	if results.Error != nil {
+		t.Fatalf("result error = %v", results.Error)
+	}
+	if results.TokensPerSecond != 15 || results.NetworkLatency != 15*time.Millisecond || results.OutputTokens != 150 {
+		t.Fatalf("averaged result = %#v", results)
+	}
+}
 func TestRunSpeedtestRequestMeasuresFirstTokenAndUsage(t *testing.T) {
 	model := &provider.Model{ID: "model-a", Name: "Model A", MaxTokens: 32}
 	p := &speedtestFakeProvider{

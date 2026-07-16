@@ -10,6 +10,26 @@
   - 修复 Channels 中已启用 sandbox 时子 Agent 未复用会话 sandbox manager、可能绕过隔离的问题。
   - 阻止通过额外 sandbox 路径选项重新绑定已拒绝的路径，并改进 sandbox 可用性错误信息。
 
+### ✨ 新功能
+
+- **SkillHub / ClawHub 技能市场集成**
+  - 新增内置技能市场，支持在 TUI `/skillhub` 和 `mothx serve` Web UI 中浏览、搜索、查看详情、查看文件与安全评估、安装、更新、卸载及激活 SkillHub.cn / ClawHub.ai 技能。
+  - 新增技能市场缓存与 Registry 工厂，可扩展额外市场；serve 模式提供市场、搜索、详情、安装、技能集和会话激活等 API。
+  - 安装器校验压缩包大小、路径穿越、绝对路径、Windows 驱动器路径和符号链接，并保护手写技能目录不被覆盖。
+
+### 🔧 改进
+
+- **Sandbox 策略与 Git 保护**
+  - 增加 sandbox 策略规范化、路径冲突校验、临时文件系统大小解析以及 Bubblewrap 能力探测；严格 sandbox 无法执行时会明确报告原因，不再静默降级。
+  - sandbox 配置现在统一应用于 CLI、ACP、A2A、Channels、serve API 和子 Agent；serve API 默认不启用 sandbox，启用后按会话工作目录隔离。
+  - 启用 Git 保护时默认拒绝访问 `.git` 元数据；需要 Git 操作时通过一次性审批临时放行，避免普通命令修改仓库内部状态。
+  - 简化 sandbox 网络配置和 TUI 设置项，并修正 Linux 项目目录及 `/proc` 挂载规则。
+
+### 🐛 修复
+
+- **SkillHub 会话与渠道支持**
+  - 修复 serve Web UI / Channels 中技能安装和激活的工作目录、会话状态及子 Agent 复用问题，确保当前会话能够及时加载已激活技能。
+
 ## v1.1.67
 
 ### ✨ 新功能

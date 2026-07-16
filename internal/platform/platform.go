@@ -468,9 +468,6 @@ func SandboxPaths() []string {
 			"/dev/null",
 			"/dev/urandom",
 			"/dev/zero",
-			"/proc/self",
-			"/proc/meminfo",
-			"/proc/cpuinfo",
 		}
 	default: // BSD, Solaris, illumos, AIX, Plan9, and others
 		return []string{}

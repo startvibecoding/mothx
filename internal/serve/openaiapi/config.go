@@ -86,7 +86,7 @@ func DefaultConfig() *Config {
 		EnableSubAgents:      false,
 		EnableDelegate:       false,
 		EnableWorkflows:      false,
-		Sandbox:              SandboxConfig{Enabled: true},
+		Sandbox:              SandboxConfig{Enabled: false},
 		Session:              SessionConfig{IdleTimeoutSeconds: 1800},
 		CORS:                 CORSConfig{Enabled: false, AllowOrigins: []string{"*"}},
 		ToolVisibility:       ToolVisibilityConfig{Mode: "content", Detail: "collapsed"},

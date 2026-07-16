@@ -542,36 +542,24 @@ func loadSkills(cwd string, settings *config.Settings, opts runOptions) (skillSe
 	return skillSetup{manager: skillsMgr, context: skillsContext}, nil
 }
 
-func setupSandbox(cwd string, settings *config.Settings, opts runOptions, mode string) (*sandbox.Manager, error) {
+func setupSandbox(cwd string, settings *config.Settings, opts runOptions, _ string) (*sandbox.Manager, error) {
 	sbMgr := sandbox.NewManagerWithOptions(cwd, settings.Sandbox.Options())
 	if !(opts.sandbox || settings.Sandbox.Enabled) {
-		sbMgr.SetLevel(sandbox.LevelNone)
+		_ = sbMgr.SetLevel(sandbox.LevelNone)
 		return sbMgr, nil
 	}
 
-	targetLevel := sandboxLevelForMode(mode)
-	// When the user explicitly passed --sandbox, verify the requested level
-	// is actually available before allowing silent fallback to none.
-	if opts.sandbox && targetLevel != sandbox.LevelNone {
-		if _, err := sbMgr.GetForLevel(targetLevel); err != nil {
-			return nil, fmt.Errorf("sandbox requested but unavailable: %w", err)
-		}
+	level := sandbox.LevelStandard
+	if settings.Sandbox.Level == "strict" {
+		level = sandbox.LevelStrict
 	}
-	if err := sbMgr.SetLevel(targetLevel); err != nil {
-		return nil, fmt.Errorf("sandbox enabled but unavailable: %w", err)
+	if err := sbMgr.SetLevel(level); err != nil {
+		return nil, fmt.Errorf("strict sandbox enabled but unavailable: %w", err)
+	}
+	if err := sbMgr.FallbackError(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable; using direct execution: %v\n", err)
 	}
 	return sbMgr, nil
-}
-
-func sandboxLevelForMode(mode string) sandbox.Level {
-	switch mode {
-	case "plan":
-		return sandbox.LevelStrict
-	case "yolo":
-		return sandbox.LevelNone
-	default:
-		return sandbox.LevelStandard
-	}
 }
 
 func setupSession(cwd string, settings *config.Settings, opts runOptions) (sessionSetup, error) {

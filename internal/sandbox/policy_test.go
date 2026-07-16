@@ -111,6 +111,18 @@ func TestBwrapProcIsReadable(t *testing.T) {
 	}
 }
 
+func TestBwrapBasicDiagnosticsWork(t *testing.T) {
+	project := t.TempDir()
+	s := NewBwrapSandbox(project, LevelStandard)
+	if !s.IsAvailable() {
+		t.Skip("bwrap unavailable")
+	}
+	cmd := s.WrapCommand(context.Background(), "/bin/sh", "test \"$(hostname)\" = sandbox && ps >/dev/null", ExecOpts{WorkDir: project})
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("sandbox diagnostics failed: %v\n%s", err, output)
+	}
+}
+
 func TestBwrapStrictCannotWriteProject(t *testing.T) {
 	if !NewBwrapSandbox(t.TempDir(), LevelStrict).IsAvailable() {
 		t.Skip("bwrap unavailable")

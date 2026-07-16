@@ -8,5 +8,5 @@ func newPlatformSandbox(projectDir string, level Level) Sandbox {
 }
 
 func newPlatformSandboxWithOptions(projectDir string, level Level, opts Options) Sandbox {
-	return newMacSandbox(projectDir, level)
+	return newMacSandboxWithOptions(projectDir, level, opts)
 }

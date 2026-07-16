@@ -363,13 +363,8 @@ func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
 	if cfg.SandboxEnabled {
 		sandboxMgr = sandbox.NewManagerWithOptions(cfg.WorkDir, sandbox.Options{ProtectGit: true})
 		level := sandbox.LevelStandard
-		if cfg.Mode == "plan" {
-			level = sandbox.LevelStrict
-		} else if cfg.Mode == "yolo" {
-			level = sandbox.LevelNone
-		}
 		if err := sandboxMgr.SetLevel(level); err != nil {
-			return nil, fmt.Errorf("sandbox enabled but unavailable: %w", err)
+			return nil, fmt.Errorf("strict sandbox enabled but unavailable: %w", err)
 		}
 	}
 

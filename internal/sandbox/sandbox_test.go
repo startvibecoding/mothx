@@ -274,6 +274,37 @@ func TestManagerGetForLevelInvalid(t *testing.T) {
 	}
 }
 
+type unavailableSandbox struct{ level Level }
+
+func (s unavailableSandbox) WrapCommand(ctx context.Context, shell, command string, opts ExecOpts) *exec.Cmd {
+	return exec.CommandContext(ctx, shell, command)
+}
+func (s unavailableSandbox) IsAvailable() bool { return false }
+func (s unavailableSandbox) Name() string      { return "unavailable" }
+func (s unavailableSandbox) Level() Level      { return s.level }
+
+func TestManagerStandardFallsBackToDirectExecution(t *testing.T) {
+	m := NewManager(t.TempDir())
+	m.sandboxes[LevelStandard] = unavailableSandbox{level: LevelStandard}
+	if err := m.SetLevel(LevelStandard); err != nil {
+		t.Fatalf("best-effort sandbox should not fail: %v", err)
+	}
+	if m.GetActive().Level() != LevelNone {
+		t.Fatalf("active level = %s, want none", m.GetActive().Level())
+	}
+	if m.FallbackError() == nil {
+		t.Fatal("expected fallback reason")
+	}
+}
+
+func TestManagerStrictDoesNotFallBack(t *testing.T) {
+	m := NewManager(t.TempDir())
+	m.sandboxes[LevelStrict] = unavailableSandbox{level: LevelStrict}
+	if err := m.SetLevel(LevelStrict); err == nil {
+		t.Fatal("strict sandbox unexpectedly fell back")
+	}
+}
+
 func TestBwrapWrapCommand(t *testing.T) {
 	sb := NewBwrapSandbox("/tmp", LevelStandard)
 
@@ -303,6 +334,70 @@ func TestBwrapStrictLevel(t *testing.T) {
 
 	if cmd == nil {
 		t.Fatal("expected non-nil command")
+	}
+}
+
+func TestBwrapCapabilitiesRequireEveryRuntimeFlag(t *testing.T) {
+	complete := BwrapCapabilities{
+		UnshareUser: true, UnsharePID: true, UnshareIPC: true, UnshareUTS: true,
+		NewSession: true, DieWithParent: true, MountProc: true, MountDev: true,
+		MountTmpfs: true, TmpfsSize: true, MountBind: true, ChangeDir: true,
+		Hostname: true,
+	}
+	if !complete.complete() {
+		t.Fatal("complete capability set was rejected")
+	}
+
+	complete.Hostname = false
+	if complete.complete() {
+		t.Fatal("capability set without --hostname was accepted")
+	}
+}
+
+func TestBwrapArgsUseCompleteIsolationProfile(t *testing.T) {
+	project := t.TempDir()
+	sb := NewBwrapSandboxWithOptions(project, LevelStandard, Options{TmpSize: "4096"})
+	args := sb.buildBwrapArgs(ExecOpts{WorkDir: project}, "/bin/sh", "hostname && ps")
+
+	for _, flag := range []string{
+		"--unshare-user", "--unshare-pid", "--unshare-ipc", "--unshare-uts",
+		"--new-session", "--die-with-parent", "--proc", "--dev",
+		"--size", "--tmpfs", "--hostname", "--chdir",
+	} {
+		if indexArgs(args, flag) < 0 {
+			t.Fatalf("missing %s in bwrap profile: %#v", flag, args)
+		}
+	}
+	if indexArgs(args, "--size", "4096", "--tmpfs", "/tmp") < 0 {
+		t.Fatalf("tmpfs size must immediately precede /tmp mount: %#v", args)
+	}
+	if indexArgs(args, "--hostname", "sandbox") < 0 {
+		t.Fatalf("sandbox hostname missing: %#v", args)
+	}
+	if indexArgs(args, "--chdir", project) < 0 {
+		t.Fatalf("work directory missing: %#v", args)
+	}
+}
+
+func TestBwrapNormalizesHumanReadableTmpSize(t *testing.T) {
+	project := t.TempDir()
+	s := NewBwrapSandboxWithOptions(project, LevelStandard, Options{TmpSize: "100m"})
+	args := s.buildBwrapArgs(ExecOpts{WorkDir: project}, "/bin/sh", "true")
+	if indexArgs(args, "--size", "104857600", "--tmpfs", "/tmp") < 0 {
+		t.Fatalf("human-readable tmpSize was not converted to bytes: %#v", args)
+	}
+	if indexArgs(args, "--size", "100m") >= 0 {
+		t.Fatalf("bwrap received human-readable tmpSize: %#v", args)
+	}
+}
+
+func TestBwrapArgsPreserveHostNetwork(t *testing.T) {
+	project := t.TempDir()
+	for _, opts := range []ExecOpts{{WorkDir: project}, {WorkDir: project, NetworkAccess: true}} {
+		args := NewBwrapSandbox(project, LevelStandard).buildBwrapArgs(opts, "/bin/sh", "true")
+		if indexArgs(args, "--unshare-net") >= 0 {
+			t.Fatalf("sandbox must preserve host network access: %#v", args)
+		}
 	}
 }
 

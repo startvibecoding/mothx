@@ -18,6 +18,7 @@ import (
 type macSandbox struct {
 	level      Level
 	projectDir string
+	options    Options
 	availMu    sync.Mutex
 	available  *bool
 	profileMu  sync.Mutex
@@ -26,11 +27,16 @@ type macSandbox struct {
 
 // newMacSandbox creates a new macOS sandbox.
 func newMacSandbox(projectDir string, level Level) *macSandbox {
+	return newMacSandboxWithOptions(projectDir, level, Options{})
+}
+
+func newMacSandboxWithOptions(projectDir string, level Level, opts Options) *macSandbox {
 	absDir, _ := filepath.Abs(projectDir)
 
 	return &macSandbox{
 		level:      level,
 		projectDir: absDir,
+		options:    opts,
 		profiles:   make(map[*exec.Cmd]string),
 	}
 }
@@ -44,9 +50,16 @@ func (s *macSandbox) IsAvailable() bool {
 		return *s.available
 	}
 
-	// sandbox-exec is available on all macOS versions
-	// Check if we can find it
-	if _, err := exec.LookPath("sandbox-exec"); err != nil {
+	path, err := exec.LookPath("sandbox-exec")
+	if err != nil {
+		f := false
+		s.available = &f
+		return false
+	}
+	// Verify that the host accepts a real profile, rather than only checking
+	// that the legacy executable exists.
+	probe := exec.Command(path, "-p", `(version 1) (allow default)`, "/usr/bin/true")
+	if err := probe.Run(); err != nil {
 		f := false
 		s.available = &f
 		return false
@@ -137,9 +150,7 @@ func (s *macSandbox) buildProfile(opts ExecOpts) string {
 
 	// Allow process execution for common shells and tools
 	allowedBins := []string{
-		"/bin/sh", "/bin/bash", "/bin/zsh",
-		"/usr/bin/env", "/usr/bin/perl", "/usr/bin/python3",
-		"/usr/local/bin/*", "/opt/homebrew/bin/*",
+		"/bin", "/usr/bin", "/usr/local/bin", "/opt/homebrew/bin",
 	}
 	b.WriteString("(allow process-exec\n")
 	for _, bin := range allowedBins {
@@ -162,6 +173,12 @@ func (s *macSandbox) buildProfile(opts ExecOpts) string {
 			filepath.Join(homeDir, ".mothx"),
 		)
 	}
+	for _, p := range s.options.AllowedWrite {
+		allowedPaths = append(allowedPaths, p)
+	}
+	for _, p := range s.options.AllowedRead {
+		allowedPaths = append(allowedPaths, p)
+	}
 	for _, p := range opts.WritablePaths {
 		allowedPaths = append(allowedPaths, p)
 	}
@@ -170,17 +187,35 @@ func (s *macSandbox) buildProfile(opts ExecOpts) string {
 	}
 
 	for _, p := range allowedPaths {
-		if s.level == LevelStrict && p == s.projectDir {
+		strictProject := s.level == LevelStrict && filepath.Clean(p) == s.projectDir
+		p = seatbeltQuotePath(p)
+		if p == "" {
+			continue
+		}
+		if strictProject {
 			b.WriteString(fmt.Sprintf("(allow file-read* (subpath \"%s\"))\n", p))
 		} else {
 			b.WriteString(fmt.Sprintf("(allow file-read* file-write* (subpath \"%s\"))\n", p))
 		}
 	}
+	for _, p := range s.options.DeniedPaths {
+		p = seatbeltQuotePath(p)
+		if p != "" {
+			b.WriteString(fmt.Sprintf("(deny file-read* file-write* (subpath \"%s\"))\n", p))
+		}
+	}
 
-	// Deny network explicitly
-	b.WriteString("(deny network*)\n")
-	// Deny process fork
-	b.WriteString("(deny process-fork)\n")
+	if !s.options.AllowNetwork {
+		b.WriteString("(deny network*)\n")
+	}
 
 	return b.String()
+}
+
+func seatbeltQuotePath(path string) string {
+	path = filepath.Clean(path)
+	if path == "." || path == "" {
+		return ""
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(path, `\`, `\\`), `"`, `\"`)
 }

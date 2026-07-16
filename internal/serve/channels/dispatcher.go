@@ -183,6 +183,9 @@ func (d *Dispatcher) ensureAgentManager() *agent.AgentManager {
 			if err := d.sandboxMgr.SetLevel(sandbox.LevelStandard); err != nil {
 				return nil
 			}
+			if err := d.sandboxMgr.FallbackError(); err != nil {
+				log.Printf("[channels] sandbox unavailable; using direct execution: %v", err)
+			}
 		} else {
 			_ = d.sandboxMgr.SetLevel(sandbox.LevelNone)
 		}
@@ -325,6 +328,9 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*ChannelSession, e
 	if d.sandbox {
 		if err := sbMgr.SetLevel(sandbox.LevelStandard); err != nil {
 			return nil, fmt.Errorf("enable sandbox: %w", err)
+		}
+		if err := sbMgr.FallbackError(); err != nil {
+			log.Printf("[channels] sandbox unavailable; using direct execution: %v", err)
 		}
 	} else {
 		_ = sbMgr.SetLevel(sandbox.LevelNone)

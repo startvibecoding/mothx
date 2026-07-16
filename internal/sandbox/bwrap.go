@@ -13,14 +13,15 @@ import (
 
 // BwrapSandbox implements sandbox using bubblewrap (bwrap).
 type BwrapSandbox struct {
-	level        Level
-	projectDir   string
-	bwrapPath    string
-	availMu      sync.Mutex
-	available    *bool // cached availability check
-	capabilities *BwrapCapabilities
-	options      Options
-	gitPaths     []string
+	level           Level
+	projectDir      string
+	bwrapPath       string
+	availMu         sync.Mutex
+	available       *bool // cached availability check
+	availabilityErr error
+	capabilities    *BwrapCapabilities
+	options         Options
+	gitPaths        []string
 }
 
 // NewBwrapSandbox creates a new bubblewrap sandbox.
@@ -42,6 +43,19 @@ func NewBwrapSandboxWithOptions(projectDir string, level Level, opts Options) *B
 			if !containsPath(opts.DeniedPaths, gitPath) {
 				opts.DeniedPaths = append(opts.DeniedPaths, gitPath)
 			}
+		}
+	}
+	if opts.TmpSize != "" {
+		// NewBwrapSandboxWithOptions is also used directly by tests and platform
+		// integrations, outside Manager's NormalizeOptions path. Keep bwrap's
+		// wire format valid here as well: --size accepts decimal bytes only.
+		if normalizedSize, err := normalizeTmpSize(opts.TmpSize); err == nil {
+			opts.TmpSize = normalizedSize
+		} else {
+			// Manager reports invalid policy through initErr. A direct backend
+			// construction has no error return, so use the safe default rather
+			// than passing an invalid value to bwrap.
+			opts.TmpSize = "100000000"
 		}
 	}
 	return &BwrapSandbox{level: level, projectDir: absDir, bwrapPath: bwrapPath, options: opts, gitPaths: uniquePaths(gitPaths)}
@@ -72,16 +86,25 @@ func findBwrap() string {
 // BwrapCapabilities describes the flags and runtime features required by MothX.
 type BwrapCapabilities struct {
 	UnshareUser   bool
+	UnsharePID    bool
+	UnshareIPC    bool
+	UnshareUTS    bool
 	NewSession    bool
 	DieWithParent bool
 	MountProc     bool
+	MountDev      bool
 	MountTmpfs    bool
+	TmpfsSize     bool
 	MountBind     bool
-	NetworkNS     bool
+	ChangeDir     bool
+	Hostname      bool
 }
 
 func (c BwrapCapabilities) complete() bool {
-	return c.UnshareUser && c.NewSession && c.DieWithParent && c.MountProc && c.MountTmpfs && c.MountBind && c.NetworkNS
+	return c.UnshareUser && c.UnsharePID && c.UnshareIPC && c.UnshareUTS &&
+		c.NewSession && c.DieWithParent && c.MountProc && c.MountDev &&
+		c.MountTmpfs && c.TmpfsSize && c.MountBind && c.ChangeDir &&
+		c.Hostname
 }
 
 // IsAvailable checks if bwrap is available on this system.
@@ -95,46 +118,58 @@ func (s *BwrapSandbox) IsAvailable() bool {
 
 	// bwrap is Linux only
 	if runtime.GOOS != "linux" {
-		f := false
-		s.available = &f
-		return false
+		return s.markUnavailable("bubblewrap is only supported on Linux")
 	}
 
 	// Check if bwrap binary exists
 	if s.bwrapPath == "" {
-		f := false
-		s.available = &f
-		return false
+		return s.markUnavailable("bwrap binary not found in PATH")
 	}
 
 	caps, ok := probeBwrapCapabilities(s.bwrapPath)
 	if !ok || !caps.complete() {
-		f := false
-		s.available = &f
 		s.capabilities = &caps
-		return false
+		if !ok {
+			return s.markUnavailable("failed to query bwrap capabilities")
+		}
+		return s.markUnavailable("bwrap is missing required capabilities")
 	}
 	s.capabilities = &caps
 
-	// Test that bwrap works with a minimal but complete sandbox.
-	// We need to mount enough of the system for /bin/true to execute,
-	// including /lib64 for the dynamic linker on multiarch systems.
-	cmd := exec.Command(s.bwrapPath,
-		"--ro-bind", "/usr", "/usr",
-		"--ro-bind", "/lib", "/lib",
-		"--ro-bind", "/lib64", "/lib64",
-		"--ro-bind", "/bin", "/bin",
-		"/bin/true",
-	)
-	if err := cmd.Run(); err != nil {
-		f := false
-		s.available = &f
-		return false
+	// Verify the exact profile used for commands, rather than a minimal
+	// invocation. This catches bwrap versions and host policies that accept
+	// --help but reject a flag or mount arrangement we actually require.
+	shell, err := exec.LookPath("sh")
+	if err != nil {
+		return s.markUnavailable(fmt.Sprintf("shell not found: %v", err))
+	}
+	args := s.buildBwrapArgs(ExecOpts{WorkDir: s.projectDir}, shell, "test -r /proc/self/status && test -d /tmp && test -w /tmp")
+	cmd := exec.Command(s.bwrapPath, args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		reason := strings.TrimSpace(string(output))
+		if reason == "" {
+			reason = err.Error()
+		} else {
+			reason = fmt.Sprintf("%v: %s", err, reason)
+		}
+		return s.markUnavailable(fmt.Sprintf("bwrap probe failed: %s", reason))
 	}
 
 	t := true
 	s.available = &t
 	return true
+}
+
+func (s *BwrapSandbox) markUnavailable(reason string) bool {
+	f := false
+	s.available = &f
+	s.availabilityErr = fmt.Errorf("%s", reason)
+	return false
+}
+
+// AvailabilityError explains why bwrap could not be used.
+func (s *BwrapSandbox) AvailabilityError() error {
+	return s.availabilityErr
 }
 
 // Name returns "bwrap".
@@ -204,10 +239,8 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		// Dev filesystem (minimal - null, zero, urandom)
 		"--dev", "/dev",
 
-		// Network isolation (unless explicitly allowed)
-	}
-	if !opts.NetworkAccess && !s.options.AllowNetwork {
-		args = append(args, "--unshare-net")
+		// Network access is intentionally preserved. The sandbox isolates process
+		// and filesystem state, but does not create a network namespace.
 	}
 
 	// Tmp filesystem with size limit.
@@ -262,6 +295,11 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 	// Configured paths are applied after the project bind so explicit policy
 	// paths are also visible to commands. A denied path is never bound.
 	for _, p := range s.options.AllowedRead {
+		// /proc is created by --proc above. Binding entries from the host proc
+		// tree is invalid after --unshare-pid because process paths change.
+		if isProcPath(p) {
+			continue
+		}
 		if !s.denied(p) {
 			if _, err := os.Stat(p); err == nil {
 				args = append(args, "--ro-bind", p, p)
@@ -278,6 +316,9 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 
 	// Additional read-only paths from options
 	for _, p := range opts.ReadOnlyPaths {
+		if isProcPath(p) {
+			continue
+		}
 		if !s.denied(p) {
 			if _, err := os.Stat(p); err == nil {
 				args = append(args, "--ro-bind", p, p)
@@ -336,6 +377,11 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 	args = append(args, shell, "-c", cmd)
 
 	return args
+}
+
+func isProcPath(path string) bool {
+	clean := filepath.Clean(path)
+	return clean == "/proc" || strings.HasPrefix(clean, "/proc"+string(os.PathSeparator))
 }
 
 // buildEnv constructs the environment for the sandboxed process.
@@ -445,9 +491,9 @@ func FormatSandboxInfo(s Sandbox) string {
 	name := s.Name()
 	switch s.Level() {
 	case LevelStrict:
-		return fmt.Sprintf("🔒 Strict sandbox [%s: %s] - read-only project, no network", name, available)
+		return fmt.Sprintf("🔒 Strict sandbox [%s: %s] - read-only project, host network", name, available)
 	case LevelStandard:
-		return fmt.Sprintf("🔒 Standard sandbox [%s: %s] - read-write project, no network", name, available)
+		return fmt.Sprintf("🔒 Standard sandbox [%s: %s] - read-write project, host network", name, available)
 	default:
 		return "🔓 No sandbox"
 	}

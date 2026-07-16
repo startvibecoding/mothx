@@ -20,7 +20,7 @@ func (a *App) authSettingsRootOptions() []authOption {
 		{Title: "Context Files", Description: fmt.Sprintf("enabled=%s  extra=%d", boolYesNo(s.ContextFiles.Enabled), len(s.ContextFiles.ExtraFiles)), Value: "contextFiles"},
 		{Title: "Status Line", Description: fmt.Sprintf("enabled=%s  type=%s", boolYesNo(s.StatusLine.Enabled), valueOrDefault(s.StatusLine.Type, "command")), Value: "statusLine"},
 		{Title: "Compaction", Description: fmt.Sprintf("enabled=%s  reserve=%s  keep=%s", boolYesNo(s.Compaction.Enabled), authItoa(s.Compaction.ReserveTokens), authItoa(s.Compaction.KeepRecentTokens)), Value: "compaction"},
-		{Title: "Sandbox", Description: fmt.Sprintf("enabled=%s  level=%s  network=%s", boolYesNo(s.Sandbox.Enabled), valueOrDefault(s.Sandbox.Level, "none"), boolYesNo(s.Sandbox.AllowNetwork)), Value: "sandbox"},
+		{Title: "Sandbox", Description: fmt.Sprintf("enabled=%s  level=%s", boolYesNo(s.Sandbox.Enabled), valueOrDefault(s.Sandbox.Level, "none")), Value: "sandbox"},
 		{Title: "Paths", Description: fmt.Sprintf("sessions=%s", shortSettingValue(s.SessionDir)), Value: "paths"},
 		{Title: "Retry", Description: fmt.Sprintf("enabled=%s  max=%d  base=%dms", boolYesNo(s.Retry.Enabled), s.Retry.MaxRetries, s.Retry.BaseDelayMs), Value: "retry"},
 		{Title: "Approval", Description: fmt.Sprintf("write=%s  whitelist=%d  blacklist=%d", boolPtrSummary(s.Approval.ConfirmBeforeWrite, true), len(s.Approval.BashWhitelist), len(s.Approval.BashBlacklist)), Value: "approval"},
@@ -110,7 +110,6 @@ func (a *App) authSettingsTopLevelOptions(v authView) []authOption {
 			{Title: "Enabled", Description: boolYesNo(s.Sandbox.Enabled), Value: "sandbox.enabled"},
 			{Title: "Level", Description: valueOrDefault(s.Sandbox.Level, "none"), Value: "sandbox.level"},
 			{Title: "Bwrap Path", Description: valueOrDefault(s.Sandbox.BwrapPath, "(auto)"), Value: "sandbox.bwrapPath"},
-			{Title: "Allow Network", Description: boolYesNo(s.Sandbox.AllowNetwork), Value: "sandbox.allowNetwork"},
 			{Title: "Allowed Read", Description: listSummary(s.Sandbox.AllowedRead), Value: "sandbox.allowedRead"},
 			{Title: "Allowed Write", Description: listSummary(s.Sandbox.AllowedWrite), Value: "sandbox.allowedWrite"},
 			{Title: "Denied Paths", Description: listSummary(s.Sandbox.DeniedPaths), Value: "sandbox.deniedPaths"},
@@ -189,9 +188,6 @@ func (a *App) selectSettingsFieldValue(value string) {
 	case "sandbox.level":
 		next.Sandbox.Level = cycleString(next.Sandbox.Level, []string{"none", "standard", "strict"}, "none")
 		a.saveAuthSettingsPatch("sandbox.level", map[string]any{"sandbox": next.Sandbox})
-	case "sandbox.allowNetwork":
-		next.Sandbox.AllowNetwork = !next.Sandbox.AllowNetwork
-		a.saveAuthSettingsPatch("sandbox.allowNetwork", map[string]any{"sandbox": next.Sandbox})
 	case "retry.enabled":
 		next.Retry.Enabled = !next.Retry.Enabled
 		a.saveAuthSettingsPatch("retry.enabled", map[string]any{"retry": next.Retry})

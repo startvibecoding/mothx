@@ -282,6 +282,9 @@ func (f *simpleAgentFactory) CreateForA2A(workDir string, mode string) (*agent.A
 		if err := sbMgr.SetLevel(sandbox.LevelStandard); err != nil {
 			return nil, fmt.Errorf("sandbox enabled but unavailable: %w", err)
 		}
+		if err := sbMgr.FallbackError(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable; using direct execution: %v\n", err)
+		}
 	}
 
 	a := agent.New(agent.Config{

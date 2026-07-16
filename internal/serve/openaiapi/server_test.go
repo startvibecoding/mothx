@@ -85,8 +85,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.RequestTimeoutSecs != 1800 {
 		t.Errorf("default timeout = %d, want 1800", cfg.RequestTimeoutSecs)
 	}
-	if !cfg.Sandbox.Enabled {
-		t.Error("sandbox should be enabled by default")
+	if cfg.Sandbox.Enabled {
+		t.Error("sandbox should be disabled by default")
 	}
 }
 

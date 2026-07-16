@@ -11,9 +11,9 @@ import (
 type Level int
 
 const (
-	LevelStrict   Level = iota // Plan mode: read-only project, no network
-	LevelStandard              // Agent mode: read-write project, no network
-	LevelNone                  // YOLO mode: no restrictions
+	LevelStrict   Level = iota // Required sandbox: read-only project
+	LevelStandard              // Best-effort sandbox: read-write project
+	LevelNone                  // Direct execution
 )
 
 // String returns the string representation of a Level.
@@ -48,7 +48,7 @@ func ParseLevel(s string) (Level, error) {
 type ExecOpts struct {
 	WritablePaths []string          // Additional writable paths
 	ReadOnlyPaths []string          // Additional read-only paths (for standard mode)
-	NetworkAccess bool              // Enable network access
+	NetworkAccess bool              // Deprecated: sandbox preserves host network access
 	EnvVars       map[string]string // Additional environment variables
 	WorkDir       string            // Working directory
 	Timeout       time.Duration     // Command timeout
@@ -58,7 +58,7 @@ type ExecOpts struct {
 // callers from every runtime can share the same policy without importing config.
 type Options struct {
 	BwrapPath    string
-	AllowNetwork bool
+	AllowNetwork bool // Deprecated: sandbox always preserves host network access
 	AllowedRead  []string
 	AllowedWrite []string
 	DeniedPaths  []string
@@ -92,11 +92,16 @@ type CommandCleanupProvider interface {
 	CleanupCommand(*exec.Cmd)
 }
 
+type AvailabilityErrorProvider interface {
+	AvailabilityError() error
+}
+
 // Manager manages sandbox selection based on mode and availability.
 type Manager struct {
-	sandboxes map[Level]Sandbox
-	active    Sandbox
-	initErr   error
+	sandboxes   map[Level]Sandbox
+	active      Sandbox
+	initErr     error
+	fallbackErr error
 }
 
 // NewManager creates a manager with the default sandbox policy.
@@ -123,11 +128,17 @@ func NewManagerWithOptions(projectDir string, opts Options) *Manager {
 	return m
 }
 
-// SetLevel sets the active sandbox level. It never silently falls back to a
-// less restrictive backend: callers that choose sandboxing must receive an
-// actionable error when their requested profile cannot be enforced.
+// SetLevel activates the requested execution policy. Standard sandboxing is
+// best-effort and falls back to direct execution when the platform backend is
+// unavailable. Strict sandboxing is required and never silently degrades.
 func (m *Manager) SetLevel(level Level) error {
+	m.fallbackErr = nil
 	if m.initErr != nil && level != LevelNone {
+		if level == LevelStandard {
+			m.active = m.sandboxes[LevelNone]
+			m.fallbackErr = fmt.Errorf("invalid sandbox policy: %w", m.initErr)
+			return nil
+		}
 		return fmt.Errorf("invalid sandbox policy: %w", m.initErr)
 	}
 	sb, ok := m.sandboxes[level]
@@ -135,10 +146,24 @@ func (m *Manager) SetLevel(level Level) error {
 		return fmt.Errorf("no sandbox for level %s", level)
 	}
 	if !sb.IsAvailable() {
-		return fmt.Errorf("sandbox %s not available", level)
+		reason := fmt.Errorf("sandbox %s not available", level)
+		if diagnostic, ok := sb.(AvailabilityErrorProvider); ok && diagnostic.AvailabilityError() != nil {
+			reason = fmt.Errorf("sandbox %s not available: %w", level, diagnostic.AvailabilityError())
+		}
+		if level == LevelStandard {
+			m.active = m.sandboxes[LevelNone]
+			m.fallbackErr = reason
+			return nil
+		}
+		return reason
 	}
 	m.active = sb
 	return nil
+}
+
+// FallbackError reports why a best-effort sandbox fell back to direct execution.
+func (m *Manager) FallbackError() error {
+	return m.fallbackErr
 }
 
 // GetActive returns the active sandbox.

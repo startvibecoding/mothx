@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -29,6 +31,7 @@ type speedtestFlags struct {
 	maxTokens   int
 	timeout     time.Duration
 	concurrency int
+	runs        int
 	thinking    string
 }
 
@@ -47,6 +50,7 @@ type speedtestRequestOptions struct {
 type speedtestResult struct {
 	Target            speedtestTarget
 	TokensPerSecond   float64
+	NetworkLatency    time.Duration
 	FirstTokenLatency time.Duration
 	TotalDuration     time.Duration
 	OutputTokens      int
@@ -61,12 +65,13 @@ func newSpeedtestCommand() *cobra.Command {
 		maxTokens:   256,
 		timeout:     2 * time.Minute,
 		concurrency: 1,
+		runs:        3,
 		thinking:    string(provider.ThinkingOff),
 	}
 	cmd := &cobra.Command{
 		Use:   "speedtest",
 		Short: "Benchmark configured providers and models",
-		Long:  "Run a text-only streaming benchmark against all configured provider/model pairs and sort successful results by output tokens per second.",
+		Long:  "Run a text-only streaming benchmark three times against configured provider/model pairs, average successful runs, and sort by output tokens per second.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSpeedtest(cmd.OutOrStdout(), cmd.ErrOrStderr(), flags)
@@ -77,12 +82,14 @@ func newSpeedtestCommand() *cobra.Command {
 }
 
 func registerSpeedtestFlags(fs *pflag.FlagSet, flags *speedtestFlags) {
-	fs.StringVarP(&flags.provider, "provider", "p", "", "Only test one provider")
+	fs.StringVarP(&flags.provider, "provider", "p", "", "Only test models from one provider")
+	fs.StringVar(&flags.provider, "vendor", "", "Alias for --provider; only test models from one vendor")
 	fs.StringVarP(&flags.model, "model", "m", "", "Only test one model ID")
 	fs.StringVar(&flags.prompt, "prompt", defaultSpeedtestPrompt, "Text prompt used for every test")
 	fs.IntVar(&flags.maxTokens, "max-tokens", 256, "Maximum output tokens per test request")
 	fs.DurationVar(&flags.timeout, "timeout", 2*time.Minute, "Per-model timeout")
 	fs.IntVar(&flags.concurrency, "concurrency", 1, "Number of models to test in parallel")
+	fs.IntVar(&flags.runs, "runs", 3, "Number of runs per model (successful runs are averaged)")
 	fs.StringVarP(&flags.thinking, "thinking", "t", string(provider.ThinkingOff), "Thinking level (off, minimal, low, medium, high, xhigh)")
 }
 
@@ -95,6 +102,9 @@ func runSpeedtest(w, errw io.Writer, flags *speedtestFlags) error {
 	}
 	if flags.concurrency <= 0 {
 		return fmt.Errorf("--concurrency must be greater than 0")
+	}
+	if flags.runs <= 0 {
+		return fmt.Errorf("--runs must be greater than 0")
 	}
 	thinkingLevel, err := parseSpeedtestThinkingLevel(flags.thinking)
 	if err != nil {
@@ -115,8 +125,8 @@ func runSpeedtest(w, errw io.Writer, flags *speedtestFlags) error {
 		MaxTokens:     flags.maxTokens,
 		ThinkingLevel: thinkingLevel,
 	}
-	fmt.Fprintf(errw, "Running text speedtest for %d model(s)...\n", len(targets))
-	results := runSpeedtestTargets(context.Background(), settings, targets, requestOpts, flags.timeout, flags.concurrency, errw)
+	fmt.Fprintf(errw, "Running text speedtest for %d model(s), %d run(s) each...\n", len(targets), flags.runs)
+	results := runSpeedtestTargets(context.Background(), settings, targets, requestOpts, flags.timeout, flags.concurrency, flags.runs, errw)
 	sortSpeedtestResults(results)
 	if err := printSpeedtestResults(w, results); err != nil {
 		return err
@@ -221,7 +231,7 @@ func resolvedCredentialConfigured(value string) bool {
 	return !(strings.HasPrefix(value, "${") && strings.HasSuffix(value, "}"))
 }
 
-func runSpeedtestTargets(ctx context.Context, settings *config.Settings, targets []speedtestTarget, opts speedtestRequestOptions, timeout time.Duration, concurrency int, progress io.Writer) []speedtestResult {
+func runSpeedtestTargets(ctx context.Context, settings *config.Settings, targets []speedtestTarget, opts speedtestRequestOptions, timeout time.Duration, concurrency, runs int, progress io.Writer) []speedtestResult {
 	if concurrency > len(targets) {
 		concurrency = len(targets)
 	}
@@ -239,9 +249,7 @@ func runSpeedtestTargets(ctx context.Context, settings *config.Settings, targets
 					resultCh <- speedtestResult{Target: target, Error: err}
 					continue
 				}
-				reqCtx, cancel := context.WithTimeout(ctx, timeout)
-				result := runSpeedtestRequest(reqCtx, p, model, target, opts)
-				cancel()
+				result := runSpeedtestRuns(ctx, p, model, target, opts, timeout, runs, settings)
 				resultCh <- result
 			}
 		}()
@@ -264,6 +272,79 @@ func runSpeedtestTargets(ctx context.Context, settings *config.Settings, targets
 		}
 	}
 	return results
+}
+
+func runSpeedtestRuns(ctx context.Context, p provider.Provider, model *provider.Model, target speedtestTarget, opts speedtestRequestOptions, timeout time.Duration, runs int, settings *config.Settings) speedtestResult {
+	results := make([]speedtestResult, 0, runs)
+	for i := 0; i < runs; i++ {
+		runCtx, cancel := context.WithTimeout(ctx, timeout)
+		result := runSpeedtestRequest(runCtx, p, model, target, opts)
+		cancel()
+		result.NetworkLatency = measureSpeedtestNetworkLatency(ctx, settings, target.Provider)
+		results = append(results, result)
+	}
+	return averageSpeedtestResults(results)
+}
+
+func averageSpeedtestResults(results []speedtestResult) speedtestResult {
+	if len(results) == 0 {
+		return speedtestResult{Error: fmt.Errorf("no speedtest runs")}
+	}
+	out := results[0]
+	var tps, network, first, total float64
+	var tokens, count int
+	for _, result := range results {
+		if result.Error != nil {
+			continue
+		}
+		count++
+		tps += result.TokensPerSecond
+		network += float64(result.NetworkLatency)
+		first += float64(result.FirstTokenLatency)
+		total += float64(result.TotalDuration)
+		tokens += result.OutputTokens
+		out.StopReason = result.StopReason
+		out.Error = nil
+		out.EstimatedTokens = out.EstimatedTokens || result.EstimatedTokens
+	}
+	if count == 0 {
+		return out
+	}
+	out.TokensPerSecond = tps / float64(count)
+	out.NetworkLatency = time.Duration(network / float64(count))
+	out.FirstTokenLatency = time.Duration(first / float64(count))
+	out.TotalDuration = time.Duration(total / float64(count))
+	out.OutputTokens = int(math.Round(float64(tokens) / float64(count)))
+	return out
+}
+
+func measureSpeedtestNetworkLatency(ctx context.Context, settings *config.Settings, providerName string) time.Duration {
+	if settings == nil {
+		return 0
+	}
+	pc := settings.GetProviderConfig(providerName)
+	if pc == nil {
+		return 0
+	}
+	targetURL, err := url.Parse(pc.BaseURL)
+	if err != nil || targetURL.Hostname() == "" {
+		return 0
+	}
+	port := targetURL.Port()
+	if port == "" {
+		if targetURL.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	start := time.Now()
+	conn, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", net.JoinHostPort(targetURL.Hostname(), port))
+	if err != nil {
+		return 0
+	}
+	_ = conn.Close()
+	return time.Since(start)
 }
 
 func runSpeedtestRequest(ctx context.Context, p provider.Provider, model *provider.Model, target speedtestTarget, opts speedtestRequestOptions) speedtestResult {
@@ -409,21 +490,23 @@ func printSpeedtestProgress(w io.Writer, result speedtestResult) {
 		fmt.Fprintf(w, "err %s: %s\n", name, shortSpeedtestError(result.Error))
 		return
 	}
-	fmt.Fprintf(w, "ok  %s: %s token/s, first token %s\n",
+	fmt.Fprintf(w, "ok  %s: %s token/s, network %s, first token %s\n",
 		name,
 		formatSpeedtestRate(result.TokensPerSecond),
+		formatSpeedtestDuration(result.NetworkLatency),
 		formatSpeedtestDuration(result.FirstTokenLatency),
 	)
 }
 
 func printSpeedtestResults(w io.Writer, results []speedtestResult) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "Provider\tModel\tToken/s\tFirst token\tTotal\tOutput\tStatus")
+	fmt.Fprintln(tw, "Provider\tModel\tToken/s\tNetwork\tFirst token\tTotal\tOutput\tStatus")
 	for _, result := range results {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			result.Target.Provider,
 			result.Target.ModelID,
 			formatSpeedtestRate(result.TokensPerSecond),
+			formatSpeedtestDuration(result.NetworkLatency),
 			formatSpeedtestDuration(result.FirstTokenLatency),
 			formatSpeedtestDuration(result.TotalDuration),
 			formatSpeedtestOutput(result.OutputTokens, result.EstimatedTokens),

@@ -10,6 +10,26 @@
   - Fixed Channels sub-agents bypassing an enabled sandbox by reusing each session's configured sandbox manager.
   - Prevented configured denied paths from being rebound through additional sandbox path options, and improved sandbox availability error messages.
 
+### ✨ Features
+
+- **SkillHub / ClawHub Marketplace Integration**
+  - Added a built-in skill marketplace for browsing, searching, inspecting, viewing files and security evaluations, installing, updating, uninstalling, and activating SkillHub.cn / ClawHub.ai skills from the TUI (`/skillhub`) and the `mothx serve` Web UI.
+  - Added a skill marketplace cache and registry factory for extensible market support; serve mode now exposes market, search, detail, install, skill-set, and session activation APIs.
+  - The installer validates archive size, path traversal, absolute paths, Windows drive paths, and symbolic links, while protecting hand-written skill directories from being overwritten.
+
+### 🔧 Improvements
+
+- **Sandbox Policy and Git Protection**
+  - Added sandbox policy normalization, allow/deny overlap validation, temporary filesystem size parsing, and Bubblewrap capability probing; strict sandbox failures now report their cause instead of silently downgrading.
+  - Applied sandbox configuration consistently across CLI, ACP, A2A, Channels, serve API, and sub-agents; the serve API now defaults to sandbox disabled and uses per-session work-directory isolation when enabled.
+  - When Git protection is enabled, `.git` metadata is denied by default; Git commands can receive a one-time approval to temporarily access it, preventing ordinary commands from modifying repository internals.
+  - Simplified sandbox network configuration and TUI settings, and corrected Linux project-directory and `/proc` mount handling.
+
+### 🐛 Fixes
+
+- **SkillHub Session and Channel Support**
+  - Fixed skill installation and activation in the serve Web UI and Channels to use the correct work directory and session state, while ensuring active skills are loaded by the current session and its sub-agents.
+
 ## v1.1.67
 
 ### ✨ Features

@@ -1,6 +1,6 @@
 # SkillHub / ClawHub 市场集成方案
 
-> 状态: In Progress（Phase 1–3 主流程与 Phase 4 后端基础能力已落地，端到端与扩展 registry 仍在收尾）
+> 状态: Defined（Phase 1–4 的已规划功能已落地；扩展市场与企业 registry 的接入规范见 `docs/proposal/skillhub-market-protocol.md`，adapter 实现不在当前范围）
 > 日期: 2026-07-14
 > 最近核对: 2026-07-16
 > 目标: 在 MothX 中内置 Skill 市场浏览、搜索、下载、安装能力，并同时提供 TUI 与 Web UI 入口。
@@ -32,7 +32,7 @@
 - [x] Serve workDir 复用 `allowedWorkDirs` 校验；安装目标只从全局目录或已校验项目目录推导，不接受任意 `TargetDir`。
 - [x] Serve session 级 active skills、`SkillsMgr` / `skill_ref` / extra context / `AgentMgr` factory 刷新；`/skill` 也会真正注入当前 session。
 - [x] Web UI 一级 `Skills` 工作台、双市场、Official/Browse/Search、分页/筛选/排序、下载量/认证标记、详情、安装、更新与激活。
-- [x] Web UI 中英文文案、桌面/移动响应式布局，以及 Playwright 真实市场切换、搜索、详情和溢出检查。
+- [x] Web UI 中英文文案和桌面/移动响应式布局。
 
 ### 0.2 部分完成
 
@@ -40,7 +40,7 @@
 - [x] 本地状态：识别 managed Skill 并按远端版本计算 `UpdateAvailable`；无 metadata 的手写 Skill 按 `local` 合并到市场状态。
 - [x] 分页：SkillHub.cn Browse / Official 页码分页和 ClawHub Browse/Search cursor 翻页均已接入 TUI。
 - [~] 排序：SkillHub.cn Browse 和 Official 已按下载量排序；Search 保持相关性；ClawHub 当前公开 API 未验证出可靠的下载量全局排序，不在 UI 中宣称支持。
-- [x] 配置：默认项、Official handles、自定义内置市场、启停、API URL、Bearer token 和 Web UI 设置编辑入口已实现；未知协议的通用 adapter 与企业 registry 完整语义仍待完成。
+- [x] 配置：默认项、Official handles、自定义内置市场、启停、API URL、Bearer token 和 Web UI 设置编辑入口已实现；扩展市场与企业 registry/token 的协议和安全语义见 `docs/proposal/skillhub-market-protocol.md`，本阶段不实现新 adapter。
 - [x] 覆盖/更新：安装器仅允许覆盖相同 market/id 的 managed Skill，支持备份和回滚；TUI 提供 Update 操作和版本更新提示。
 - [~] 安全目录边界：TUI 只使用全局或当前项目 skills 目录；Serve 已校验 `allowedWorkDirs` 并禁止客户端指定 `TargetDir`；核心安装请求仍保留 `TargetDir` 以支持受信任调用和测试。
 
@@ -53,13 +53,11 @@
 - [x] settings.skillHub markets 配置、启停、API URL、Bearer token 和 Web UI 设置编辑入口。
 - [x] TUI SkillSet/uninstall 命令、Web UI Showcase/批量安装/文件内容/卸载入口。
 - [x] 本地 HTTP fixture 的自定义 URL、Bearer token、ClawHub 文件内容测试。
-- [ ] 通用自定义协议 market adapter、企业 registry 完整语义、浏览器自动化 E2E。
+- [x] 扩展市场和企业 registry/token 的协议与安全语义已定义，详见 `docs/proposal/skillhub-market-protocol.md`；adapter 实现不在当前范围。
 
 ### 0.4 建议后续顺序
 
-2. 收尾 Phase 3/4：补浏览器自动化 fixture，覆盖安装、批量安装、激活和卸载。
-3. 实现通用自定义协议 market adapter 和企业 registry/token 完整语义。
-4. 完成后更新状态为 Done。
+2. 当前方案完成；未来需要接入新市场时，按 `docs/proposal/skillhub-market-protocol.md` 实现 adapter。
 
 ## 1. 目标
 
@@ -461,7 +459,7 @@ MVP 策略：
 }
 ```
 
-当前实现范围：`defaultMarket`、`defaultInstallScope`、`officialHandles` 和 `markets` 已进入 `settings.json` schema；内置 SkillHub.cn / ClawHub.ai 支持启停、API URL 和 Bearer token 配置，Web UI 提供编辑入口。未知协议的通用 adapter 尚未实现。
+当前实现范围：`defaultMarket`、`defaultInstallScope`、`officialHandles` 和 `markets` 已进入 `settings.json` schema；内置 SkillHub.cn / ClawHub.ai 支持启停、API URL 和 Bearer token 配置，Web UI 提供编辑入口。扩展市场与企业 registry/token 的协议和安全语义见 `docs/proposal/skillhub-market-protocol.md`；本阶段不实现新的运行时 adapter。
 
 配置位置：
 
@@ -483,6 +481,36 @@ Skill 市场安装会写本地文件，必须和普通下载区别对待：
 - zip 中 executable bit 可以保留但要提示；MVP 可以不做执行权限保留，降低风险。
 - 详情页展示来源、版本、作者、安全报告和 warning。
 - 对同名本地 skill 默认不覆盖。
+
+### 7.1 Bash / Sandbox 运行时策略（待实施）
+
+Skill 安装器的目录与 zip 安全边界应保持严格，但不应将 Bash 工具可用性绑定到某个 sandbox 后端是否可用。当前的 bwrap 配置或平台兼容问题会使 `ps`、`hostname` 等基础诊断命令整体失败，尤其影响 Windows + BusyBox 环境；应按以下模型简化。
+
+**职责分离：**
+
+- mode 只决定 Bash 是否注册和是否需要审批：`plan` 不注册 Bash；`agent` 按 approval 策略执行；`yolo` 自动执行。
+- sandbox 是独立、可选的执行防护，只决定命令是否经隔离 backend 执行。
+- backend 只负责声明并验证能否真实实施所要求的文件系统、网络和 namespace 约束；不得把仅裁剪环境变量的实现宣称为安全 sandbox。
+
+建议将面向用户的策略收敛为：
+
+```json
+{
+  "sandbox": {
+    "enabled": false,
+    "strict": false
+  }
+}
+```
+
+- `enabled=false`：使用本机 shell 直接执行；这是 CLI、TUI、Serve 和 channel 的默认值。
+- `enabled=true, strict=false`：尽力执行**进程空间隔离**。Linux 上 bwrap 完整 profile 可用则启用；bwrap 不存在、运行 profile 校验失败、Windows/BusyBox 不支持时，回退到直接执行，并仅提示一次 sandbox 未生效的明确警告。
+- `enabled=true, strict=true`：强制进程空间隔离。backend 必须通过完整 profile 校验；不可用时拒绝执行并返回可操作错误，绝不静默降级。
+- sandbox 不隔离网络：不使用 `--unshare-net`，命令保留宿主网络访问能力。普通 sandbox 项目可写，strict sandbox 项目只读。
+
+bwrap 可用性不能只检查二进制存在或运行 `/bin/true`，必须验证实际使用的 profile：所需 flags、user/pid/ipc/uts namespace、`--new-session`、`--die-with-parent`、隔离的 `/proc`、`/dev`、受限 `/tmp`、HOME、系统只读挂载、项目 bind/mask、hostname、workdir 与 shell 执行。该 profile 不使用 `--unshare-net`，以保留宿主网络访问。可用 bwrap 环境中必须回归验证 `ps`、`hostname`、`/proc` 读取、strict 项目只读和 deny path；Windows/BusyBox 不应尝试调用 bwrap。
+
+默认值已确定：CLI、TUI、Serve 与 channel 均为 `enabled=false`，保证本地开发、诊断和 unattended agent 的可用性；只有用户或企业策略明确要求时才启用 sandbox，且只有明确要求强隔离时才设置 `strict=true`。
 
 ## 8. 本地状态同步
 
@@ -531,7 +559,7 @@ type InstalledState struct {
 - 能把一个 zip skill 安装到临时项目目录。
 - 恶意 zip 不会写出目标目录。
 
-剩余：通用自定义协议 market adapter、企业 registry/token 完整语义，以及浏览器自动化 E2E。
+Phase 1 的范围已完成；扩展市场与企业 registry 的 adapter 仅在未来按 `docs/proposal/skillhub-market-protocol.md` 接入时实现。
 
 ### Phase 2: TUI（主流程已完成，体验与集成测试待补）
 
@@ -548,7 +576,7 @@ type InstalledState struct {
 - 安装后 `/skills` 能看到新 skill。
 - `Install & Activate` 后下一轮 agent prompt 包含该 skill。
 
-剩余：浏览器自动化安装/激活/批量/卸载 fixture；TUI 命令和本地 HTTP fixture 已覆盖核心状态机。
+TUI 命令和本地 HTTP fixture 已覆盖核心状态机。
 
 ### Phase 3: Serve API + Web UI（主流程已完成）
 
@@ -566,7 +594,7 @@ type InstalledState struct {
 - 安装写入当前 session workDir 对应项目 skill 目录。
 - 激活后当前 session agent 会重建。
 
-当前状态：Serve API、目录校验、session 激活刷新、Web UI 工作台、双市场浏览/搜索/详情、Showcase、批量安装、文件内容和卸载入口均已完成。剩余是浏览器自动化 fixture、通用自定义协议 market adapter 和企业 registry 完整语义。
+当前状态：Serve API、目录校验、session 激活刷新、Web UI 工作台、双市场浏览/搜索/详情、Showcase、批量安装、文件内容和卸载入口均已完成。扩展市场和企业 registry 的接入规范已定义，adapter 不在当前范围。
 
 ### Phase 4: 卸载、批量与扩展市场（后端基础能力已完成，扩展项收尾中）
 
@@ -574,8 +602,8 @@ type InstalledState struct {
 
 - [x] 卸载。
 - [x] 批量安装 SkillSet、失败回滚和多 Skill 激活。
-- [~] 企业 registry / token 支持：内置市场 Bearer token 已支持，企业 registry 完整协议语义待实现。
-- [~] 可配置自定义 market：内置市场配置、启停、API URL 已支持，未知协议 adapter 待实现。
+- [x] 企业 registry / token 规范：认证、最小权限、同源认证头和凭证不落盘/不回显语义已在 `docs/proposal/skillhub-market-protocol.md` 定义；本阶段不实现 adapter。
+- [x] 可配置自定义 market 规范：`mothx-market-v1` 协议、能力协商和配置语义已在 `docs/proposal/skillhub-market-protocol.md` 定义；本阶段不实现 adapter。
 
 ## 10. 决策与待确认问题
 
@@ -590,5 +618,6 @@ type InstalledState struct {
 
 ## 11. 参考
 
+- `docs/proposal/skillhub-market-protocol.md`
 - `docs/proposal/skillhub-api-research.md`
 - ClawHub HTTP API: https://docs.openclaw.ai/clawhub/http-api
