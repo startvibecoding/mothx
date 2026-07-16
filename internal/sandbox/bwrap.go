@@ -18,17 +18,22 @@ type BwrapSandbox struct {
 	bwrapPath  string
 	availMu    sync.Mutex
 	available  *bool // cached availability check
+	options    Options
 }
 
 // NewBwrapSandbox creates a new bubblewrap sandbox.
 func NewBwrapSandbox(projectDir string, level Level) *BwrapSandbox {
-	absDir, _ := filepath.Abs(projectDir)
+	return NewBwrapSandboxWithOptions(projectDir, level, Options{})
+}
 
-	return &BwrapSandbox{
-		level:      level,
-		projectDir: absDir,
-		bwrapPath:  findBwrap(),
+// NewBwrapSandboxWithOptions creates a bubblewrap sandbox with a policy.
+func NewBwrapSandboxWithOptions(projectDir string, level Level, opts Options) *BwrapSandbox {
+	absDir, _ := filepath.Abs(projectDir)
+	bwrapPath := opts.BwrapPath
+	if bwrapPath == "" {
+		bwrapPath = findBwrap()
 	}
+	return &BwrapSandbox{level: level, projectDir: absDir, bwrapPath: bwrapPath, options: opts}
 }
 
 // findBwrap locates the bwrap binary.
@@ -139,13 +144,17 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 
 		// Network isolation (unless explicitly allowed)
 	}
-	if !opts.NetworkAccess {
+	if !opts.NetworkAccess && !s.options.AllowNetwork {
 		args = append(args, "--unshare-net")
 	}
 
 	// Tmp filesystem with size limit.
 	// --size must immediately precede --tmpfs.
-	args = append(args, "--size", "100000000", "--tmpfs", "/tmp") // ~100MB default
+	tmpSize := s.options.TmpSize
+	if tmpSize == "" {
+		tmpSize = "100000000"
+	}
+	args = append(args, "--size", tmpSize, "--tmpfs", "/tmp")
 
 	// System libraries (read-only)
 	systemPaths := []string{"/usr", "/lib", "/lib64", "/bin", "/sbin"}
@@ -188,17 +197,38 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		}
 	}
 
+	// Configured paths are applied after the project bind so explicit policy
+	// paths are also visible to commands. A denied path is never bound.
+	for _, p := range s.options.AllowedRead {
+		if !s.denied(p) {
+			if _, err := os.Stat(p); err == nil {
+				args = append(args, "--ro-bind", p, p)
+			}
+		}
+	}
+	for _, p := range s.options.AllowedWrite {
+		if !s.denied(p) {
+			if _, err := os.Stat(p); err == nil {
+				args = append(args, "--bind", p, p)
+			}
+		}
+	}
+
 	// Additional read-only paths from options
 	for _, p := range opts.ReadOnlyPaths {
-		if _, err := os.Stat(p); err == nil {
-			args = append(args, "--ro-bind", p, p)
+		if !s.denied(p) {
+			if _, err := os.Stat(p); err == nil {
+				args = append(args, "--ro-bind", p, p)
+			}
 		}
 	}
 
 	// Additional writable paths from options
 	for _, p := range opts.WritablePaths {
-		if _, err := os.Stat(p); err == nil {
-			args = append(args, "--bind", p, p)
+		if !s.denied(p) {
+			if _, err := os.Stat(p); err == nil {
+				args = append(args, "--bind", p, p)
+			}
 		}
 	}
 
@@ -235,6 +265,8 @@ func (s *BwrapSandbox) buildEnv(opts ExecOpts) []string {
 		"HOME", "USER", "SHELL",
 	}
 
+	defaultPass = append(defaultPass, s.options.PassEnv...)
+
 	passVars := make(map[string]bool)
 	for _, v := range defaultPass {
 		passVars[v] = true
@@ -262,9 +294,8 @@ func (s *BwrapSandbox) buildEnv(opts ExecOpts) []string {
 		}
 	}
 
-	// Add extra env vars from options
 	for k, v := range opts.EnvVars {
-		env = append(env, k+"="+v)
+		env = replaceEnv(env, k, v)
 	}
 
 	// Set HOME to the sandbox-isolated home directory (tmpfs mounted over real home).
@@ -279,6 +310,28 @@ func (s *BwrapSandbox) buildEnv(opts ExecOpts) []string {
 	}
 
 	return env
+}
+
+func (s *BwrapSandbox) denied(path string) bool {
+	path = filepath.Clean(path)
+	for _, denied := range s.options.DeniedPaths {
+		denied = filepath.Clean(denied)
+		if path == denied || strings.HasPrefix(path, denied+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func replaceEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	for i, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			env[i] = prefix + value
+			return env
+		}
+	}
+	return append(env, prefix+value)
 }
 
 // FormatSandboxInfo returns a human-readable description of the sandbox state.

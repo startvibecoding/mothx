@@ -54,6 +54,18 @@ type ExecOpts struct {
 	Timeout       time.Duration     // Command timeout
 }
 
+// Options controls sandbox backends. It deliberately uses primitive values so
+// callers from every runtime can share the same policy without importing config.
+type Options struct {
+	BwrapPath    string
+	AllowNetwork bool
+	AllowedRead  []string
+	AllowedWrite []string
+	DeniedPaths  []string
+	PassEnv      []string
+	TmpSize      string
+}
+
 // Sandbox is the interface for sandbox implementations.
 type Sandbox interface {
 	// WrapCommand wraps a command for execution inside the sandbox.
@@ -81,16 +93,21 @@ type Manager struct {
 	active    Sandbox
 }
 
-// NewManager creates a new sandbox manager.
+// NewManager creates a manager with the default sandbox policy.
 func NewManager(projectDir string) *Manager {
+	return NewManagerWithOptions(projectDir, Options{})
+}
+
+// NewManagerWithOptions creates a manager using the supplied sandbox policy.
+func NewManagerWithOptions(projectDir string, opts Options) *Manager {
 	m := &Manager{
 		sandboxes: make(map[Level]Sandbox),
 	}
 
 	// Register sandbox implementations
 	m.sandboxes[LevelNone] = NewNoneSandbox()
-	m.sandboxes[LevelStandard] = newPlatformSandbox(projectDir, LevelStandard)
-	m.sandboxes[LevelStrict] = newPlatformSandbox(projectDir, LevelStrict)
+	m.sandboxes[LevelStandard] = newPlatformSandboxWithOptions(projectDir, LevelStandard, opts)
+	m.sandboxes[LevelStrict] = newPlatformSandboxWithOptions(projectDir, LevelStrict, opts)
 
 	return m
 }
@@ -130,7 +147,7 @@ func (m *Manager) GetForLevel(level Level) (Sandbox, error) {
 		return nil, fmt.Errorf("no sandbox for level %s", level)
 	}
 	if !sb.IsAvailable() {
-		return nil, fmt.Errorf("sandbox %s not available (bwrap not found)", level)
+		return nil, fmt.Errorf("sandbox %s not available", level)
 	}
 	return sb, nil
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.68
+
+### 🐛 Fixes
+
+- **Sandbox Isolation and Policy Consistency**
+  - Applied configured sandbox policies to Linux Bubblewrap, including custom binary paths, network access, extra read/write paths, denied paths, environment-variable pass-through, and temporary filesystem size.
+  - Isolated OpenAI-compatible API sandbox managers per session work directory, ensuring allowed alternate work directories are correctly mounted and sub-agents inherit the same restrictions.
+  - Fixed Channels sub-agents bypassing an enabled sandbox by reusing each session's configured sandbox manager.
+  - Prevented configured denied paths from being rebound through additional sandbox path options, and improved sandbox availability error messages.
+
 ## v1.1.67
 
 ### ✨ Features

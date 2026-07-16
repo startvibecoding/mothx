@@ -1,5 +1,15 @@
 # 更新日志
 
+## v1.1.68
+
+### 🐛 修复
+
+- **Sandbox 隔离与策略一致性**
+  - 将配置的 sandbox 策略应用到 Linux Bubblewrap，包括自定义二进制路径、网络访问、额外读写路径、拒绝路径、环境变量透传及临时文件系统大小。
+  - OpenAI 兼容 API 改为按会话工作目录创建 sandbox manager，确保允许的非默认工作目录能够正确挂载，子 Agent 也会继承相同限制。
+  - 修复 Channels 中已启用 sandbox 时子 Agent 未复用会话 sandbox manager、可能绕过隔离的问题。
+  - 阻止通过额外 sandbox 路径选项重新绑定已拒绝的路径，并改进 sandbox 可用性错误信息。
+
 ## v1.1.67
 
 ### ✨ 新功能

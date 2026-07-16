@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/startvibecoding/mothx/internal/platform"
+	"github.com/startvibecoding/mothx/internal/sandbox"
 )
 
 // Verbose controls whether config loading prints diagnostic messages to stderr.
@@ -274,6 +275,14 @@ type SandboxSettings struct {
 	DeniedPaths  []string `json:"deniedPaths,omitempty"`
 	PassEnv      []string `json:"passEnv,omitempty"`
 	TmpSize      string   `json:"tmpSize,omitempty"`
+}
+
+func (s SandboxSettings) Options() sandbox.Options {
+	return sandbox.Options{
+		BwrapPath: s.BwrapPath, AllowNetwork: s.AllowNetwork,
+		AllowedRead: s.AllowedRead, AllowedWrite: s.AllowedWrite,
+		DeniedPaths: s.DeniedPaths, PassEnv: s.PassEnv, TmpSize: s.TmpSize,
+	}
 }
 
 type RetrySettings struct {

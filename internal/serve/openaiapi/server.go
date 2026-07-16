@@ -197,7 +197,7 @@ func Run(opts RunOptions, version string) error {
 	cwd := gCfg.GetWorkDir()
 
 	// Setup sandbox
-	sbMgr := sandbox.NewManager(cwd)
+	sbMgr := sandbox.NewManagerWithOptions(cwd, settings.Sandbox.Options())
 	sbEnabled := gCfg.Sandbox.Enabled
 	if !sbEnabled {
 		sbMgr.SetLevel(sandbox.LevelNone)

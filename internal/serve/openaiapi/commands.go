@@ -610,7 +610,11 @@ func (s *Server) newAgentManagerForSession(sess *APISession) *agent.AgentManager
 	if skillsMgr == nil {
 		skillsMgr = s.skillsMgr
 	}
-	factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, runtimeSettings, s.sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
+	sandboxMgr := sess.SandboxMgr
+	if sandboxMgr == nil {
+		sandboxMgr = s.sandboxMgr
+	}
+	factory := agent.NewAgentFactoryWithOptions(s.provider, s.model, runtimeSettings, sandboxMgr, extraContext, sess.RuleContent, skillsMgr, compactionSettings, nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
 		DelegateEnabled:   sess.DelegateMode || s.cfg.EnableDelegate,
 		WorkflowsEnabled:  sess.Workflows,

@@ -543,7 +543,7 @@ func loadSkills(cwd string, settings *config.Settings, opts runOptions) (skillSe
 }
 
 func setupSandbox(cwd string, settings *config.Settings, opts runOptions, mode string) (*sandbox.Manager, error) {
-	sbMgr := sandbox.NewManager(cwd)
+	sbMgr := sandbox.NewManagerWithOptions(cwd, settings.Sandbox.Options())
 	if !(opts.sandbox || settings.Sandbox.Enabled) {
 		sbMgr.SetLevel(sandbox.LevelNone)
 		return sbMgr, nil

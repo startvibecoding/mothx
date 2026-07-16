@@ -12,6 +12,7 @@ import (
 	agentpkg "github.com/startvibecoding/mothx/agent"
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -24,6 +25,7 @@ type APISession struct {
 	WorkDir      string
 	Manager      *session.Manager
 	Registry     *tools.Registry
+	SandboxMgr   *sandbox.Manager
 	AgentMgr     *agent.AgentManager // nil unless sub-agents/delegate/workflows enabled
 	SkillsMgr    *skills.Manager
 	ActiveSkills map[string]bool

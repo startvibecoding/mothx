@@ -78,6 +78,7 @@ type ChannelSession struct {
 	UserID     string
 	WorkDir    string
 	Manager    *session.Manager
+	SandboxMgr *sandbox.Manager
 	Registry   *tools.Registry
 	MCPClients []*mcp.Client // connected MCP clients (nil if none)
 	Mode       string
@@ -309,12 +310,13 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*ChannelSession, e
 		}
 	}
 
-	// Build tools registry
-	sbMgr := sandbox.NewManager(workDir)
+	sbMgr := sandbox.NewManagerWithOptions(workDir, d.settings.Sandbox.Options())
 	if d.sandbox {
-		sbMgr.SetLevel(sandbox.LevelStandard)
+		if err := sbMgr.SetLevel(sandbox.LevelStandard); err != nil {
+			return nil, fmt.Errorf("enable sandbox: %w", err)
+		}
 	} else {
-		sbMgr.SetLevel(sandbox.LevelNone)
+		_ = sbMgr.SetLevel(sandbox.LevelNone)
 	}
 	reg := tools.NewRegistry(workDir, sbMgr.GetActive())
 	reg.RegisterDefaults()
@@ -365,6 +367,7 @@ func (d *Dispatcher) resolveSession(platform, userID string) (*ChannelSession, e
 		WorkDir:    workDir,
 		Manager:    mgr,
 		Registry:   reg,
+		SandboxMgr: sbMgr,
 		MCPClients: mcpClients,
 		Mode:       "yolo",
 		LastUsed:   time.Now(),
@@ -471,7 +474,7 @@ func (d *Dispatcher) buildAgent(ctx context.Context, sess *ChannelSession, appro
 		Model:              d.model,
 		Mode:               sess.Mode,
 		ThinkingLevel:      provider.ThinkingLevel(d.settings.DefaultThinkingLevel),
-		SandboxMgr:         sandbox.NewManager(workDir),
+		SandboxMgr:         sess.SandboxMgr,
 		Settings:           d.settings,
 		Allow:              d.allow,
 		Session:            sess.Manager,

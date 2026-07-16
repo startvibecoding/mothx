@@ -21,6 +21,7 @@ import (
 	"github.com/startvibecoding/mothx/internal/contextfiles"
 	"github.com/startvibecoding/mothx/internal/cron"
 	"github.com/startvibecoding/mothx/internal/provider"
+	"github.com/startvibecoding/mothx/internal/sandbox"
 	"github.com/startvibecoding/mothx/internal/session"
 	"github.com/startvibecoding/mothx/internal/skills"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -846,6 +847,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 		WorkDir:      workDir,
 		Manager:      mgr,
 		Registry:     resources.registry,
+		SandboxMgr:   resources.sandboxMgr,
 		Mode:         "",
 		SkillsMgr:    resources.skillsMgr,
 		ExtraContext: resources.extraContext,
@@ -901,6 +903,7 @@ func (s *Server) validatePersistedSessionWorkDir(workDir string) error {
 
 type sessionResources struct {
 	registry     *tools.Registry
+	sandboxMgr   *sandbox.Manager
 	skillsMgr    *skills.Manager
 	extraContext string
 	ruleContent  string
@@ -912,7 +915,11 @@ func (s *Server) buildSessionResources(workDir string) (*sessionResources, error
 		return nil, err
 	}
 
-	registry := tools.NewRegistry(workDir, s.sandboxMgr.GetActive())
+	sbMgr := sandbox.NewManagerWithOptions(workDir, s.settings.Sandbox.Options())
+	if err := sbMgr.SetLevel(s.sandboxMgr.GetActive().Level()); err != nil {
+		return nil, fmt.Errorf("sandbox for work directory: %w", err)
+	}
+	registry := tools.NewRegistry(workDir, sbMgr.GetActive())
 	registry.RegisterDefaultsWithPlanTool(s.settings.IsPlanToolEnabled())
 	if skillsMgr != nil {
 		registry.Register(tools.NewSkillRefTool(skillsMgr))
