@@ -124,6 +124,10 @@ type InstalledState struct {
 	Installed       bool   `json:"installed"`
 	Scope           string `json:"scope"`
 	Dir             string `json:"dir"`
+	Market          Market `json:"market,omitempty"`
+	ID              string `json:"id,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Local           bool   `json:"local,omitempty"`
 	Version         string `json:"version,omitempty"`
 	Active          bool   `json:"active,omitempty"`
 	UpdateAvailable bool   `json:"updateAvailable,omitempty"`
@@ -139,4 +143,12 @@ type MarketClient interface {
 	DownloadSources(SkillID, string) []DownloadSource
 	Download(context.Context, SkillID, string) (io.ReadCloser, DownloadMeta, error)
 	Categories(context.Context) ([]Category, error)
+}
+
+// ShowcaseClient and FileContentClient are optional market capabilities.
+type ShowcaseClient interface {
+	Showcase(context.Context, string, SearchQuery) (SearchPage, error)
+}
+type FileContentClient interface {
+	FileContent(context.Context, SkillID, string, string) (string, error)
 }

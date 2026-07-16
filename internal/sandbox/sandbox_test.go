@@ -2,8 +2,27 @@ package sandbox
 
 import (
 	"context"
+	"os/exec"
 	"testing"
 )
+
+func TestProbeBwrapCapabilities(t *testing.T) {
+	path, err := exec.LookPath("bwrap")
+	if err != nil {
+		t.Skip("bwrap unavailable")
+	}
+	caps, ok := probeBwrapCapabilities(path)
+	if !ok || !caps.complete() {
+		t.Fatalf("bwrap capabilities = %#v, ok=%v", caps, ok)
+	}
+}
+
+func TestProbeBwrapCapabilitiesMissing(t *testing.T) {
+	caps, ok := probeBwrapCapabilities("/definitely/missing/bwrap")
+	if ok || caps.complete() {
+		t.Fatalf("missing bwrap probe = %#v, ok=%v", caps, ok)
+	}
+}
 
 func TestLevelString(t *testing.T) {
 	tests := []struct {

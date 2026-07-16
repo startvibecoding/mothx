@@ -114,10 +114,20 @@ type WebSearchSettings struct {
 	Model        string `json:"model,omitempty"`
 }
 
+type SkillHubMarketSettings struct {
+	ID       string `json:"id"`
+	Name     string `json:"name,omitempty"`
+	SiteURL  string `json:"siteURL,omitempty"`
+	APIURL   string `json:"apiURL,omitempty"`
+	Enabled  bool   `json:"enabled"`
+	APIToken string `json:"apiToken,omitempty"`
+}
+
 type SkillHubSettings struct {
-	DefaultMarket       string   `json:"defaultMarket,omitempty"`
-	DefaultInstallScope string   `json:"defaultInstallScope,omitempty"`
-	OfficialHandles     []string `json:"officialHandles,omitempty"`
+	DefaultMarket       string                   `json:"defaultMarket,omitempty"`
+	DefaultInstallScope string                   `json:"defaultInstallScope,omitempty"`
+	OfficialHandles     []string                 `json:"officialHandles,omitempty"`
+	Markets             []SkillHubMarketSettings `json:"markets,omitempty"`
 }
 
 const DefaultSkillHubOfficialHandle = "user_0064faa7"
@@ -275,6 +285,7 @@ type SandboxSettings struct {
 	DeniedPaths  []string `json:"deniedPaths,omitempty"`
 	PassEnv      []string `json:"passEnv,omitempty"`
 	TmpSize      string   `json:"tmpSize,omitempty"`
+	ProtectGit   bool     `json:"protectGit,omitempty"`
 }
 
 func (s SandboxSettings) Options() sandbox.Options {
@@ -282,6 +293,7 @@ func (s SandboxSettings) Options() sandbox.Options {
 		BwrapPath: s.BwrapPath, AllowNetwork: s.AllowNetwork,
 		AllowedRead: s.AllowedRead, AllowedWrite: s.AllowedWrite,
 		DeniedPaths: s.DeniedPaths, PassEnv: s.PassEnv, TmpSize: s.TmpSize,
+		ProtectGit: s.ProtectGit,
 	}
 }
 
@@ -479,6 +491,7 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "ark-code-latest", Name: "Ark Code Latest", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
 		{ID: "doubao-seed-2-0-code", Name: "Doubao Seed 2.0 Code", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
 		{ID: "doubao-seed-2-0-pro", Name: "Doubao Seed 2.0 Pro", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text", "image"}},
+		{ID: "doubao-seed-evolving", Name: "Doubao Seed Evolving", Reasoning: true, ContextWindow: 1000000, MaxTokens: 100000, Input: []string{"text", "image"}},
 		{ID: "doubao-seed-2-0-lite", Name: "Doubao Seed 2.0 Lite", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
 		{ID: "doubao-seed-2-0-mini", Name: "Doubao Seed 2.0 Mini", Reasoning: true, ContextWindow: 262144, MaxTokens: 100000, Input: []string{"text"}},
 		{ID: "glm-5.2", Name: "GLM 5.2", Reasoning: true, ContextWindow: 1000000, MaxTokens: 100000, Input: []string{"text", "image"}},
@@ -537,6 +550,7 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 65536, MaxTokens: 65536, Input: []string{"text", "image"}},
 		{ID: "qwen3.6-max", Name: "Qwen3.6 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
 		{ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
+		{ID: "step-3.7-flash", Name: "Step 3.7 Flash", ContextWindow: 262144, MaxTokens: 16384, Input: []string{"text", "image"}},
 		{ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text"}},
 		{ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Input: []string{"text"}},
 		{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Input: []string{"text"}},
@@ -593,6 +607,7 @@ var defaultProviderConfigs = map[string]*ProviderConfig{
 		{ID: "qwen3.6-plus", Name: "Qwen3.6 Plus", Reasoning: true, ContextWindow: 65536, MaxTokens: 65536, Input: []string{"text", "image"}},
 		{ID: "qwen3.6-max", Name: "Qwen3.6 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
 		{ID: "qwen3.7-plus", Name: "Qwen3.7 Plus", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text", "image"}},
+		{ID: "step-3.7-flash", Name: "Step 3.7 Flash", ContextWindow: 262144, MaxTokens: 16384, Input: []string{"text", "image"}},
 		{ID: "qwen3.7-max", Name: "Qwen3.7 Max", Reasoning: true, ContextWindow: 1000000, MaxTokens: 65536, Input: []string{"text"}},
 		{ID: "deepseek-v4-flash", Name: "DeepSeek-V4-Flash", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Input: []string{"text"}},
 		{ID: "deepseek-v4-pro", Name: "DeepSeek-V4-Pro", Reasoning: true, ContextWindow: 1000000, MaxTokens: 384000, Input: []string{"text"}},
@@ -771,6 +786,7 @@ func DefaultSettings() *Settings {
 			DeniedPaths: platform.DeniedPaths(),
 			PassEnv:     platform.DefaultEnvVars(),
 			TmpSize:     "100m",
+			ProtectGit:  true,
 		},
 		SessionDir: platform.SessionDir(),
 		Theme:      "dark",

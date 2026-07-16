@@ -27,6 +27,21 @@ type skillHubInstallRequest struct {
 	Activate  bool            `json:"activate,omitempty"`
 }
 
+type skillHubSkillSetRequest struct {
+	Skills    []skillHubInstallRequest `json:"skills"`
+	Scope     string                   `json:"scope,omitempty"`
+	WorkDir   string                   `json:"workDir,omitempty"`
+	SessionID string                   `json:"sessionId,omitempty"`
+	Activate  bool                     `json:"activate,omitempty"`
+}
+
+type skillHubUninstallRequest struct {
+	Market    skillhub.Market `json:"market"`
+	ID        string          `json:"id"`
+	Scope     string          `json:"scope,omitempty"`
+	WorkDir   string          `json:"workDir,omitempty"`
+	SessionID string          `json:"sessionId,omitempty"`
+}
 type skillHubActivateRequest struct {
 	Name      string `json:"name"`
 	WorkDir   string `json:"workDir,omitempty"`
@@ -62,7 +77,15 @@ func (rt *channelRuntime) handleSkillHub(server *openaiapi.Server) http.HandlerF
 			rt.handleSkillHubInstall(w, r, server)
 		case path == "activate" && r.Method == http.MethodPost:
 			rt.handleSkillHubActivate(w, r, server)
-		case path == "markets" || path == "categories" || path == "official" || path == "search" || path == "installed" || path == "install" || path == "activate" || strings.HasPrefix(path, "skills/"):
+		case path == "skillset" && r.Method == http.MethodPost:
+			rt.handleSkillHubSkillSet(w, r, server)
+		case path == "uninstall" && r.Method == http.MethodPost:
+			rt.handleSkillHubUninstall(w, r, server)
+		case strings.HasPrefix(path, "showcase/") && r.Method == http.MethodGet:
+			rt.handleSkillHubShowcase(w, r, server, strings.TrimPrefix(path, "showcase/"))
+		case strings.HasPrefix(path, "content/") && r.Method == http.MethodGet:
+			rt.handleSkillHubContent(w, r, server, strings.TrimPrefix(path, "content/"))
+		case path == "markets" || path == "categories" || path == "official" || path == "search" || path == "installed" || path == "install" || path == "activate" || path == "skillset" || path == "uninstall" || strings.HasPrefix(path, "skills/") || strings.HasPrefix(path, "showcase/") || strings.HasPrefix(path, "content/"):
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "SkillHub endpoint not found"})
@@ -265,7 +288,7 @@ func skillHubServiceForRequest(server *openaiapi.Server, sessionID, requestedWor
 	if err != nil {
 		return nil, runtime, err
 	}
-	return skillhub.NewServiceForWorkDir(runtime.GlobalSkillsDir, workDir, runtime.OfficialHandles), runtime, nil
+	return skillhub.NewServiceForWorkDir(runtime.GlobalSkillsDir, workDir, runtime.OfficialHandles, skillhub.ClientsForSettings(server.SettingsSkillHub())...), runtime, nil
 }
 
 func parseSkillHubPath(path string) (skillhub.Market, string, error) {

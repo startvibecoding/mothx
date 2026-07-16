@@ -9,6 +9,7 @@
   import SettingsWorkDir from './settings/WorkDir.svelte';
   import SettingsChannels from './settings/Channels.svelte';
   import SettingsLogs from './settings/Logs.svelte';
+  import SettingsSkillHub from './settings/SkillHub.svelte';
   import { t } from '../lib/preferences.js';
 
   const tabs = [
@@ -20,7 +21,8 @@
     { key: 'memory', label: 'settings.tabs.memory' },
     { key: 'features', label: 'settings.tabs.features' },
     { key: 'channels', label: 'settings.tabs.channels' },
-    { key: 'logs', label: 'settings.tabs.logs' }
+    { key: 'logs', label: 'settings.tabs.logs' },
+    { key: 'skillhub', label: 'SkillHub' }
   ];
 
   $: activeTab = $route.sub || '';
@@ -62,6 +64,8 @@
       <SettingsChannels />
     {:else if activeTab === 'logs'}
       <SettingsLogs />
+    {:else if activeTab === 'skillhub'}
+      <SettingsSkillHub />
     {:else}
       <p class="empty">{$t('settings.unknown')}</p>
     {/if}

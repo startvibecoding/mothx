@@ -493,7 +493,6 @@ func DeniedPaths() []string {
 			"/etc/gshadow",
 			"/etc/passwd",
 			"/root",
-			"/home",
 		}
 	}
 }

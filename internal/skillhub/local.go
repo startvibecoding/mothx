@@ -53,12 +53,19 @@ func (i *LocalIndex) scan(root, scope string) error {
 		}
 		dir := filepath.Join(root, entry.Name())
 		metadata, err := readMetadata(dir)
-		if err != nil {
+		if err == nil {
+			key := installedKey(metadata.Market, metadata.ID)
+			if _, exists := i.entries[key]; !exists {
+				i.entries[key] = InstalledState{Installed: true, Scope: scope, Dir: dir, Market: metadata.Market, ID: metadata.ID, Name: entry.Name(), Version: metadata.Version}
+			}
 			continue
 		}
-		key := installedKey(metadata.Market, metadata.ID)
+		if !hasSkillFile(dir) {
+			continue
+		}
+		key := localInstalledKey(dir)
 		if _, exists := i.entries[key]; !exists {
-			i.entries[key] = InstalledState{Installed: true, Scope: scope, Dir: dir, Version: metadata.Version}
+			i.entries[key] = InstalledState{Installed: true, Scope: scope, Dir: dir, Name: entry.Name(), Local: true}
 		}
 	}
 	return nil
@@ -72,14 +79,35 @@ func (i *LocalIndex) State(market Market, id string) *InstalledState {
 	copy := state
 	return &copy
 }
+func (i *LocalIndex) FindDir(market Market, id string) (InstalledState, bool) {
+	state := i.State(market, id)
+	return func() (InstalledState, bool) {
+		if state == nil {
+			return InstalledState{}, false
+		}
+		return *state, true
+	}()
+}
 func (i *LocalIndex) Apply(items []SkillSummary) {
 	for n := range items {
 		state := i.State(items[n].Market, items[n].ID)
+		if state == nil {
+			state = i.localState(items[n])
+		}
 		if state != nil {
-			state.UpdateAvailable = versionsDiffer(state.Version, items[n].Version)
+			state.UpdateAvailable = !state.Local && versionsDiffer(state.Version, items[n].Version)
 		}
 		items[n].Installed = state
 	}
+}
+func (i *LocalIndex) localState(item SkillSummary) *InstalledState {
+	for _, state := range i.entries {
+		if state.Local && (state.Name == item.Slug || state.Name == item.Name || state.Name == item.DisplayName) {
+			copy := state
+			return &copy
+		}
+	}
+	return nil
 }
 func (i *LocalIndex) List() []InstalledState {
 	out := make([]InstalledState, 0, len(i.entries))
@@ -90,6 +118,7 @@ func (i *LocalIndex) List() []InstalledState {
 	return out
 }
 func installedKey(market Market, id string) string { return string(market) + "\x00" + id }
+func localInstalledKey(dir string) string          { return "local\x00" + filepath.Clean(dir) }
 func readMetadata(dir string) (InstallMetadata, error) {
 	var metadata InstallMetadata
 	data, err := os.ReadFile(filepath.Join(dir, metadataFileName))

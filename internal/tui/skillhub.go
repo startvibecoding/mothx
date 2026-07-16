@@ -68,7 +68,12 @@ func (a *App) openSkillHub() tea.Cmd {
 		if a.settings != nil {
 			globalDir = a.settings.GetGlobalSkillsDir()
 		}
-		a.skillHub = skillhub.NewServiceForWorkDir(globalDir, a.currentCwd(), officialHandles)
+		a.skillHub = skillhub.NewServiceForWorkDir(globalDir, a.currentCwd(), officialHandles, skillhub.ClientsForSettings(func() config.SkillHubSettings {
+			if a.settings == nil {
+				return config.SkillHubSettings{}
+			}
+			return a.settings.SkillHub
+		}())...)
 	}
 	a.skillHubOpen = true
 	a.skillHubMarket = a.defaultSkillHubMarket()
@@ -111,7 +116,72 @@ func (a *App) handleSkillHubCommand(parts []string) tea.Cmd {
 		a.skillHubView = skillHubSearch
 		a.skillHubQuery = strings.Join(parts[2:], " ")
 		return a.loadSkillHub()
-	case "detail", "install":
+	case "skillset":
+		if len(parts) < 3 {
+			a.addCommandError("Usage: /skillhub skillset <market>/<id>... [--global|--project|--activate]")
+			return nil
+		}
+		if a.skillHub == nil {
+			globalDir := ""
+			if a.settings != nil {
+				globalDir = a.settings.GetGlobalSkillsDir()
+			}
+			a.skillHub = skillhub.NewServiceForWorkDir(globalDir, a.currentCwd(), a.skillHubOfficialHandles(), skillhub.ClientsForSettings(func() config.SkillHubSettings {
+				if a.settings == nil {
+					return config.SkillHubSettings{}
+				}
+				return a.settings.SkillHub
+			}())...)
+		}
+		scope, activate := a.defaultSkillHubScope(), false
+		requests := make([]skillhub.InstallRequest, 0, len(parts)-2)
+		for _, value := range parts[2:] {
+			if value == "--global" {
+				scope = "global"
+				continue
+			}
+			if value == "--project" {
+				scope = "project"
+				continue
+			}
+			if value == "--activate" {
+				activate = true
+				continue
+			}
+			market, id, err := parseSkillHubID(value)
+			if err != nil {
+				a.addCommandError(err.Error())
+				return nil
+			}
+			requests = append(requests, skillhub.InstallRequest{Market: market, ID: id, Scope: scope})
+		}
+		results, err := a.skillHub.InstallSkillSet(context.Background(), requests)
+		if err != nil {
+			a.addCommandError("SkillSet failed: " + err.Error())
+			return nil
+		}
+		if a.skillsMgr != nil {
+			if err := a.skillsMgr.Load(); err != nil {
+				a.addCommandError("SkillSet installed, but skills reload failed: " + err.Error())
+				return nil
+			}
+			for _, result := range results {
+				if activate {
+					a.activateSkill(result.Name)
+				}
+			}
+		} else if activate {
+			a.addCommandError("SkillSet installed, but no skills manager is available for activation")
+			return nil
+		}
+		a.addCommandStatus(fmt.Sprintf("Installed %d skills%s.", len(results), func() string {
+			if activate {
+				return " and activated them in the current session"
+			}
+			return ""
+		}()))
+		return nil
+	case "detail", "install", "uninstall":
 		if len(parts) < 3 {
 			a.addCommandError("Usage: /skillhub " + parts[1] + " <market>/<id>")
 			return nil
@@ -127,7 +197,12 @@ func (a *App) handleSkillHubCommand(parts []string) tea.Cmd {
 			if a.settings != nil {
 				globalDir = a.settings.GetGlobalSkillsDir()
 			}
-			a.skillHub = skillhub.NewServiceForWorkDir(globalDir, a.currentCwd(), officialHandles)
+			a.skillHub = skillhub.NewServiceForWorkDir(globalDir, a.currentCwd(), officialHandles, skillhub.ClientsForSettings(func() config.SkillHubSettings {
+				if a.settings == nil {
+					return config.SkillHubSettings{}
+				}
+				return a.settings.SkillHub
+			}())...)
 		}
 		a.skillHubOpen = true
 		a.skillHubMarket, a.skillHubScope = market, a.defaultSkillHubScope()
@@ -174,7 +249,7 @@ func (a *App) handleSkillHubCommand(parts []string) tea.Cmd {
 		a.addCommandStatus(strings.Join(lines, "\n"))
 		return nil
 	default:
-		a.addCommandError("Usage: /skillhub [search <query>|detail <market>/<id>|install <market>/<id> [--global|--project] [--activate]|installed]")
+		a.addCommandError("Usage: /skillhub [search <query>|detail <market>/<id>|install <market>/<id> [--global|--project] [--activate]|uninstall <market>/<id>|skillset <market>/<id>... [--global|--project|--activate]|installed]")
 		return nil
 	}
 }

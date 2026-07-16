@@ -254,6 +254,7 @@
 |------|---------|-----------|------|------|
 | ark-code-latest | 262K | 100K | **是** | text |
 | doubao-seed-2-0-code/pro/lite/mini | 262K | 100K | **是** | text(,image) |
+| doubao-seed-evolving | 1M | 100K | **是** | text,image |
 | glm-5.2 | 1M | 100K | **是** | text,image |
 | kimi-k2.7-code | 262K | 100K | **是** | text,image |
 | deepseek-v4-pro | 1M | 100K | **是** | text |
@@ -473,22 +474,8 @@
 
 ---
 
-### 14. Gitee AI / Moark
-
-- **Vendor**: `gitee`
-- **BaseURL**: `https://ai.gitee.com/v1` / `https://api.moark.com/v1`
-- **API**: `openai-chat`
-
-| 模型 | Context | MaxTokens | 推理 | 输入 |
-|------|---------|-----------|------|------|
-| glm-5 | 200K | 32K | **是** | text |
-| glm-5.1 | 200K | 128K | **是** | text |
-| glm-5.2 | 1M | 128K | **是** | text,image |
-| qwen3.5-flash | 1M | 64K | **是** | text,image |
-| qwen3.6-flash | 1M | 64K | **是** | text,image |
-| qwen3.6-plus | 64K | 64K | **是** | text,image |
-| qwen3.6-max | 1M | 64K | **是** | text,image |
 | qwen3.7-plus | 1M | 64K | **是** | text,image |
+| step-3.7-flash | 256K | 16K | 否 | text,image |
 | qwen3.7-max | 1M | 64K | **是** | text |
 | deepseek-v4-flash | 1M | 384K | **是** | text |
 | deepseek-v4-pro | 1M | 384K | **是** | text |
@@ -973,7 +960,7 @@
 | ModelScope | - | openai-chat | - | 3 |
 | 阿里云百炼 | `bailian`×3 | openai-chat | - | 6~10 |
 | 华为云 | `huawei`/`huawei-plan` | openai-chat | - | 8/5 |
-| Gitee/Moark | `gitee` | openai-chat | - | 17 |
+| Gitee/Moark | `gitee` | openai-chat | - | 18 |
 | 摩尔线程 | `mthreads-plan` | openai-chat | - | 1 |
 | 天翼云 | `ctyun-plan` | openai-chat | - | 3 |
 | 京东智联云 | `jd-plan` | openai-chat | - | 10 |

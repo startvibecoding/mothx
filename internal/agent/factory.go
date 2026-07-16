@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 
 	agentpkg "github.com/startvibecoding/mothx/agent"
@@ -360,7 +361,16 @@ func buildFromPublicBuilder(b *agentpkg.Builder) (agentpkg.Agent, error) {
 	// Build sandbox
 	var sandboxMgr *sandbox.Manager
 	if cfg.SandboxEnabled {
-		sandboxMgr = sandbox.NewManager(cfg.WorkDir)
+		sandboxMgr = sandbox.NewManagerWithOptions(cfg.WorkDir, sandbox.Options{ProtectGit: true})
+		level := sandbox.LevelStandard
+		if cfg.Mode == "plan" {
+			level = sandbox.LevelStrict
+		} else if cfg.Mode == "yolo" {
+			level = sandbox.LevelNone
+		}
+		if err := sandboxMgr.SetLevel(level); err != nil {
+			return nil, fmt.Errorf("sandbox enabled but unavailable: %w", err)
+		}
 	}
 
 	// Build session

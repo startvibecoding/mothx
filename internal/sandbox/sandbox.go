@@ -64,6 +64,7 @@ type Options struct {
 	DeniedPaths  []string
 	PassEnv      []string
 	TmpSize      string
+	ProtectGit   bool
 }
 
 // Sandbox is the interface for sandbox implementations.
@@ -81,8 +82,12 @@ type Sandbox interface {
 	Level() Level
 }
 
-// CommandCleanupProvider is implemented by sandboxes that create temporary
-// command-side resources which must remain available until the process exits.
+// GitAccessSandbox is implemented by backends that can temporarily remove the
+// protected Git deny rule for exactly one command.
+type GitAccessSandbox interface {
+	WrapCommandWithGitAccess(ctx context.Context, shell, cmd string, opts ExecOpts) *exec.Cmd
+}
+
 type CommandCleanupProvider interface {
 	CleanupCommand(*exec.Cmd)
 }
@@ -91,6 +96,7 @@ type CommandCleanupProvider interface {
 type Manager struct {
 	sandboxes map[Level]Sandbox
 	active    Sandbox
+	initErr   error
 }
 
 // NewManager creates a manager with the default sandbox policy.
@@ -100,7 +106,12 @@ func NewManager(projectDir string) *Manager {
 
 // NewManagerWithOptions creates a manager using the supplied sandbox policy.
 func NewManagerWithOptions(projectDir string, opts Options) *Manager {
+	normalized, normalizeErr := NormalizeOptions(projectDir, opts)
+	if normalizeErr == nil {
+		opts = normalized
+	}
 	m := &Manager{
+		initErr:   normalizeErr,
 		sandboxes: make(map[Level]Sandbox),
 	}
 
@@ -112,21 +123,19 @@ func NewManagerWithOptions(projectDir string, opts Options) *Manager {
 	return m
 }
 
-// SetLevel sets the active sandbox level.
+// SetLevel sets the active sandbox level. It never silently falls back to a
+// less restrictive backend: callers that choose sandboxing must receive an
+// actionable error when their requested profile cannot be enforced.
 func (m *Manager) SetLevel(level Level) error {
+	if m.initErr != nil && level != LevelNone {
+		return fmt.Errorf("invalid sandbox policy: %w", m.initErr)
+	}
 	sb, ok := m.sandboxes[level]
 	if !ok {
 		return fmt.Errorf("no sandbox for level %s", level)
 	}
 	if !sb.IsAvailable() {
-		// Fallback to less restrictive sandbox
-		for l := level + 1; l <= LevelNone; l++ {
-			if fallback, ok := m.sandboxes[l]; ok && fallback.IsAvailable() {
-				m.active = fallback
-				return nil
-			}
-		}
-		return fmt.Errorf("sandbox %s not available and no fallback found", level)
+		return fmt.Errorf("sandbox %s not available", level)
 	}
 	m.active = sb
 	return nil
@@ -142,6 +151,9 @@ func (m *Manager) GetActive() Sandbox {
 
 // GetForLevel returns the sandbox for a specific level, checking availability.
 func (m *Manager) GetForLevel(level Level) (Sandbox, error) {
+	if m.initErr != nil && level != LevelNone {
+		return nil, fmt.Errorf("invalid sandbox policy: %w", m.initErr)
+	}
 	sb, ok := m.sandboxes[level]
 	if !ok {
 		return nil, fmt.Errorf("no sandbox for level %s", level)

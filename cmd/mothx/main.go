@@ -558,11 +558,7 @@ func setupSandbox(cwd string, settings *config.Settings, opts runOptions, mode s
 		}
 	}
 	if err := sbMgr.SetLevel(targetLevel); err != nil {
-		if opts.sandbox {
-			return nil, fmt.Errorf("sandbox requested but unavailable: %w", err)
-		}
-		fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable, continuing without: %v\n", err)
-		sbMgr.SetLevel(sandbox.LevelNone)
+		return nil, fmt.Errorf("sandbox enabled but unavailable: %w", err)
 	}
 	return sbMgr, nil
 }

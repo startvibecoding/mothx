@@ -31,16 +31,12 @@ func newWinSandbox(projectDir string, level Level) *winSandbox {
 	}
 }
 
-// IsAvailable checks if the Windows sandbox is available.
+// IsAvailable reports false until a Windows backend can enforce the complete
+// filesystem, deny-path, and network profile. Restricting environment
+// variables alone is not a security sandbox and must not satisfy strict or
+// standard sandbox requests.
 func (s *winSandbox) IsAvailable() bool {
-	if s.available != nil {
-		return *s.available
-	}
-
-	// Windows sandbox is always available (basic implementation)
-	t := true
-	s.available = &t
-	return true
+	return false
 }
 
 // Name returns "windows-sandbox".

@@ -277,9 +277,11 @@ func (f *simpleAgentFactory) CreateForA2A(workDir string, mode string) (*agent.A
 		return nil, fmt.Errorf("create provider: %w", err)
 	}
 
-	sbMgr := sandbox.NewManager(workDir)
+	sbMgr := sandbox.NewManagerWithOptions(workDir, f.settings.Sandbox.Options())
 	if f.sandbox {
-		sbMgr.SetLevel(sandbox.LevelStandard)
+		if err := sbMgr.SetLevel(sandbox.LevelStandard); err != nil {
+			return nil, fmt.Errorf("sandbox enabled but unavailable: %w", err)
+		}
 	}
 
 	a := agent.New(agent.Config{

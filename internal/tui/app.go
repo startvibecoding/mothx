@@ -441,22 +441,27 @@ func NewAppWithWorkflowsAndAllow(p provider.Provider, model *provider.Model, set
 	}
 
 	app := &App{
-		provider:            p,
-		providerName:        providerName,
-		model:               model,
-		settings:            settings,
-		allow:               allow,
-		session:             sess,
-		registry:            registry,
-		sandboxInfo:         sandboxInfo,
-		cwd:                 currentWorkingDir(sess),
-		mode:                mode,
-		extraContext:        extraContext,
-		ruleContent:         ruleContent,
-		baseExtraContext:    extraContext,
-		activeSkills:        make(map[string]string),
-		skillsMgr:           skillsMgr,
-		skillHub:            skillhub.NewServiceForWorkDir(globalSkillsDir, currentWorkingDir(sess), officialSkillHandles),
+		provider:         p,
+		providerName:     providerName,
+		model:            model,
+		settings:         settings,
+		allow:            allow,
+		session:          sess,
+		registry:         registry,
+		sandboxInfo:      sandboxInfo,
+		cwd:              currentWorkingDir(sess),
+		mode:             mode,
+		extraContext:     extraContext,
+		ruleContent:      ruleContent,
+		baseExtraContext: extraContext,
+		activeSkills:     make(map[string]string),
+		skillsMgr:        skillsMgr,
+		skillHub: skillhub.NewServiceForWorkDir(globalSkillsDir, currentWorkingDir(sess), officialSkillHandles, skillhub.ClientsForSettings(func() config.SkillHubSettings {
+			if settings == nil {
+				return config.SkillHubSettings{}
+			}
+			return settings.SkillHub
+		}())...),
 		input:               input,
 		authInput:           editor.New(80).SetPlaceholder("").SetMaxLines(3),
 		suggest:             suggest.New(80).SetItems(commandSuggestionItems()),

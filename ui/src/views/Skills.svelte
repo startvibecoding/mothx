@@ -24,6 +24,7 @@
   let loading = false;
   let detailLoading = false;
   let actionLoading = false;
+  let selectedBatch = new Set();
   let resultsRequest = 0;
   let detailRequest = 0;
 
@@ -172,6 +173,13 @@
     loadResults();
   }
 
+  async function loadShowcase(kind = 'recommended') {
+    loading = true; clearBanners();
+    try { const data = await request(`/api/skillhub/showcase/${encodeURIComponent(kind)}?${sessionParams({ market })}`); items = data?.items || []; total = Number(data?.total || items.length); selected = items[0] || null; if (selected) await loadDetail(selected); } catch (err) { setError(err); } finally { loading = false; }
+  }
+  function toggleBatch(item) { const next = new Set(selectedBatch); const key = `${item.market}:${item.id}`; if (next.has(key)) next.delete(key); else next.add(key); selectedBatch = next; }
+  async function installBatch() { const chosen = items.filter((item) => selectedBatch.has(`${item.market}:${item.id}`)); if (!chosen.length) return; actionLoading = true; try { await postJSON('/api/skillhub/skillset', { skills: chosen.map((item) => ({ market: item.market, id: item.id, version: item.version || '', scope })), sessionId: sessionID }); selectedBatch = new Set(); setNotice('Selected skills installed.'); await loadResults(); } catch (err) { setError(err); } finally { actionLoading = false; } }
+  async function loadFileContent(file) { if (!detail || !file?.path) return; try { const data = await request(`/api/skillhub/content/${encodeURIComponent(detail.market)}/${encodeURIComponent(detail.id)}?${sessionParams({ path: file.path, version: detail.version || '' })}`); file.content = data?.content || ''; detail = { ...detail }; } catch (err) { setError(err); } }
   async function install(activate = false, overwrite = false) {
     if (!detail) return;
     actionLoading = true;
@@ -205,6 +213,22 @@
       const data = await postJSON('/api/skillhub/activate', { name, sessionId: sessionID });
       activeSkills = data?.session?.activeSkills || activeSkills;
       setNotice($t('skills.activated', { name }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      actionLoading = false;
+    }
+  }
+
+  async function uninstall() {
+    if (!detail) return;
+    actionLoading = true;
+    clearBanners();
+    try {
+      await postJSON('/api/skillhub/uninstall', { market: detail.market, id: detail.id, scope, sessionId: sessionID });
+      activeSkills = activeSkills.filter((name) => name !== installedName(detail));
+      setNotice(`Uninstalled ${detail.name || detail.slug}`);
+      await loadResults();
     } catch (err) {
       setError(err);
     } finally {
@@ -256,6 +280,7 @@
       <button type="button" class:active={view === 'search'} on:click={() => switchView('search')}>{$t('skills.search')}</button>
       {#if market === 'skillhub.cn'}
         <button type="button" class:active={view === 'official'} on:click={() => switchView('official')}>{$t('skills.official')}</button>
+        <button type="button" on:click={() => loadShowcase('recommended')}>Showcase</button>
       {/if}
     </div>
     <form class="skills-search" on:submit|preventDefault={search}>
@@ -297,10 +322,12 @@
       <div class="skills-section-head">
         <strong>{$t('skills.results')}</strong>
         <span>{loading ? $t('common.loading') : $t('common.items', { count: total })}</span>
+        <button type="button" disabled={selectedBatch.size === 0 || actionLoading} on:click={installBatch}>Install selected ({selectedBatch.size})</button>
       </div>
       <div class="skills-rows">
         {#each items as item (item.market + ':' + item.id)}
           <button type="button" class="skill-row" class:active={selected?.id === item.id} on:click={() => loadDetail(item)}>
+            <input type="checkbox" checked={selectedBatch.has(`${item.market}:${item.id}`)} on:click|stopPropagation={() => toggleBatch(item)} aria-label="Select skill" />
             <span class="skill-row-main">
               <strong>{item.displayName || item.name || item.slug || item.id}</strong>
               <span>{item.author || item.publisherName || item.market}</span>
@@ -349,8 +376,10 @@
             <button type="button" disabled={actionLoading} on:click={() => install(true, false)}>{$t('skills.installActivate')}</button>
           {:else if !isActive(detail)}
             <button type="button" class="primary" disabled={actionLoading} on:click={activate}>{$t('skills.activate')}</button>
+            <button type="button" disabled={actionLoading} on:click={uninstall}>Uninstall</button>
           {:else}
             <span class="status-tag">{$t('skills.active')}</span>
+            <button type="button" disabled={actionLoading} on:click={uninstall}>Uninstall</button>
           {/if}
         </div>
         <dl class="skills-metadata">
@@ -375,7 +404,7 @@
         <div class="skills-block">
           <h3>{$t('skills.files')} ({detail.files?.length || 0})</h3>
           <ul class="skill-files">
-            {#each detail.files || [] as file}<li><code>{file.path}</code><span>{formatCount(file.size)} B</span></li>{/each}
+            {#each detail.files || [] as file}<li><code>{file.path}</code><span>{formatCount(file.size)} B <button type="button" on:click={() => loadFileContent(file)}>View</button></span>{#if file.content}<pre>{file.content}</pre>{/if}</li>{/each}
           </ul>
         </div>
         <details class="skills-report"><summary>{$t('skills.security')}</summary><pre>{formatReport(detail.securityReports)}</pre></details>

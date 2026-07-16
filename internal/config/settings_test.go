@@ -160,6 +160,7 @@ func TestMoarkModelMaxTokens(t *testing.T) {
 		"mimo-v2.5-pro":      131072,
 		"gemma-4-26b-a4b-it": 32768,
 		"deepseek-v4-flash":  384000,
+		"step-3.7-flash":     16384,
 	}
 
 	moark := s.Providers["moark"]

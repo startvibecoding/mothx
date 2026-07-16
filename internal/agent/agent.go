@@ -1152,7 +1152,24 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 		}
 	}
 
-	// Check if tool needs user approval based on mode
+	// Check if tool needs user approval based on mode. Git metadata has an
+	// independent one-shot approval because it is protected by the sandbox.
+	gitAccessApproved := false
+	if tc.Name == "bash" && a.config.Mode != "yolo" && a.config.SandboxMgr != nil && a.config.SandboxMgr.GetActive().Level() != sandbox.LevelNone {
+		if command, ok := bashCommandArg(params); ok && sandbox.GitAccessRequired(command, "") {
+			request := map[string]any{"command": command, "reason": "This command may access protected .git metadata. Allow once?"}
+			if a.config.ApprovalHandler != nil {
+				gitAccessApproved = a.config.ApprovalHandler(tc.ID, "git_access", request)
+			} else {
+				gitAccessApproved = a.RequestApproval(ch, "git_access", request)
+			}
+			if !gitAccessApproved {
+				reason := "Git metadata access denied; .git is protected by the sandbox"
+				ch <- Event{Type: EventToolExecutionEnd, ToolCallID: tc.ID, ToolName: tc.Name, ToolResult: reason, ToolError: fmt.Errorf("%s", reason)}
+				return provider.NewToolResultMessage(tc.ID, tc.Name, reason, true)
+			}
+		}
+	}
 	if a.NeedsApproval(tc.Name, params) {
 		approved := false
 		if a.config.ApprovalHandler != nil {
@@ -1183,6 +1200,7 @@ func (a *Agent) executeSingleToolCall(ctx context.Context, tc provider.ToolCallB
 	toolCtx = ContextWithParentRunContext(toolCtx, ctx)
 	toolCtx = ContextWithParentMode(toolCtx, a.config.Mode)
 	toolCtx = tools.ContextWithQuestionAsker(toolCtx, a)
+	toolCtx = sandbox.ContextWithGitAccess(toolCtx, gitAccessApproved)
 
 	result, err := tool.Execute(toolCtx, params)
 	isError := err != nil

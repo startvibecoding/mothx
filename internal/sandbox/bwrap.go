@@ -13,12 +13,14 @@ import (
 
 // BwrapSandbox implements sandbox using bubblewrap (bwrap).
 type BwrapSandbox struct {
-	level      Level
-	projectDir string
-	bwrapPath  string
-	availMu    sync.Mutex
-	available  *bool // cached availability check
-	options    Options
+	level        Level
+	projectDir   string
+	bwrapPath    string
+	availMu      sync.Mutex
+	available    *bool // cached availability check
+	capabilities *BwrapCapabilities
+	options      Options
+	gitPaths     []string
 }
 
 // NewBwrapSandbox creates a new bubblewrap sandbox.
@@ -33,7 +35,16 @@ func NewBwrapSandboxWithOptions(projectDir string, level Level, opts Options) *B
 	if bwrapPath == "" {
 		bwrapPath = findBwrap()
 	}
-	return &BwrapSandbox{level: level, projectDir: absDir, bwrapPath: bwrapPath, options: opts}
+	gitPaths := []string{}
+	if opts.ProtectGit {
+		gitPaths = protectedGitPaths(absDir)
+		for _, gitPath := range gitPaths {
+			if !containsPath(opts.DeniedPaths, gitPath) {
+				opts.DeniedPaths = append(opts.DeniedPaths, gitPath)
+			}
+		}
+	}
+	return &BwrapSandbox{level: level, projectDir: absDir, bwrapPath: bwrapPath, options: opts, gitPaths: uniquePaths(gitPaths)}
 }
 
 // findBwrap locates the bwrap binary.
@@ -58,6 +69,21 @@ func findBwrap() string {
 	return ""
 }
 
+// BwrapCapabilities describes the flags and runtime features required by MothX.
+type BwrapCapabilities struct {
+	UnshareUser   bool
+	NewSession    bool
+	DieWithParent bool
+	MountProc     bool
+	MountTmpfs    bool
+	MountBind     bool
+	NetworkNS     bool
+}
+
+func (c BwrapCapabilities) complete() bool {
+	return c.UnshareUser && c.NewSession && c.DieWithParent && c.MountProc && c.MountTmpfs && c.MountBind && c.NetworkNS
+}
+
 // IsAvailable checks if bwrap is available on this system.
 func (s *BwrapSandbox) IsAvailable() bool {
 	s.availMu.Lock()
@@ -80,6 +106,15 @@ func (s *BwrapSandbox) IsAvailable() bool {
 		s.available = &f
 		return false
 	}
+
+	caps, ok := probeBwrapCapabilities(s.bwrapPath)
+	if !ok || !caps.complete() {
+		f := false
+		s.available = &f
+		s.capabilities = &caps
+		return false
+	}
+	s.capabilities = &caps
 
 	// Test that bwrap works with a minimal but complete sandbox.
 	// We need to mount enough of the system for /bin/true to execute,
@@ -125,10 +160,36 @@ func (s *BwrapSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts 
 	return c
 }
 
+// WrapCommandWithGitAccess runs one command with the protected .git deny
+// carveout removed. The sandbox instance itself is immutable; only this
+// prepared command receives the temporary transform.
+func (s *BwrapSandbox) WrapCommandWithGitAccess(ctx context.Context, shell, cmd string, opts ExecOpts) *exec.Cmd {
+	clone := *s
+	clone.options.DeniedPaths = make([]string, 0, len(s.options.DeniedPaths))
+	for _, path := range s.options.DeniedPaths {
+		if !containsPath(s.gitPaths, path) {
+			clone.options.DeniedPaths = append(clone.options.DeniedPaths, path)
+		}
+	}
+	for _, path := range s.gitPaths {
+		if _, err := os.Lstat(path); err == nil && !containsPath(clone.options.DeniedPaths, path) {
+			clone.options.AllowedWrite = append(clone.options.AllowedWrite, path)
+		}
+	}
+	args := clone.buildBwrapArgs(opts, shell, cmd)
+	c := exec.CommandContext(ctx, clone.bwrapPath, args...)
+	c.Dir = opts.WorkDir
+	c.Env = clone.buildEnv(opts)
+	return c
+}
+
 // buildBwrapArgs constructs the bwrap command arguments.
 func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string {
 	args := []string{
-		// Unshare namespaces
+		// Explicit user namespace avoids relying on bwrap's implicit behavior,
+		// especially when invoked by uid 0 inside a container.
+		"--unshare-user",
+		"--new-session",
 		"--unshare-pid",
 		"--unshare-ipc",
 		"--unshare-uts", // Required for --hostname
@@ -136,7 +197,8 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		// Die when parent dies
 		"--die-with-parent",
 
-		// Proc filesystem (minimal)
+		// Proc filesystem. bwrap must initialize PID entries before any
+		// remount; forcing remount-ro here breaks /proc/<pid> creation.
 		"--proc", "/proc",
 
 		// Dev filesystem (minimal - null, zero, urandom)
@@ -232,6 +294,29 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 		}
 	}
 
+	// Denied paths are masked after every broad bind. bwrap cannot express a
+	// deny rule directly; an empty tmpfs hides both the original directory and
+	// all of its children.
+	for _, p := range s.options.DeniedPaths {
+		// The home tmpfs already hides a denied ancestor of the project. Masking
+		// it after binding the project would also hide the project mount.
+		if pathContains(p, s.projectDir) {
+			continue
+		}
+		info, err := os.Lstat(p)
+		if err != nil {
+			// --dir creates the target only inside the new mount namespace;
+			// masking it then prevents future creation through this path.
+			args = append(args, "--dir", p, "--tmpfs", p)
+			continue
+		}
+		if info.IsDir() {
+			args = append(args, "--tmpfs", p)
+		} else {
+			args = append(args, "--ro-bind", "/dev/null", p)
+		}
+	}
+
 	// Set hostname
 	args = append(args, "--hostname", "sandbox")
 
@@ -312,15 +397,27 @@ func (s *BwrapSandbox) buildEnv(opts ExecOpts) []string {
 	return env
 }
 
-func (s *BwrapSandbox) denied(path string) bool {
-	path = filepath.Clean(path)
-	for _, denied := range s.options.DeniedPaths {
-		denied = filepath.Clean(denied)
-		if path == denied || strings.HasPrefix(path, denied+string(os.PathSeparator)) {
+func containsPath(paths []string, target string) bool {
+	for _, path := range paths {
+		if filepath.Clean(path) == filepath.Clean(target) {
 			return true
 		}
 	}
 	return false
+}
+
+func (s *BwrapSandbox) denied(path string) bool {
+	path = filepath.Clean(path)
+	for _, denied := range s.options.DeniedPaths {
+		if pathsOverlap(path, denied) {
+			return true
+		}
+	}
+	return false
+}
+
+func pathContains(parent, path string) bool {
+	return parent == path || strings.HasPrefix(path, parent+string(os.PathSeparator))
 }
 
 func replaceEnv(env []string, key, value string) []string {

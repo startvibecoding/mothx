@@ -386,7 +386,7 @@ func Run(opts RunOptions) error {
 	}
 	srv.thinkingLevel = provider.ThinkingLevel(thinkingLevel)
 
-	sbMgr := sandbox.NewManager(cwd)
+	sbMgr := sandbox.NewManagerWithOptions(cwd, settings.Sandbox.Options())
 	sbEnabled := opts.Sandbox || settings.Sandbox.Enabled
 	if !sbEnabled {
 		sbMgr.SetLevel(sandbox.LevelNone)
@@ -398,10 +398,7 @@ func Run(opts RunOptions) error {
 			level = sandbox.LevelNone
 		}
 		if err := sbMgr.SetLevel(level); err != nil {
-			if opts.Sandbox {
-				return fmt.Errorf("sandbox requested but unavailable: %w", err)
-			}
-			sbMgr.SetLevel(sandbox.LevelNone)
+			return fmt.Errorf("sandbox enabled but unavailable: %w", err)
 		}
 	}
 	srv.sbMgr = sbMgr

@@ -76,7 +76,22 @@ type Server struct {
 	sessionCreateMu   sync.Mutex
 }
 
-// SessionDir returns the configured root directory that contains sessions.db.
+// SettingsSkillHub returns a copy of marketplace settings for runtime adapters.
+func (s *Server) SettingsSkillHub() config.SkillHubSettings {
+	if s == nil {
+		return config.SkillHubSettings{}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.settings == nil {
+		return config.SkillHubSettings{}
+	}
+	value := s.settings.SkillHub
+	value.OfficialHandles = append([]string(nil), value.OfficialHandles...)
+	value.Markets = append([]config.SkillHubMarketSettings(nil), value.Markets...)
+	return value
+}
+
 func (s *Server) SessionDir() string {
 	if s == nil || s.settings == nil {
 		return ""
@@ -221,8 +236,7 @@ func Run(opts RunOptions, version string) error {
 			}
 		}
 		if err := sbMgr.SetLevel(level); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: sandbox unavailable: %v\n", err)
-			sbMgr.SetLevel(sandbox.LevelNone)
+			return fmt.Errorf("sandbox enabled but unavailable: %w", err)
 		}
 	}
 

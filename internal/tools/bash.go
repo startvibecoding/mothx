@@ -187,7 +187,15 @@ func (t *BashTool) Execute(ctx context.Context, params map[string]any) (ToolResu
 	var cleanup func()
 	if sb != nil && sb.IsAvailable() {
 		opts := sandbox.ExecOpts{WorkDir: workDir, Timeout: timeout}
-		cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
+		if sandbox.GitAccessFromContext(ctx) {
+			gitSB, supported := sb.(sandbox.GitAccessSandbox)
+			if !supported {
+				return ToolResult{}, fmt.Errorf("sandbox backend cannot grant one-shot Git access")
+			}
+			cmd = gitSB.WrapCommandWithGitAccess(cmdCtx, shell, command, opts)
+		} else {
+			cmd = sb.WrapCommand(cmdCtx, shell, command, opts)
+		}
 		t.configureCommand(cmd)
 		if cleaner, ok := sb.(sandbox.CommandCleanupProvider); ok {
 			cleanup = func() { cleaner.CleanupCommand(cmd) }

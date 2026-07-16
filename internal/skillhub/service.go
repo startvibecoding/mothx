@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/startvibecoding/mothx/internal/skills"
 )
@@ -14,6 +18,7 @@ type Service struct {
 	globalDir       string
 	projectDirs     []string
 	officialHandles []string
+	cache           *memoryCache
 }
 
 func NewService(globalDir string, projectDirs []string, officialHandles []string, clients ...MarketClient) *Service {
@@ -26,7 +31,7 @@ func NewService(globalDir string, projectDirs []string, officialHandles []string
 			indexed[client.Market().ID] = client
 		}
 	}
-	return &Service{clients: indexed, globalDir: globalDir, projectDirs: projectDirs, officialHandles: officialHandles}
+	return &Service{clients: indexed, globalDir: globalDir, projectDirs: projectDirs, officialHandles: officialHandles, cache: newMemoryCache(30 * time.Second)}
 }
 
 func NewServiceForWorkDir(globalDir, workDir string, officialHandles []string, clients ...MarketClient) *Service {
@@ -45,11 +50,17 @@ func (s *Service) Search(ctx context.Context, market Market, query SearchQuery) 
 	if err != nil {
 		return SearchPage{}, err
 	}
+	key := fmt.Sprintf("search:%s:%+v", market, query)
+	if cached, ok := s.cache.getPage(key); ok {
+		s.applyInstalled(cached.Items)
+		return cached, nil
+	}
 	page, err := client.Search(ctx, query)
 	if err != nil {
 		return SearchPage{}, err
 	}
 	s.applyInstalled(page.Items)
+	s.cache.setPage(key, page)
 	return page, nil
 }
 func (s *Service) Categories(ctx context.Context, market Market) ([]Category, error) {
@@ -60,12 +71,25 @@ func (s *Service) Categories(ctx context.Context, market Market) ([]Category, er
 	if !client.Market().Capabilities.Categories {
 		return nil, nil
 	}
-	return client.Categories(ctx)
+	key := "categories:" + string(market)
+	if cached, ok := s.cache.getCategories(key); ok {
+		return cached, nil
+	}
+	categories, err := client.Categories(ctx)
+	if err == nil {
+		s.cache.setCategories(key, categories)
+	}
+	return categories, err
 }
 func (s *Service) Detail(ctx context.Context, market Market, id string) (SkillDetail, error) {
 	client, err := s.client(market)
 	if err != nil {
 		return SkillDetail{}, err
+	}
+	key := "detail:" + string(market) + ":" + id
+	if cached, ok := s.cache.getDetail(key); ok {
+		cached.Installed = s.state(market, id)
+		return cached, nil
 	}
 	detail, err := client.Detail(ctx, SkillID{Market: market, ID: id})
 	if err != nil {
@@ -86,6 +110,7 @@ func (s *Service) Detail(ctx context.Context, market Market, id string) (SkillDe
 	if detail.Installed != nil {
 		detail.Installed.UpdateAvailable = versionsDiffer(detail.Installed.Version, detail.Version)
 	}
+	s.cache.setDetail(key, detail)
 	return detail, nil
 }
 
@@ -152,7 +177,111 @@ func (s *Service) Install(ctx context.Context, request InstallRequest) (InstallR
 			return InstallResult{}, errors.New("project skills directory is unavailable")
 		}
 	}
-	return Install(ctx, client, request)
+	result, err := Install(ctx, client, request)
+	if err == nil {
+		s.cache.clear()
+	}
+	return result, err
+}
+
+func (s *Service) Uninstall(market Market, id, scope string) error {
+	state := s.state(market, id)
+	if state == nil || !state.Installed {
+		return fmt.Errorf("skill %q is not installed", id)
+	}
+	if state.Local {
+		return ErrLocalSkillExists
+	}
+	if scope != "" && scope != state.Scope {
+		return fmt.Errorf("skill %q is not installed in %s scope", id, scope)
+	}
+	metadata, err := readMetadata(state.Dir)
+	if err != nil || metadata.Market != market || metadata.ID != id {
+		return fmt.Errorf("managed metadata for skill %q is invalid", id)
+	}
+	if err := s.validateSkillDir(state.Dir); err != nil {
+		return err
+	}
+	info, err := os.Lstat(state.Dir)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("refusing to uninstall a symbolic link")
+	}
+	if err := os.RemoveAll(state.Dir); err != nil {
+		return err
+	}
+	s.cache.clear()
+	return nil
+}
+
+func (s *Service) validateSkillDir(dir string) error {
+	dir, err := filepath.Abs(filepath.Clean(dir))
+	if err != nil {
+		return err
+	}
+	roots := append([]string{}, s.projectDirs...)
+	if s.globalDir != "" {
+		roots = append(roots, s.globalDir)
+	}
+	for _, root := range roots {
+		root, rootErr := filepath.Abs(filepath.Clean(root))
+		if rootErr != nil {
+			continue
+		}
+		rel, relErr := filepath.Rel(root, dir)
+		if relErr == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return nil
+		}
+	}
+	return fmt.Errorf("skill directory %q is outside configured skills directories", dir)
+}
+func (s *Service) Showcase(ctx context.Context, market Market, kind string, query SearchQuery) (SearchPage, error) {
+	client, err := s.client(market)
+	if err != nil {
+		return SearchPage{}, err
+	}
+	showcase, ok := client.(ShowcaseClient)
+	if !ok {
+		return SearchPage{}, fmt.Errorf("market %q does not support showcase", market)
+	}
+	page, err := showcase.Showcase(ctx, kind, query)
+	if err == nil {
+		s.applyInstalled(page.Items)
+	}
+	return page, err
+}
+
+func (s *Service) FileContent(ctx context.Context, market Market, id, version, path string) (string, error) {
+	client, err := s.client(market)
+	if err != nil {
+		return "", err
+	}
+	reader, ok := client.(FileContentClient)
+	if !ok {
+		return "", fmt.Errorf("market %q does not support file content", market)
+	}
+	return reader.FileContent(ctx, SkillID{Market: market, ID: id}, version, path)
+}
+
+func (s *Service) InstallSkillSet(ctx context.Context, requests []InstallRequest) ([]InstallResult, error) {
+	results := make([]InstallResult, 0, len(requests))
+	installed := make([]InstallResult, 0, len(requests))
+	for _, request := range requests {
+		result, err := s.Install(ctx, request)
+		if err != nil {
+			for i := len(installed) - 1; i >= 0; i-- {
+				_ = s.Uninstall(installed[i].Market, installed[i].Name, installed[i].Scope)
+			}
+			return results, err
+		}
+		results = append(results, result)
+		if !result.AlreadyInstalled {
+			installed = append(installed, result)
+		}
+	}
+	return results, nil
 }
 func (s *Service) client(market Market) (MarketClient, error) {
 	client := s.clients[market]

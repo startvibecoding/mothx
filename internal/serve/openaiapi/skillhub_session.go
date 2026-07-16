@@ -88,7 +88,47 @@ func (s *Server) ResolveSkillHubWorkDir(sessionID, requested string) (string, er
 	return filepath.Clean(workDir), nil
 }
 
-// RefreshSkillHubSession reloads local skills and optionally activates one skill.
+// RefreshSkillHubSessionMany refreshes a session and activates all requested skills.
+func (s *Server) RefreshSkillHubSessionMany(sessionID, requestedWorkDir string, names []string) (*SkillHubSessionState, error) {
+	workDir, err := s.ResolveSkillHubWorkDir(sessionID, requestedWorkDir)
+	if err != nil {
+		return nil, err
+	}
+	sess, err := s.getOrCreateSession(sessionID, workDir)
+	if err != nil {
+		return nil, err
+	}
+	if !s.pool.Pin(sess) {
+		return nil, errors.New("session is no longer active")
+	}
+	defer s.pool.Unpin(sess)
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.ActiveSkills == nil {
+		sess.ActiveSkills = make(map[string]bool)
+	}
+	previous := make(map[string]bool, len(sess.ActiveSkills))
+	for name, enabled := range sess.ActiveSkills {
+		previous[name] = enabled
+	}
+	for _, name := range names {
+		if strings.TrimSpace(name) == "" {
+			continue
+		}
+		if sess.SkillsMgr == nil || sess.SkillsMgr.Get(name) == nil {
+			sess.ActiveSkills = previous
+			return nil, fmt.Errorf("skill not found: %s", name)
+		}
+		sess.ActiveSkills[name] = true
+	}
+	if err := s.refreshSessionContext(sess); err != nil {
+		sess.ActiveSkills = previous
+		_ = s.refreshSessionContext(sess)
+		return nil, err
+	}
+	return skillHubSessionState(sess), nil
+}
+
 func (s *Server) RefreshSkillHubSession(sessionID, requestedWorkDir, activate string) (*SkillHubSessionState, error) {
 	workDir, err := s.ResolveSkillHubWorkDir(sessionID, requestedWorkDir)
 	if err != nil {

@@ -122,6 +122,38 @@ func (c *ClawHubClient) Files(ctx context.Context, id SkillID, version string) (
 
 func (c *ClawHubClient) Evaluation(context.Context, SkillID) (any, error) { return nil, nil }
 
+func (c *ClawHubClient) FileContent(ctx context.Context, id SkillID, version, path string) (string, error) {
+	slug, owner := clawSkillRef(id.ID)
+	values := url.Values{}
+	if version != "" {
+		values.Set("version", version)
+	}
+	if owner != "" {
+		values.Set("owner", owner)
+	}
+	var response struct {
+		Content string `json:"content"`
+	}
+	url := endpoint(c.baseURL, "/api/v1/skills/"+skillPath(slug)+"/files/"+skillPath(path), values)
+	if err := getJSON(ctx, c.httpClient, url, &response); err == nil && response.Content != "" {
+		return response.Content, nil
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	result, err := c.httpClient.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer result.Body.Close()
+	if result.StatusCode < 200 || result.StatusCode >= 300 {
+		return "", fmt.Errorf("GET %s: %s", url, result.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(result.Body, 1<<20))
+	return string(body), err
+}
+
 func (c *ClawHubClient) DownloadSources(id SkillID, version string) []DownloadSource {
 	slug, owner := clawSkillRef(id.ID)
 	values := url.Values{}

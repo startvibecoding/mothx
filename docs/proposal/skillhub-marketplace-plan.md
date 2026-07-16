@@ -1,8 +1,8 @@
 # SkillHub / ClawHub 市场集成方案
 
-> 状态: In Progress（Phase 1 核心、Phase 2 TUI 与 Phase 3 Serve/Web UI 主流程已落地）
+> 状态: In Progress（Phase 1–3 主流程与 Phase 4 后端基础能力已落地，端到端与扩展 registry 仍在收尾）
 > 日期: 2026-07-14
-> 最近核对: 2026-07-15
+> 最近核对: 2026-07-16
 > 目标: 在 MothX 中内置 Skill 市场浏览、搜索、下载、安装能力，并同时提供 TUI 与 Web UI 入口。
 > 输入资料: `docs/proposal/skillhub-api-research.md`、ClawHub 官方 HTTP API 文档。
 
@@ -37,26 +37,29 @@
 ### 0.2 部分完成
 
 - [x] 详情：摘要与 `d` 明细视图已覆盖来源、分类、tags、完整文件清单、安全报告、evaluation 和实际下载回退来源。
-- [~] 本地状态：已识别带 `.mothx-skillhub.json` 的 managed Skill 并按远端版本计算 `UpdateAvailable`；尚未把无 metadata 的手写 Skill 作为 `local` 合并到市场状态。
+- [x] 本地状态：识别 managed Skill 并按远端版本计算 `UpdateAvailable`；无 metadata 的手写 Skill 按 `local` 合并到市场状态。
 - [x] 分页：SkillHub.cn Browse / Official 页码分页和 ClawHub Browse/Search cursor 翻页均已接入 TUI。
 - [~] 排序：SkillHub.cn Browse 和 Official 已按下载量排序；Search 保持相关性；ClawHub 当前公开 API 未验证出可靠的下载量全局排序，不在 UI 中宣称支持。
-- [~] 配置：默认项和 Official handles 已实现；自定义 market、启停 market、API URL 和设置页编辑入口未实现。
+- [x] 配置：默认项、Official handles、自定义内置市场、启停、API URL、Bearer token 和 Web UI 设置编辑入口已实现；未知协议的通用 adapter 与企业 registry 完整语义仍待完成。
 - [x] 覆盖/更新：安装器仅允许覆盖相同 market/id 的 managed Skill，支持备份和回滚；TUI 提供 Update 操作和版本更新提示。
 - [~] 安全目录边界：TUI 只使用全局或当前项目 skills 目录；Serve 已校验 `allowedWorkDirs` 并禁止客户端指定 `TargetDir`；核心安装请求仍保留 `TargetDir` 以支持受信任调用和测试。
 
-### 0.3 尚未开始
+### 0.3 剩余目标
 
-- [ ] 短 TTL 内存缓存。
-- [ ] SkillHub.cn showcase，以及 ClawHub 文件内容/安全接口的完整 service 编排；SkillHub.cn evaluation 请求已完成。
-- [ ] 卸载、批量 SkillSet、企业 registry/token、自定义 market。
-- [ ] TUI 真实网络安装与激活的端到端/集成测试；当前以 fixture 和状态机测试为主。
+- [x] 短 TTL 内存缓存，并在安装/卸载后失效；缓存读写做 slice 隔离。
+- [x] SkillHub.cn showcase service 编排，以及 ClawHub 文件内容读取 service 编排。
+- [x] managed 与无 metadata 的本地 Skill 状态扫描和远端结果合并。
+- [x] 卸载、SkillSet 批量安装、失败回滚、多 Skill 激活。
+- [x] settings.skillHub markets 配置、启停、API URL、Bearer token 和 Web UI 设置编辑入口。
+- [x] TUI SkillSet/uninstall 命令、Web UI Showcase/批量安装/文件内容/卸载入口。
+- [x] 本地 HTTP fixture 的自定义 URL、Bearer token、ClawHub 文件内容测试。
+- [ ] 通用自定义协议 market adapter、企业 registry 完整语义、浏览器自动化 E2E。
 
 ### 0.4 建议后续顺序
 
-1. 收尾 Phase 2：真实网络安装激活集成测试。
-2. 收尾 Phase 3：补安装/激活浏览器自动化 fixture，减少对真实市场可用性的依赖。
-3. 回补核心增强：cache、无 metadata 本地 Skill 合并。
-4. 最后进入 Phase 4：Uninstall、SkillSet、企业 registry、自定义 market。
+2. 收尾 Phase 3/4：补浏览器自动化 fixture，覆盖安装、批量安装、激活和卸载。
+3. 实现通用自定义协议 market adapter 和企业 registry/token 完整语义。
+4. 完成后更新状态为 Done。
 
 ## 1. 目标
 
@@ -186,7 +189,7 @@ internal/skillhub/
   client_helpers.go    # adapter 公共辅助函数
   skillhubcn.go        # skillhub.cn adapter
   clawhub.go           # clawhub.ai adapter
-  cache.go             # 待实现：短 TTL 内存缓存
+  cache.go             # 短 TTL 内存缓存
 ```
 
 ### 3.1 统一接口
@@ -458,7 +461,7 @@ MVP 策略：
 }
 ```
 
-当前实现范围：`defaultMarket`、`defaultInstallScope`、`officialHandles` 已进入 `settings.json` schema；`markets` 自定义数组尚未实现，两个市场 URL 仍使用内置默认值。
+当前实现范围：`defaultMarket`、`defaultInstallScope`、`officialHandles` 和 `markets` 已进入 `settings.json` schema；内置 SkillHub.cn / ClawHub.ai 支持启停、API URL 和 Bearer token 配置，Web UI 提供编辑入口。未知协议的通用 adapter 尚未实现。
 
 配置位置：
 
@@ -467,7 +470,7 @@ MVP 策略：
 
 如果不想第一阶段改 settings schema，也可以先用代码内置默认市场，后续再做可配置市场。
 
-官方推荐默认 handle 已确定为 `user_0064faa7`。JSON 配置可覆盖 handle 列表；TUI `/settings` 编辑入口尚未实现。
+官方推荐默认 handle 已确定为 `user_0064faa7`。JSON 配置和 Web UI 可覆盖 handle 列表；TUI 使用同一配置来源。
 
 ## 7. 安全边界
 
@@ -528,7 +531,7 @@ type InstalledState struct {
 - 能把一个 zip skill 安装到临时项目目录。
 - 恶意 zip 不会写出目标目录。
 
-剩余：短 TTL cache、showcase 编排、无 metadata 本地 Skill 合并，以及 zip limit/symlink 专项测试。
+剩余：通用自定义协议 market adapter、企业 registry/token 完整语义，以及浏览器自动化 E2E。
 
 ### Phase 2: TUI（主流程已完成，体验与集成测试待补）
 
@@ -545,7 +548,7 @@ type InstalledState struct {
 - 安装后 `/skills` 能看到新 skill。
 - `Install & Activate` 后下一轮 agent prompt 包含该 skill。
 
-剩余：真实网络安装激活集成测试。
+剩余：浏览器自动化安装/激活/批量/卸载 fixture；TUI 命令和本地 HTTP fixture 已覆盖核心状态机。
 
 ### Phase 3: Serve API + Web UI（主流程已完成）
 
@@ -563,16 +566,16 @@ type InstalledState struct {
 - 安装写入当前 session workDir 对应项目 skill 目录。
 - 激活后当前 session agent 会重建。
 
-当前状态：Serve API、目录校验、session 激活刷新、Web UI 工作台与双市场真实浏览/搜索/详情检查均已完成。剩余是使用本地下载 fixture 的浏览器安装/激活自动化，避免测试依赖外部市场。
+当前状态：Serve API、目录校验、session 激活刷新、Web UI 工作台、双市场浏览/搜索/详情、Showcase、批量安装、文件内容和卸载入口均已完成。剩余是浏览器自动化 fixture、通用自定义协议 market adapter 和企业 registry 完整语义。
 
-### Phase 4: 卸载、批量与扩展市场（未开始）
+### Phase 4: 卸载、批量与扩展市场（后端基础能力已完成，扩展项收尾中）
 
 交付：
 
-- 卸载。
-- 批量安装 skillset。
-- 企业 registry / token 支持。
-- 可配置自定义 market。
+- [x] 卸载。
+- [x] 批量安装 SkillSet、失败回滚和多 Skill 激活。
+- [~] 企业 registry / token 支持：内置市场 Bearer token 已支持，企业 registry 完整协议语义待实现。
+- [~] 可配置自定义 market：内置市场配置、启停、API URL 已支持，未知协议 adapter 待实现。
 
 ## 10. 决策与待确认问题
 

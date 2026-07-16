@@ -59,9 +59,10 @@ type Dispatcher struct {
 	scheduler *cron.Scheduler
 
 	// Sandbox mode
-	sandbox   bool
-	browser   bool
-	a2aMaster bool
+	sandbox    bool
+	sandboxMgr *sandbox.Manager
+	browser    bool
+	a2aMaster  bool
 
 	// Active sessions: key = "<platform-channel>/<user_id>"
 	sessions map[string]*ChannelSession
@@ -124,6 +125,7 @@ func NewDispatcher(cfg *Config, settings *config.Settings, version string, cronS
 		model:            model,
 		multiAgent:       cfg.MultiAgent,
 		sandbox:          cfg.Sandbox,
+		sandboxMgr:       sandbox.NewManagerWithOptions(cfg.GetWorkDir(), settings.Sandbox.Options()),
 		browser:          cfg.Browser,
 		a2aMaster:        cfg.A2AMaster,
 		cronStore:        cronStore,
@@ -176,7 +178,16 @@ func (d *Dispatcher) ensureAgentManager() *agent.AgentManager {
 		compactionSettings.KeepRecentTokens = 20000
 	}
 
-	factory := agent.NewAgentFactoryWithOptions(d.provider, d.model, d.settings, sandbox.NewManager("."), "", "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
+	if d.sandboxMgr != nil {
+		if d.sandbox {
+			if err := d.sandboxMgr.SetLevel(sandbox.LevelStandard); err != nil {
+				return nil
+			}
+		} else {
+			_ = d.sandboxMgr.SetLevel(sandbox.LevelNone)
+		}
+	}
+	factory := agent.NewAgentFactoryWithOptions(d.provider, d.model, d.settings, d.sandboxMgr, "", "", nil, compactionSettings, nil, agent.AgentFactoryOptions{
 		MultiAgentEnabled: true,
 		ProviderName:      d.providerName,
 		Allow:             d.allow,
@@ -544,6 +555,12 @@ func (d *Dispatcher) compactSession(ctx context.Context, sess *ChannelSession) e
 // Medium risk → auto-approve + notify; high risk → auto-reject + notify.
 func (d *Dispatcher) messagingApprovalHandler(ctx context.Context, sess *ChannelSession, progress func(string)) agentApprovalHandler {
 	return func(toolCallID, toolName string, args map[string]any) bool {
+		if toolName == "git_access" {
+			if progress != nil {
+				progress("⛔ Git metadata access is not available in unattended channel sessions")
+			}
+			return false
+		}
 		if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
 			return true
 		}
@@ -580,6 +597,10 @@ func (d *Dispatcher) messagingApprovalHandler(ctx context.Context, sess *Channel
 // Medium risk → auto-approve; high risk → send approval request and wait.
 func (d *Dispatcher) wsApprovalHandler(ctx context.Context, sess *ChannelSession, eventCh chan<- agent.Event) agentApprovalHandler {
 	return func(toolCallID, toolName string, args map[string]any) bool {
+		if toolName == "git_access" {
+			eventCh <- agent.Event{Type: agent.EventStatus, StatusMessage: "⛔ Git metadata access is not available without an interactive approval"}
+			return false
+		}
 		if d.security.ShouldAutoApprove(toolName, args, sess.Mode) {
 			return true
 		}

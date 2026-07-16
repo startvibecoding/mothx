@@ -168,6 +168,24 @@ func (c *SkillHubClient) Download(ctx context.Context, id SkillID, version strin
 	return body, DownloadMeta{SourceURL: fallback}, nil
 }
 
+func (c *SkillHubClient) Showcase(ctx context.Context, kind string, q SearchQuery) (SearchPage, error) {
+	var response struct {
+		Items  []skillHubItem `json:"items"`
+		Skills []skillHubItem `json:"skills"`
+	}
+	if err := getJSON(ctx, c.httpClient, endpoint(c.baseURL, "/api/v1/showcase/"+url.PathEscape(kind), url.Values{"limit": {strconv.Itoa(boundedLimit(q.Limit))}}), &response); err != nil {
+		return SearchPage{}, err
+	}
+	items := response.Items
+	if len(items) == 0 {
+		items = response.Skills
+	}
+	return SearchPage{Items: skillHubItems(items), Total: int64(len(items)), Page: 1, PageSize: boundedLimit(q.Limit)}, nil
+}
+
+func (c *SkillHubClient) FileContent(context.Context, SkillID, string, string) (string, error) {
+	return "", fmt.Errorf("SkillHub.cn does not expose skill file content")
+}
 func (c *SkillHubClient) Categories(ctx context.Context) ([]Category, error) {
 	var response struct {
 		Items []Category `json:"items"`
