@@ -313,7 +313,7 @@
       <option value="all">{$t('stats.range.all')}</option>
     </select>
     <button type="button" class="ghost" on:click={loadStats} disabled={loading}>
-      {loading ? $t('common.loading') : $t('common.refresh')}
+      {#if loading}<span class="spinner sm"></span> {$t('common.loading')}{:else}{$t('common.refresh')}{/if}
     </button>
   </div>
 

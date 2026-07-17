@@ -321,10 +321,13 @@
     <section class="skills-list" aria-label={$t('skills.results')}>
       <div class="skills-section-head">
         <strong>{$t('skills.results')}</strong>
-        <span>{loading ? $t('common.loading') : $t('common.items', { count: total })}</span>
-        <button type="button" disabled={selectedBatch.size === 0 || actionLoading} on:click={installBatch}>Install selected ({selectedBatch.size})</button>
+        <span class="loading-row">{#if loading}<span class="spinner sm"></span>{$t('common.loading')}{:else}{$t('common.items', { count: total })}{/if}</span>
+        <button type="button" disabled={selectedBatch.size === 0 || actionLoading} on:click={installBatch}>{#if actionLoading}<span class="spinner sm"></span> {/if}Install selected ({selectedBatch.size})</button>
       </div>
       <div class="skills-rows">
+        {#if loading && items.length === 0}
+          <div class="spinner-center"><span class="spinner lg"></span><span>{$t('common.loading')}</span></div>
+        {:else}
         {#each items as item (item.market + ':' + item.id)}
           <button type="button" class="skill-row" class:active={selected?.id === item.id} on:click={() => loadDetail(item)}>
             <input type="checkbox" checked={selectedBatch.has(`${item.market}:${item.id}`)} on:click|stopPropagation={() => toggleBatch(item)} aria-label="Select skill" />
@@ -345,6 +348,7 @@
           </button>
         {/each}
         {#if !loading && items.length === 0}<p class="empty">{$t('skills.empty')}</p>{/if}
+        {/if}
       </div>
       <div class="skills-pager">
         <button type="button" class="sm" disabled={!canPrevious || loading} on:click={previousPage} aria-label={$t('common.previous')}>‹</button>
@@ -355,7 +359,7 @@
 
     <section class="skills-detail" aria-label={$t('skills.detail')}>
       {#if detailLoading}
-        <p class="empty">{$t('common.loading')}</p>
+        <div class="spinner-center"><span class="spinner lg"></span><span>{$t('common.loading')}</span></div>
       {:else if detail}
         <div class="skills-detail-head">
           <div>
@@ -370,16 +374,16 @@
         </div>
         <div class="skills-actions">
           {#if detail.installed?.updateAvailable}
-            <button type="button" class="primary" disabled={actionLoading} on:click={() => install(false, true)}>{$t('skills.update')}</button>
+            <button type="button" class="primary" disabled={actionLoading} on:click={() => install(false, true)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.update')}</button>
           {:else if !detail.installed?.installed}
-            <button type="button" class="primary" disabled={actionLoading} on:click={() => install(false, false)}>{$t('skills.install')}</button>
-            <button type="button" disabled={actionLoading} on:click={() => install(true, false)}>{$t('skills.installActivate')}</button>
+            <button type="button" class="primary" disabled={actionLoading} on:click={() => install(false, false)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.install')}</button>
+            <button type="button" disabled={actionLoading} on:click={() => install(true, false)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.installActivate')}</button>
           {:else if !isActive(detail)}
-            <button type="button" class="primary" disabled={actionLoading} on:click={activate}>{$t('skills.activate')}</button>
-            <button type="button" disabled={actionLoading} on:click={uninstall}>Uninstall</button>
+            <button type="button" class="primary" disabled={actionLoading} on:click={activate}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.activate')}</button>
+            <button type="button" disabled={actionLoading} on:click={uninstall}>{#if actionLoading}<span class="spinner sm"></span> {/if}Uninstall</button>
           {:else}
             <span class="status-tag">{$t('skills.active')}</span>
-            <button type="button" disabled={actionLoading} on:click={uninstall}>Uninstall</button>
+            <button type="button" disabled={actionLoading} on:click={uninstall}>{#if actionLoading}<span class="spinner sm"></span> {/if}Uninstall</button>
           {/if}
         </div>
         <dl class="skills-metadata">
