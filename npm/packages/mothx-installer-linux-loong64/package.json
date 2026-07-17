@@ -1,6 +1,6 @@
 {
   "name": "mothx-installer-linux-loong64",
-  "version": "1.1.66-pre",
+  "version": "1.1.68",
   "description": "MothX native binary for linux-loong64",
   "os": ["linux"],
   "cpu": ["loong64"],
