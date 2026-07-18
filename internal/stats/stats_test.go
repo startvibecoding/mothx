@@ -13,6 +13,14 @@ import (
 
 const expectedMigrationCount = 15
 
+func TestDashboardUsesMothXSmallFavicon(t *testing.T) {
+	if !strings.Contains(dashboardHTML, `href="/mothx-small.ico"`) {
+		t.Fatal("dashboard must reference mothx-small.ico")
+	}
+	if len(mothxSmallICO) == 0 {
+		t.Fatal("embedded mothx-small.ico is empty")
+	}
+}
 func TestDashboardShareActivityUsesSevenDayFlameHeatmap(t *testing.T) {
 	for _, expected := range []string{
 		"Last 7 days by 2-hour intensity",

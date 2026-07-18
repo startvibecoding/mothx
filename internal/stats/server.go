@@ -62,6 +62,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) routes() {
 	s.mux.HandleFunc("/", s.handleIndex)
 	s.mux.HandleFunc("/mothx.png", s.handleLogo)
+	s.mux.HandleFunc("/mothx-small.ico", s.handleFavicon)
 	s.mux.HandleFunc("/api/summary", s.handleSummary)
 	s.mux.HandleFunc("/api/timeseries", s.handleTimeSeries)
 	s.mux.HandleFunc("/api/by-provider", s.handleByProvider)
@@ -109,6 +110,16 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(dashboardHTML))
+}
+
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/mothx-small.ico" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(mothxSmallICO)
 }
 
 func (s *Server) handleLogo(w http.ResponseWriter, r *http.Request) {
