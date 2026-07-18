@@ -96,8 +96,9 @@ Security is controlled by three independent layers:
 
 Access `http://127.0.0.1:7878` to open the Web UI, providing:
 
-- **Chat Interface**: SSE streaming output, tool call/result rendering, plan cards
-- **Session Management**: Pagination, keyboard shortcuts, historical sessions
+- **Chat Interface**: SSE streaming output, tool call/result rendering, plan cards, and a session runtime menu for `plan`, `agent`, and `yolo` modes.
+- **Approval Center**: Review pending tool approvals, approve once or deny, persist command/path allow rules, and inspect the session approval audit history.
+- **Session Management**: Pagination, keyboard shortcuts, historical sessions, runtime snapshots, capability toggles, and reconnect-safe approval state.
 - **Settings Editor**: Provider/Model configuration, Defaults, Web Search, Context Files, Compaction, Sandbox, Retry, Approval, Provider Config
 - **Channel Management**: WeChat QR login, Feishu config, WebSocket toggle
 - **Serve Config**: Features, API, Cron, Memory, Security, Agent, Hooks, Channels, Lobster Mode

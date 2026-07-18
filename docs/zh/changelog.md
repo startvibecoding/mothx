@@ -1,5 +1,25 @@
 # 更新日志
 
+## v1.1.69
+
+### ✨ 新功能
+
+- **Web UI 会话运行时控制与审批**
+  - 新增按会话控制运行模式，可在不重启 Serve 的情况下切换 `plan`、`agent` 和 `yolo` 模式。
+  - 新增浏览器、Web 搜索、delegate、多 Agent、workflow 和 A2A master 工具的实时能力状态，显示可用性及禁用原因。
+  - 新增 Web UI 审批中心，支持处理 bash、文件写入/编辑、删除和 Git 访问请求，并提供一次性批准/拒绝以及持久化命令/路径放行规则。
+  - 新增审批和工具执行会话流事件、运行时快照、运行事件审计记录，以及重连/会话恢复支持。
+
+### 🔧 改进
+
+- **Kimi K3 支持**
+  - 在内置 Kimi 和 Kimi Coding provider 模型列表中加入 Kimi K3，支持 1M 上下文。
+  - 新增 Kimi 推理等级映射，支持 `low`、`high` 和 `max` reasoning effort 值。
+
+- **Web UI 与 Stats 品牌资源**
+  - 为 Web UI、Stats 仪表盘和文档资源新增 MothX small favicon。
+  - 从持久化会话运行事件恢复 Web UI 审批审计历史。
+
 ## v1.1.68
 
 ### 🐛 修复

@@ -96,8 +96,9 @@ mothx serve init-config project  # 生成 .mothx/serve.json
 
 访问 `http://127.0.0.1:7878` 打开 Web UI，提供：
 
-- **聊天界面**：SSE 流式输出，工具调用/结果渲染，计划卡片
-- **会话管理**：分页浏览，键盘快捷键，历史会话
+- **聊天界面**：SSE 流式输出，工具调用/结果渲染，计划卡片，以及 `plan`、`agent`、`yolo` 模式的会话运行时菜单
+- **审批中心**：查看待处理工具审批，一次性批准或拒绝，持久化命令/路径放行规则，并查看会话审批审计历史
+- **会话管理**：分页浏览，键盘快捷键，历史会话，运行时快照，能力开关及可安全重连恢复的审批状态
 - **设置编辑**：Provider/Model 配置，Defaults，Web 搜索，上下文文件，压缩，沙箱，重试，审批，Provider 配置
 - **通道管理**：微信 QR 登录，飞书配置，WebSocket 开关
 - **服务配置**：Features，API，Cron，Memory，Security，Agent，Hooks，Channels，Lobster 模式

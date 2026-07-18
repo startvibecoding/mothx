@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.1.69
+
+### ✨ Features
+
+- **Web UI Session Runtime Controls and Approvals**
+  - Added per-session runtime controls for switching between `plan`, `agent`, and `yolo` modes without restarting Serve.
+  - Added live capability state for browser, web search, delegate, multi-agent, workflows, and A2A master tools, including availability and disabled-reason reporting.
+  - Added a Web UI Approval Center for pending bash, file write/edit, delete, and Git access requests, with one-time approval/denial and persistent command/path allow rules.
+  - Added approval and tool execution events to the session stream, runtime snapshots, run-event audit records, and reconnect/session recovery handling.
+
+### 🔧 Improvements
+
+- **Kimi K3 Support**
+  - Added Kimi K3 to the built-in Kimi and Kimi Coding provider model lists with 1M context support.
+  - Added Kimi reasoning-level mapping for `low`, `high`, and `max` reasoning effort values.
+
+- **Web UI and Stats Branding**
+  - Added the MothX small favicon to the Web UI, Stats dashboard, and documentation assets.
+  - Restored Web UI approval audit history from persisted session run events.
+
 ## v1.1.68
 
 ### 🐛 Fixes
