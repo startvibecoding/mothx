@@ -1055,6 +1055,110 @@ func TestSSEWriter_TranscriptEvent(t *testing.T) {
 	}
 }
 
+func TestStreamingResponsePublishesToolEventsToSessionStream(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	events, cancel := srv.getSessionStreamHub().subscribe("sess-1")
+	defer cancel()
+	eventCh := make(chan agent.Event, 3)
+	eventCh <- agent.Event{Type: agent.EventToolCall, ToolCall: &provider.ToolCallBlock{ID: "call-1", Name: "bash"}, ToolArgs: map[string]any{"command": "pwd"}}
+	eventCh <- agent.Event{Type: agent.EventToolExecutionEnd, ToolCallID: "call-1", ToolName: "bash", ToolResult: "ok\nmore"}
+	eventCh <- agent.Event{Type: agent.EventDone}
+	close(eventCh)
+
+	srv.handleStreamingResponseWithAgent(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil), eventCh, "test-model", &APISession{ID: "sess-1"}, nil, true)
+
+	for _, want := range []struct{ status, summary string }{{"running", ""}, {"completed", "ok"}} {
+		deadline := time.After(time.Second)
+		for {
+			select {
+			case event := <-events:
+				if event.Name != "tool_event" {
+					continue
+				}
+				tool, ok := event.Data.(ToolStatusEvent)
+				if !ok || tool.Tool != "bash" || tool.ToolCallID != "call-1" || tool.Status != want.status || tool.Summary != want.summary {
+					t.Fatalf("tool event = %#v, want status=%q summary=%q", event.Data, want.status, want.summary)
+				}
+				goto next
+			case <-deadline:
+				t.Fatal("timed out waiting for tool event")
+			}
+		}
+	next:
+	}
+}
+
+func TestStreamingApprovalRequestReachesChatSSEAndResumesAgent(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	sess, err := srv.getOrCreateSession("approval-sse", srv.cfg.GetWorkDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := tools.NewRegistry(srv.cfg.GetWorkDir(), sandbox.NewNoneSandbox())
+	registry.RegisterDefaults()
+	runningAgent := agent.New(agent.Config{Mode: "agent"}, registry)
+	events, cancel := srv.getSessionStreamHub().subscribe(sess.ID)
+	defer cancel()
+	eventCh := make(chan agent.Event, 1)
+	approvalResult := make(chan bool, 1)
+	go func() {
+		approvalResult <- runningAgent.RequestApproval(eventCh, "bash", map[string]any{"command": "go test ./..."})
+	}()
+
+	w := httptest.NewRecorder()
+	streamDone := make(chan struct{})
+	go func() {
+		srv.handleStreamingResponseWithAgent(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil), eventCh, "test-model", sess, runningAgent, true)
+		close(streamDone)
+	}()
+
+	var request SessionApprovalRequest
+	select {
+	case event := <-events:
+		if event.Name != "approval_request" {
+			t.Fatalf("session event = %q, want approval_request", event.Name)
+		}
+		var ok bool
+		request, ok = event.Data.(SessionApprovalRequest)
+		if !ok {
+			t.Fatalf("approval event = %#v", event.Data)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for approval request")
+	}
+	if _, err := srv.ResolveSessionApproval(sess.ID, request.ApprovalID, SessionApprovalResponse{Action: "approve_once"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case approved := <-approvalResult:
+		if !approved {
+			t.Fatal("agent received denied approval, want approved")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("blocked agent did not resume after approval")
+	}
+	close(eventCh)
+	select {
+	case <-streamDone:
+	case <-time.After(time.Second):
+		t.Fatal("chat stream did not complete after approval")
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "event: approval_request") {
+		t.Fatalf("missing approval request in chat SSE: %s", body)
+	}
+	for _, want := range []string{`"approvalId":"` + request.ApprovalID + `"`, `"sessionId":"approval-sse"`, `"command":"go test ./..."`, "[DONE]"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("chat SSE missing %s: %s", want, body)
+		}
+	}
+}
+
 func TestStreamingResponseTranscriptEvents(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.pool.Stop()
@@ -2795,6 +2899,35 @@ func TestAPISessionAppliesPerSessionToolOptions(t *testing.T) {
 	}
 	if srv.settingsForSession(sess).IsWebSearchEnabled() {
 		t.Fatal("expected per-session web search to be disabled")
+	}
+}
+
+func TestPatchSessionRuntimeModeDoesNotSynchronizeTools(t *testing.T) {
+	srv := newTestServer(t)
+	workDir := t.TempDir()
+	mgr := session.New(workDir, srv.settings.GetSessionDir())
+	if err := mgr.InitWithID("mode-only-sess"); err != nil {
+		t.Fatalf("init session: %v", err)
+	}
+	sess, err := srv.getOrCreateSession("mode-only-sess", workDir)
+	if err != nil {
+		t.Fatalf("getOrCreateSession: %v", err)
+	}
+	bashBefore, bashExists := sess.Registry.Get("bash")
+	if !bashExists {
+		t.Fatal("expected baseline bash tool")
+	}
+	mode := "agent"
+	updated, err := srv.PatchSessionRuntime("mode-only-sess", SessionRuntimePatch{Mode: &mode})
+	if err != nil {
+		t.Fatalf("PatchSessionRuntime mode-only: %v", err)
+	}
+	if updated.Mode != mode || sess.Mode != mode {
+		t.Fatalf("mode was not updated: runtime=%q session=%q", updated.Mode, sess.Mode)
+	}
+	bashAfter, bashExists := sess.Registry.Get("bash")
+	if !bashExists || bashAfter != bashBefore {
+		t.Fatal("mode-only patch must not re-register session tools")
 	}
 }
 

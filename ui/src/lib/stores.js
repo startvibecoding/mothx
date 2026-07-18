@@ -2,7 +2,7 @@
 // everything after significant server-state changes.
 
 import { writable, derived, get } from 'svelte/store';
-import { request } from './api.js';
+import { request, jsonBody } from './api.js';
 
 export const health = writable(null);
 export const status = writable(null);
@@ -21,6 +21,11 @@ export const notice = writable('');
 export const error = writable('');
 export const currentSession = writable('');
 export const selectedModel = writable('default');
+export const sessionRuntime = writable(null);
+export const pendingApprovals = derived(sessionRuntime, ($runtime) => $runtime?.pendingApprovals || []);
+export const activeApproval = writable(null);
+export const approvalHistory = writable([]);
+export const toolEvents = writable([]);
 
 const sessionToolStorageKey = 'mothx.webui.sessionTools';
 const defaultSessionTools = {
@@ -221,6 +226,19 @@ export async function getSessionCapabilityEvents(id) {
   } catch {
     return [];
   }
+}
+
+export async function getSessionRuntime(id) {
+  if (!id) return null;
+  return request(`/api/sessions/${encodeURIComponent(id)}/runtime`);
+}
+
+export async function patchSessionRuntime(id, patch) {
+  if (!id) throw new Error('session ID is required');
+  return request(`/api/sessions/${encodeURIComponent(id)}/runtime`, {
+    method: 'PATCH',
+    ...jsonBody(patch)
+  });
 }
 
 export async function refreshCron(sessionId = '') {

@@ -105,9 +105,8 @@ func (s *Server) cmdMode(sess *APISession, parts []string, runIDs ...string) *Co
 		switch parts[1] {
 		case "plan", "agent", "yolo":
 			if sess != nil {
-				before := capabilitySnapshotFromSession(sess)
-				sess.Mode = parts[1]
-				if err := s.persistSessionCapabilitiesWithEvents(sess, before, "slash_mode", "user", runID, map[string]any{
+				mode := parts[1]
+				if _, err := s.patchActiveSessionCapabilities(sess, SessionCapabilityPatch{Mode: &mode}, "slash_mode", "user", runID, map[string]any{
 					"command": "/mode",
 				}); err != nil {
 					return &CommandResult{Message: fmt.Sprintf("Failed to save mode: %v", err), Error: true}
@@ -344,30 +343,18 @@ func (s *Server) cmdDelegate(sess *APISession, parts []string, runIDs ...string)
 		return &CommandResult{Message: fmt.Sprintf("Delegation mode: %s", state)}
 	}
 	switch parts[1] {
-	case "on":
-		before := capabilitySnapshotFromSession(sess)
-		if sess.AgentMgr == nil {
-			sess.DelegateMode = true
-			sess.AgentMgr = s.newAgentManagerForSession(sess)
-		}
-		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
-		sess.DelegateMode = true
-		if err := s.persistSessionCapabilitiesWithEvents(sess, before, "slash_delegate", "user", runID, map[string]any{
-			"command": "/delegate on",
+	case "on", "off":
+		enabled := parts[1] == "on"
+		if _, err := s.patchActiveSessionCapabilities(sess, SessionCapabilityPatch{DelegateMode: &enabled}, "slash_delegate", "user", runID, map[string]any{
+			"command": "/delegate " + parts[1],
 		}); err != nil {
 			return &CommandResult{Message: fmt.Sprintf("Failed to save delegation mode: %v", err), Error: true}
 		}
-		return &CommandResult{Message: "Delegation mode: ON"}
-	case "off":
-		before := capabilitySnapshotFromSession(sess)
-		sess.Registry.Remove("delegate_subagent")
-		sess.DelegateMode = false
-		if err := s.persistSessionCapabilitiesWithEvents(sess, before, "slash_delegate", "user", runID, map[string]any{
-			"command": "/delegate off",
-		}); err != nil {
-			return &CommandResult{Message: fmt.Sprintf("Failed to save delegation mode: %v", err), Error: true}
+		state := "OFF"
+		if enabled {
+			state = "ON"
 		}
-		return &CommandResult{Message: "Delegation mode: OFF"}
+		return &CommandResult{Message: "Delegation mode: " + state}
 	default:
 		return &CommandResult{Message: "Usage: /delegate [on|off|status]", Error: true}
 	}

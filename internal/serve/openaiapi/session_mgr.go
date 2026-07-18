@@ -46,8 +46,31 @@ type APISession struct {
 	uses         int
 
 	// ForceCompact is a legacy/session flag consumed by the next agent run.
-	// The /compact command now executes compaction immediately.
 	ForceCompact bool
+
+	approvalMu       sync.Mutex
+	pendingApprovals map[string]pendingSessionApproval
+	activeRunID      string
+}
+
+// pendingSessionApproval retains the agent instance that must be resumed after a WebUI decision.
+type pendingSessionApproval struct {
+	Request SessionApprovalRequest
+	Agent   *agent.Agent
+}
+
+// SessionApprovalResponse is a WebUI decision for one pending approval.
+type SessionApprovalResponse struct {
+	Action string `json:"action"`
+}
+
+// SessionApprovalResolution is the server-confirmed terminal approval state.
+type SessionApprovalResolution struct {
+	ApprovalID string `json:"approvalId"`
+	SessionID  string `json:"sessionId"`
+	Action     string `json:"action"`
+	Status     string `json:"status"`
+	Message    string `json:"message,omitempty"`
 }
 
 // ActiveSessionInfo is the management API view of an active API session.
@@ -628,6 +651,140 @@ func (s *Server) GetSessionCapabilities(id string) (*SessionCapabilities, error)
 	return &caps, nil
 }
 
+func (s *Server) runtimeSnapshotFromCapabilities(caps *SessionCapabilities) *SessionRuntimeSnapshot {
+	if caps == nil {
+		return &SessionRuntimeSnapshot{Capabilities: map[string]SessionCapabilityState{}}
+	}
+	snapshot := &SessionRuntimeSnapshot{
+		SessionID:        caps.ID,
+		Mode:             caps.Mode,
+		Model:            caps.Model,
+		ThinkingLevel:    caps.ThinkingLevel,
+		WorkDir:          caps.WorkDir,
+		Capabilities:     make(map[string]SessionCapabilityState, 6),
+		PendingApprovals: []SessionApprovalRequest{},
+	}
+	if snapshot.Mode == "" {
+		snapshot.Mode = "yolo"
+	}
+	state := func(available, enabled bool, unavailableReason string) SessionCapabilityState {
+		reason := ""
+		if !available {
+			reason = unavailableReason
+		}
+		if available && !enabled {
+			if reason == "" {
+				reason = "disabled for this session"
+			}
+		}
+		return SessionCapabilityState{
+			Available:      available,
+			Enabled:        enabled,
+			Effective:      available && enabled,
+			DisabledReason: reason,
+		}
+	}
+	available := func(name string) bool { return s.runtimeCapabilityAvailable(name) }
+	snapshot.Capabilities["browser"] = state(available("browser"), caps.Browser, "disabled by serve config")
+	snapshot.Capabilities["delegate"] = state(available("delegate"), caps.DelegateMode, "disabled by serve config")
+	snapshot.Capabilities["multiAgent"] = state(available("multiAgent"), caps.MultiAgent, "disabled by serve config")
+	snapshot.Capabilities["workflows"] = state(available("workflows"), caps.Workflows, "disabled by serve config")
+	snapshot.Capabilities["webSearch"] = state(available("webSearch"), caps.WebSearch, "disabled by serve config")
+	snapshot.Capabilities["a2aMaster"] = state(available("a2aMaster"), caps.A2AMaster, "disabled by serve config")
+	if s != nil && s.pool != nil && caps.ID != "" {
+		if sess, err := s.pool.getExact(caps.ID); err == nil && sess != nil {
+			sess.approvalMu.Lock()
+			runID := sess.activeRunID
+			for _, pending := range sess.pendingApprovals {
+				snapshot.PendingApprovals = append(snapshot.PendingApprovals, pending.Request)
+			}
+			sess.approvalMu.Unlock()
+			if sess.IsRunning() {
+				snapshot.ActiveRun = &SessionActiveRun{RunID: runID, Status: "running"}
+			}
+		}
+	}
+	return snapshot
+}
+
+func (s *Server) runtimeCapabilityAvailable(name string) bool {
+	if s == nil || s.cfg == nil {
+		return false
+	}
+	switch name {
+	case "delegate":
+		return s.cfg.EnableDelegate
+	case "multiAgent":
+		return s.cfg.EnableSubAgents
+	case "workflows":
+		return s.cfg.EnableWorkflows
+	case "webSearch":
+		return s.cfg.EnableWebSearch
+	case "browser":
+		return s.cfg.EnableBrowser
+	case "a2aMaster":
+		return s.cfg.EnableA2AMaster
+	default:
+		return false
+	}
+}
+
+// GetSessionRuntime returns a structured runtime snapshot for WebUI.
+func (s *Server) GetSessionRuntime(id string) (*SessionRuntimeSnapshot, error) {
+	if id == "" {
+		return nil, ErrSessionNotFound
+	}
+	caps, err := s.GetSessionCapabilities(id)
+	if err != nil {
+		return nil, err
+	}
+	return s.runtimeSnapshotFromCapabilities(caps), nil
+}
+
+func (s *Server) PatchSessionRuntime(id string, patch SessionRuntimePatch) (*SessionRuntimeSnapshot, error) {
+	if id == "" {
+		return nil, ErrSessionNotFound
+	}
+	capPatch := SessionCapabilityPatch{}
+	if patch.Mode != nil {
+		capPatch.Mode = patch.Mode
+	}
+	if patch.Tools != nil {
+		capPatch.WebSearch = patch.Tools.WebSearch
+		capPatch.Browser = patch.Tools.Browser
+		capPatch.A2AMaster = patch.Tools.A2AMaster
+		capPatch.DelegateMode = patch.Tools.Delegate
+		capPatch.MultiAgent = patch.Tools.MultiAgent
+		capPatch.Workflows = patch.Tools.Workflows
+	}
+	for name, enabled := range patch.Capabilities {
+		value := enabled
+		switch name {
+		case "browser":
+			capPatch.Browser = &value
+		case "delegate":
+			capPatch.DelegateMode = &value
+		case "multiAgent":
+			capPatch.MultiAgent = &value
+		case "workflows":
+			capPatch.Workflows = &value
+		case "webSearch":
+			capPatch.WebSearch = &value
+		case "a2aMaster":
+			capPatch.A2AMaster = &value
+		default:
+			return nil, ErrInvalidCapability
+		}
+	}
+	updated, err := s.PatchSessionCapabilities(id, capPatch)
+	if err != nil {
+		return nil, err
+	}
+	snapshot := s.runtimeSnapshotFromCapabilities(updated)
+	s.publishSessionStreamEvent(id, "runtime_event", snapshot)
+	return snapshot, nil
+}
+
 // PatchSessionCapabilities activates a session if needed and updates mutable runtime capabilities.
 func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatch) (*SessionCapabilities, error) {
 	if id == "" {
@@ -656,6 +813,7 @@ func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatc
 
 	before := capabilitySnapshotFromSession(sess)
 	refreshContext := false
+	registryChanged := false
 	if patch.Mode != nil {
 		mode := strings.TrimSpace(*patch.Mode)
 		if err := validateCapabilityMode(mode); err != nil {
@@ -668,21 +826,32 @@ func (s *Server) PatchSessionCapabilities(id string, patch SessionCapabilityPatc
 	}
 	if applyBoolOption(&sess.Browser, patch.Browser) {
 		refreshContext = true
+		registryChanged = true
 	}
 	if applyBoolOption(&sess.A2AMaster, patch.A2AMaster) {
-		// A2A registry sync happens below.
+		registryChanged = true
 	}
 	delegate := patch.DelegateMode
 	if delegate == nil {
 		delegate = patch.Delegate
 	}
-	applyBoolOption(&sess.DelegateMode, delegate)
-	applyBoolOption(&sess.MultiAgent, patch.MultiAgent)
+	if applyBoolOption(&sess.DelegateMode, delegate) {
+		registryChanged = true
+	}
+	if applyBoolOption(&sess.MultiAgent, patch.MultiAgent) {
+		registryChanged = true
+	}
 	if applyBoolOption(&sess.Workflows, patch.Workflows) {
 		refreshContext = true
+		registryChanged = true
 	}
-	if err := s.syncSessionTools(sess, refreshContext); err != nil {
-		return nil, err
+	// Mode and webSearch only affect agent construction/configuration. They do
+	// not own registry state, so a mode-only WebUI PATCH must not re-register
+	// session tools (or reinitialize optional integrations such as A2A).
+	if registryChanged {
+		if err := s.syncSessionTools(sess, refreshContext); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.persistSessionCapabilitiesWithEvents(sess, before, "api_patch", "webui", "", map[string]any{
 		"source": "session_capabilities_patch",

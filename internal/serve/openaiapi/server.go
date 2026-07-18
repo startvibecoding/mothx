@@ -54,10 +54,11 @@ type RunOptions struct {
 type Server struct {
 	mu sync.RWMutex
 
-	cfg      *Config
-	settings *config.Settings
-	allow    *config.AllowConfig
-	version  string
+	cfg              *Config
+	settings         *config.Settings
+	allow            *config.AllowConfig
+	saveProjectAllow func(*config.AllowConfig) error
+	version          string
 
 	provider         provider.Provider
 	providerName     string // user-configured vendor name (e.g. "longcat")

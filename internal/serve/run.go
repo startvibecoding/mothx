@@ -82,6 +82,8 @@ type activeSessionManager interface {
 	CapabilityOverview() openaiapi.CapabilityOverview
 	GetSessionCapabilities(id string) (*openaiapi.SessionCapabilities, error)
 	PatchSessionCapabilities(id string, patch openaiapi.SessionCapabilityPatch) (*openaiapi.SessionCapabilities, error)
+	GetSessionRuntime(id string) (*openaiapi.SessionRuntimeSnapshot, error)
+	PatchSessionRuntime(id string, patch openaiapi.SessionRuntimePatch) (*openaiapi.SessionRuntimeSnapshot, error)
 }
 
 type websocketRuntime interface {
@@ -792,6 +794,78 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"sessions": filterActiveSessions(sessions.ListActiveSessions())})
 			return
+		}
+		if len(parts) == 3 && parts[1] == "approvals" && r.Method == http.MethodPost {
+			resolver, ok := sessions.(interface {
+				ResolveSessionApproval(string, string, openaiapi.SessionApprovalResponse) (*openaiapi.SessionApprovalResolution, error)
+			})
+			if !ok {
+				writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "approval responses are not supported"})
+				return
+			}
+			var response openaiapi.SessionApprovalResponse
+			if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&response); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+				return
+			}
+			resolved, err := resolver.ResolveSessionApproval(id, parts[2], response)
+			if err != nil {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, resolved)
+			return
+		}
+		if len(parts) == 2 && parts[1] == "runtime" {
+			if sessions == nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "API server not ready"})
+				return
+			}
+			switch r.Method {
+			case http.MethodGet:
+				runtime, err := sessions.GetSessionRuntime(id)
+				if errors.Is(err, openaiapi.ErrSessionNotFound) {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+					return
+				}
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				writeJSON(w, http.StatusOK, runtime)
+				return
+			case http.MethodPatch:
+				body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+				if err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read request body"})
+					return
+				}
+				var patch openaiapi.SessionRuntimePatch
+				if len(strings.TrimSpace(string(body))) > 0 {
+					if err := json.Unmarshal(body, &patch); err != nil {
+						writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON: " + err.Error()})
+						return
+					}
+				}
+				runtime, err := sessions.PatchSessionRuntime(id, patch)
+				if errors.Is(err, openaiapi.ErrSessionNotFound) {
+					writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+					return
+				}
+				if errors.Is(err, openaiapi.ErrInvalidCapability) {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				writeJSON(w, http.StatusOK, runtime)
+				return
+			default:
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				return
+			}
 		}
 		if len(parts) == 2 && parts[1] == "capabilities" {
 			if sessions == nil {

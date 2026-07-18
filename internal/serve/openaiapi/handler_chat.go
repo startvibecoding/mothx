@@ -141,8 +141,15 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	defer sess.Unlock()
 	sess.Touch()
 	runID := newRunID()
+	sess.approvalMu.Lock()
+	sess.activeRunID = runID
+	sess.approvalMu.Unlock()
 	sess.SetRunning(true)
 	defer func() {
+		s.clearSessionApprovals(sess, "cancelled", "run ended before the approval was resolved")
+		sess.approvalMu.Lock()
+		sess.activeRunID = ""
+		sess.approvalMu.Unlock()
 		sess.SetRunning(false)
 		s.publishSessionStreamDone(sess.ID)
 	}()
@@ -156,7 +163,22 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		mode = sess.Mode
 	}
 	if req.XMode != "" {
-		mode = req.XMode
+		mode = strings.TrimSpace(req.XMode)
+		if err := validateCapabilityMode(mode); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error(), "invalid_request_error")
+			return
+		}
+		// x_mode establishes the selected WebUI runtime mode before the first
+		// agent is constructed. Mode is not a tool capability, so this does not
+		// synchronize or mutate the session tool registry.
+		before := capabilitySnapshotFromSession(sess)
+		sess.Mode = mode
+		if err := s.persistSessionCapabilitiesWithEvents(sess, before, "x_mode", "webui", runID, map[string]any{
+			"source": "chat_completion",
+		}); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
+			return
+		}
 	}
 	command := ""
 	if fields := strings.Fields(strings.TrimSpace(lastUserMsg.Content)); len(fields) > 0 && strings.HasPrefix(fields[0], "/") {
@@ -254,18 +276,10 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		currentModel.TopP = req.TopP
 	}
 
-	// Register sub-agent/delegate tools before agent construction; the agent freezes tools at New().
-	if sess.MultiAgent && sess.AgentMgr != nil {
-		agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
-	}
-	if sess.DelegateMode && sess.AgentMgr != nil {
-		agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
-	} else {
-		sess.Registry.Remove("delegate_subagent")
-	}
-	if sess.Workflows && sess.AgentMgr != nil {
-		workflow.RegisterTools(sess.Registry, sess.AgentMgr, nil)
-	}
+	// applySessionToolOptions calls syncSessionTools before this point. Tool
+	// registration is therefore owned by the session runtime/capability layer,
+	// not by mode selection or individual requests. agent.New snapshots this
+	// already-synchronized registry below.
 
 	agentCfg := agent.Config{
 		Provider:           currentProvider,
@@ -318,10 +332,10 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	eventCh := a.RunWithUserMessage(ctx, lastUserMessage)
 
 	if req.Stream {
-		usage, status, errMsg := s.handleStreamingResponse(w, r, eventCh, currentModel.ID, sess.ID, req.XTranscript)
+		usage, status, errMsg := s.handleStreamingResponseWithAgent(w, r, eventCh, currentModel.ID, sess, a, req.XTranscript)
 		_ = s.recordSessionRunEvent(sess, runID, runEventTypeForStatus(status), status, "chat_completion", currentModel.ID, mode, usageEventData(usage, errMsg))
 	} else {
-		usage, status, errMsg := s.handleNonStreamingResponse(w, eventCh, currentModel.ID, sess.ID)
+		usage, status, errMsg := s.handleNonStreamingResponseWithAgent(w, eventCh, currentModel.ID, sess, a)
 		_ = s.recordSessionRunEvent(sess, runID, runEventTypeForStatus(status), status, "chat_completion", currentModel.ID, mode, usageEventData(usage, errMsg))
 	}
 }
@@ -347,6 +361,11 @@ func sameWorkDir(a, b string) bool {
 }
 
 func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID, sessionID string, transcript bool) (CompletionUsage, string, string) {
+	return s.handleStreamingResponseWithAgent(w, r, eventCh, modelID, &APISession{ID: sessionID}, nil, transcript)
+}
+
+func (s *Server) handleStreamingResponseWithAgent(w http.ResponseWriter, r *http.Request, eventCh <-chan agent.Event, modelID string, sess *APISession, runningAgent *agent.Agent, transcript bool) (CompletionUsage, string, string) {
+	sessionID := sess.ID
 	sse := NewSSEWriter(w, modelID, sessionID)
 	sse.WriteRoleDelta()
 
@@ -380,6 +399,7 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 				pendingTools[callID] = tc
 			}
 			xToolCalls = append(xToolCalls, XToolCall{Name: name, Args: ev.ToolArgs, Status: "running"})
+			s.publishToolEvent(sessionID, ToolStatusEvent{Tool: name, ToolCallID: callID, AgentID: string(ev.AgentID), Status: "running", Args: ev.ToolArgs})
 			if transcript {
 				s.writeTranscriptEvent(sse, sessionID, messageTranscriptEvent(transcriptToolCallEntry(name, callID, ev)))
 			} else {
@@ -423,6 +443,10 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 			if name == "" {
 				name = tc.Name
 			}
+			s.publishToolEvent(sessionID, ToolStatusEvent{
+				Tool: name, ToolCallID: ev.ToolCallID, AgentID: string(ev.AgentID), Status: status,
+				Args: tc.Args, Summary: summarizeToolStatusResult(ev.ToolResult), IsError: ev.ToolError != nil, HasDetail: ev.ToolCallID != "",
+			})
 
 			if transcript {
 				s.writeTranscriptEvent(sse, sessionID, messageTranscriptEvent(transcriptToolResultEntry(name, ev, status)))
@@ -442,6 +466,11 @@ func (s *Server) handleStreamingResponse(w http.ResponseWriter, r *http.Request,
 						HasDetail:  ev.ToolCallID != "",
 					})
 				}
+			}
+
+		case agent.EventToolApprovalRequest:
+			if request := s.registerSessionApproval(sess, runningAgent, ev); request != nil {
+				sse.WriteApprovalRequest(*request)
 			}
 
 		case agent.EventUsage:
@@ -573,6 +602,11 @@ func rawToolArgs(args map[string]any) json.RawMessage {
 }
 
 func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-chan agent.Event, modelID, sessionID string) (CompletionUsage, string, string) {
+	return s.handleNonStreamingResponseWithAgent(w, eventCh, modelID, &APISession{ID: sessionID}, nil)
+}
+
+func (s *Server) handleNonStreamingResponseWithAgent(w http.ResponseWriter, eventCh <-chan agent.Event, modelID string, sess *APISession, runningAgent *agent.Agent) (CompletionUsage, string, string) {
+	sessionID := sess.ID
 	var sb strings.Builder
 	var totalUsage CompletionUsage
 	var xToolCalls []XToolCall
@@ -594,6 +628,7 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 				pendingTools[callID] = tc
 			}
 			xToolCalls = append(xToolCalls, XToolCall{Name: name, Args: ev.ToolArgs, Status: "running"})
+			s.publishToolEvent(sessionID, ToolStatusEvent{Tool: name, ToolCallID: callID, AgentID: string(ev.AgentID), Status: "running", Args: ev.ToolArgs})
 
 		case agent.EventToolExecutionEnd:
 			status := "completed"
@@ -616,10 +651,21 @@ func (s *Server) handleNonStreamingResponse(w http.ResponseWriter, eventCh <-cha
 			tc.Diff = ev.ToolDiff
 			tc.Error = ev.ToolError
 			delete(pendingTools, ev.ToolCallID)
+			name := ev.ToolName
+			if name == "" {
+				name = tc.Name
+			}
+			s.publishToolEvent(sessionID, ToolStatusEvent{
+				Tool: name, ToolCallID: ev.ToolCallID, AgentID: string(ev.AgentID), Status: status,
+				Args: tc.Args, Summary: summarizeToolStatusResult(ev.ToolResult), IsError: ev.ToolError != nil, HasDetail: ev.ToolCallID != "",
+			})
 
 			if toolMode == "content" && ev.AgentID == "" {
 				sb.WriteString(formatToolResult(tc, toolDetail))
 			}
+
+		case agent.EventToolApprovalRequest:
+			s.registerSessionApproval(sess, runningAgent, ev)
 
 		case agent.EventUsage:
 			if ev.Usage != nil {

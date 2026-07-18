@@ -86,6 +86,13 @@ func (s *Server) publishSessionStreamEvent(sessionID, eventName string, data any
 	hub.publish(sessionID, sessionStreamEvent{Name: eventName, Data: data})
 }
 
+func (s *Server) publishToolEvent(sessionID string, event ToolStatusEvent) {
+	if sessionID == "" {
+		return
+	}
+	s.publishSessionStreamEvent(sessionID, "tool_event", event)
+}
+
 func (s *Server) publishTranscriptEvent(sessionID string, evt TranscriptStreamEvent) {
 	if sessionID == "" {
 		return

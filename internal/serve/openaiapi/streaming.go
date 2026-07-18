@@ -108,7 +108,17 @@ func (s *SSEWriter) WriteTranscriptEvent(evt TranscriptStreamEvent) {
 	}
 }
 
-// WriteDone sends the final chunk with finish_reason and usage, then [DONE].
+// WriteApprovalRequest sends a pending tool approval to the client that initiated
+// this streaming completion. It is also published on the session stream so other
+// clients and reconnecting WebUI instances receive the same request.
+func (s *SSEWriter) WriteApprovalRequest(request SessionApprovalRequest) {
+	data, _ := json.Marshal(request)
+	fmt.Fprintf(s.w, "event: approval_request\ndata: %s\n\n", data)
+	if s.flusher != nil {
+		s.flusher.Flush()
+	}
+}
+
 func (s *SSEWriter) WriteDone(usage *CompletionUsage) {
 	finishReason := "stop"
 	chunk := ChatCompletionChunk{

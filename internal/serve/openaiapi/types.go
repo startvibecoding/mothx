@@ -82,6 +82,56 @@ type SessionCapabilityPatch struct {
 	A2AMaster    *bool   `json:"a2aMaster,omitempty"`
 }
 
+// SessionRuntimePatch is the structured WebUI runtime patch payload. Mode is
+// kept separate from capabilities while capability toggles remain session-level
+// user intent.
+type SessionRuntimePatch struct {
+	Mode         *string             `json:"mode,omitempty"`
+	Capabilities map[string]bool     `json:"capabilities,omitempty"`
+	Tools        *SessionToolOptions `json:"tools,omitempty"`
+}
+
+// SessionRuntimeSnapshot is the structured WebUI view for runtime state.
+type SessionRuntimeSnapshot struct {
+	SessionID        string                            `json:"sessionId"`
+	Mode             string                            `json:"mode"`
+	Model            string                            `json:"model,omitempty"`
+	ThinkingLevel    string                            `json:"thinkingLevel,omitempty"`
+	WorkDir          string                            `json:"workDir,omitempty"`
+	Capabilities     map[string]SessionCapabilityState `json:"capabilities"`
+	PendingApprovals []SessionApprovalRequest          `json:"pendingApprovals"`
+	ActiveRun        *SessionActiveRun                 `json:"activeRun,omitempty"`
+}
+
+// SessionCapabilityState describes availability, desired enabled state and
+// effective runtime state for one WebUI capability.
+type SessionCapabilityState struct {
+	Available      bool   `json:"available"`
+	Enabled        bool   `json:"enabled"`
+	Effective      bool   `json:"effective"`
+	DisabledReason string `json:"disabledReason,omitempty"`
+}
+
+// SessionActiveRun describes the currently running session run, if any.
+type SessionActiveRun struct {
+	RunID  string `json:"runId,omitempty"`
+	Status string `json:"status"`
+}
+
+// SessionApprovalRequest is the WebUI approval-center event shape.
+type SessionApprovalRequest struct {
+	ApprovalID string         `json:"approvalId"`
+	SessionID  string         `json:"sessionId"`
+	AgentID    string         `json:"agentId,omitempty"`
+	Mode       string         `json:"mode,omitempty"`
+	Risk       string         `json:"risk,omitempty"`
+	Summary    string         `json:"summary,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	Tool       map[string]any `json:"tool,omitempty"`
+	Context    map[string]any `json:"context,omitempty"`
+	Actions    []string       `json:"actions,omitempty"`
+}
+
 // RequestMessage represents a message in the OpenAI request.
 type RequestMessage struct {
 	Role         string               `json:"role"`

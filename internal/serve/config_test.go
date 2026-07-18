@@ -82,10 +82,50 @@ func (f *fakeActiveSessionManager) GetSessionCapabilities(id string) (*openaiapi
 	return f.caps, f.err
 }
 
+func (f *fakeActiveSessionManager) GetSessionRuntime(id string) (*openaiapi.SessionRuntimeSnapshot, error) {
+	f.capsID = id
+	if f.caps == nil {
+		return &openaiapi.SessionRuntimeSnapshot{SessionID: id, Capabilities: map[string]openaiapi.SessionCapabilityState{}}, f.err
+	}
+	return &openaiapi.SessionRuntimeSnapshot{
+		SessionID:    f.caps.ID,
+		Mode:         f.caps.Mode,
+		Model:        f.caps.Model,
+		WorkDir:      f.caps.WorkDir,
+		Capabilities: map[string]openaiapi.SessionCapabilityState{},
+	}, f.err
+}
+
 func (f *fakeActiveSessionManager) PatchSessionCapabilities(id string, patch openaiapi.SessionCapabilityPatch) (*openaiapi.SessionCapabilities, error) {
 	f.capsID = id
 	f.patch = patch
 	return f.caps, f.err
+}
+
+func (f *fakeActiveSessionManager) PatchSessionRuntime(id string, patch openaiapi.SessionRuntimePatch) (*openaiapi.SessionRuntimeSnapshot, error) {
+	f.capsID = id
+	f.patch = openaiapi.SessionCapabilityPatch{}
+	if patch.Mode != nil {
+		f.patch.Mode = patch.Mode
+	}
+	if patch.Tools != nil {
+		f.patch.WebSearch = patch.Tools.WebSearch
+		f.patch.Browser = patch.Tools.Browser
+		f.patch.A2AMaster = patch.Tools.A2AMaster
+		f.patch.DelegateMode = patch.Tools.Delegate
+		f.patch.MultiAgent = patch.Tools.MultiAgent
+		f.patch.Workflows = patch.Tools.Workflows
+	}
+	if f.caps == nil {
+		return &openaiapi.SessionRuntimeSnapshot{SessionID: id, Capabilities: map[string]openaiapi.SessionCapabilityState{}}, f.err
+	}
+	return &openaiapi.SessionRuntimeSnapshot{
+		SessionID:    f.caps.ID,
+		Mode:         f.caps.Mode,
+		Model:        f.caps.Model,
+		WorkDir:      f.caps.WorkDir,
+		Capabilities: map[string]openaiapi.SessionCapabilityState{},
+	}, f.err
 }
 
 type fakeWebSocketRuntime struct {

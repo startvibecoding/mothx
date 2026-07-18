@@ -1,7 +1,8 @@
 <script>
   import { onDestroy, onMount, tick } from 'svelte';
   import { markdownToHTML } from '../lib/markdown.js';
-  import { patchJSON, readSSE } from '../lib/api.js';
+  import { readSSE, postJSON } from '../lib/api.js';
+  import { approvalSessionID, approvalRequestOwnership, approvalHistoryFromRunEvents, applyApprovalRequestToRuntime } from '../lib/approval.js';
   import {
     sessions,
     currentSession,
@@ -20,6 +21,11 @@
     getSessionSubAgentMessages,
     getSessionRunEvents,
     getSessionCapabilityEvents,
+    getSessionRuntime,
+    patchSessionRuntime,
+    sessionRuntime,
+    activeApproval,
+    toolEvents,
     sessionToolOptions,
     sessionToolsFor,
     setSessionTools,
@@ -33,6 +39,7 @@
   let messages = [];
   let busy = false;
   let chatAbort = null;
+  let chatStreamSessionID = '';
   let chatEvents = [];
   let sessionRunEvents = [];
   let sessionCapabilityEvents = [];
@@ -61,6 +68,15 @@
   let subAgentModalLoading = false;
   let subAgentModalError = '';
   let subAgentRefreshTimer = 0;
+  let sessionRuntimeValue = null;
+  let newSessionMode = 'yolo';
+  let runtimeUpdating = false;
+  let runtimeControls;
+  let showRuntimePanel = false;
+  let showApprovalCenter = false;
+  let selectedApprovalID = '';
+  let approvalSubmitting = false;
+  let approvalHistory = [];
 
   const suggestions = [
     'chat.suggestion.projectSummary',
@@ -85,9 +101,16 @@
   // Reset or load state when the selected session changes.
   let prevSession = $currentSession;
   onMount(() => {
+    const handleRuntimeOutsidePointer = (event) => {
+      if (showRuntimePanel && runtimeControls && !runtimeControls.contains(event.target)) {
+        showRuntimePanel = false;
+      }
+    };
+    document.addEventListener('pointerdown', handleRuntimeOutsidePointer);
     if ($currentSession) {
       loadSessionMessages($currentSession);
     }
+    return () => document.removeEventListener('pointerdown', handleRuntimeOutsidePointer);
   });
   onDestroy(() => {
     stopSessionStream();
@@ -103,6 +126,8 @@
       subAgents = [];
       subAgentTranscripts = {};
       closeSubAgentModal();
+      activeApproval.set(null);
+      selectedApprovalID = '';
       if (nextSession === '') {
         sessionCreated = false;
         workDir = '';
@@ -136,7 +161,7 @@
       }
       chatEvents = []; // reset tool events for new session view
       await loadSessionEvents(id);
-      await loadSubAgents(id);
+      await loadSessionRuntime(id);
       sessionHistoryLoadedFor = id;
       updateSessionStreamCursorFromState();
       scrollChatToBottom({ force: true });
@@ -150,6 +175,11 @@
   }
 
   $: activeSession = $sessions.find((s) => s.id === $currentSession);
+  $: runtimeMode = sessionRuntimeValue?.mode || activeSession?.mode || (!$currentSession ? newSessionMode : 'yolo');
+  $: pendingApprovalCount = (sessionRuntimeValue?.pendingApprovals || []).length;
+  $: approvalToolViewValue = approvalToolView(selectedApproval);
+  $: selectedApproval = (sessionRuntimeValue?.pendingApprovals || []).find((approval) => approval.approvalId === selectedApprovalID) || $activeApproval || null;
+  $: runtimeActiveRun = sessionRuntimeValue?.activeRun;
   $: sessionToolKey = $currentSession || '__new__';
   $: sessionTools = sessionToolsFor($sessionToolOptions, sessionToolKey, activeSession || $features);
   $: availableToolToggles = toolToggles.filter(isToolToggleVisible);
@@ -227,6 +257,7 @@
     imageUploads = [];
     if (imageInput) imageInput.value = '';
 
+    chatStreamSessionID = $currentSession;
     chatAbort = new AbortController();
     try {
       const requestMessages = messages.map((m, idx) => {
@@ -240,6 +271,7 @@
         stream: true,
         x_session_id: $currentSession || undefined,
         x_working_dir: isNewSession ? workDir.trim() : activeSessionWorkDir,
+        x_mode: isNewSession ? newSessionMode : undefined,
         x_tools: visibleSessionTools,
         x_transcript: true,
         messages: requestMessages
@@ -297,6 +329,7 @@
 
   function resetSession() {
     resetSelectedModelToDefault();
+    newSessionMode = 'yolo';
     currentSession.set('');
   }
 
@@ -335,12 +368,14 @@
     setSessionTools(sessionToolKey, nextTools);
     if (!targetSession) return;
     try {
-      const updated = await patchJSON(
-        `/api/sessions/${encodeURIComponent(targetSession)}/capabilities`,
-        nextTools
+      const updated = await patchSessionRuntime(
+        targetSession,
+        { capabilities: { [key]: Boolean(event.currentTarget.checked) } }
       );
       if (targetSession === $currentSession) {
-        setSessionTools(targetSession, updated);
+        sessionRuntime.set(updated);
+        sessionRuntimeValue = updated;
+        setSessionTools(targetSession, { ...nextTools, [key]: Boolean(updated?.capabilities?.[key]?.enabled) });
         await loadSessionEvents(targetSession);
       }
       await refreshSessions();
@@ -430,6 +465,126 @@
     if (!bytes) return '';
     if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+
+  function handleApprovalRequest(data) {
+    try {
+      const item = typeof data === 'string' ? JSON.parse(data) : data;
+      if (!item?.approvalId) return;
+      const ownership = approvalRequestOwnership($currentSession, item);
+      const next = applyApprovalRequestToRuntime(sessionRuntimeValue, $currentSession, item);
+      // A newly-created stream has no selected session yet, so its approval frame
+      // can safely establish it. Events from a session the user already left are
+      // deliberately not rendered into the selected session's runtime snapshot.
+      if (ownership.adopt) {
+        chatStreamSessionID = ownership.sessionID;
+        moveSessionTools('__new__', ownership.sessionID);
+        currentSession.set(ownership.sessionID);
+      }
+      if (!ownership.belongs) return;
+      activeApproval.set(item);
+      selectedApprovalID = item.approvalId;
+      showApprovalCenter = true;
+      sessionRuntimeValue = next;
+      sessionRuntime.set(sessionRuntimeValue);
+    } catch {
+      // ignore malformed approval frames
+    }
+  }
+
+  function recordApprovalResolution(resolution, sessionID) {
+    if (!resolution?.approvalId || sessionID !== $currentSession) return;
+    const id = `approval-resolution-${resolution.approvalId}-${resolution.status || 'resolved'}`;
+    upsertSessionRunEvent({
+      id,
+      sessionId: sessionID,
+      eventType: 'approval_resolved',
+      status: resolution.status || 'resolved',
+      timestamp: resolution.timestamp || new Date().toISOString(),
+      data: { resolution }
+    });
+  }
+
+  function approvalToolView(approval) {
+    const tool = approval?.tool || {};
+    return buildToolCallView(tool.name || '', tool.args || tool.details || {});
+  }
+
+  function approvalBashCommand(approval) {
+    const args = approval?.tool?.args || {};
+    return approval?.tool?.details?.command || args.command || args.cmd || '';
+  }
+
+  function approvalBashWorkDir(approval) {
+    return approval?.tool?.details?.workDir || approval?.context?.workDir || '';
+  }
+
+  async function respondApproval(approval, action) {
+    const sessionID = approvalSessionID(approval, $currentSession);
+    if (!approval?.approvalId || !sessionID || approvalSubmitting) return;
+    approvalSubmitting = true;
+    try {
+      const resolved = await postJSON(`/api/sessions/${encodeURIComponent(sessionID)}/approvals/${encodeURIComponent(approval.approvalId)}`, { action });
+      recordApprovalResolution(resolved, sessionID);
+      if (sessionID === $currentSession) {
+        activeApproval.set(null);
+        selectedApprovalID = '';
+        showApprovalCenter = false;
+        sessionRuntimeValue = { ...sessionRuntimeValue, pendingApprovals: (sessionRuntimeValue?.pendingApprovals || []).filter((item) => item.approvalId !== approval.approvalId) };
+        sessionRuntime.set(sessionRuntimeValue);
+      }
+    } catch (err) { setError(err); }
+    finally { approvalSubmitting = false; }
+  }
+
+  async function loadSessionRuntime(id) {
+    if (!id) {
+      sessionRuntime.set(null);
+      sessionRuntimeValue = null;
+      return;
+    }
+    try {
+      const snapshot = await getSessionRuntime(id);
+      if (id !== $currentSession) return;
+      sessionRuntime.set(snapshot);
+      sessionRuntimeValue = snapshot;
+      const enabledTools = Object.fromEntries(Object.entries(snapshot?.capabilities || {}).map(([key, state]) => [key, Boolean(state?.enabled)]));
+      setSessionTools(id, { ...sessionTools, ...enabledTools });
+    } catch (err) {
+      if (id === $currentSession) setError(err);
+    }
+  }
+
+  async function updateRuntime(patch) {
+    const id = $currentSession;
+    if (!id || runtimeUpdating) return;
+    const previous = sessionRuntimeValue;
+    runtimeUpdating = true;
+    try {
+      const snapshot = await patchSessionRuntime(id, patch);
+      if (id === $currentSession) {
+        sessionRuntime.set(snapshot);
+        sessionRuntimeValue = snapshot;
+        const enabledTools = Object.fromEntries(Object.entries(snapshot?.capabilities || {}).map(([key, state]) => [key, Boolean(state?.enabled)]));
+        setSessionTools(id, { ...sessionTools, ...enabledTools });
+      }
+      await refreshSessions();
+    } catch (err) {
+      sessionRuntime.set(previous);
+      sessionRuntimeValue = previous;
+      setError(err);
+    } finally {
+      runtimeUpdating = false;
+    }
+  }
+
+  async function setMode(mode) {
+    if (!$currentSession) {
+      newSessionMode = mode;
+      return;
+    }
+    await updateRuntime({ mode });
   }
 
   async function loadSessionEvents(id) {
@@ -729,6 +884,48 @@
         upsertSessionRunEvent(JSON.parse(event.data));
       } catch {
         // ignore malformed event frames
+      }
+      return;
+    }
+    if (event.event === 'runtime_event') {
+      try {
+        const snapshot = JSON.parse(event.data);
+        if (snapshot?.sessionId && snapshot.sessionId !== $currentSession) return;
+        sessionRuntime.set(snapshot);
+        sessionRuntimeValue = snapshot;
+      } catch {
+        // ignore malformed runtime frames
+      }
+      return;
+    }
+    if (event.event === 'approval_request') {
+      handleApprovalRequest(event.data);
+      return;
+    }
+    if (event.event === 'approval_resolved') {
+      try {
+        const item = JSON.parse(event.data);
+        const resolvedSessionID = approvalSessionID(item, $currentSession);
+        recordApprovalResolution(item, resolvedSessionID);
+        if (resolvedSessionID !== $currentSession) return;
+        if (selectedApprovalID === item.approvalId) {
+          activeApproval.set(null);
+          selectedApprovalID = '';
+        }
+        sessionRuntimeValue = { ...sessionRuntimeValue, pendingApprovals: (sessionRuntimeValue?.pendingApprovals || []).filter((approval) => approval.approvalId !== item.approvalId) };
+        sessionRuntime.set(sessionRuntimeValue);
+      } catch {
+        // ignore malformed approval frames
+      }
+      return;
+    }
+    if (event.event === 'tool_event') {
+      try {
+        const item = JSON.parse(event.data);
+        toolEvents.update((items) => [...items.filter((entry) => entry.toolCallId !== item.toolCallId), item].slice(-200));
+        handleToolStatusEvent(item);
+      } catch {
+        // ignore malformed tool frames
       }
       return;
     }
@@ -1808,16 +2005,33 @@
       .join('\n');
   }
 
+  function acceptsChatStreamSession(sessionID = '') {
+    const id = String(sessionID || '').trim();
+    if (id) {
+      if (!chatStreamSessionID) chatStreamSessionID = id;
+      if (!$currentSession) {
+        moveSessionTools('__new__', id);
+        currentSession.set(id);
+      }
+    }
+    return !chatStreamSessionID || chatStreamSessionID === $currentSession;
+  }
+
   function handleStreamEvent(event) {
     if (event.data === '[DONE]') return;
     if (event.event === 'transcript') {
       try {
         const item = JSON.parse(event.data);
+        if (!acceptsChatStreamSession(item?.x_session_id)) return;
         streamUsesTranscript = true;
         applyTranscriptStreamEvent(item);
       } catch {
         // ignore malformed transcript frames
       }
+      return;
+    }
+    if (event.event === 'approval_request') {
+      handleApprovalRequest(event.data);
       return;
     }
     if (event.event === 'tool_status') {
@@ -1833,12 +2047,7 @@
     }
     try {
       const chunk = JSON.parse(event.data);
-      if (chunk?.x_session_id) {
-        if (!$currentSession) {
-          moveSessionTools('__new__', chunk.x_session_id);
-        }
-        currentSession.set(chunk.x_session_id);
-      }
+      if (chunk?.x_session_id && !acceptsChatStreamSession(chunk.x_session_id)) return;
       const delta = chunk?.choices?.[0]?.delta?.content;
       if (delta && !streamUsesTranscript) {
         appendAssistantDelta(delta);
@@ -1850,11 +2059,9 @@
 
   function applyTranscriptStreamEvent(item) {
     if (item?.x_session_id) {
-      if (!$currentSession) {
-        moveSessionTools('__new__', item.x_session_id);
-      }
-      currentSession.set(item.x_session_id);
+      if (!acceptsChatStreamSession(item.x_session_id)) return;
     }
+    if (chatStreamSessionID && chatStreamSessionID !== $currentSession) return;
     const message = item?.message;
     if (!message) return;
     if (message.agentId) {
@@ -2409,6 +2616,38 @@
             {/each}
           {/if}
         </select>
+        <div bind:this={runtimeControls} class="runtime-controls" aria-label="Session runtime controls">
+          <button
+            type="button"
+            class:open={showRuntimePanel}
+            class="runtime-toggle"
+            aria-expanded={showRuntimePanel}
+            aria-controls="session-runtime-panel"
+            on:click={() => (showRuntimePanel = !showRuntimePanel)}
+          >
+            <span class="runtime-label">Mode</span>
+            <strong>{runtimeMode}</strong>
+            <span class="runtime-chevron" aria-hidden="true">⌄</span>
+            {#if pendingApprovalCount}<span class="runtime-badge">{pendingApprovalCount}</span>{/if}
+          </button>
+          {#if showRuntimePanel}
+            <section id="session-runtime-panel" class="runtime-panel">
+              <header>
+                <strong>Session runtime</strong>
+                {#if runtimeActiveRun}<span class="dot running"></span><span>{runtimeActiveRun.status}</span>{/if}
+              </header>
+              <p class="runtime-hint">plan is read-only planning, agent requests approval for guarded actions, and yolo runs automatically.</p>
+              <div class="mode-switcher" role="group" aria-label="Agent mode">
+                {#each ['plan', 'agent', 'yolo'] as mode}
+                  <button type="button" class:active={runtimeMode === mode} disabled={runtimeUpdating || busy} on:click={() => setMode(mode)}>{mode}</button>
+                {/each}
+              </div>
+              {#if pendingApprovalCount}
+                <div class="approval-summary"><strong>{pendingApprovalCount} pending approval{pendingApprovalCount === 1 ? '' : 's'}</strong><button type="button" class="ghost sm" on:click={() => (showApprovalCenter = true)}>Review approvals</button></div>
+              {/if}
+            </section>
+          {/if}
+        </div>
         <div class="tool-toggles" aria-label={$t('chat.tools')}>
           {#each availableToolToggles as item}
             <label class="tool-toggle" title={$t(`chat.toolToggle.${item.key}`)}>
@@ -2439,6 +2678,109 @@
     </div>
   </div>
 </section>
+
+
+{#if showApprovalCenter}
+  <div class="subagent-overlay" role="dialog" aria-modal="true" aria-label="Approval center">
+    <div class="subagent-modal approval-center">
+      <header>
+        <div>
+          <strong>Approval center</strong>
+          <span>{pendingApprovalCount} pending · {approvalHistory.length} recorded for this session</span>
+        </div>
+        <button type="button" class="ghost sm" on:click={() => (showApprovalCenter = false)}>Close</button>
+      </header>
+      <div class="approval-list" aria-live="polite">
+        {#if selectedApproval}
+          <article class="approval-card" aria-labelledby="approval-title-{selectedApproval.approvalId}">
+            <div class="approval-card-head">
+              <div class="approval-title-group">
+                <div class="approval-kicker"><span class="approval-risk {selectedApproval.risk || 'medium'}">{selectedApproval.risk || 'medium'} risk</span><span>{selectedApproval.mode || runtimeMode} mode</span></div>
+                <strong id="approval-title-{selectedApproval.approvalId}">{selectedApproval.summary || selectedApproval.tool?.name}</strong>
+                <p>{selectedApproval.reason || 'This action requires confirmation.'}</p>
+              </div>
+              {#if pendingApprovalCount > 1}
+                <label class="approval-picker">Request
+                  <select aria-label="Select pending approval" value={selectedApprovalID} on:change={(event) => { selectedApprovalID = event.currentTarget.value; activeApproval.set((sessionRuntimeValue?.pendingApprovals || []).find((approval) => approval.approvalId === selectedApprovalID) || null); }}>
+                    {#each sessionRuntimeValue?.pendingApprovals || [] as approval}<option value={approval.approvalId}>{approval.summary || approval.tool?.name}</option>{/each}
+                  </select>
+                </label>
+              {/if}
+            </div>
+            {#if selectedApproval.tool?.name === 'bash'}
+              <div class="approval-bash tool-call-body embedded">
+                <div class="tool-title">
+                  <span class="dot running"></span>
+                  <strong>Bash</strong>
+                  {#if approvalBashWorkDir(selectedApproval)}<span class="tool-target">{approvalBashWorkDir(selectedApproval)}</span>{/if}
+                </div>
+                <div class="bash-block">
+                  <span>command</span>
+                  <pre>{approvalBashCommand(selectedApproval)}</pre>
+                </div>
+              </div>
+            {:else}
+              <div class="approval-tool tool-call-body embedded">
+                <div class="tool-title">
+                  <span class="dot running"></span>
+                  <strong>{approvalToolViewValue.label || selectedApproval.tool?.label || selectedApproval.tool?.name}</strong>
+                  {#if approvalToolViewValue.target}<span class="tool-target">{approvalToolViewValue.target}</span>{/if}
+                </div>
+                {#if approvalToolViewValue.details?.length}
+                  <div class="tool-call-tags">
+                    {#each approvalToolViewValue.details as detail}<span>{detail}</span>{/each}
+                  </div>
+                {/if}
+                {#if approvalToolViewValue.kind === 'edit' && approvalToolViewValue.edits?.length}
+                  <div class="edit-call">
+                    {#each approvalToolViewValue.edits as edit}
+                      <section class="edit-block">
+                        <div class="edit-block-head"><strong>{$t('chat.tool.edit.editNumber', { number: edit.index })}</strong><span>{$t('chat.tool.edit.lineChange', { old: edit.oldLines, next: edit.newLines })}</span></div>
+                        <div class="edit-columns"><div class="edit-pane old"><span>{$t('chat.tool.edit.oldText')}</span><pre class:empty={edit.oldText === ''}>{edit.oldText || $t('chat.tool.edit.empty')}</pre></div><div class="edit-pane new"><span>{$t('chat.tool.edit.newText')}</span><pre class:empty={edit.newText === ''}>{edit.newText || $t('chat.tool.edit.empty')}</pre></div></div>
+                      </section>
+                    {/each}
+                  </div>
+                {:else if approvalToolViewValue.kind === 'write'}
+                  <div class="write-call"><div class="write-call-head"><strong>{$t('chat.tool.write.preview')}</strong><span>{$t('chat.tool.write.summary', { lines: approvalToolViewValue.lines, chars: approvalToolViewValue.chars })}</span></div><span>{$t('chat.tool.write.content')}</span><pre class:empty={approvalToolViewValue.content === ''}>{approvalToolViewValue.content || $t('chat.tool.edit.empty')}</pre></div>
+                {:else if approvalToolViewValue.kind === 'find'}
+                  <div class="find-call"><div class="find-row"><span>{$t('chat.tool.find.pattern')}</span><code>{approvalToolViewValue.pattern || $t('chat.tool.find.missing')}</code></div><div class="find-row"><span>{$t('chat.tool.find.searchPath')}</span><code>{approvalToolViewValue.path}</code></div></div>
+                {:else if approvalToolViewValue.kind === 'browser'}
+                  <div class="browser-call"><div class="find-row"><span>{$t('chat.tool.browser.action')}</span><code>{approvalToolViewValue.action || $t('chat.tool.browser.missing')}</code></div>{#if approvalToolViewValue.url}<div class="find-row"><span>{$t('chat.tool.browser.url')}</span><code>{approvalToolViewValue.url}</code></div>{/if}{#if approvalToolViewValue.selector}<div class="find-row"><span>{$t('chat.tool.browser.selectorLabel')}</span><code>{approvalToolViewValue.selector}</code></div>{/if}</div>
+                {:else if approvalToolViewValue.kind === 'skill-ref'}
+                  <div class="skill-ref-call"><div class="find-row"><span>{$t('chat.tool.skillRef.skillLabel')}</span><code>{approvalToolViewValue.skill || $t('chat.tool.skillRef.missing')}</code></div><div class="find-row"><span>{$t('chat.tool.skillRef.refLabel')}</span><code>{approvalToolViewValue.ref || $t('chat.tool.skillRef.missing')}</code></div></div>
+                {:else}
+                  <div class="approval-tool-summary"><span>{selectedApproval.tool?.details?.path || selectedApproval.context?.workDir || 'This action requires permission.'}</span></div>
+                {/if}
+              </div>
+            {/if}
+            <div class="approval-actions">
+              <button class="primary" disabled={approvalSubmitting} on:click={() => respondApproval(selectedApproval, 'approve_once')}>Approve once</button>
+              <button class="ghost approval-deny" disabled={approvalSubmitting} on:click={() => respondApproval(selectedApproval, 'deny_once')}>Deny</button>
+              {#if selectedApproval.actions?.includes('remember_command')}<span class="approval-action-divider"></span><button class="ghost sm" disabled={approvalSubmitting} on:click={() => respondApproval(selectedApproval, 'remember_command')}>Always allow command</button><button class="ghost sm" disabled={approvalSubmitting} on:click={() => respondApproval(selectedApproval, 'remember_prefix')}>Always allow prefix</button>{/if}
+              {#if selectedApproval.actions?.includes('allow_edit_path')}<button class="ghost sm" disabled={approvalSubmitting} on:click={() => respondApproval(selectedApproval, 'allow_edit_path')}>Allow this path</button>{/if}
+            </div>
+            <details class="approval-raw"><summary>Request JSON</summary><pre>{JSON.stringify(selectedApproval, null, 2)}</pre></details>
+          </article>
+        {:else}
+          <div class="approval-empty"><strong>No pending approvals</strong><span>New approval requests will appear here.</span></div>
+        {/if}
+        {#if approvalHistory.length}
+          <section class="approval-history" aria-label="Session approval history">
+            <div class="approval-history-head"><h4>Session audit history</h4><span>{approvalHistory.length} decisions</span></div>
+            <div class="approval-history-list">
+              {#each approvalHistory as item}
+                <article class="approval-history-item">
+                  <strong>{item.action === 'deny_once' ? 'Denied' : 'Approved'}</strong>
+                  <span>{item.message || item.action}</span>
+                </article>
+              {/each}
+            </div>
+          </section>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <DirBrowser bind:open={showBrowser} on:select={onDirSelect} on:close={() => (showBrowser = false)} />
 
