@@ -122,7 +122,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 ## Working Rules
 
 - Read before editing.
-- Prefer small, targeted changes.
+- Prefer small, targeted changes that deliver the best maintainable implementation; do not choose a merely minimal or quick workaround when a more robust design is appropriate.
 - Keep behavior consistent with existing patterns.
 - Do not introduce broad refactors unless requested.
 - Do not add license headers unless the repository already uses them.
@@ -164,7 +164,7 @@ The `/systeminit` command (TUI, ACP, and the `vibecoding systeminit` CLI subcomm
 
 The TUI `/reload` command re-execs the process with session-continuation flags stripped, giving a fresh process with a new session.
 
-When changing code, prefer the least risky approach that satisfies the request.
+When changing code, prefer the least risky approach that satisfies the request, but optimize for the most correct, maintainable implementation rather than the smallest possible diff.
 
 ## Serve-Specific Notes
 
