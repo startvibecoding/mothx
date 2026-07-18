@@ -591,6 +591,7 @@
     if (!id) {
       sessionRunEvents = [];
       sessionCapabilityEvents = [];
+      approvalHistory = [];
       return;
     }
     try {
@@ -600,11 +601,13 @@
       ]);
       if (id !== $currentSession) return;
       sessionRunEvents = runs || [];
+      approvalHistory = approvalHistoryFromRunEvents(sessionRunEvents);
       sessionCapabilityEvents = caps || [];
     } catch {
       if (id !== $currentSession) return;
       sessionRunEvents = [];
       sessionCapabilityEvents = [];
+      approvalHistory = [];
     }
   }
 
@@ -780,6 +783,7 @@
     } else {
       sessionRunEvents = [...sessionRunEvents, event];
     }
+    approvalHistory = approvalHistoryFromRunEvents(sessionRunEvents);
     const seq = Number(event.seq || 0);
     if (seq > sessionStreamCursor.runSeq) {
       sessionStreamCursor = { ...sessionStreamCursor, runSeq: seq };
