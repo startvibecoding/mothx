@@ -169,6 +169,7 @@ func (p *Provider) IsReasoningDisabled() bool {
 
 // SetThinkingFormat sets the thinking parameter format.
 // "openai" = reasoning_effort, "deepseek" = thinking + reasoning_effort,
+// "kimi" = reasoning_effort with Kimi's low/high/max levels,
 // "xiaomi" = legacy thinking-only format.
 func (p *Provider) SetThinkingFormat(format string) {
 	p.thinkingFormat = format
@@ -356,6 +357,10 @@ func (p *Provider) chatCompletions(ctx context.Context, params provider.ChatPara
 				reqBody.Thinking = &thinkingConfig{Type: "enabled"}
 				if supportsReasoningEffort(model) {
 					reqBody.ReasoningEffort = deepseekReasoningEffort(params.ThinkingLevel)
+				}
+			case "kimi":
+				if supportsReasoningEffort(model) {
+					reqBody.ReasoningEffort = kimiReasoningEffort(params.ThinkingLevel)
 				}
 			case "xiaomi":
 				reqBody.Thinking = &thinkingConfig{Type: "enabled"}
@@ -664,6 +669,19 @@ func openAIReasoningEffort(level provider.ThinkingLevel) string {
 		return "medium"
 	case provider.ThinkingHigh, provider.ThinkingXHigh:
 		return "high"
+	default:
+		return ""
+	}
+}
+
+func kimiReasoningEffort(level provider.ThinkingLevel) string {
+	switch level {
+	case provider.ThinkingMinimal, provider.ThinkingLow, provider.ThinkingMedium:
+		return "low"
+	case provider.ThinkingHigh:
+		return "high"
+	case provider.ThinkingXHigh:
+		return "max"
 	default:
 		return ""
 	}

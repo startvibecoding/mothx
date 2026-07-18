@@ -261,6 +261,7 @@
 | deepseek-v4-flash | 1M | 100K | **是** | text,image |
 | minimax-m3 | 1M | 100K | **是** | text,image |
 | minimax-m2.7 | 262K | 100K | **是** | text |
+| kimi-k3 | 1M | 100K | **是** | text,image |
 | kimi-k2.6 | 262K | 100K | **是** | text,image |
 
 #### 7c. CodingPlan（编码模式）
@@ -520,7 +521,8 @@
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
-| kimi-for-coding | 262K | 32K | **是** | text,image |
+| k3 | 1M | 128K | **是** | text,image |
+| kimi-for-coding | 256K | 32K | **是** | text,image |
 | kimi-k2-thinking | 262K | 32K | **是** | text |
 
 ---

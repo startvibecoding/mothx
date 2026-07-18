@@ -330,6 +330,22 @@ func TestOpenAIResponsesCustomHeaders(t *testing.T) {
 	}
 }
 
+func TestOpenAIKimiThinkingEffort(t *testing.T) {
+	cases := []struct {
+		level provider.ThinkingLevel
+		want  string
+	}{
+		{provider.ThinkingLow, "low"},
+		{provider.ThinkingHigh, "high"},
+		{provider.ThinkingXHigh, "max"},
+	}
+	for _, tc := range cases {
+		if got := kimiReasoningEffort(tc.level); got != tc.want {
+			t.Errorf("kimiReasoningEffort(%q) = %q, want %q", tc.level, got, tc.want)
+		}
+	}
+}
+
 func TestOpenAIThinkingFormatDeepSeekAutoDetect(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	p := newMockOpenAIProvider(t, []*provider.Model{

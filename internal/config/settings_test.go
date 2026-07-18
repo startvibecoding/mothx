@@ -59,10 +59,18 @@ func TestDefaultSettings(t *testing.T) {
 	if kimiCoding.BaseURL != "https://api.kimi.com/coding/v1" || kimiCoding.API != "openai-chat" {
 		t.Fatalf("kimi-coding endpoint = (%q, %q), want (%q, %q)", kimiCoding.BaseURL, kimiCoding.API, "https://api.kimi.com/coding/v1", "openai-chat")
 	}
-	for _, model := range kimiCoding.Models {
-		if model.ID == "k2p7" {
-			t.Fatal("kimi-coding must not include k2p7")
+	if kimiCoding.ThinkingFormat != "kimi" {
+		t.Fatalf("kimi-coding ThinkingFormat = %q, want kimi", kimiCoding.ThinkingFormat)
+	}
+	var k3 *ModelConfig
+	for i := range kimiCoding.Models {
+		if kimiCoding.Models[i].ID == "k3" {
+			k3 = &kimiCoding.Models[i]
+			break
 		}
+	}
+	if k3 == nil || !k3.Reasoning || k3.ContextWindow != 1000000 {
+		t.Fatalf("kimi-coding k3 = %#v, want reasoning model with 1M context", k3)
 	}
 
 	if s.DefaultThinkingLevel != "medium" {
@@ -193,6 +201,14 @@ func TestVolcenginePlanModelsUseSharedMaxTokens(t *testing.T) {
 				t.Fatalf("%s %s MaxTokens = %d, want 100000", providerName, model.ID, model.MaxTokens)
 			}
 		}
+	}
+}
+
+func TestVolcengineAgentPlanKimiK3Context(t *testing.T) {
+	s := DefaultSettings()
+	model := s.GetModelConfig("volcengine-agentplan", "kimi-k3")
+	if model == nil || model.ContextWindow != 1000000 {
+		t.Fatalf("volcengine-agentplan kimi-k3 = %#v, want 1M context", model)
 	}
 }
 
