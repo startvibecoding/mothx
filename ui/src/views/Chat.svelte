@@ -6,6 +6,7 @@
   import { approvalSessionID, approvalRequestOwnership, approvalHistoryFromRunEvents, applyApprovalRequestToRuntime } from '../lib/approval.js';
   import {
     sessions,
+    upsertSession,
     currentSession,
     selectedModel,
     models,
@@ -315,12 +316,13 @@
     }
 
     const sessionID = $currentSession || newWebUISessionID();
+    const creatingExplicitSession = !$currentSession;
     const existingState = getSessionState(sessionID);
     if (isCompletionActive(existingState) || existingState.runtime?.activeRun?.status === 'running') {
       setError('This session already has an active run.');
       return;
     }
-    if (!$currentSession) {
+    if (creatingExplicitSession) {
       ensureSessionState(sessionID);
       moveSessionTools('__new__', sessionID);
       currentSession.set(sessionID);
@@ -332,6 +334,10 @@
     clearBanners();
 
     messages = [...messages, { role: 'user', content: outgoing, images: outgoingImages }];
+    if (creatingExplicitSession) {
+      upsertSession(buildOptimisticSessionInfo(sessionID, outgoing));
+      refreshSessions().catch(() => {});
+    }
     scrollChatToBottom({ force: true });
     prompt = '';
     imageUploads = [];
@@ -371,6 +377,10 @@
         throw new Error(data?.error?.message || data?.error || data?.message || `${res.status} ${res.statusText}`);
       }
       markCompletion(sessionID, 'running');
+      if (creatingExplicitSession) {
+        upsertSession(buildOptimisticSessionInfo(sessionID, outgoing, { running: true }));
+        refreshSessions().catch(() => {});
+      }
       withSessionProjection(sessionID, () => {
         messages = [...messages, { role: 'assistant', content: '' }];
         scrollChatToBottom({ force: true });
@@ -381,7 +391,10 @@
       sessionCreated = true;
     } catch (err) {
       const canceled = err?.name === 'AbortError';
-      withSessionProjection(sessionID, () => finishOptimisticRunEvent(canceled ? 'canceled' : 'failed'));
+      withSessionProjection(sessionID, () => {
+        finishOptimisticRunEvent(canceled ? 'canceled' : 'failed', canceled ? '' : errorMessage(err));
+        if (!canceled) appendTaskFailureMessage(err);
+      });
       markCompletion(sessionID, canceled ? 'canceled' : 'failed', canceled ? '' : err);
       if (sessionID === $currentSession) {
         if (canceled) setNotice($t('chat.notice.stopped'));
@@ -411,6 +424,23 @@
   function newWebUISessionID() {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
     return `webui-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function buildOptimisticSessionInfo(id, firstMessage = '', overrides = {}) {
+    const now = new Date().toISOString();
+    const cwd = workDir.trim() || activeSessionWorkDir || '';
+    return {
+      id,
+      workDir: cwd,
+      mode: overrides.mode || newSessionMode || runtimeMode || 'yolo',
+      active: true,
+      running: false,
+      lastUsed: now,
+      messageCount: Math.max(1, messages.length || 1),
+      preview: firstMessage,
+      title: firstMessage,
+      ...overrides
+    };
   }
 
   function stop() {
@@ -815,7 +845,7 @@
     return id;
   }
 
-  function finishOptimisticRunEvent(status) {
+  function finishOptimisticRunEvent(status, error = '') {
     if (!optimisticRunEventID) return;
     const idx = sessionRunEvents.findIndex((item) => item.id === optimisticRunEventID);
     if (idx < 0) return;
@@ -824,9 +854,31 @@
       ...sessionRunEvents[idx],
       eventType,
       status,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      data: {
+        ...(sessionRunEvents[idx].data || {}),
+        ...(error ? { error } : {})
+      }
     };
     sessionRunEvents = sessionRunEvents;
+  }
+
+  function appendTaskFailureMessage(error) {
+    const message = errorMessage(error);
+    if (!message) return;
+    const last = messages[messages.length - 1];
+    const content = `**${$t('chat.taskFailed')}**\n\n${message}`;
+    if (last?.role === 'assistant' && !last.content && !last.images?.length) {
+      messages[messages.length - 1] = { ...last, content, isError: true };
+      messages = messages;
+    } else if (!last?.content?.includes(message)) {
+      messages = [...messages, { role: 'assistant', content, isError: true }];
+    }
+    scrollChatToBottom({ force: true });
+  }
+
+  function errorMessage(error) {
+    return String(error?.message || error || '').trim();
   }
 
   function resetSessionStreamCursor() {
@@ -943,8 +995,10 @@
     if (event.event === 'error') {
       try {
         const item = JSON.parse(event.data);
+        if (item?.error) appendTaskFailureMessage(item.error);
         setError(item?.error || event.data);
       } catch {
+        appendTaskFailureMessage(event.data);
         setError(event.data);
       }
       return;
@@ -963,6 +1017,9 @@
         const item = JSON.parse(event.data);
         if (!eventBelongsToSession(id, item)) return;
         upsertSessionRunEvent(item);
+        if ((item.status === 'failed' || item.eventType === 'failed') && item.data?.error) {
+          appendTaskFailureMessage(item.data.error);
+        }
       } catch {
         // ignore malformed event frames
       }
@@ -1252,6 +1309,7 @@
       role: message.role,
       agentId: message.agentId,
       content: message.content || textFromContents(message.contents),
+      isError: Boolean(message.isError),
       images
     };
   }
@@ -2162,7 +2220,11 @@
       } else if (message.role === 'toolCall' && isSubAgentTool(message.toolName)) {
         scheduleSubAgentRefresh();
       }
-      upsertTranscriptMessage(normalizeSessionMessage(message));
+      const normalized = normalizeSessionMessage(message);
+      upsertTranscriptMessage(normalized);
+      if (normalized?.role === 'assistant' && normalized.isError && normalized.content) {
+        scrollChatToBottom({ force: true });
+      }
     }
   }
 
@@ -2224,10 +2286,10 @@
               {/if}
             </article>
           {:else if msg.role === 'assistant'}
-            <article class="msg assistant">
+            <article class="msg assistant" class:error={msg.isError}>
               <div class="meta">
                 <strong>MothX</strong>
-                <span>{busy && idx === messages.length - 1 ? $t('chat.generating') : $t('common.completed')}</span>
+                <span>{msg.isError ? $t('common.failed') : busy && idx === messages.length - 1 ? $t('chat.generating') : $t('common.completed')}</span>
               </div>
               {#if msg.content}
                 <div class="markdown">{@html markdownToHTML(msg.content)}</div>

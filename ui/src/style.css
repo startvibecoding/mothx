@@ -1394,6 +1394,11 @@ label span:first-child { margin-bottom: 2px; }
   border-radius: var(--radius) var(--radius) var(--radius) 4px;
   background: var(--bg-secondary);
 }
+.msg.assistant.error > .markdown {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.08);
+}
+.msg.assistant.error .meta span { color: var(--danger); }
 .msg.pending p { color: var(--text-muted); font-style: italic; }
 .msg.tool-call,
 .msg.tool-result,

@@ -132,6 +132,39 @@ export async function refreshSessions() {
   sessions.set(data?.sessions || []);
 }
 
+export function upsertSession(session) {
+  if (!session?.id) return;
+  sessions.update((items) => {
+    const incoming = normalizeSessionListEntry(session);
+    const idx = (items || []).findIndex((item) => item?.id === incoming.id);
+    let next;
+    if (idx >= 0) {
+      next = items.slice();
+      next[idx] = { ...next[idx], ...incoming };
+    } else {
+      next = [incoming, ...(items || [])];
+    }
+    return sortSessions(next);
+  });
+}
+
+function normalizeSessionListEntry(session) {
+  return {
+    ...session,
+    lastUsed: session.lastUsed || new Date().toISOString(),
+    messageCount: Number(session.messageCount || 0)
+  };
+}
+
+function sortSessions(items = []) {
+  return [...items].sort((a, b) => {
+    const left = Date.parse(a?.lastUsed || '') || 0;
+    const right = Date.parse(b?.lastUsed || '') || 0;
+    if (left === right) return String(a?.id || '').localeCompare(String(b?.id || ''));
+    return right - left;
+  });
+}
+
 export async function refreshStatsSummary() {
   try {
     statsSummary.set(await request('/api/stats/summary'));
