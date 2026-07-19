@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.70
+
+### 🐛 Fixes
+
+- **Web UI Session History and Failure Visibility**
+  - Fixed newly created Web UI chat sessions not appearing in the sidebar/history list immediately when starting from the default session.
+  - Added optimistic session-list updates while a new Web UI session is starting, then reconciles with the persisted session list from the server.
+  - Web UI task failures now appear directly in the chat transcript with the failure reason, including failed completion requests, session stream errors, and failed run events.
+  - Added visual error styling for failed assistant messages so stopped/failed tasks are easier to identify.
+
 ## v1.1.69
 
 ### ✨ Features
