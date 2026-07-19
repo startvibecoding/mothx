@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/startvibecoding/mothx/internal/agent"
 	"github.com/startvibecoding/mothx/internal/config"
@@ -77,7 +78,7 @@ func approvalRequestFromEvent(sess *APISession, ev agent.Event) SessionApprovalR
 		actions = append(actions, "allow_edit_path")
 	}
 	return SessionApprovalRequest{
-		ApprovalID: ev.ApprovalID, SessionID: sess.ID, AgentID: string(ev.AgentID), Mode: sess.Mode,
+		ApprovalID: ev.ApprovalID, SessionID: sess.ID, RunID: sess.ActiveRunID(), Timestamp: time.Now().UTC().Format(time.RFC3339Nano), AgentID: string(ev.AgentID), Mode: sess.Mode,
 		Risk: risk, Summary: summary, Reason: reason,
 		Tool:    map[string]any{"name": toolName, "label": strings.Title(strings.ReplaceAll(toolName, "_", " ")), "args": args, "details": details},
 		Context: map[string]any{"workDir": sess.WorkDir}, Actions: actions,

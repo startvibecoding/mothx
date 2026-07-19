@@ -163,6 +163,9 @@ var ErrInvalidCapability = errors.New("invalid capability value")
 // Lock acquires the session lock (one request at a time per session).
 func (s *APISession) Lock() { s.mu.Lock() }
 
+// TryLock acquires the session lock without waiting.
+func (s *APISession) TryLock() bool { return s != nil && s.mu.TryLock() }
+
 // Unlock releases the session lock.
 func (s *APISession) Unlock() { s.mu.Unlock() }
 
@@ -226,6 +229,16 @@ func (s *APISession) IsRunning() bool {
 	s.runMu.RLock()
 	defer s.runMu.RUnlock()
 	return s.running
+}
+
+// ActiveRunID returns the current run identifier, if any.
+func (s *APISession) ActiveRunID() string {
+	if s == nil {
+		return ""
+	}
+	s.approvalMu.Lock()
+	defer s.approvalMu.Unlock()
+	return s.activeRunID
 }
 
 // SessionPool manages multiple concurrent API sessions.

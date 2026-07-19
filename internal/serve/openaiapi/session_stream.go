@@ -86,9 +86,29 @@ func (s *Server) publishSessionStreamEvent(sessionID, eventName string, data any
 	hub.publish(sessionID, sessionStreamEvent{Name: eventName, Data: data})
 }
 
+func (s *Server) activeRunIDForSession(sessionID string) string {
+	if s == nil || s.pool == nil || sessionID == "" {
+		return ""
+	}
+	sess, err := s.pool.getExact(sessionID)
+	if err != nil || sess == nil {
+		return ""
+	}
+	return sess.ActiveRunID()
+}
+
 func (s *Server) publishToolEvent(sessionID string, event ToolStatusEvent) {
 	if sessionID == "" {
 		return
+	}
+	if event.SessionID == "" {
+		event.SessionID = sessionID
+	}
+	if event.RunID == "" {
+		event.RunID = s.activeRunIDForSession(sessionID)
+	}
+	if event.Timestamp == "" {
+		event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 	s.publishSessionStreamEvent(sessionID, "tool_event", event)
 }
@@ -100,6 +120,12 @@ func (s *Server) publishTranscriptEvent(sessionID string, evt TranscriptStreamEv
 	if evt.XSessionID == "" {
 		evt.XSessionID = sessionID
 	}
+	if evt.RunID == "" {
+		evt.RunID = s.activeRunIDForSession(sessionID)
+	}
+	if evt.Timestamp == "" {
+		evt.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+	}
 	s.publishSessionStreamEvent(sessionID, "transcript", evt)
 }
 
@@ -107,14 +133,25 @@ func (s *Server) writeTranscriptEvent(sse *SSEWriter, sessionID string, evt Tran
 	if evt.XSessionID == "" {
 		evt.XSessionID = sessionID
 	}
+	if evt.RunID == "" {
+		evt.RunID = s.activeRunIDForSession(sessionID)
+	}
+	if evt.Timestamp == "" {
+		evt.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+	}
 	if sse != nil {
 		sse.WriteTranscriptEvent(evt)
 	}
 	s.publishTranscriptEvent(sessionID, evt)
 }
 
-func (s *Server) publishSessionStreamDone(sessionID string) {
-	s.publishSessionStreamEvent(sessionID, "done", map[string]any{"sessionId": sessionID})
+func (s *Server) publishSessionStreamDone(sessionID, runID, status string) {
+	s.publishSessionStreamEvent(sessionID, "done", map[string]any{
+		"sessionId": sessionID,
+		"runId":     runID,
+		"status":    status,
+		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
+	})
 }
 
 type sessionStreamCursor struct {

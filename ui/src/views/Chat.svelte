@@ -1,5 +1,6 @@
 <script>
   import { onDestroy, onMount, tick } from 'svelte';
+  import { get } from 'svelte/store';
   import { markdownToHTML } from '../lib/markdown.js';
   import { readSSE, postJSON } from '../lib/api.js';
   import { approvalSessionID, approvalRequestOwnership, approvalHistoryFromRunEvents, applyApprovalRequestToRuntime } from '../lib/approval.js';
@@ -32,14 +33,27 @@
     moveSessionTools
   } from '../lib/stores.js';
   import { shortID, toolStateClass, formatArgs } from '../lib/format.js';
+  import {
+    sessionRunStates,
+    ensureSessionState,
+    getSessionState,
+    updateSessionState,
+    isCompletionActive,
+    registerCompletion,
+    markCompletion,
+    clearCompletion,
+    abortCompletion,
+    registerObserver,
+    clearObserver,
+    stopObserver,
+    eventBelongsToSession
+  } from '../lib/session-runs.js';
   import DirBrowser from '../components/DirBrowser.svelte';
   import { t } from '../lib/preferences.js';
 
   let prompt = '';
   let messages = [];
   let busy = false;
-  let chatAbort = null;
-  let chatStreamSessionID = '';
   let chatEvents = [];
   let sessionRunEvents = [];
   let sessionCapabilityEvents = [];
@@ -52,8 +66,6 @@
   let shouldFollowOutput = true;
   let scrollFrame = 0;
   let streamUsesTranscript = false;
-  let sessionStreamAbort = null;
-  let sessionStreamID = '';
   let sessionHistoryLoadedFor = '';
   let sessionStreamCompletedFor = '';
   let sessionStreamCursor = { entrySeq: 0, runSeq: 0, capabilitySeq: 0 };
@@ -113,16 +125,19 @@
     return () => document.removeEventListener('pointerdown', handleRuntimeOutsidePointer);
   });
   onDestroy(() => {
-    stopSessionStream();
+    for (const state of Object.values(get(sessionRunStates))) {
+      state.observer?.controller?.abort();
+      state.completion?.controller?.abort();
+    }
     if (subAgentRefreshTimer) clearTimeout(subAgentRefreshTimer);
   });
 
   $: {
     const nextSession = $currentSession;
     if (nextSession !== prevSession) {
-      stopSessionStream();
+      if (prevSession) persistLocalSessionState(prevSession);
+      if (prevSession && prevSession !== nextSession) stopObserver(prevSession);
       sessionHistoryLoadedFor = '';
-      resetSessionStreamCursor();
       subAgents = [];
       subAgentTranscripts = {};
       closeSubAgentModal();
@@ -137,17 +152,70 @@
         sessionCapabilityEvents = [];
         resetSelectedModelToDefault();
         shouldFollowOutput = true;
-      } else if (busy) {
-        // The first streaming chunk can assign the newly-created session ID.
-        // Do not reload persisted history mid-stream; it can replace the local
-        // assistant placeholder and cause deltas to append to the user message.
-        sessionCreated = true;
       } else {
-        // Switched to an existing session — load its messages
-        loadSessionMessages(nextSession);
+        const cached = getSessionState(nextSession);
+        if (cached.historyLoaded || isCompletionActive(cached)) {
+          restoreLocalSessionState(cached);
+          sessionCreated = true;
+          scrollChatToBottom({ force: true });
+        } else {
+          loadSessionMessages(nextSession);
+        }
       }
       prevSession = nextSession;
     }
+  }
+
+  function persistLocalSessionState(id) {
+    if (!id) return;
+    updateSessionState(id, (state) => ({
+      ...state,
+      messages,
+      toolEvents: chatEvents,
+      runEvents: sessionRunEvents,
+      capabilityEvents: sessionCapabilityEvents,
+      runtime: sessionRuntimeValue,
+      pendingApprovals: sessionRuntimeValue?.pendingApprovals || [],
+      cursor: sessionStreamCursor,
+      historyLoaded: sessionHistoryLoadedFor === id || state.historyLoaded,
+      streamCompleted: sessionStreamCompletedFor === id,
+      streamUsesTranscript,
+      optimisticRunEventID,
+      subAgents,
+      subAgentTranscripts
+    }));
+  }
+
+  function restoreLocalSessionState(state) {
+    messages = state?.messages || [];
+    chatEvents = state?.toolEvents || [];
+    sessionRunEvents = state?.runEvents || [];
+    sessionCapabilityEvents = state?.capabilityEvents || [];
+    sessionRuntimeValue = state?.runtime || null;
+    sessionRuntime.set(sessionRuntimeValue);
+    sessionStreamCursor = state?.cursor || { entrySeq: 0, runSeq: 0, capabilitySeq: 0 };
+    sessionHistoryLoadedFor = state?.historyLoaded ? state.sessionId : '';
+    sessionStreamCompletedFor = state?.streamCompleted ? state.sessionId : '';
+    streamUsesTranscript = Boolean(state?.streamUsesTranscript);
+    optimisticRunEventID = state?.optimisticRunEventID || '';
+    subAgents = state?.subAgents || [];
+    subAgentTranscripts = state?.subAgentTranscripts || {};
+    approvalHistory = approvalHistoryFromRunEvents(sessionRunEvents);
+  }
+
+  function withSessionProjection(id, callback) {
+    if (!id || typeof callback !== 'function') return;
+    const selectedID = $currentSession;
+    if (selectedID === id) {
+      callback();
+      persistLocalSessionState(id);
+      return;
+    }
+    const selectedSnapshot = selectedID ? getSessionState(selectedID) : null;
+    restoreLocalSessionState(getSessionState(id));
+    callback();
+    persistLocalSessionState(id);
+    if (selectedSnapshot) restoreLocalSessionState(selectedSnapshot);
   }
 
   async function loadSessionMessages(id) {
@@ -164,17 +232,21 @@
       await loadSessionRuntime(id);
       sessionHistoryLoadedFor = id;
       updateSessionStreamCursorFromState();
+      persistLocalSessionState(id);
       scrollChatToBottom({ force: true });
     } catch {
       if (id !== $currentSession) return;
       // Leave messages empty on error
       sessionHistoryLoadedFor = id;
       updateSessionStreamCursorFromState();
+      persistLocalSessionState(id);
     }
     sessionCreated = true; // existing session, not "new"
   }
 
   $: activeSession = $sessions.find((s) => s.id === $currentSession);
+  $: selectedRunState = $currentSession ? $sessionRunStates[$currentSession] : null;
+  $: busy = isCompletionActive(selectedRunState) || selectedRunState?.runtime?.activeRun?.status === 'running';
   $: runtimeMode = sessionRuntimeValue?.mode || activeSession?.mode || (!$currentSession ? newSessionMode : 'yolo');
   $: pendingApprovalCount = (sessionRuntimeValue?.pendingApprovals || []).length;
   $: approvalToolViewValue = approvalToolView(selectedApproval);
@@ -203,17 +275,15 @@
     const tailID = $currentSession;
     const shouldTail = Boolean(
       tailID &&
-      !busy &&
+      !isCompletionActive($sessionRunStates[tailID]) &&
       activeSession?.running &&
       sessionHistoryLoadedFor === tailID &&
       sessionStreamCompletedFor !== tailID
     );
     if (shouldTail) {
       startSessionStream(tailID);
-    } else if (sessionStreamID && sessionStreamID !== tailID) {
-      stopSessionStream();
-    } else if (!shouldTail && sessionStreamID) {
-      stopSessionStream();
+    } else if (!shouldTail && tailID) {
+      stopObserver(tailID);
     }
   }
 
@@ -238,27 +308,39 @@
       setError($t('chat.error.modelNoImages'));
       return;
     }
-    if (isNewSession && !workDir.trim()) {
+    const creatingSession = isNewSession;
+    if (creatingSession && !workDir.trim()) {
       setError($t('chat.error.needWorkDir'));
       return;
     }
-    stopSessionStream();
+
+    const sessionID = $currentSession || newWebUISessionID();
+    const existingState = getSessionState(sessionID);
+    if (isCompletionActive(existingState) || existingState.runtime?.activeRun?.status === 'running') {
+      setError('This session already has an active run.');
+      return;
+    }
+    if (!$currentSession) {
+      ensureSessionState(sessionID);
+      moveSessionTools('__new__', sessionID);
+      currentSession.set(sessionID);
+    }
+    stopObserver(sessionID);
     sessionStreamCompletedFor = '';
-    busy = true;
     chatEvents = [];
     streamUsesTranscript = false;
-    optimisticRunEventID = beginOptimisticRunEvent();
     clearBanners();
 
-    // Add user message
     messages = [...messages, { role: 'user', content: outgoing, images: outgoingImages }];
     scrollChatToBottom({ force: true });
     prompt = '';
     imageUploads = [];
     if (imageInput) imageInput.value = '';
 
-    chatStreamSessionID = $currentSession;
-    chatAbort = new AbortController();
+    const controller = new AbortController();
+    registerCompletion(sessionID, controller);
+    optimisticRunEventID = beginOptimisticRunEvent(sessionID);
+    persistLocalSessionState(sessionID);
     try {
       const requestMessages = messages.map((m, idx) => {
         if (idx === messages.length - 1 && outgoingImages.length > 0) {
@@ -269,9 +351,9 @@
       const body = JSON.stringify({
         model: $selectedModel || 'default',
         stream: true,
-        x_session_id: $currentSession || undefined,
-        x_working_dir: isNewSession ? workDir.trim() : activeSessionWorkDir,
-        x_mode: isNewSession ? newSessionMode : undefined,
+        x_session_id: sessionID,
+        x_working_dir: creatingSession ? workDir.trim() : activeSessionWorkDir,
+        x_mode: creatingSession ? newSessionMode : undefined,
         x_tools: visibleSessionTools,
         x_transcript: true,
         messages: requestMessages
@@ -280,7 +362,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
-        signal: chatAbort.signal
+        signal: controller.signal
       });
       if (!res.ok || !res.body) {
         const text = await res.text();
@@ -288,43 +370,51 @@
         try { data = text ? JSON.parse(text) : null; } catch { data = null; }
         throw new Error(data?.error?.message || data?.error || data?.message || `${res.status} ${res.statusText}`);
       }
-      // Add placeholder assistant message
-      messages = [...messages, { role: 'assistant', content: '' }];
-      scrollChatToBottom({ force: true });
-      await readSSE(res.body, handleStreamEvent);
-      finishOptimisticRunEvent('completed');
+      markCompletion(sessionID, 'running');
+      withSessionProjection(sessionID, () => {
+        messages = [...messages, { role: 'assistant', content: '' }];
+        scrollChatToBottom({ force: true });
+      });
+      await readSSE(res.body, (event) => handleStreamEvent(sessionID, event));
+      withSessionProjection(sessionID, () => finishOptimisticRunEvent('completed'));
+      markCompletion(sessionID, 'completed');
       sessionCreated = true;
     } catch (err) {
-      if (err?.name === 'AbortError') {
-        finishOptimisticRunEvent('canceled');
-        setNotice($t('chat.notice.stopped'));
-      } else {
-        finishOptimisticRunEvent('failed');
-        setError(err);
+      const canceled = err?.name === 'AbortError';
+      withSessionProjection(sessionID, () => finishOptimisticRunEvent(canceled ? 'canceled' : 'failed'));
+      markCompletion(sessionID, canceled ? 'canceled' : 'failed', canceled ? '' : err);
+      if (sessionID === $currentSession) {
+        if (canceled) setNotice($t('chat.notice.stopped'));
+        else setError(err);
       }
     } finally {
-      busy = false;
-      chatAbort = null;
+      clearCompletion(sessionID, controller);
       try { await refreshSessions(); } catch {
         // opportunistic
       }
       try { await refreshStatsSummary(); } catch {
         // opportunistic
       }
-      if ($currentSession) {
-        try { await loadSessionMessages($currentSession); } catch {
+      if (sessionID === $currentSession) {
+        try { await loadSessionMessages(sessionID); } catch {
           // opportunistic
         }
-        try { await loadSubAgents($currentSession); } catch {
+        try { await loadSubAgents(sessionID); } catch {
           // opportunistic
         }
       }
-      optimisticRunEventID = '';
+      updateSessionState(sessionID, (state) => ({ ...state, optimisticRunEventID: '' }));
+      if (sessionID === $currentSession) optimisticRunEventID = '';
     }
   }
 
+  function newWebUISessionID() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    return `webui-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
   function stop() {
-    if (chatAbort) chatAbort.abort();
+    if ($currentSession) abortCompletion($currentSession);
   }
 
   function resetSession() {
@@ -468,26 +558,20 @@
   }
 
 
-  function handleApprovalRequest(data) {
+  function handleApprovalRequest(data, boundSessionID = $currentSession) {
     try {
       const item = typeof data === 'string' ? JSON.parse(data) : data;
-      if (!item?.approvalId) return;
-      const ownership = approvalRequestOwnership($currentSession, item);
-      const next = applyApprovalRequestToRuntime(sessionRuntimeValue, $currentSession, item);
-      // A newly-created stream has no selected session yet, so its approval frame
-      // can safely establish it. Events from a session the user already left are
-      // deliberately not rendered into the selected session's runtime snapshot.
-      if (ownership.adopt) {
-        chatStreamSessionID = ownership.sessionID;
-        moveSessionTools('__new__', ownership.sessionID);
-        currentSession.set(ownership.sessionID);
-      }
+      if (!item?.approvalId || !eventBelongsToSession(boundSessionID, item)) return;
+      const ownership = approvalRequestOwnership(boundSessionID, item);
+      const next = applyApprovalRequestToRuntime(sessionRuntimeValue, boundSessionID, item);
       if (!ownership.belongs) return;
-      activeApproval.set(item);
-      selectedApprovalID = item.approvalId;
-      showApprovalCenter = true;
       sessionRuntimeValue = next;
       sessionRuntime.set(sessionRuntimeValue);
+      if (boundSessionID === $currentSession) {
+        activeApproval.set(item);
+        selectedApprovalID = item.approvalId;
+        showApprovalCenter = true;
+      }
     } catch {
       // ignore malformed approval frames
     }
@@ -709,13 +793,13 @@
     loadSubAgentMessages(agentID).catch(() => {});
   }
 
-  function beginOptimisticRunEvent() {
+  function beginOptimisticRunEvent(sessionID = $currentSession) {
     const id = `local-run-${Date.now()}`;
     const runID = `local_${Date.now()}`;
     const event = {
       id,
       runId: runID,
-      sessionId: $currentSession || '',
+      sessionId: sessionID || '',
       eventType: 'started',
       source: 'webui',
       status: 'running',
@@ -805,27 +889,15 @@
     }
   }
 
-  function stopSessionStream() {
-    if (sessionStreamAbort) {
-      sessionStreamAbort.abort();
-    }
-    sessionStreamAbort = null;
-    sessionStreamID = '';
-  }
-
   function startSessionStream(id) {
-    if (!id || busy) return;
-    if (sessionStreamID === id && sessionStreamAbort) return;
-    stopSessionStream();
-    const cursor = { ...sessionStreamCursor };
+    if (!id || isCompletionActive(getSessionState(id))) return;
+    const state = getSessionState(id);
+    if (state.observer?.controller) return;
+    const cursor = { ...(state.cursor || sessionStreamCursor) };
     const abort = new AbortController();
-    sessionStreamAbort = abort;
-    sessionStreamID = id;
+    registerObserver(id, abort);
     consumeSessionStream(id, cursor, abort).finally(() => {
-      if (sessionStreamAbort === abort) {
-        sessionStreamAbort = null;
-        sessionStreamID = '';
-      }
+      clearObserver(id, abort);
     });
   }
 
@@ -854,8 +926,11 @@
   }
 
   function handleSessionStreamEvent(id, event) {
-    if (id !== $currentSession) return;
     if (event.data === '[DONE]') return;
+    withSessionProjection(id, () => handleProjectedSessionStreamEvent(id, event));
+  }
+
+  function handleProjectedSessionStreamEvent(id, event) {
     if (event.event === 'done') {
       sessionStreamCompletedFor = id;
       refreshSessions().catch(() => {});
@@ -877,7 +952,7 @@
     if (event.event === 'transcript') {
       try {
         const item = JSON.parse(event.data);
-        applyTranscriptStreamEvent(item);
+        applyTranscriptStreamEvent(item, id);
       } catch {
         // ignore malformed transcript frames
       }
@@ -885,7 +960,9 @@
     }
     if (event.event === 'run_event') {
       try {
-        upsertSessionRunEvent(JSON.parse(event.data));
+        const item = JSON.parse(event.data);
+        if (!eventBelongsToSession(id, item)) return;
+        upsertSessionRunEvent(item);
       } catch {
         // ignore malformed event frames
       }
@@ -894,7 +971,7 @@
     if (event.event === 'runtime_event') {
       try {
         const snapshot = JSON.parse(event.data);
-        if (snapshot?.sessionId && snapshot.sessionId !== $currentSession) return;
+        if (!eventBelongsToSession(id, snapshot)) return;
         sessionRuntime.set(snapshot);
         sessionRuntimeValue = snapshot;
       } catch {
@@ -903,15 +980,15 @@
       return;
     }
     if (event.event === 'approval_request') {
-      handleApprovalRequest(event.data);
+      handleApprovalRequest(event.data, id);
       return;
     }
     if (event.event === 'approval_resolved') {
       try {
         const item = JSON.parse(event.data);
-        const resolvedSessionID = approvalSessionID(item, $currentSession);
+        const resolvedSessionID = approvalSessionID(item, id);
         recordApprovalResolution(item, resolvedSessionID);
-        if (resolvedSessionID !== $currentSession) return;
+        if (resolvedSessionID !== id) return;
         if (selectedApprovalID === item.approvalId) {
           activeApproval.set(null);
           selectedApprovalID = '';
@@ -926,6 +1003,7 @@
     if (event.event === 'tool_event') {
       try {
         const item = JSON.parse(event.data);
+        if (!eventBelongsToSession(id, item)) return;
         toolEvents.update((items) => [...items.filter((entry) => entry.toolCallId !== item.toolCallId), item].slice(-200));
         handleToolStatusEvent(item);
       } catch {
@@ -935,7 +1013,9 @@
     }
     if (event.event === 'capability_event') {
       try {
-        upsertSessionCapabilityEvent(JSON.parse(event.data));
+        const item = JSON.parse(event.data);
+        if (!eventBelongsToSession(id, item)) return;
+        upsertSessionCapabilityEvent(item);
       } catch {
         // ignore malformed event frames
       }
@@ -2009,39 +2089,38 @@
       .join('\n');
   }
 
-  function acceptsChatStreamSession(sessionID = '') {
-    const id = String(sessionID || '').trim();
-    if (id) {
-      if (!chatStreamSessionID) chatStreamSessionID = id;
-      if (!$currentSession) {
-        moveSessionTools('__new__', id);
-        currentSession.set(id);
-      }
-    }
-    return !chatStreamSessionID || chatStreamSessionID === $currentSession;
+  function handleStreamEvent(boundSessionID, event) {
+    if (event.data === '[DONE]') return;
+    withSessionProjection(boundSessionID, () => handleProjectedCompletionEvent(boundSessionID, event));
   }
 
-  function handleStreamEvent(event) {
-    if (event.data === '[DONE]') return;
+  function handleProjectedCompletionEvent(boundSessionID, event) {
     if (event.event === 'transcript') {
       try {
         const item = JSON.parse(event.data);
-        if (!acceptsChatStreamSession(item?.x_session_id)) return;
+        if (!eventBelongsToSession(boundSessionID, item)) return;
         streamUsesTranscript = true;
-        applyTranscriptStreamEvent(item);
+        applyTranscriptStreamEvent(item, boundSessionID);
       } catch {
         // ignore malformed transcript frames
       }
       return;
     }
     if (event.event === 'approval_request') {
-      handleApprovalRequest(event.data);
+      try {
+        const item = JSON.parse(event.data);
+        if (!eventBelongsToSession(boundSessionID, item)) return;
+        handleApprovalRequest(item, boundSessionID);
+      } catch {
+        // ignore malformed approval frames
+      }
       return;
     }
     if (event.event === 'tool_status') {
       if (streamUsesTranscript) return;
       try {
         const item = JSON.parse(event.data);
+        if (!eventBelongsToSession(boundSessionID, item)) return;
         handleToolStatusEvent(item);
       } catch {
         chatEvents = [...chatEvents.slice(-49), { type: 'tool', status: 'unknown', raw: event.data }];
@@ -2051,7 +2130,7 @@
     }
     try {
       const chunk = JSON.parse(event.data);
-      if (chunk?.x_session_id && !acceptsChatStreamSession(chunk.x_session_id)) return;
+      if (!eventBelongsToSession(boundSessionID, chunk)) return;
       const delta = chunk?.choices?.[0]?.delta?.content;
       if (delta && !streamUsesTranscript) {
         appendAssistantDelta(delta);
@@ -2061,11 +2140,8 @@
     }
   }
 
-  function applyTranscriptStreamEvent(item) {
-    if (item?.x_session_id) {
-      if (!acceptsChatStreamSession(item.x_session_id)) return;
-    }
-    if (chatStreamSessionID && chatStreamSessionID !== $currentSession) return;
+  function applyTranscriptStreamEvent(item, boundSessionID = $currentSession) {
+    if (!eventBelongsToSession(boundSessionID, item)) return;
     const message = item?.message;
     if (!message) return;
     if (message.agentId) {

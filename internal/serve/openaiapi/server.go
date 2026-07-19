@@ -75,6 +75,7 @@ type Server struct {
 	extraContext      string
 	defaultSessionIDs map[string]string // key: workDir, used when x_session_id is empty
 	sessionCreateMu   sync.Mutex
+	runSlots          chan struct{}
 }
 
 // SettingsSkillHub returns a copy of marketplace settings for runtime adapters.
@@ -238,6 +239,10 @@ func Run(opts RunOptions, version string) error {
 	// Build session pool
 	idleTimeout := time.Duration(gCfg.Session.IdleTimeoutSeconds) * time.Second
 	pool := NewSessionPool(gCfg.Session.MaxSessions, idleTimeout)
+	var runSlots chan struct{}
+	if gCfg.MaxConcurrentReqs > 0 {
+		runSlots = make(chan struct{}, gCfg.MaxConcurrentReqs)
+	}
 
 	srv := &Server{
 		cfg:               gCfg,
@@ -257,6 +262,7 @@ func Run(opts RunOptions, version string) error {
 		cronScheduler:     opts.CronScheduler,
 		extraContext:      extraContext,
 		defaultSessionIDs: make(map[string]string),
+		runSlots:          runSlots,
 	}
 
 	// Build routes

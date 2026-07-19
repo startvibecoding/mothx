@@ -97,7 +97,6 @@ func (a *App) handleAgentEvent(event agent.Event) tea.Cmd {
 
 	case agent.EventPlanUpdate:
 		a.currentPlan = event.Plan
-		a.addMessage(statusStyle.Render(formatPlanForDisplay(event.Plan)))
 		a.scheduleRender()
 		return a.listenAgentEvents()
 

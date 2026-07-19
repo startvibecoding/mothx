@@ -137,21 +137,34 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 	defer s.pool.Unpin(sess)
 
-	sess.Lock()
+	if !sess.TryLock() {
+		writeError(w, http.StatusConflict, "session already has an active run", "session_run_active")
+		return
+	}
 	defer sess.Unlock()
+	if s.runSlots != nil {
+		select {
+		case s.runSlots <- struct{}{}:
+			defer func() { <-s.runSlots }()
+		default:
+			writeError(w, http.StatusTooManyRequests, "maximum concurrent requests reached", "concurrency_limit_reached")
+			return
+		}
+	}
 	sess.Touch()
 	runID := newRunID()
 	sess.approvalMu.Lock()
 	sess.activeRunID = runID
 	sess.approvalMu.Unlock()
 	sess.SetRunning(true)
+	terminalStatus := "failed"
 	defer func() {
 		s.clearSessionApprovals(sess, "cancelled", "run ended before the approval was resolved")
 		sess.approvalMu.Lock()
 		sess.activeRunID = ""
 		sess.approvalMu.Unlock()
 		sess.SetRunning(false)
-		s.publishSessionStreamDone(sess.ID)
+		s.publishSessionStreamDone(sess.ID, runID, terminalStatus)
 	}()
 	if err := s.applySessionToolOptions(sess, req.XTools, runID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
@@ -221,6 +234,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 			return
 		}
+		terminalStatus = status
 		if req.Stream {
 			s.writeCommandResponseStreaming(w, cmdResult, currentModel.ID, sess.ID, lastUserMsg.Content, req.XTranscript)
 		} else {
@@ -333,9 +347,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	if req.Stream {
 		usage, status, errMsg := s.handleStreamingResponseWithAgent(w, r, eventCh, currentModel.ID, sess, a, req.XTranscript)
+		terminalStatus = status
 		_ = s.recordSessionRunEvent(sess, runID, runEventTypeForStatus(status), status, "chat_completion", currentModel.ID, mode, usageEventData(usage, errMsg))
 	} else {
 		usage, status, errMsg := s.handleNonStreamingResponseWithAgent(w, eventCh, currentModel.ID, sess, a)
+		terminalStatus = status
 		_ = s.recordSessionRunEvent(sess, runID, runEventTypeForStatus(status), status, "chat_completion", currentModel.ID, mode, usageEventData(usage, errMsg))
 	}
 }

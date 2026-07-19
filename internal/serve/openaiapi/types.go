@@ -122,6 +122,8 @@ type SessionActiveRun struct {
 type SessionApprovalRequest struct {
 	ApprovalID string         `json:"approvalId"`
 	SessionID  string         `json:"sessionId"`
+	RunID      string         `json:"runId,omitempty"`
+	Timestamp  string         `json:"timestamp,omitempty"`
 	AgentID    string         `json:"agentId,omitempty"`
 	Mode       string         `json:"mode,omitempty"`
 	Risk       string         `json:"risk,omitempty"`
@@ -265,6 +267,9 @@ type ChatCompletionChunk struct {
 
 // ToolStatusEvent is sent via SSE event: tool_status.
 type ToolStatusEvent struct {
+	SessionID  string         `json:"sessionId,omitempty"`
+	RunID      string         `json:"runId,omitempty"`
+	Timestamp  string         `json:"timestamp,omitempty"`
 	Tool       string         `json:"tool"`
 	ToolCallID string         `json:"toolCallId,omitempty"`
 	AgentID    string         `json:"agentId,omitempty"`
@@ -280,6 +285,8 @@ type ToolStatusEvent struct {
 type TranscriptStreamEvent struct {
 	Type       string               `json:"type"` // "assistant_delta" or "message"
 	XSessionID string               `json:"x_session_id,omitempty"`
+	RunID      string               `json:"runId,omitempty"`
+	Timestamp  string               `json:"timestamp,omitempty"`
 	Message    *SessionMessageEntry `json:"message,omitempty"`
 }
 

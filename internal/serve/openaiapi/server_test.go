@@ -1205,11 +1205,44 @@ func TestStreamingResponseTranscriptEvents(t *testing.T) {
 			t.Fatalf("missing %s in body: %s", want, body)
 		}
 	}
+	if !strings.Contains(body, `"x_session_id":"sess-1"`) {
+		t.Fatalf("missing session identity in transcript body: %s", body)
+	}
+	if !strings.Contains(body, `"timestamp":`) {
+		t.Fatalf("missing timestamp in transcript body: %s", body)
+	}
 	if strings.Contains(body, "event: tool_status") {
 		t.Fatalf("transcript mode should not emit legacy tool_status events: %s", body)
 	}
 	if strings.Contains(body, "⏳") {
 		t.Fatalf("transcript mode should not mix tool status into content deltas: %s", body)
+	}
+}
+
+func TestSessionStreamDoneIncludesRunIdentity(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+	events, cancel := srv.getSessionStreamHub().subscribe("sess-1")
+	defer cancel()
+
+	srv.publishSessionStreamDone("sess-1", "run-1", "canceled")
+	select {
+	case event := <-events:
+		if event.Name != "done" {
+			t.Fatalf("event name = %q, want done", event.Name)
+		}
+		data, ok := event.Data.(map[string]any)
+		if !ok {
+			t.Fatalf("event data type = %T", event.Data)
+		}
+		if data["sessionId"] != "sess-1" || data["runId"] != "run-1" || data["status"] != "canceled" {
+			t.Fatalf("unexpected done event: %#v", data)
+		}
+		if data["timestamp"] == "" {
+			t.Fatalf("missing done timestamp: %#v", data)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for done event")
 	}
 }
 
@@ -1342,6 +1375,49 @@ func TestCloneModelCopiesMutableFields(t *testing.T) {
 	}
 	if model.Compat.ThinkingFormat != "anthropic" {
 		t.Fatalf("original compat mutated: %s", model.Compat.ThinkingFormat)
+	}
+}
+
+func TestChatHandlerRejectsConcurrentRunForSameSession(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+
+	sess, err := srv.getOrCreateSession("same-session", srv.cfg.GetWorkDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.Lock()
+	defer sess.Unlock()
+
+	body := `{"x_session_id":"same-session","messages":[{"role":"user","content":"hello"}],"stream":false}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"type":"session_run_active"`) {
+		t.Fatalf("missing session_run_active error: %s", w.Body.String())
+	}
+}
+
+func TestChatHandlerRejectsRunWhenConcurrencyLimitReached(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+	srv.runSlots = make(chan struct{}, 1)
+	srv.runSlots <- struct{}{}
+
+	body := `{"x_session_id":"limited-session","messages":[{"role":"user","content":"hello"}],"stream":false}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.handleChatCompletions(w, req)
+
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"type":"concurrency_limit_reached"`) {
+		t.Fatalf("missing concurrency_limit_reached error: %s", w.Body.String())
 	}
 }
 

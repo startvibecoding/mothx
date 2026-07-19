@@ -1154,6 +1154,28 @@ func TestRenderFooterShowsBlinkingApprovalAlert(t *testing.T) {
 	}
 }
 
+func TestPlanUpdateStaysInStickyPanel(t *testing.T) {
+	a := &App{
+		messages: []string{"You: inspect the repository"},
+	}
+	plan := &tools.TaskPlan{
+		Title: "Fix the TUI",
+		Steps: []tools.PlanStep{{Title: "Inspect rendering", Status: "running"}},
+	}
+
+	a.handleAgentEvent(agent.Event{Type: agent.EventPlanUpdate, Plan: plan})
+
+	if got, want := len(a.messages), 1; got != want {
+		t.Fatalf("plan update changed transcript message count: got %d, want %d", got, want)
+	}
+	if a.currentPlan != plan {
+		t.Fatal("plan update did not set currentPlan")
+	}
+	if got := stripANSI(renderStickyTodoList(a.currentPlan, 80, 5)); !strings.Contains(got, "Inspect rendering") {
+		t.Fatalf("sticky plan panel missing step: %q", got)
+	}
+}
+
 func TestHandleAgentEventReservesAssistantSlotBeforeTextDelta(t *testing.T) {
 	a := &App{
 		messages:          []string{"You: hi"},
