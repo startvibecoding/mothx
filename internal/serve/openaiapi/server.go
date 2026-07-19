@@ -285,7 +285,7 @@ func Run(opts RunOptions, version string) error {
 	// Graceful shutdown
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(os.Stderr, "MothX Serve API v%s starting on %s\n", version, gCfg.GetListenAddr())
+		fmt.Fprintf(os.Stderr, "MothX Serve API %s starting on %s\n", version, gCfg.GetListenAddr())
 		fmt.Fprintf(os.Stderr, "  Provider: %s | Model: %s | Mode: %s\n", p.Name(), model.ID, gCfg.DefaultMode)
 		fmt.Fprintf(os.Stderr, "  WorkDir: %s\n", cwd)
 		if gCfg.Auth.Enabled {

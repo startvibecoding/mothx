@@ -5,11 +5,11 @@ export default defineConfig({
   plugins: [svelte()],
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
-      '/v1': 'http://127.0.0.1:8080',
-      '/health': 'http://127.0.0.1:8080',
+      '/api': 'http://127.0.0.1:7872',
+      '/v1': 'http://127.0.0.1:7872',
+      '/health': 'http://127.0.0.1:7872',
       '/ws': {
-        target: 'ws://127.0.0.1:8080',
+        target: 'ws://127.0.0.1:7872',
         ws: true
       }
     }

@@ -236,7 +236,7 @@ func Run(cfg *Config, version string, executor AgentExecutor) error {
 		}
 	}()
 
-	fmt.Fprintf(os.Stderr, "VibeCoding A2A Server v%s starting\n", version)
+	fmt.Fprintf(os.Stderr, "VibeCoding A2A Server %s starting\n", version)
 	fmt.Fprintf(os.Stderr, "  Endpoint: http://%s/a2a\n", cfg.GetListenAddr())
 	fmt.Fprintf(os.Stderr, "  Agent Card: http://%s/.well-known/agent.json\n", cfg.GetListenAddr())
 	fmt.Fprintf(os.Stderr, "  WorkDir: %s\n", cfg.GetWorkDir())

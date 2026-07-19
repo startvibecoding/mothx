@@ -25,7 +25,7 @@
       },
       webUI: { enabled: true, dir: 'ui/dist' },
       api: {
-        listen: ':8080',
+        listen: '127.0.0.1:7872',
         provider: '',
         model: '',
         defaultMode: 'yolo',
@@ -118,9 +118,9 @@
         requestTimeoutSeconds: numberValue(api.requestTimeoutSeconds, base.api.requestTimeoutSeconds),
         maxConcurrentRequests: optionalNumber(api.maxConcurrentRequests),
         logLevel: stringValue(api.logLevel, base.api.logLevel),
-        enableWebSearch: readBool(api.enableWebSearch, false),
-        enableBrowser: readBool(api.enableBrowser, false),
-        enableA2AMaster: readBool(api.enableA2AMaster, false),
+        enableWebSearch: readBool(api.enableWebSearch, cfg.webSearch, false),
+        enableBrowser: readBool(api.enableBrowser, cfg.browser, false),
+        enableA2AMaster: readBool(api.enableA2AMaster, cfg.a2aMaster, false),
         enableDelegate: readBool(api.enableDelegate, false),
         enableWorkflows: readBool(api.enableWorkflows, false),
         enableSubAgents: readBool(api.enableSubAgents, features.multiAgent, false),
@@ -261,7 +261,7 @@
     webUI.enabled = Boolean(form.features.webUI);
     webUI.dir = form.webUI.dir.trim() || 'ui/dist';
 
-    api.listen = form.api.listen.trim() || ':8080';
+    api.listen = form.api.listen.trim() || '127.0.0.1:7872';
     api.defaultMode = form.api.defaultMode || 'yolo';
     api.defaultThinkingLevel = form.api.defaultThinkingLevel || 'medium';
     api.systemPromptMode = form.api.systemPromptMode || 'append';
@@ -271,6 +271,9 @@
     api.enableWebSearch = Boolean(form.api.enableWebSearch);
     api.enableBrowser = Boolean(form.api.enableBrowser);
     api.enableA2AMaster = Boolean(form.api.enableA2AMaster);
+    cfg.webSearch = Boolean(form.api.enableWebSearch);
+    cfg.browser = Boolean(form.api.enableBrowser);
+    cfg.a2aMaster = Boolean(form.api.enableA2AMaster);
     api.enableDelegate = Boolean(form.api.enableDelegate);
     api.enableWorkflows = Boolean(form.api.enableWorkflows);
     api.enableSubAgents = Boolean(form.features.multiAgent || form.api.enableSubAgents);
@@ -386,7 +389,7 @@
   <div class="form-grid">
     <label>
       <span>{$t('settings.serve.listen')}</span>
-      <input bind:value={form.api.listen} placeholder=":8080" />
+      <input bind:value={form.api.listen} placeholder="127.0.0.1:7872" />
     </label>
     <label>
       <span>{$t('settings.serve.webuiDir')}</span>

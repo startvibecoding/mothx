@@ -379,12 +379,13 @@ func webSearchToolDefinition(settings *config.Settings) (provider.ToolDefinition
 
 	providerType := cfg.ProviderType
 	if providerType == "" {
-		switch resolved.API {
-		case "anthropic-messages":
-			providerType = "messages"
-		default:
-			providerType = "responses"
-		}
+		providerType = resolved.API
+	}
+	switch providerType {
+	case "responses":
+		providerType = "openai-responses"
+	case "messages":
+		providerType = "anthropic-messages"
 	}
 
 	return provider.ToolDefinition{

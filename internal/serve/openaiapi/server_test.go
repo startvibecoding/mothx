@@ -70,8 +70,8 @@ func (p *recordingAPIProvider) GetModel(id string) *provider.Model {
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.Listen != "127.0.0.1:8080" {
-		t.Errorf("default listen = %q, want 127.0.0.1:8080", cfg.Listen)
+	if cfg.Listen != "127.0.0.1:7872" {
+		t.Errorf("default listen = %q, want 127.0.0.1:7872", cfg.Listen)
 	}
 	if cfg.DefaultMode != "agent" {
 		t.Errorf("default mode = %q, want agent", cfg.DefaultMode)

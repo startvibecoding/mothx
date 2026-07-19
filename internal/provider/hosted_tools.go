@@ -12,9 +12,9 @@ func HostedWebSearchToolType(providerType, name string) string {
 		return ""
 	}
 	switch providerType {
-	case "responses":
+	case "responses", "openai-responses":
 		return HostedToolWebSearch
-	case "messages":
+	case "messages", "anthropic-messages":
 		return HostedToolWebSearchAnthropicMessages
 	default:
 		return ""

@@ -8,6 +8,7 @@ type rawConfig struct {
 	DefaultWorkDir     string                   `json:"defaultWorkDir,omitempty"`
 	WorkDir            string                   `json:"workDir,omitempty"` // legacy alias for defaultWorkDir
 	Auth               *rawAuthConfig           `json:"auth,omitempty"`
+	API                *rawAPIConfig            `json:"api,omitempty"`
 	Features           *rawFeaturesConfig       `json:"features,omitempty"`
 	Sandbox            *rawSandboxConfig        `json:"sandbox,omitempty"`
 	AllowedWorkDirs    *[]string                `json:"allowedWorkDirs,omitempty"`
@@ -28,6 +29,14 @@ type rawConfig struct {
 	Memory             *rawMemoryConfig         `json:"memory,omitempty"`
 	Security           *rawSecurityConfig       `json:"security,omitempty"`
 	Hooks              *rawHooksConfig          `json:"hooks,omitempty"`
+}
+
+type rawAPIConfig struct {
+	EnableWebSearch *bool `json:"enableWebSearch,omitempty"`
+	EnableBrowser   *bool `json:"enableBrowser,omitempty"`
+	EnableA2AMaster *bool `json:"enableA2AMaster,omitempty"`
+	EnableDelegate  *bool `json:"enableDelegate,omitempty"`
+	EnableWorkflows *bool `json:"enableWorkflows,omitempty"`
 }
 
 type rawFeaturesConfig struct {

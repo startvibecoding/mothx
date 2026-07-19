@@ -47,7 +47,7 @@ type WebUIConfig struct {
 
 func DefaultConfig() *Config {
 	gw := openaiapi.DefaultConfig()
-	gw.Listen = "127.0.0.1:8080"
+	gw.Listen = "127.0.0.1:7872"
 	h := channels.DefaultConfig()
 	return &Config{
 		API: *gw,
@@ -112,7 +112,7 @@ func LoadConfigFrom(path string) (*Config, error) {
 
 func normalize(cfg *Config) {
 	if cfg.API.Listen == "" {
-		cfg.API.Listen = "127.0.0.1:8080"
+		cfg.API.Listen = "127.0.0.1:7872"
 	}
 	if cfg.API.DefaultMode == "" {
 		cfg.API.DefaultMode = "agent"

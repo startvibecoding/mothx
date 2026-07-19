@@ -91,7 +91,7 @@ func TestDefaultSettings(t *testing.T) {
 	if s.WebSearch.Enabled == nil || *s.WebSearch.Enabled {
 		t.Fatalf("expected web search to be disabled by default, got %#v", s.WebSearch.Enabled)
 	}
-	if s.WebSearch.Provider != "openai" || s.WebSearch.ProviderType != "responses" {
+	if s.WebSearch.Provider != "openai" || s.WebSearch.ProviderType != "openai-responses" {
 		t.Fatalf("unexpected web search defaults: %#v", s.WebSearch)
 	}
 	if !s.Retry.Enabled || s.Retry.MaxRetries != 5 || s.Retry.BaseDelayMs != 3000 {

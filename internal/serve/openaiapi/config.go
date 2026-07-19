@@ -79,7 +79,7 @@ type ToolVisibilityConfig struct {
 // DefaultConfig returns the default OpenAI-compatible API configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		Listen:               "127.0.0.1:8080",
+		Listen:               "127.0.0.1:7872",
 		Auth:                 AuthConfig{Enabled: false},
 		DefaultMode:          "agent",
 		DefaultThinkingLevel: "medium",
@@ -113,7 +113,7 @@ func cloneConfig(cfg *Config) *Config {
 // normalizeConfig fills in defaults for empty fields.
 func normalizeConfig(cfg *Config) {
 	if cfg.Listen == "" {
-		cfg.Listen = "127.0.0.1:8080"
+		cfg.Listen = "127.0.0.1:7872"
 	}
 	if cfg.DefaultMode == "" {
 		cfg.DefaultMode = "agent"
@@ -159,7 +159,7 @@ func (c *Config) GetListenAddr() string {
 	if c.Listen != "" {
 		return c.Listen
 	}
-	return ":8080"
+	return "127.0.0.1:7872"
 }
 
 // GetWorkDir returns the effective working directory.
@@ -202,7 +202,7 @@ func (c *Config) ApplyUnsafeAccess() {
 func unsafeListenAddr(listen string) string {
 	listen = strings.TrimSpace(listen)
 	if listen == "" {
-		listen = ":8080"
+		listen = "127.0.0.1:7872"
 	}
 	host, port, err := net.SplitHostPort(listen)
 	if err != nil {

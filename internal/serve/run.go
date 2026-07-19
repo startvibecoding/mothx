@@ -147,7 +147,7 @@ func Run(opts RunOptions, version string) error {
 		settings.WebSearch.Enabled = config.BoolPtr(true)
 	}
 
-	fmt.Fprintf(os.Stderr, "MothX Serve v%s starting\n", version)
+	fmt.Fprintf(os.Stderr, "MothX Serve %s starting\n", version)
 	displayAddr := displayListenAddr(cfg.API.GetListenAddr())
 	if cfg.Features.OpenAIAPI {
 		fmt.Fprintf(os.Stderr, "  OpenAI API: http://%s/v1/chat/completions\n", displayAddr)

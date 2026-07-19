@@ -439,7 +439,7 @@ func TestInitConfig_WritesFlatTemplate(t *testing.T) {
 		t.Fatalf("read generated config: %v", err)
 	}
 	text := string(data)
-	if !strings.Contains(text, `"listen": "127.0.0.1:8080"`) {
+	if !strings.Contains(text, `"listen": "127.0.0.1:7872"`) {
 		t.Fatalf("generated config missing flat listen field:\n%s", text)
 	}
 	if !strings.Contains(text, `"features": {`) {
@@ -846,6 +846,72 @@ func TestHandleServeConfigPutKeepsSQLiteCronStore(t *testing.T) {
 	}
 	if rt.cronStore == nil {
 		t.Fatal("cron store should be available after config update")
+	}
+}
+
+func TestDecodeConfigBytes_NestedRuntimeToolFlags(t *testing.T) {
+	cfg, err := DecodeConfigBytes([]byte(`{
+		"webSearch": false,
+		"browser": false,
+		"a2aMaster": false,
+		"api": {
+			"enableWebSearch": true,
+			"enableBrowser": true,
+			"enableA2AMaster": true,
+			"enableDelegate": true,
+			"enableWorkflows": true
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeConfigBytes: %v", err)
+	}
+	if cfg.API.EnableWebSearch || cfg.API.EnableBrowser || cfg.API.EnableA2AMaster {
+		t.Fatalf("top-level flat tool flags should override nested api flags: %#v", cfg.API)
+	}
+	if !cfg.API.EnableDelegate || !cfg.API.EnableWorkflows {
+		t.Fatalf("nested delegate/workflow flags should be decoded: %#v", cfg.API)
+	}
+
+	cfg, err = DecodeConfigBytes([]byte(`{
+		"api": {
+			"enableWebSearch": true,
+			"enableBrowser": true,
+			"enableA2AMaster": true
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("DecodeConfigBytes nested only: %v", err)
+	}
+	if !cfg.API.EnableWebSearch || !cfg.API.EnableBrowser || !cfg.API.EnableA2AMaster {
+		t.Fatalf("nested api tool flags should be honored when flat flags are absent: %#v", cfg.API)
+	}
+}
+
+func TestHandleServeConfigPutPersistsWebSearchFlag(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "serve.json")
+	cfg := DefaultConfig()
+	rt := &channelRuntime{cfg: cfg, sessionDir: dir}
+
+	req := httptest.NewRequest(http.MethodPut, "/api/serve/config", strings.NewReader(`{
+		"features": {"webUI": true, "openAIAPI": true},
+		"api": {"enableWebSearch": true}
+	}`))
+	w := httptest.NewRecorder()
+	rt.handleServeConfig(path).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if !rt.cfg.API.EnableWebSearch {
+		t.Fatal("runtime web search should be enabled")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read saved config: %v", err)
+	}
+	if !strings.Contains(string(data), `"webSearch": true`) {
+		t.Fatalf("saved config should persist flat webSearch flag, got:\n%s", string(data))
 	}
 }
 

@@ -97,12 +97,26 @@ func applyRawConfig(cfg *Config, raw *rawConfig) {
 	}
 	if raw.WebSearch != nil {
 		cfg.API.EnableWebSearch = *raw.WebSearch
+	} else if raw.API != nil && raw.API.EnableWebSearch != nil {
+		cfg.API.EnableWebSearch = *raw.API.EnableWebSearch
 	}
 	if raw.Browser != nil {
 		cfg.API.EnableBrowser = *raw.Browser
+	} else if raw.API != nil && raw.API.EnableBrowser != nil {
+		cfg.API.EnableBrowser = *raw.API.EnableBrowser
 	}
 	if raw.A2AMaster != nil {
 		cfg.API.EnableA2AMaster = *raw.A2AMaster
+	} else if raw.API != nil && raw.API.EnableA2AMaster != nil {
+		cfg.API.EnableA2AMaster = *raw.API.EnableA2AMaster
+	}
+	if raw.API != nil {
+		if raw.API.EnableDelegate != nil {
+			cfg.API.EnableDelegate = *raw.API.EnableDelegate
+		}
+		if raw.API.EnableWorkflows != nil {
+			cfg.API.EnableWorkflows = *raw.API.EnableWorkflows
+		}
 	}
 	if raw.Agent != nil {
 		if raw.Agent.MaxTurns != nil {

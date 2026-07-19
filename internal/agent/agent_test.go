@@ -1235,7 +1235,7 @@ func TestWebSearchToolDefinitionCarriesModelMetadata(t *testing.T) {
 		WebSearch: config.WebSearchSettings{
 			Enabled:      config.BoolPtr(true),
 			Provider:     "anthropic",
-			ProviderType: "messages",
+			ProviderType: "anthropic-messages",
 			Model:        "claude-sonnet-4-20250514",
 		},
 	}
@@ -1249,8 +1249,8 @@ func TestWebSearchToolDefinitionCarriesModelMetadata(t *testing.T) {
 	if def.Provider != "anthropic" {
 		t.Fatalf("provider = %q, want anthropic", def.Provider)
 	}
-	if def.ProviderType != "messages" {
-		t.Fatalf("providerType = %q, want messages", def.ProviderType)
+	if def.ProviderType != "anthropic-messages" {
+		t.Fatalf("providerType = %q, want anthropic-messages", def.ProviderType)
 	}
 	if def.Model != "claude-sonnet-4-20250514" {
 		t.Fatalf("model = %q, want claude-sonnet-4-20250514", def.Model)
@@ -1263,7 +1263,7 @@ func TestWebSearchToolDefinitionResolvesProviderReference(t *testing.T) {
 		WebSearch: config.WebSearchSettings{
 			Enabled:      config.BoolPtr(true),
 			Provider:     "gpt",
-			ProviderType: "responses",
+			ProviderType: "openai-responses",
 		},
 		Providers: map[string]*config.ProviderConfig{
 			"gpt": {
@@ -1279,8 +1279,8 @@ func TestWebSearchToolDefinitionResolvesProviderReference(t *testing.T) {
 	if def.Provider != "gpt" {
 		t.Fatalf("provider = %q, want gpt", def.Provider)
 	}
-	if def.ProviderType != "responses" {
-		t.Fatalf("providerType = %q, want responses", def.ProviderType)
+	if def.ProviderType != "openai-responses" {
+		t.Fatalf("providerType = %q, want openai-responses", def.ProviderType)
 	}
 	if def.Provider == "" {
 		t.Fatal("expected hosted provider to be resolved")

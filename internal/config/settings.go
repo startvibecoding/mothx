@@ -771,7 +771,7 @@ func DefaultSettings() *Settings {
 			Fallback:  "builtin",
 		},
 		EnablePlanTool: boolPtr(true),
-		WebSearch:      WebSearchSettings{Enabled: boolPtr(false), Provider: "openai", ProviderType: "responses"},
+		WebSearch:      WebSearchSettings{Enabled: boolPtr(false), Provider: "openai", ProviderType: "openai-responses"},
 		ContextFiles:   ContextFilesSettings{Enabled: true},
 		SkillsDir:      platform.SkillsDir(),
 		SkillHub: SkillHubSettings{
@@ -1438,9 +1438,9 @@ func normalizeWebSearchSettings(cfg WebSearchSettings) WebSearchSettings {
 	if cfg.ProviderType == "" {
 		switch cfg.Provider {
 		case "anthropic":
-			cfg.ProviderType = "messages"
+			cfg.ProviderType = "anthropic-messages"
 		default:
-			cfg.ProviderType = "responses"
+			cfg.ProviderType = "openai-responses"
 		}
 	}
 	return cfg

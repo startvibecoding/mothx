@@ -4,6 +4,8 @@
   import { t } from '../../lib/preferences.js';
   import ListEditor from './ListEditor.svelte';
 
+  const API_TYPE_OPTIONS = ['openai-chat', 'openai-responses', 'anthropic-messages', 'google-gemini', 'google-vertex'];
+
   export let section = 'app';
 
   let form = defaultForm();
@@ -17,6 +19,12 @@
   $: currentProvider = form.providers.find((item) => item.id === selectedProviderID) || form.providers[0] || null;
   $: defaultProvider = form.providers.find((item) => item.id === form.defaults.defaultProvider) || null;
   $: defaultModelOptions = modelOptionsForProvider(defaultProvider);
+  $: webSearchProviders = providersSupportingWebSearch(form.providers);
+  $: webSearchProvider = form.providers.find((item) => item.id === form.webSearch.provider) || null;
+  $: webSearchModelOptions = modelOptionsForProvider(webSearchProvider);
+  $: webSearchProviderMissing = Boolean(form.webSearch.provider) && !webSearchProviders.some((item) => item.id === form.webSearch.provider);
+  $: webSearchTypeOptions = apiTypeOptionsForProvider(webSearchProvider, form.webSearch.providerType);
+  $: webSearchModelMissing = Boolean(form.webSearch.model) && !webSearchModelOptions.some((model) => model.id === form.webSearch.model);
   $: defaultProviderMissing = Boolean(form.defaults.defaultProvider) && !form.providers.some((item) => item.id === form.defaults.defaultProvider);
   $: defaultModelMissing = Boolean(form.defaults.defaultModel) && !defaultModelOptions.some((model) => model.id === form.defaults.defaultModel);
 
@@ -374,6 +382,27 @@
     form = form;
   }
 
+  function selectWebSearchProvider(value) {
+    form.webSearch.provider = value;
+    const provider = form.providers.find((item) => item.id === value) || null;
+    form.webSearch.providerType = provider?.api || '';
+    const models = modelOptionsForProvider(provider);
+    if (!models.some((model) => model.id === form.webSearch.model)) {
+      form.webSearch.model = models[0]?.id || '';
+    }
+    form = form;
+  }
+
+  function selectWebSearchType(value) {
+    form.webSearch.providerType = value;
+    form = form;
+  }
+
+  function selectWebSearchModel(value) {
+    form.webSearch.model = value;
+    form = form;
+  }
+
   function renameProvider(provider, value) {
     provider.id = value.trim();
     selectedProviderID = provider.id;
@@ -420,6 +449,14 @@
     form = form;
   }
 
+  function providersSupportingWebSearch(providers = []) {
+    return providers.filter((provider) => supportsWebSearchAPI(provider?.api));
+  }
+
+  function supportsWebSearchAPI(api) {
+    return api === 'openai-responses' || api === 'anthropic-messages';
+  }
+
   function modelOptionsForProvider(provider) {
     const seen = new Set();
     const models = [];
@@ -430,6 +467,18 @@
       models.push({ id, name: String(model?.name || '').trim() });
     }
     return models;
+  }
+
+  function apiTypeOptionsForProvider(provider, current = '') {
+    const seen = new Set();
+    const options = [];
+    for (const value of [provider?.api, current, ...API_TYPE_OPTIONS]) {
+      const id = String(value || '').trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      options.push(id);
+    }
+    return options;
   }
 
   function uniqueProviderID(prefix) {
@@ -685,9 +734,47 @@
         <option value="false">{$t('common.disabled')}</option>
       </select>
     </label>
-    <label><span>{$t('settings.app.webSearchProvider')}</span><input bind:value={form.webSearch.provider} /></label>
-    <label><span>{$t('settings.app.webSearchType')}</span><input bind:value={form.webSearch.providerType} /></label>
-    <label><span>{$t('settings.app.webSearchModel')}</span><input bind:value={form.webSearch.model} /></label>
+    <label>
+      <span>{$t('settings.app.webSearchProvider')}</span>
+      <select value={form.webSearch.provider} on:change={(event) => selectWebSearchProvider(event.currentTarget.value)}>
+        <option value="">{$t('common.uninitialized')}</option>
+        {#if webSearchProviderMissing}
+          <option value={form.webSearch.provider}>{form.webSearch.provider}</option>
+        {/if}
+        {#each webSearchProviders as provider}
+          <option value={provider.id}>{provider.id}</option>
+        {/each}
+      </select>
+    </label>
+    <label>
+      <span>{$t('settings.app.webSearchType')}</span>
+      <select
+        value={form.webSearch.providerType}
+        disabled={webSearchTypeOptions.length === 0 && !form.webSearch.providerType}
+        on:change={(event) => selectWebSearchType(event.currentTarget.value)}
+      >
+        <option value="">{$t('common.uninitialized')}</option>
+        {#each webSearchTypeOptions as apiType}
+          <option value={apiType}>{apiType}</option>
+        {/each}
+      </select>
+    </label>
+    <label>
+      <span>{$t('settings.app.webSearchModel')}</span>
+      <select
+        value={form.webSearch.model}
+        disabled={webSearchModelOptions.length === 0 && !form.webSearch.model}
+        on:change={(event) => selectWebSearchModel(event.currentTarget.value)}
+      >
+        <option value="">{$t('common.uninitialized')}</option>
+        {#if webSearchModelMissing}
+          <option value={form.webSearch.model}>{form.webSearch.model}</option>
+        {/if}
+        {#each webSearchModelOptions as model}
+          <option value={model.id}>{model.name && model.name !== model.id ? `${model.id} - ${model.name}` : model.id}</option>
+        {/each}
+      </select>
+    </label>
     <label class="checkbox"><input type="checkbox" bind:checked={form.retry.enabled} /> {$t('settings.app.retry')}</label>
     <label><span>{$t('settings.app.maxRetries')}</span><input type="number" min="0" bind:value={form.retry.maxRetries} /></label>
     <label><span>{$t('settings.app.baseDelay')}</span><input type="number" min="0" bind:value={form.retry.baseDelayMs} /></label>
@@ -758,7 +845,14 @@
           <div class="form-grid">
             <label><span>{$t('settings.app.providerID')}</span><input value={currentProvider.id} on:input={(event) => renameProvider(currentProvider, event.currentTarget.value)} /></label>
             <label><span>{$t('settings.app.providerVendor')}</span><input bind:value={currentProvider.vendor} /></label>
-            <label><span>{$t('settings.app.providerAPI')}</span><input bind:value={currentProvider.api} /></label>
+            <label>
+              <span>{$t('settings.app.providerAPI')}</span>
+              <select bind:value={currentProvider.api}>
+                {#each apiTypeOptionsForProvider(currentProvider, currentProvider.api) as apiType}
+                  <option value={apiType}>{apiType}</option>
+                {/each}
+              </select>
+            </label>
             <label><span>{$t('settings.app.providerThinkingFormat')}</span><input bind:value={currentProvider.thinkingFormat} /></label>
             <label class="full"><span>{$t('settings.app.providerBaseURL')}</span><input bind:value={currentProvider.baseUrl} /></label>
             <label class="full"><span>{$t('settings.app.providerAPIKey')}</span><input bind:value={currentProvider.apiKey} /></label>
