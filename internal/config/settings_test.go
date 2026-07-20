@@ -42,7 +42,7 @@ func TestDefaultSettings(t *testing.T) {
 		t.Fatal("expected default google-vertex provider")
 	}
 
-	for _, name := range []string{"openrouter", "minimax", "zai", "modelscope", "alibaba-standard", "alibaba-coding-plan", "alibaba-token-plan", "moark", "groq", "moonshotai", "xai", "together", "fireworks", "kimi-coding", "xiaomi-token-plan-cn"} {
+	for _, name := range []string{"openrouter", "openrouter-free-models", "minimax", "zai", "modelscope", "alibaba-standard", "alibaba-coding-plan", "alibaba-token-plan", "moark", "groq", "moonshotai", "xai", "together", "fireworks", "kimi-coding", "xiaomi-token-plan-cn"} {
 		if s.Providers[name] == nil {
 			t.Fatalf("expected default %s provider", name)
 		}
@@ -159,7 +159,9 @@ func TestMoarkModelMaxTokens(t *testing.T) {
 		"deepseek-v4-pro":    384000,
 		"qwen3.7-max":        65536,
 		"glm-5.2":            131072,
+		"ernie-5.0-thinking": 65536,
 		"kimi-k2.5":          262144,
+		"kimi-k2.6":          262144,
 		"kimi-k2.7-code":     262144,
 		"glm-5":              32768,
 		"qwen3.7-plus":       65536,
@@ -215,6 +217,9 @@ func TestVolcengineAgentPlanKimiK3Context(t *testing.T) {
 func TestRoutedProviderModelMaxTokensAreExplicit(t *testing.T) {
 	s := DefaultSettings()
 	wantByProvider := map[string]map[string]int{
+		"openrouter-free-models": {
+			"tencent/hy3": 38106,
+		},
 		"minimax": {
 			"MiniMax-M3":             128000,
 			"MiniMax-M2.7":           131072,

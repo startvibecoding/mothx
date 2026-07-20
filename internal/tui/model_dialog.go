@@ -153,11 +153,8 @@ func (a *App) renderModelDialog() string {
 	if len(a.modelDialog.Filtered) == 0 {
 		lines = append(lines, "No models match.")
 	} else {
-		start := 0
-		end := len(a.modelDialog.Filtered)
-		if end-start > 10 {
-			end = start + 10
-		}
+		limit := 10
+		start, end := authVisibleRange(a.modelDialog.Cursor, len(a.modelDialog.Filtered), limit)
 		for i := start; i < end; i++ {
 			id := a.modelDialog.Filtered[i]
 			cursor := "  "
@@ -171,6 +168,9 @@ func (a *App) renderModelDialog() string {
 				marker = "* "
 			}
 			lines = append(lines, style.Render(cursor+marker+id))
+		}
+		if len(a.modelDialog.Filtered) > limit {
+			lines = append(lines, "", statusStyle.Render(fmt.Sprintf("Showing %d-%d of %d", start+1, end, len(a.modelDialog.Filtered))))
 		}
 	}
 

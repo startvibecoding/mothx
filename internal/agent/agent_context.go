@@ -221,11 +221,13 @@ func (a *Agent) prepareRequestMessages(sessionContextMsg provider.Message, ch ch
 	return nil, fmt.Errorf("estimated request still exceeds context after omitting oversized tool outputs")
 }
 
+const contextTokenSafetyMargin = 512
+
 func clampMaxTokensToContext(maxTokens, contextWindow, estimatedInputTokens int) int {
 	if maxTokens <= 0 || contextWindow <= 0 || estimatedInputTokens <= 0 {
 		return maxTokens
 	}
-	available := contextWindow - estimatedInputTokens
+	available := contextWindow - estimatedInputTokens - contextTokenSafetyMargin
 	if available < 1 {
 		available = 1
 	}

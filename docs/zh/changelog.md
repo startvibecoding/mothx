@@ -1,6 +1,20 @@
 # 更新日志
 
-## v1.1.70
+## v1.1.71
+
+### ✨ 新功能
+
+- **扩充 Provider 模型列表**
+  - 同步 `docs/provider-model-list.md` 与 `internal/config/settings.go`，反映最新模型可用性。
+  - 新增多个 provider 的大量模型支持，包括：
+    - **OpenAI**：新增 `gpt-4o-2024-05-13` 变体。
+    - **Google Gemini**：更新模型列表与数量。
+    - **Gitee / Moark**：新增独立章节并扩充模型列表，包含 `glm-5` 系列、`qwen3.x` 系列与 `kimi-k2.x` 系列。
+    - **阿里百炼**：在 Token Plan 中新增 `qwen3.8-max-preview`、`qwen3.7-plus` 与 `glm-5.2`。
+    - **腾讯混元**：新增 `hy3` 与 `hy3-preview` 模型。
+    - **百度千帆**：新增 `Token Plan` 子章节并扩充模型支持（`deepseek-v4`、`glm-5.2`、`kimi-k2.6`、`ernie-5.1`）。
+    - **Kimi Coding**：显式新增 `ThinkingFormat: kimi` 支持。
+  - 更新快速参考表，反映准确的模型数量与新增的 `kimi` 思考格式。
 
 ### 🐛 修复
 

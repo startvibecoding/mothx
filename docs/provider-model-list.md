@@ -21,6 +21,7 @@
 | `openai` | OpenAI o1/o3（reasoning_effort） |
 | `xiaomi` | 小米 MiMo（reasoning_content 格式） |
 | `zai` | 智谱 GLM（思考模式格式） |
+| `kimi` | Kimi Coding（reasoning_content 格式） |
 | 空（默认） | 使用标准 OpenAI thinking 或原生协议 |
 
 ---
@@ -76,6 +77,7 @@
 | gpt-4.1-mini | 1M | 32K | 否 | text,image |
 | gpt-4.1-nano | 1M | 32K | 否 | text,image |
 | gpt-4o / gpt-4o-2024-08-06 / gpt-4o-2024-11-20 | 128K | 16K | 否 | text,image |
+| gpt-4o-2024-05-13 | 128K | 4K | 否 | text,image |
 | gpt-4o-mini | 128K | 16K | 否 | text,image |
 | gpt-5 / gpt-5-codex | 400K | 128K | **是** | text,image |
 | gpt-5-chat-latest | 128K | 16K | 否 | text,image |
@@ -409,7 +411,9 @@
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
+| qwen3.8-max-preview | 1M | 64K | **是** | text |
 | qwen3.6-plus | 1M | 64K | **是** | text,image |
+| qwen3.7-plus | 1M | 64K | **是** | text,image |
 | qwen3.7-max | 1M | 64K | **是** | text |
 | qwen3.6-flash | 1M | 64K | **是** | text,image |
 | deepseek-v4-pro | 1M | 384K | 否 | text |
@@ -418,6 +422,7 @@
 | kimi-k2.6 | 262K | 262K | **是** | text,image,video |
 | kimi-k2.5 | 262K | 262K | **是** | text,image,video |
 | glm-5.1 | 200K | 128K | **是** | text |
+| glm-5.2 | 1M | 128K | **是** | text,image |
 | glm-5 | 200K | 32K | **是** | text |
 | MiniMax-M2.5 | 196K | 128K | 否 | text |
 
@@ -473,14 +478,39 @@
 | deepseek-v3.2 | 128K | 64K | **是** | text |
 | deepseek-v4-flash | 1M | 128K | **是** | text |
 
----
+### 14. Gitee AI / Moark
 
+#### 14a. Gitee AI
+
+- **Vendor**: `gitee`
+- **BaseURL**: `https://ai.gitee.com/v1`
+- **API**: `openai-chat`
+- **API Key**: `${GITEE_API_KEY}`
+
+#### 14b. Moark
+
+- **Vendor**: `gitee`
+- **BaseURL**: `https://api.moark.com/v1`
+- **API**: `openai-chat`
+- **API Key**: `${MOARK_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| glm-5 | 200K | 32K | **是** | text |
+| glm-5.1 | 200K | 128K | **是** | text |
+| glm-5.2 | 1M | 128K | **是** | text,image |
+| ernie-5.0-thinking | 128K | 64K | **是** | text |
+| qwen3.5-flash | 1M | 64K | **是** | text,image |
+| qwen3.6-flash | 1M | 64K | **是** | text,image |
+| qwen3.6-plus | 64K | 64K | **是** | text,image |
+| qwen3.6-max | 1M | 64K | **是** | text,image |
 | qwen3.7-plus | 1M | 64K | **是** | text,image |
 | step-3.7-flash | 256K | 16K | 否 | text,image |
 | qwen3.7-max | 1M | 64K | **是** | text |
 | deepseek-v4-flash | 1M | 384K | **是** | text |
 | deepseek-v4-pro | 1M | 384K | **是** | text |
-| kimi-k2.5 | 256K | 256K | **是** | text,image,video |
+| kimi-k2.5 | 262K | 262K | **是** | text,image,video |
+| kimi-k2.6 | 262K | 262K | **是** | text,image,video |
 | kimi-k2.7-code | 262K | 262K | **是** | text,image |
 | minimax-m2.7 | 262K | 128K | **是** | text |
 | minimax-m3 | 1M | 128K | **是** | text,image |
@@ -517,6 +547,7 @@
 
 - **BaseURL**: `https://api.kimi.com/coding/v1`
 - **API**: `openai-chat`
+- **ThinkingFormat**: `kimi`
 - **Headers**: `User-Agent: opencode/1.17.18`
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
@@ -847,10 +878,12 @@
 
 ### 33. 百度千帆（Qianfan）
 
+#### 33a. Coding Plan
+
 - **Vendor**: `qianfan`
 - **BaseURL**: `https://qianfan.baidubce.com/v2`
 - **API**: `openai-chat`
-- **API Key**: `${QIANFAN_API_KEY}`
+- **API Key**: `${QIANFAN_CODE_PLAN_API_KEY}`
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
@@ -858,6 +891,22 @@
 | deepseek-v4-flash | 1M | 384K | **是** | text,image |
 | glm-5.1 | 200K | 128K | **是** | text,image |
 | deepseek-v4-pro | 1M | 384K | **是** | text,image |
+
+#### 33b. Token Plan
+
+- **Vendor**: `qianfan`
+- **BaseURL**: `https://qianfan.baidubce.com/v2/tokenplan/personal`
+- **API**: `openai-chat`
+- **API Key**: `${QIANFAN_TOKEN_PLAN_API_KEY}`
+
+| 模型 | Context | MaxTokens | 推理 | 输入 |
+|------|---------|-----------|------|------|
+| deepseek-v4-pro | 1M | 384K | **是** | text,image |
+| deepseek-v4-flash | 1M | 384K | **是** | text,image |
+| glm-5.2 | 1M | 128K | **是** | text,image |
+| glm-5.1 | 200K | 128K | **是** | text,image |
+| kimi-k2.6 | 262K | 262K | **是** | text,image,video |
+| ernie-5.1 | 128K | 64K | **是** | text |
 
 ---
 
@@ -929,6 +978,7 @@
 
 | 模型 | Context | MaxTokens | 推理 | 输入 |
 |------|---------|-----------|------|------|
+| hy3 | 262K | 64K | **是** | text |
 | hy3-preview | 262K | 64K | **是** | text |
 
 ### 38. 阶跃星辰（StepFun）
@@ -947,26 +997,26 @@
 
 | 供应商 | Vendor 名 | API 协议 | Thinking 格式 | 模型数 |
 |--------|-----------|----------|--------------|--------|
-| Anthropic | `anthropic` | anthropic-messages | anthropic | 22 |
+| Anthropic | `anthropic` | anthropic-messages | anthropic | 25 |
 | OpenAI | `openai` | openai-responses | openai | 45 |
 | CodeOK | `codeok` | openai-responses | - | 4 |
 | YesCode | `yescode` | openai-responses | - | 4 |
 | DeepSeek | `deepseek` | anthropic/openai-chat | deepseek | 2×2 |
-| Google Gemini | `google-gemini` | google-gemini | - | 17 |
-| Google Vertex | `google-vertex` | google-vertex | - | 9 |
+| Google Gemini | `google-gemini` | google-gemini | - | 18 |
+| Google Vertex | `google-vertex` | google-vertex | - | 11 |
 | 小米 MiMo | `xiaomi` | openai-chat | xiaomi | 3 |
-| 火山引擎 | `volcengine`×3 | openai-chat | - | 3~9 |
-| OpenRouter | `openrouter` | openai-chat | - | 18 |
+| 火山引擎 | `volcengine`×3 | openai-chat | - | 3~14 |
+| OpenRouter | `openrouter` | openai-chat | - | 20 |
 | MiniMax | `minimax`×3 | openai-chat/anthropic | - | 3~5 |
 | 智谱 AI | `zai` | openai-chat | zai | 6 |
 | ModelScope | - | openai-chat | - | 3 |
-| 阿里云百炼 | `bailian`×3 | openai-chat | - | 6~10 |
+| 阿里云百炼 | `bailian`×3 | openai-chat | - | 6~14 |
 | 华为云 | `huawei`/`huawei-plan` | openai-chat | - | 8/5 |
-| Gitee/Moark | `gitee` | openai-chat | - | 18 |
+| Gitee/Moark | `gitee` | openai-chat | - | 20 |
 | 摩尔线程 | `mthreads-plan` | openai-chat | - | 1 |
 | 天翼云 | `ctyun-plan` | openai-chat | - | 3 |
 | 京东智联云 | `jd-plan` | openai-chat | - | 10 |
-| Moonshot/Kimi | `moonshotai`/`kimi` | openai-chat/anthropic | - | 7~8 |
+| Moonshot/Kimi | `moonshotai`/`kimi-coding` | openai-chat | kimi | 7+3 |
 | xAI Grok | `xai` | openai-chat | - | 7 |
 | Fireworks | `fireworks` | anthropic-messages | - | 7 |
 | Together | `together` | openai-chat | - | 5 |
@@ -977,14 +1027,14 @@
 | Cerebras | `cerebras` | openai-chat | - | 2 |
 | 蚂蚁 Ling | `ant-ling` | openai-chat | - | 3 |
 | Opencode | `opencode` | openai-chat | - | 5~6 |
-| Vercel Gateway | `vercel-ai-gateway` | anthropic-messages | - | 12 |
+| Vercel Gateway | `vercel-ai-gateway` | anthropic-messages | - | 14 |
 | GitHub Copilot | `github-copilot` | openai-chat | - | 10 |
 | Cloudflare Gateway | `cloudflare-ai-gateway` | openai-chat | - | 7 |
 | Cloudflare Workers | `cloudflare-workers-ai` | openai-chat | - | 8 |
 | Amazon Bedrock | `amazon-bedrock` | openai-chat | - | 10 |
 | LongCat | `longcat` | openai-chat/anthropic | - | 1 |
-| 腾讯混元 | `tencent-hy-plan` | openai-chat/anthropic | - | 1 |
-| 百度千帆 | `qianfan` | openai-chat | - | 4 |
+| 腾讯混元 | `tencent-hy-plan`×2 | openai-chat/anthropic | - | 2 |
+| 百度千帆 | `qianfan`×2 | openai-chat | - | 4/6 |
 | 阶跃星辰 | `stepfun` | openai-chat | - | 1 |
 
 ---
@@ -994,7 +1044,7 @@
 | 字段 | 说明 | 可选值 |
 |------|------|--------|
 | `api` | API 协议 | `openai-chat`, `openai-responses`, `anthropic-messages`, `google-gemini`, `google-vertex`, 空（自动检测） |
-| `thinkingFormat` | 推理格式 | `anthropic`, `deepseek`, `openai`, `xiaomi`, `zai`, `""`（默认） |
+| `thinkingFormat` | 推理格式 | `anthropic`, `deepseek`, `openai`, `xiaomi`, `zai`, `kimi`, `""`（默认） |
 | `cacheControl` | Prompt 缓存 | `true`（启用）/ `false`（禁用）/ `nil`（默认） |
 | `vendor` | 显式供应商 | 见上方 vendor 名列表 |
 | `maxTokens` | 最大输出 tokens | 整数 |

@@ -654,8 +654,7 @@ func baseURLOptionsForProvider(providerID string) []authOption {
 		}
 	case "minimax":
 		return []authOption{
-			{Title: "International", Description: "https://api.minimax.io/v1", Value: "https://api.minimax.io/v1"},
-			{Title: "China", Description: "https://api.minimaxi.com/v1", Value: "https://api.minimaxi.com/v1"},
+			{Title: "Default", Description: "https://api.minimaxi.com/anthropic", Value: "https://api.minimaxi.com/anthropic"},
 		}
 	case "zai":
 		return []authOption{

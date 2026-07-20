@@ -1,6 +1,20 @@
 # Changelog
 
-## v1.1.70
+## v1.1.71
+
+### ✨ Features
+
+- **Expanded Provider Model Lists**
+  - Synchronized `docs/provider-model-list.md` with `internal/config/settings.go` to reflect the latest model availability.
+  - Added significant support for new models across multiple providers including:
+    - **OpenAI**: Added `gpt-4o-2024-05-13` variant.
+    - **Google Gemini**: Updated model list and counts.
+    - **Gitee/Moark**: Added a dedicated section and expanded model list with `glm-5` series, `qwen3.x` series, and `kimi-k2.x` series.
+    - **Alibaba Bailian**: Added `qwen3.8-max-preview`, `qwen3.7-plus`, and `glm-5.2` to Token Plan.
+    - **Tencent Hunyuan**: Added `hy3` and `hy3-preview` models.
+    - **Baidu Qianfan**: Added `Token Plan` subsection with expanded model support (`deepseek-v4`, `glm-5.2`, `kimi-k2.6`, `ernie-5.1`).
+    - **Kimi Coding**: Added explicit `ThinkingFormat: kimi` support.
+  - Updated the Quick Reference table to reflect accurate model counts and the new `kimi` thinking format.
 
 ### 🐛 Fixes
 

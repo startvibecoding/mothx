@@ -37,8 +37,14 @@ func TestResolveMaxTokensReturnsZeroWhenUnknown(t *testing.T) {
 }
 
 func TestClampMaxTokensToContext(t *testing.T) {
-	if got := clampMaxTokensToContext(10000, 12000, 3000); got != 9000 {
-		t.Fatalf("clampMaxTokensToContext = %d, want 9000", got)
+	if got := clampMaxTokensToContext(10000, 12000, 3000); got != 8488 {
+		t.Fatalf("clampMaxTokensToContext = %d, want 8488", got)
+	}
+}
+
+func TestClampMaxTokensToContextReservesSafetyMargin(t *testing.T) {
+	if got := clampMaxTokensToContext(262144, 262144, 6523+1565); got != 253544 {
+		t.Fatalf("clampMaxTokensToContext = %d, want 253544", got)
 	}
 }
 

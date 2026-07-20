@@ -163,7 +163,7 @@ func VendorFromBaseURL(baseURL string) string {
 		"api.z.ai":         "zai",
 		"open.bigmodel.cn": "zai",
 		// other vendors
-		"api.minimax.chat":          "minimax",
+		"api.minimaxi.com":          "minimax",
 		"ark.cn-beijing.volces.com": "volcengine",
 		"aip.baidubce.com":          "qianfan",
 		"dashscope.aliyuncs.com":    "bailian",

@@ -694,7 +694,7 @@ func TestVendorFromBaseURL(t *testing.T) {
 		{"api.kimi.com", "kimi"},
 		{"api.z.ai", "zai"},
 		{"open.bigmodel.cn", "zai"},
-		{"api.minimax.chat", "minimax"},
+		{"api.minimaxi.com", "minimax"},
 		{"ark.cn-beijing.volces.com", "volcengine"},
 		{"aip.baidubce.com", "qianfan"},
 		{"dashscope.aliyuncs.com", "bailian"},

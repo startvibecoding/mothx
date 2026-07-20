@@ -497,7 +497,7 @@ func TestAuthBaseURLOptionsForProvider(t *testing.T) {
 		provider string
 		wantMin  int
 	}{
-		{provider: "minimax", wantMin: 2},
+		{provider: "minimax", wantMin: 1},
 		{provider: "zai", wantMin: 2},
 		{provider: "alibaba-standard", wantMin: 4},
 		{provider: "alibaba-coding-plan", wantMin: 2},
