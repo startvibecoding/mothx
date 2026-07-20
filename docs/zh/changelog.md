@@ -18,6 +18,13 @@
 
 ### 🐛 修复
 
+- **显式零值 maxTokens 支持**
+  - 修复了模型配置中 `maxTokens: 0` 与未设置值无法区分的问题，此前用户无法通过设为零来禁用输出 token 限制。
+  - 为 `ModelConfig` 新增 `fieldSet` 追踪机制，确保显式设置的零值在 JSON 序列化/反序列化过程中被保留，并正确传递给 provider。
+  - Anthropic provider 的 `max_tokens` 字段改为 `*int` + `omitempty`，显式零值时省略该字段，由 provider 使用自身默认值。
+  - 更新 `ResolveMaxTokens` 和 serve API handler，识别显式零值并跳过 fallback 默认值。
+  - TUI 模型编辑器现在能在编辑状态往返中正确保留显式零值 maxTokens。
+
 - **Web UI 会话历史与失败原因展示**
   - 修复从默认会话发起新 Web UI 聊天时，新建 session 不会立即出现在侧边栏/历史列表中的问题。
   - 新增 Web UI 新会话启动阶段的乐观会话列表更新，并在后续自动与服务端持久化会话列表对齐。

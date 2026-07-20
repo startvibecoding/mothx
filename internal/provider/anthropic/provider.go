@@ -141,7 +141,7 @@ type anthropicRequest struct {
 	Messages     []anthropicMessage     `json:"messages"`
 	System       interface{}            `json:"system,omitempty"` // string or []anthropicContentBlock for cache_control
 	Tools        []anthropicTool        `json:"tools,omitempty"`
-	MaxTokens    int                    `json:"max_tokens"`
+	MaxTokens    *int                   `json:"max_tokens,omitempty"`
 	Temperature  *float64               `json:"temperature,omitempty"`
 	TopP         *float64               `json:"top_p,omitempty"`
 	Stream       bool                   `json:"stream"`
@@ -261,7 +261,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		model := p.GetModel(modelID)
 
 		maxTokens := params.MaxTokens
-		if maxTokens == 0 {
+		if maxTokens == 0 && !(model != nil && model.MaxTokensSet && model.MaxTokens == 0) {
 			maxTokens = 16384
 		}
 
@@ -269,10 +269,12 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			Model:       modelID,
 			Messages:    p.convertMessages(params),
 			Tools:       p.convertTools(params.Tools),
-			MaxTokens:   maxTokens,
 			Temperature: params.Temperature,
 			TopP:        params.TopP,
 			Stream:      true,
+		}
+		if maxTokens > 0 {
+			reqBody.MaxTokens = &maxTokens
 		}
 		if params.SystemPrompt != "" {
 			if p.IsCacheControlEnabled() {

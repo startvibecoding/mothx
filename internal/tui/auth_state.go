@@ -236,7 +236,7 @@ func (me *modelEditState) toConfig() config.ModelConfig {
 		TopP:          config.CloneFloat64Ptr(me.TopP),
 	}
 	if me.MaxTokensEdited {
-		mc.MaxTokens = me.MaxTokens
+		mc.SetMaxTokens(me.MaxTokens)
 	}
 	if me.Name == "" {
 		mc.Name = me.ID

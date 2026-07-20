@@ -30,6 +30,13 @@ func TestResolveMaxTokensValuePrefersExplicit(t *testing.T) {
 	}
 }
 
+func TestResolveMaxTokensReturnsZeroWhenExplicitlyDisabled(t *testing.T) {
+	model := &provider.Model{ID: "m", MaxTokens: 0, MaxTokensSet: true}
+	if got := ResolveMaxTokens(model); got != 0 {
+		t.Fatalf("ResolveMaxTokens = %d, want 0", got)
+	}
+}
+
 func TestResolveMaxTokensReturnsZeroWhenUnknown(t *testing.T) {
 	if got := ResolveMaxTokens(nil); got != 0 {
 		t.Fatalf("ResolveMaxTokens = %d, want 0", got)

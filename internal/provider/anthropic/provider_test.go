@@ -331,8 +331,33 @@ func TestChatRequestUsesExplicitMaxTokens(t *testing.T) {
 	default:
 		t.Fatal("no request body captured")
 	}
-	if req.MaxTokens != 4096 {
-		t.Fatalf("MaxTokens = %d, want 4096", req.MaxTokens)
+	if req.MaxTokens == nil || *req.MaxTokens != 4096 {
+		t.Fatalf("MaxTokens = %#v, want 4096", req.MaxTokens)
+	}
+}
+
+func TestChatRequestOmitsExplicitZeroMaxTokens(t *testing.T) {
+	bodyCh := make(chan string, 1)
+	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "claude-test", MaxTokensSet: true}}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
+	params := provider.ChatParams{
+		ModelID:  "claude-test",
+		Messages: []provider.Message{provider.NewUserMessage("hi")},
+		Abort:    make(chan struct{}),
+	}
+	for range p.Chat(context.Background(), params) {
+	}
+
+	var raw map[string]json.RawMessage
+	select {
+	case body := <-bodyCh:
+		if err := json.Unmarshal([]byte(body), &raw); err != nil {
+			t.Fatalf("unmarshal request body: %v\nbody: %s", err, body)
+		}
+	default:
+		t.Fatal("no request body captured")
+	}
+	if _, ok := raw["max_tokens"]; ok {
+		t.Fatalf("max_tokens = %s, want omitted", raw["max_tokens"])
 	}
 }
 

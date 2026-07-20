@@ -680,6 +680,9 @@ func TestModelEditStateRoundTrip(t *testing.T) {
 	if result.MaxTokens != original.MaxTokens {
 		t.Fatalf("MaxTokens = %d", result.MaxTokens)
 	}
+	if !result.MaxTokensWasSet() {
+		t.Fatal("MaxTokensWasSet = false, want true")
+	}
 	if !result.Reasoning {
 		t.Fatal("Reasoning lost")
 	}
@@ -700,6 +703,13 @@ func TestModelEditStateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestModelEditStatePreservesExplicitZeroMaxTokens(t *testing.T) {
+	me := &modelEditState{ID: "test-model", Name: "Test Model", MaxTokensEdited: true}
+	result := me.toConfig()
+	if result.MaxTokens != 0 || !result.MaxTokensWasSet() {
+		t.Fatalf("maxTokens = %d, explicitly set = %v; want 0, true", result.MaxTokens, result.MaxTokensWasSet())
+	}
+}
 func TestModelEditStateDefaultName(t *testing.T) {
 	original := config.ModelConfig{ID: "my-model", ContextWindow: 128000}
 	me := modelEditStateFromMC(&original)

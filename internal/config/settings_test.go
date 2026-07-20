@@ -910,6 +910,33 @@ func TestResolveModelConfigTracksUserSetMaxTokens(t *testing.T) {
 	}
 }
 
+func TestResolveModelConfigPreservesExplicitZeroMaxTokens(t *testing.T) {
+	settings := DefaultSettings()
+	if err := json.Unmarshal([]byte(`{"providers":{"openai":{"models":[{"id":"gpt-4o","maxTokens":0}]}}}`), settings); err != nil {
+		t.Fatalf("unmarshal settings: %v", err)
+	}
+
+	model := ResolveModelConfig("openai", "gpt-4o", settings)
+	if model == nil {
+		t.Fatal("ResolveModelConfig returned nil")
+	}
+	if !model.MaxTokensWasSet() || model.MaxTokens != 0 {
+		t.Fatalf("maxTokens = %d, explicitly set = %v; want 0, true", model.MaxTokens, model.MaxTokensWasSet())
+	}
+
+	data, err := json.Marshal(model)
+	if err != nil {
+		t.Fatalf("marshal model: %v", err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal model JSON: %v", err)
+	}
+	if got := string(raw["maxTokens"]); got != "0" {
+		t.Fatalf("maxTokens JSON = %q, want 0", got)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstring(s, substr))
 }

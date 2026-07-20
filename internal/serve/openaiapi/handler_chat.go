@@ -278,7 +278,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	maxTokens := req.MaxTokens
-	if maxTokens <= 0 {
+	if maxTokens <= 0 && !(currentModel != nil && currentModel.MaxTokensSet && currentModel.MaxTokens == 0) {
 		maxTokens = agent.ResolveMaxTokens(currentModel)
 	}
 

@@ -222,6 +222,30 @@ func (mc ModelConfig) MaxTokensWasSet() bool {
 	return configFieldWasSet(mc.fieldSet, "maxTokens")
 }
 
+// SetMaxTokens records an explicit output-token setting. A value of zero means
+// use the provider default and must remain distinguishable from an omitted value.
+func (mc *ModelConfig) SetMaxTokens(value int) {
+	mc.MaxTokens = value
+	mc.fieldSet = markConfigField(mc.fieldSet, "maxTokens")
+}
+
+// MarshalJSON preserves an explicitly configured zero maxTokens value. This
+// lets the TUI and WebUI express "do not send an output token limit" while
+// keeping ordinary omitted values sparse.
+func (mc ModelConfig) MarshalJSON() ([]byte, error) {
+	type modelConfigJSON ModelConfig
+	data, err := json.Marshal(modelConfigJSON(mc))
+	if err != nil || !mc.MaxTokensWasSet() || mc.MaxTokens != 0 {
+		return data, err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	raw["maxTokens"] = json.RawMessage("0")
+	return json.Marshal(raw)
+}
+
 // ModelCompat defines per-model compatibility flags (Decision 14).
 // Reference: pi/packages/ai/src/models.generated.ts compat field
 type ModelCompat struct {
