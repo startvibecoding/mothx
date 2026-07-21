@@ -46,6 +46,27 @@ func suggestedApprovalCommandPrefix(command string) string {
 	return prefix
 }
 
+func approvalToolLabel(name string) string {
+	// ASCII-only title case for internal tool names; avoids the deprecated
+	// strings.Title which has incorrect Unicode word-boundary semantics.
+	words := strings.Split(strings.ReplaceAll(name, "_", " "), " ")
+	for i, w := range words {
+		words[i] = approvalCapitalize(w)
+	}
+	return strings.Join(words, " ")
+}
+
+func approvalCapitalize(s string) string {
+	if s == "" {
+		return ""
+	}
+	r := []rune(s)
+	if r[0] >= 'a' && r[0] <= 'z' {
+		r[0] -= 'a' - 'A'
+	}
+	return string(r)
+}
+
 func approvalRequestFromEvent(sess *APISession, ev agent.Event) SessionApprovalRequest {
 	toolName := ev.ApprovalTool
 	args := ev.ApprovalArgs
@@ -62,7 +83,7 @@ func approvalRequestFromEvent(sess *APISession, ev agent.Event) SessionApprovalR
 		details["workDir"] = sess.WorkDir
 	case "write", "edit", "delete":
 		path := approvalPath(args)
-		summary = strings.Title(toolName) + " " + path
+		summary = approvalCapitalize(toolName) + " " + path
 		risk = "high"
 		details["path"] = path
 		details["operation"] = toolName
@@ -80,7 +101,7 @@ func approvalRequestFromEvent(sess *APISession, ev agent.Event) SessionApprovalR
 	return SessionApprovalRequest{
 		ApprovalID: ev.ApprovalID, SessionID: sess.ID, RunID: sess.ActiveRunID(), Timestamp: time.Now().UTC().Format(time.RFC3339Nano), AgentID: string(ev.AgentID), Mode: sess.Mode,
 		Risk: risk, Summary: summary, Reason: reason,
-		Tool:    map[string]any{"name": toolName, "label": strings.Title(strings.ReplaceAll(toolName, "_", " ")), "args": args, "details": details},
+		Tool:    map[string]any{"name": toolName, "label": approvalToolLabel(toolName), "args": args, "details": details},
 		Context: map[string]any{"workDir": sess.WorkDir}, Actions: actions,
 	}
 }

@@ -199,7 +199,17 @@ func (s *BwrapSandbox) WrapCommand(ctx context.Context, shell, cmd string, opts 
 // carveout removed. The sandbox instance itself is immutable; only this
 // prepared command receives the temporary transform.
 func (s *BwrapSandbox) WrapCommandWithGitAccess(ctx context.Context, shell, cmd string, opts ExecOpts) *exec.Cmd {
-	clone := *s
+	// Construct a fresh BwrapSandbox value instead of copying *s by value,
+	// which would duplicate the embedded sync.Mutex and trip go vet. The
+	// derived instance is only used to build one command and is never shared,
+	// so its availability cache (availMu/available) stays unused.
+	clone := &BwrapSandbox{
+		level:      s.level,
+		projectDir: s.projectDir,
+		bwrapPath:  s.bwrapPath,
+		options:    s.options,
+		gitPaths:   s.gitPaths,
+	}
 	clone.options.DeniedPaths = make([]string, 0, len(s.options.DeniedPaths))
 	for _, path := range s.options.DeniedPaths {
 		if !containsPath(s.gitPaths, path) {
