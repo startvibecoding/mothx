@@ -261,7 +261,11 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 		model := p.GetModel(modelID)
 
 		maxTokens := params.MaxTokens
-		if maxTokens == 0 && !(model != nil && model.MaxTokensSet && model.MaxTokens == 0) {
+		if maxTokens <= 0 {
+			// The Anthropic Messages API requires max_tokens and rejects
+			// values above the model's output limit, so an explicit zero
+			// ("no output limit") cannot be honored by omission or by the
+			// context window size; fall back to the default.
 			maxTokens = 16384
 		}
 
@@ -273,9 +277,7 @@ func (p *Provider) Chat(ctx context.Context, params provider.ChatParams) <-chan 
 			TopP:        params.TopP,
 			Stream:      true,
 		}
-		if maxTokens > 0 {
-			reqBody.MaxTokens = &maxTokens
-		}
+		reqBody.MaxTokens = &maxTokens
 		if params.SystemPrompt != "" {
 			if p.IsCacheControlEnabled() {
 				// Send system prompt as content block array with cache_control for prompt caching

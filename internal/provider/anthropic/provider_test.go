@@ -336,7 +336,7 @@ func TestChatRequestUsesExplicitMaxTokens(t *testing.T) {
 	}
 }
 
-func TestChatRequestOmitsExplicitZeroMaxTokens(t *testing.T) {
+func TestChatRequestExplicitZeroMaxTokensFallsBackToDefault(t *testing.T) {
 	bodyCh := make(chan string, 1)
 	p := newMockAnthropicProvider(t, []*provider.Model{{ID: "claude-test", MaxTokensSet: true}}, "data: {\"type\":\"message_stop\"}\n", bodyCh, nil)
 	params := provider.ChatParams{
@@ -356,8 +356,11 @@ func TestChatRequestOmitsExplicitZeroMaxTokens(t *testing.T) {
 	default:
 		t.Fatal("no request body captured")
 	}
-	if _, ok := raw["max_tokens"]; ok {
-		t.Fatalf("max_tokens = %s, want omitted", raw["max_tokens"])
+	// The Anthropic API requires max_tokens, so an explicit-zero model config
+	// must fall back to the default instead of omitting the field.
+	v, ok := raw["max_tokens"]
+	if !ok || string(v) != "16384" {
+		t.Fatalf("max_tokens = %s (present=%v), want 16384", v, ok)
 	}
 }
 
