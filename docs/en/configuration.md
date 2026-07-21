@@ -412,7 +412,7 @@ Each model in the `models` array:
 | `name` | string | — | Human-readable display name |
 | `reasoning` | bool | `false` | Whether the model supports thinking/reasoning |
 | `contextWindow` | int | `0` | Context window size (tokens) |
-| `maxTokens` | int | `0` | Maximum output tokens per response |
+| `maxTokens` | int | `0` | Maximum output tokens per response. An explicit `0` disables the output-token limit on OpenAI/Google-style endpoints (the field is omitted from the request); Anthropic endpoints require `max_tokens`, so an explicit `0` falls back to the default of 16384 there |
 | `input` | []string | `[]` | Supported input modalities: `"text"`, `"image"` |
 | `cost` | object | `null` | Pricing per million tokens |
 | `compat` | object | `null` | Model-specific compatibility flags for provider quirks |

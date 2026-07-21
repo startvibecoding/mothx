@@ -412,7 +412,7 @@ Google 原生 provider 可以直接配置：
 | `name` | string | — | 人类可读的显示名称 |
 | `reasoning` | bool | `false` | 是否支持思考/推理 |
 | `contextWindow` | int | `0` | 上下文窗口大小 (token) |
-| `maxTokens` | int | `0` | 每次响应的最大输出 token |
+| `maxTokens` | int | `0` | 每次响应的最大输出 token。显式设为 `0` 可在 OpenAI/Google 风格端点上禁用输出 token 限制（请求中省略该字段）；Anthropic 端点强制要求 `max_tokens`，显式 `0` 会回退到默认值 16384 |
 | `input` | []string | `[]` | 支持的输入模态: `"text"`, `"image"` |
 | `cost` | object | `null` | 每百万 token 定价 |
 | `compat` | object | `null` | 模型级兼容标志，用于处理 provider 差异 |

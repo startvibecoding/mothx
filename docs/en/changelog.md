@@ -21,8 +21,8 @@
 - **Explicit Zero max_tokens Support**
   - Fixed `maxTokens: 0` in model configuration being indistinguishable from an omitted value, which prevented users from disabling the output token limit.
   - Added `fieldSet` tracking to `ModelConfig` so explicitly set zero values are preserved through JSON marshal/unmarshal and correctly propagated to providers.
-  - Updated Anthropic provider to use `*int` for `max_tokens` with `omitempty`, so an explicit zero omits the field and lets the provider use its own default.
-  - Updated `ResolveMaxTokens` and serve API handler to respect explicit zero and skip the fallback default.
+  - Anthropic provider sends `max_tokens` as `*int` with `omitempty`. Because the Anthropic Messages API requires `max_tokens` and rejects values above the model's output limit, an explicit zero falls back to the default of 16384 instead of omitting the field; OpenAI/Google-style endpoints omit the field and honor the disabled limit.
+  - Updated `ResolveMaxTokens` and serve API handler to respect explicit zero and skip the fallback default; negative client-supplied `max_tokens` values are normalized to zero first.
   - Added TUI model editor support to preserve explicit zero max_tokens through the edit state round-trip.
 
 - **Web UI Session History and Failure Visibility**
