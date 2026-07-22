@@ -55,6 +55,10 @@ func NormalizeOptions(projectDir string, opts Options) (Options, error) {
 	if runtime.GOOS == "linux" {
 		filtered := opts.DeniedPaths[:0]
 		for _, deny := range opts.DeniedPaths {
+			// Git metadata is part of the project and must remain visible.
+			if IsGitDeniedPath(deny) {
+				continue
+			}
 			// Bubblewrap already replaces the real user home with an isolated
 			// tmpfs before mounting the project. The historical default /home
 			// deny therefore conflicts with the normal Linux layout where all

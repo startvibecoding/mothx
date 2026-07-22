@@ -22,6 +22,7 @@ type ChatCompletionRequest struct {
 	XMode       string              `json:"x_mode,omitempty"`
 	XWorkingDir string              `json:"x_working_dir,omitempty"`
 	XTools      *SessionToolOptions `json:"x_tools,omitempty"`
+	XSkills     []string           `json:"x_skills,omitempty"`
 	XTranscript bool                `json:"x_transcript,omitempty"`
 }
 

@@ -505,7 +505,7 @@ func (rt *channelRuntime) routes(configPath string) func(*openaiapi.Server, *htt
 	return func(srv *openaiapi.Server, mux *http.ServeMux) {
 		sessions := activeSessionManagerFromAPI(srv)
 		mux.HandleFunc("/api/status", rt.handleStatus(sessions))
-		mux.HandleFunc("/api/serve/config", rt.handleServeConfig(configPath))
+		mux.HandleFunc("/api/serve/config", rt.handleServeConfig(configPath, srv))
 		mux.HandleFunc("/api/capabilities", rt.handleCapabilities(sessions))
 		mux.HandleFunc("/api/sessions", rt.handleSessions(sessions))
 		mux.HandleFunc("/api/sessions/", rt.handleSessionByID(sessions))
@@ -653,7 +653,11 @@ func parsePositiveInt(value string, fallback int) int {
 	return n
 }
 
-func (rt *channelRuntime) handleServeConfig(path string) http.HandlerFunc {
+func (rt *channelRuntime) handleServeConfig(path string, servers ...*openaiapi.Server) http.HandlerFunc {
+	var srv *openaiapi.Server
+	if len(servers) > 0 {
+		srv = servers[0]
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -674,6 +678,12 @@ func (rt *channelRuntime) handleServeConfig(path string) http.HandlerFunc {
 				return
 			}
 			rt.applyConfigUpdate(next)
+			if srv != nil {
+				if err := srv.ApplyServeConfig(&next.API); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+			}
 			writeJSON(w, http.StatusOK, rt.cfg)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -814,6 +824,23 @@ func (rt *channelRuntime) handleSessionByID(sessions activeSessionManager) http.
 				return
 			}
 			writeJSON(w, http.StatusOK, resolved)
+			return
+		}
+		if len(parts) == 2 && parts[1] == "stop" && r.Method == http.MethodPost {
+			stopper, ok := sessions.(interface{ CancelSessionRun(string) error })
+			if !ok {
+				writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "run cancellation is not supported"})
+				return
+			}
+			if err := stopper.CancelSessionRun(id); err != nil {
+				if errors.Is(err, openaiapi.ErrSessionNotFound) {
+					writeJSON(w, http.StatusConflict, map[string]string{"error": "session has no active run"})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "cancellation_requested", "sessionId": id})
 			return
 		}
 		if len(parts) == 2 && parts[1] == "runtime" {

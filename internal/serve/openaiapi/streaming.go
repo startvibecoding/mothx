@@ -147,6 +147,14 @@ func (s *SSEWriter) WriteDone(usage *CompletionUsage) {
 
 // WriteError sends an error as a final chunk.
 func (s *SSEWriter) WriteError(errMsg string) {
+	// Send a structured error event before the compatibility content chunk. The
+	// WebUI uses this event to distinguish a failed run from a clean [DONE].
+	data, _ := json.Marshal(map[string]string{"error": errMsg, "code": "server_error"})
+	fmt.Fprintf(s.w, "event: error\\ndata: %s\\n\\n", data)
+	if s.flusher != nil {
+		s.flusher.Flush()
+	}
+
 	finishReason := "stop"
 	chunk := ChatCompletionChunk{
 		ID:      s.id,

@@ -379,6 +379,22 @@ func TestBwrapArgsUseCompleteIsolationProfile(t *testing.T) {
 	}
 }
 
+func TestBwrapArgsDoNotRebindDevDevices(t *testing.T) {
+	project := t.TempDir()
+	s := NewBwrapSandboxWithOptions(project, LevelStandard, Options{
+		AllowedRead: []string{"/dev/null", "/dev/urandom", "/etc/ssl"},
+	})
+	args := s.buildBwrapArgs(ExecOpts{WorkDir: project}, "/bin/sh", "git status")
+	if indexArgs(args, "--ro-bind", "/dev/null", "/dev/null") >= 0 {
+		t.Fatalf("/dev/null must be provided by --dev, not rebound: %#v", args)
+	}
+	if indexArgs(args, "--ro-bind", "/dev/urandom", "/dev/urandom") >= 0 {
+		t.Fatalf("/dev/urandom must be provided by --dev, not rebound: %#v", args)
+	}
+	if indexArgs(args, "--ro-bind", "/etc/ssl", "/etc/ssl") < 0 {
+		t.Fatalf("non-device allowed read path was skipped: %#v", args)
+	}
+}
 func TestBwrapNormalizesHumanReadableTmpSize(t *testing.T) {
 	project := t.TempDir()
 	s := NewBwrapSandboxWithOptions(project, LevelStandard, Options{TmpSize: "100m"})

@@ -101,11 +101,47 @@ func (s *Server) SessionDir() string {
 	return s.settings.GetSessionDir()
 }
 
-// ApplySettings updates the runtime provider/model from a saved settings.json.
-func (s *Server) ApplySettings(next *config.Settings) error {
+func (s *Server) ApplyServeConfig(next *Config) error {
 	if s == nil || next == nil {
 		return nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settings == nil {
+		return nil
+	}
+	workDir := next.GetWorkDir()
+	mgr := sandbox.NewManagerWithOptions(workDir, s.settings.Sandbox.Options())
+	level := sandbox.LevelNone
+	if next.Sandbox.Enabled {
+		level = sandbox.LevelStandard
+		if next.Sandbox.Level == "strict" {
+			level = sandbox.LevelStrict
+		}
+		if err := mgr.SetLevel(level); err != nil {
+			return fmt.Errorf("apply serve sandbox: %w", err)
+		}
+	} else if err := mgr.SetLevel(sandbox.LevelNone); err != nil {
+		return err
+	}
+	s.cfg = cloneConfig(next)
+	s.sandboxMgr = mgr
+	for _, sess := range s.pool.Snapshot() {
+		if sess == nil || sess.Registry == nil {
+			continue
+		}
+		sessMgr := sandbox.NewManagerWithOptions(sess.WorkDir, s.settings.Sandbox.Options())
+		if err := sessMgr.SetLevel(level); err != nil {
+			return fmt.Errorf("apply session sandbox: %w", err)
+		}
+		sess.SandboxMgr = sessMgr
+		sess.Registry.SetSandbox(sessMgr.GetActive())
+	}
+	return nil
+}
+
+// ApplySettings updates the runtime provider/model from a saved settings.json.
+func (s *Server) ApplySettings(next *config.Settings) error {
 	s.mu.RLock()
 	if s.cfg == nil {
 		s.mu.RUnlock()

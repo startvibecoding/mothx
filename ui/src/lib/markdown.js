@@ -28,8 +28,17 @@ export function markdownToHTML(value) {
 
   function closeCode() {
     if (!code) return;
-    const lang = code.lang ? ` class="language-${escapeAttr(code.lang)}"` : '';
-    html.push(`<pre><code${lang}>${escapeHTML(code.lines.join('\n'))}</code></pre>`);
+    const language = normalizeLanguage(code.lang);
+    const source = code.lines.join('\n');
+    const collapsed = code.lines.length > 18 ? '' : ' open';
+    html.push(
+      `<details class="code-block"${collapsed}>` +
+        `<summary><span class="code-block-language">${escapeHTML(language.label)}</span>` +
+        `<span class="code-block-actions"><span class="code-block-toggle" data-expand="Expand" data-collapse="Collapse">${collapsed ? 'Collapse' : 'Expand'}</span>` +
+        `<button type="button" class="code-copy" aria-label="Copy code">Copy</button></span></summary>` +
+        `<pre><code class="language-${escapeAttr(language.id)}">${highlightCode(source, language.id)}</code></pre>` +
+      `</details>`
+    );
     code = null;
   }
 
@@ -101,6 +110,65 @@ export function markdownToHTML(value) {
   return html.join('');
 }
 
+export function highlightedCodeToHTML(value, path = '') {
+  return highlightCode(String(value || ''), languageFromPath(path));
+}
+
+function languageFromPath(path) {
+  const match = String(path).toLowerCase().match(/\.([a-z0-9]+)$/);
+  const extensions = {
+    go: 'go', js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+    ts: 'typescript', tsx: 'typescript', py: 'python', rb: 'ruby', sh: 'bash', bash: 'bash',
+    zsh: 'bash', json: 'json', yaml: 'yaml', yml: 'yaml', sql: 'sql',
+    html: 'markup', htm: 'markup', xml: 'markup', svg: 'markup', md: 'markdown'
+  };
+  return extensions[match?.[1]] || 'plaintext';
+}
+
+function normalizeLanguage(value) {
+  const id = String(value || '').trim().toLowerCase();
+  const aliases = {
+    js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
+    py: 'python', rb: 'ruby', sh: 'bash', shell: 'bash', yml: 'yaml',
+    html: 'markup', xml: 'markup', svg: 'markup', md: 'markdown', text: 'plaintext'
+  };
+  const normalized = aliases[id] || id || 'plaintext';
+  return { id: normalized.replace(/[^a-z0-9_-]/g, '') || 'plaintext', label: normalized || 'plaintext' };
+}
+
+function highlightCode(value, language) {
+  const source = escapeHTML(value);
+  if (language === 'plaintext') return source;
+
+  const keywords = {
+    javascript: /\b(?:await|async|break|case|catch|class|const|continue|default|delete|do|else|export|extends|false|finally|for|from|function|if|import|in|instanceof|let|new|null|of|return|static|super|switch|this|throw|true|try|typeof|undefined|var|void|while|with|yield)\b/g,
+    typescript: /\b(?:abstract|any|as|async|await|boolean|break|case|catch|class|const|continue|declare|default|delete|do|else|enum|export|extends|false|finally|for|from|function|if|implements|import|in|interface|keyof|let|namespace|new|null|number|of|private|protected|public|readonly|return|static|string|super|switch|this|throw|true|try|type|typeof|undefined|var|void|while|yield)\b/g,
+    go: /\b(?:break|case|chan|const|continue|default|defer|else|fallthrough|for|func|go|goto|if|import|interface|map|package|range|return|select|struct|switch|type|var)\b/g,
+    python: /\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|False|finally|for|from|global|if|import|in|is|lambda|None|nonlocal|not|or|pass|raise|return|True|try|while|with|yield)\b/g,
+    bash: /\b(?:case|do|done|echo|elif|else|esac|export|fi|for|function|if|in|local|then|while)\b/g,
+    json: /\b(?:true|false|null)\b/g,
+    yaml: /\b(?:true|false|null|yes|no)\b/g,
+    sql: /\b(?:SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|JOIN|LEFT|RIGHT|INNER|ORDER|GROUP|BY|LIMIT|AS|AND|OR|NULL|VALUES|SET)\b/gi
+  };
+  const keyword = keywords[language];
+  if (!keyword) return source;
+
+  const token = /(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*|&quot;(?:\\.|[^&]|&(?!quot;))*?&quot;|&#39;(?:\\.|[^&]|&(?!#39;))*?&#39;|`(?:\\.|[^`])*?`|\b\d+(?:\.\d+)?\b)/g;
+  let result = '';
+  let last = 0;
+  for (const match of source.matchAll(token)) {
+    result += highlightKeywords(source.slice(last, match.index), keyword);
+    const text = match[0];
+    const type = /^\d/.test(text) ? 'number' : /^#|^\/\//.test(text) || text.startsWith('/*') ? 'comment' : 'string';
+    result += `<span class="tok-${type}">${text}</span>`;
+    last = match.index + text.length;
+  }
+  return result + highlightKeywords(source.slice(last), keyword);
+}
+
+function highlightKeywords(value, pattern) {
+  return value.replace(pattern, (match) => `<span class="tok-keyword">${match}</span>`);
+}
 function renderInline(value) {
   const parts = value.split(/(`[^`]*`)/g);
   return parts
@@ -114,6 +182,19 @@ function renderInline(value) {
 }
 
 function renderInlineText(value) {
+  const codeTagPattern = /<code\b[^>]*>([\s\S]*?)<\/code>/gi;
+  let out = '';
+  let last = 0;
+  let match;
+  while ((match = codeTagPattern.exec(value))) {
+    out += renderInlineTextWithoutCodeTags(value.slice(last, match.index));
+    out += `<code>${escapeHTML(match[1])}</code>`;
+    last = match.index + match[0].length;
+  }
+  return out + renderInlineTextWithoutCodeTags(value.slice(last));
+}
+
+function renderInlineTextWithoutCodeTags(value) {
   const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
   let out = '';
   let last = 0;

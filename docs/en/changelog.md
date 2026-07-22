@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.1.72
+
+### ✨ Features
+
+- **Expanded Project Skill Locations**
+  - Project-local skills can now be loaded from `.agents/skills/<name>/SKILL.md`, alongside existing `.mothx/skills`, `.skills`, and `skills` locations.
+
+- **Web UI Chat and Skill Controls**
+  - Added a per-session active-skill picker in chat. Selected skills are sent with the completion request and immediately refresh the session context.
+  - Added server-side session-run cancellation, so the Web UI Stop action also works after reconnecting or refreshing the page.
+  - Streaming failures now emit structured SSE error events and appear in the chat transcript with failed-run status.
+  - Added collapsible, syntax-highlighted code blocks with copy buttons in Markdown messages, skill references, and edit previews.
+
+- **SkillHub Installation Targets**
+  - The Web UI now lets users select an explicit project skill directory or the global skills directory before installing individual skills or skill sets.
+  - Added SkillHub APIs for listing installation targets and replacing a session's active skill set.
+
+### 🔧 Improvements
+
+- **Runtime Sandbox Configuration**
+  - Applying Serve configuration updates now refreshes the API server's sandbox manager and every live session's sandbox and tool registry without a restart.
+  - Sandbox managers are now isolated by API session work directory, so alternate allowed work directories and their sub-agents retain the correct policy.
+
+### 🐛 Fixes
+
+- **Sandbox Git and Device Compatibility**
+  - Git metadata remains visible to sandboxed commands when Git protection is enabled, preserving normal Git operation while retaining one-time Git access handling.
+  - Avoided rebinding host `/dev` paths into Bubblewrap, preventing tools such as Git from receiving unusable read-only device files.
+  - Corrected Linux `/home` deny-rule normalization so projects located below `/home` are not rejected by the default sandbox policy.
+
 ## v1.1.71
 
 ### ✨ Features

@@ -45,6 +45,10 @@ func (rt *channelRuntime) handleSkillHubSkillSet(w http.ResponseWriter, r *http.
 		writeSkillHubError(w, errors.New("skillset must contain skills"))
 		return
 	}
+	if strings.TrimSpace(request.SessionID) == "" || strings.TrimSpace(request.TargetDir) == "" {
+		writeSkillHubError(w, errors.New("sessionId and targetDir are required for installation"))
+		return
+	}
 	service, runtime, err := skillHubServiceForRequest(server, request.SessionID, request.WorkDir)
 	if err != nil {
 		writeSkillHubError(w, err)
@@ -64,7 +68,7 @@ func (rt *channelRuntime) handleSkillHubSkillSet(w http.ResponseWriter, r *http.
 		if scope == "" {
 			scope = runtime.DefaultScope
 		}
-		installs = append(installs, skillhub.InstallRequest{Market: market, ID: item.ID, Version: item.Version, Scope: scope, Overwrite: item.Overwrite})
+		installs = append(installs, skillhub.InstallRequest{Market: market, ID: item.ID, Version: item.Version, Scope: scope, TargetDir: request.TargetDir, Overwrite: item.Overwrite})
 	}
 	results, err := service.InstallSkillSet(r.Context(), installs)
 	if err != nil {
@@ -131,4 +135,18 @@ func (rt *channelRuntime) handleSkillHubContent(w http.ResponseWriter, r *http.R
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"content": content})
+}
+
+func (rt *channelRuntime) handleSkillHubSetActive(w http.ResponseWriter, r *http.Request, server *openaiapi.Server) {
+	var request skillHubActiveSkillsRequest
+	if err := decodeSkillHubJSON(r, &request); err != nil {
+		writeSkillHubError(w, err)
+		return
+	}
+	state, err := server.SetActiveSkillsForSession(request.SessionID, request.WorkDir, request.Names)
+	if err != nil {
+		writeSkillHubError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"session": state})
 }

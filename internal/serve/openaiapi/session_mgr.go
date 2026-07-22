@@ -1,6 +1,7 @@
 package openaiapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,6 +52,7 @@ type APISession struct {
 	approvalMu       sync.Mutex
 	pendingApprovals map[string]pendingSessionApproval
 	activeRunID      string
+	runCancel        context.CancelFunc
 }
 
 // pendingSessionApproval retains the agent instance that must be resumed after a WebUI decision.
@@ -231,6 +233,25 @@ func (s *APISession) IsRunning() bool {
 	return s.running
 }
 
+// CancelSessionRun requests cancellation of the active run for a session.
+func (s *Server) CancelSessionRun(id string) error {
+	if id == "" || s == nil || s.pool == nil {
+		return ErrSessionNotFound
+	}
+	sess, err := s.pool.getExact(id)
+	if err != nil || sess == nil {
+		return ErrSessionNotFound
+	}
+	sess.approvalMu.Lock()
+	cancel := sess.runCancel
+	sess.approvalMu.Unlock()
+	if cancel == nil || !sess.IsRunning() {
+		return ErrSessionNotFound
+	}
+	cancel()
+	return nil
+}
+
 // ActiveRunID returns the current run identifier, if any.
 func (s *APISession) ActiveRunID() string {
 	if s == nil {
@@ -266,6 +287,19 @@ func NewSessionPool(maxSessions int, idleTimeout time.Duration) *SessionPool {
 		go p.cleanupLoop()
 	}
 	return p
+}
+
+func (p *SessionPool) Snapshot() []*APISession {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	result := make([]*APISession, 0, len(p.sessions))
+	for _, sess := range p.sessions {
+		result = append(result, sess)
+	}
+	return result
 }
 
 // Get returns an existing session by ID, or nil.

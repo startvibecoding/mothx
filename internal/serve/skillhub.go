@@ -15,21 +15,28 @@ import (
 	"github.com/startvibecoding/mothx/internal/skillhub"
 	"github.com/startvibecoding/mothx/internal/skills"
 )
-
 type skillHubInstallRequest struct {
 	Market    skillhub.Market `json:"market"`
 	ID        string          `json:"id"`
 	Version   string          `json:"version,omitempty"`
 	Scope     string          `json:"scope,omitempty"`
+	TargetDir string          `json:"targetDir,omitempty"`
 	WorkDir   string          `json:"workDir,omitempty"`
 	SessionID string          `json:"sessionId,omitempty"`
 	Overwrite bool            `json:"overwrite,omitempty"`
 	Activate  bool            `json:"activate,omitempty"`
 }
 
+type skillHubTarget struct {
+	Path  string `json:"path"`
+	Scope string `json:"scope"`
+	Label string `json:"label"`
+}
+
 type skillHubSkillSetRequest struct {
 	Skills    []skillHubInstallRequest `json:"skills"`
 	Scope     string                   `json:"scope,omitempty"`
+	TargetDir string                   `json:"targetDir,omitempty"`
 	WorkDir   string                   `json:"workDir,omitempty"`
 	SessionID string                   `json:"sessionId,omitempty"`
 	Activate  bool                     `json:"activate,omitempty"`
@@ -46,6 +53,12 @@ type skillHubActivateRequest struct {
 	Name      string `json:"name"`
 	WorkDir   string `json:"workDir,omitempty"`
 	SessionID string `json:"sessionId,omitempty"`
+}
+
+type skillHubActiveSkillsRequest struct {
+	Names     []string `json:"names"`
+	WorkDir   string   `json:"workDir,omitempty"`
+	SessionID string   `json:"sessionId,omitempty"`
 }
 
 func (rt *channelRuntime) handleSkillHub(server *openaiapi.Server) http.HandlerFunc {
@@ -71,12 +84,16 @@ func (rt *channelRuntime) handleSkillHub(server *openaiapi.Server) http.HandlerF
 			rt.handleSkillHubSearch(w, r, server)
 		case strings.HasPrefix(path, "skills/") && r.Method == http.MethodGet:
 			rt.handleSkillHubDetail(w, r, server, strings.TrimPrefix(path, "skills/"))
+		case path == "targets" && r.Method == http.MethodGet:
+			rt.handleSkillHubTargets(w, r, server)
 		case path == "installed" && r.Method == http.MethodGet:
 			rt.handleSkillHubInstalled(w, r, server)
 		case path == "install" && r.Method == http.MethodPost:
 			rt.handleSkillHubInstall(w, r, server)
 		case path == "activate" && r.Method == http.MethodPost:
 			rt.handleSkillHubActivate(w, r, server)
+		case path == "set-active" && r.Method == http.MethodPost:
+			rt.handleSkillHubSetActive(w, r, server)
 		case path == "skillset" && r.Method == http.MethodPost:
 			rt.handleSkillHubSkillSet(w, r, server)
 		case path == "uninstall" && r.Method == http.MethodPost:
@@ -85,7 +102,7 @@ func (rt *channelRuntime) handleSkillHub(server *openaiapi.Server) http.HandlerF
 			rt.handleSkillHubShowcase(w, r, server, strings.TrimPrefix(path, "showcase/"))
 		case strings.HasPrefix(path, "content/") && r.Method == http.MethodGet:
 			rt.handleSkillHubContent(w, r, server, strings.TrimPrefix(path, "content/"))
-		case path == "markets" || path == "categories" || path == "official" || path == "search" || path == "installed" || path == "install" || path == "activate" || path == "skillset" || path == "uninstall" || strings.HasPrefix(path, "skills/") || strings.HasPrefix(path, "showcase/") || strings.HasPrefix(path, "content/"):
+		case path == "targets" || path == "markets" || path == "categories" || path == "official" || path == "search" || path == "installed" || path == "install" || path == "activate" || path == "set-active" || path == "skillset" || path == "uninstall" || strings.HasPrefix(path, "skills/") || strings.HasPrefix(path, "showcase/") || strings.HasPrefix(path, "content/"):
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "SkillHub endpoint not found"})
@@ -200,6 +217,31 @@ func (rt *channelRuntime) handleSkillHubDetail(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, detail)
 }
 
+func (rt *channelRuntime) handleSkillHubTargets(w http.ResponseWriter, r *http.Request, server *openaiapi.Server) {
+	sessionID := strings.TrimSpace(r.URL.Query().Get("sessionId"))
+	if sessionID == "" {
+		writeSkillHubError(w, errors.New("sessionId is required"))
+		return
+	}
+	workDir, err := server.ResolveSkillHubWorkDir(sessionID, r.URL.Query().Get("workDir"))
+	if err != nil {
+		writeSkillHubError(w, err)
+		return
+	}
+	runtime := server.SkillHubRuntime()
+	labels := []string{"MothX project skills", "Project skills", "Agents skills", "Generic project skills"}
+	targets := make([]skillHubTarget, 0, len(skills.ProjectSkillDirs(workDir))+1)
+	for i, dir := range skills.ProjectSkillDirs(workDir) {
+		label := "Project skills"
+		if i < len(labels) { label = labels[i] }
+		targets = append(targets, skillHubTarget{Path: dir, Scope: "project", Label: label})
+	}
+	if runtime.GlobalSkillsDir != "" {
+		targets = append(targets, skillHubTarget{Path: runtime.GlobalSkillsDir, Scope: "global", Label: "Global skills"})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sessionId": sessionID, "workDir": workDir, "targets": targets})
+}
+
 func (rt *channelRuntime) handleSkillHubInstalled(w http.ResponseWriter, r *http.Request, server *openaiapi.Server) {
 	runtime := server.SkillHubRuntime()
 	workDir, err := server.ResolveSkillHubWorkDir(r.URL.Query().Get("sessionId"), r.URL.Query().Get("workDir"))
@@ -234,8 +276,16 @@ func (rt *channelRuntime) handleSkillHubInstall(w http.ResponseWriter, r *http.R
 		writeSkillHubError(w, err)
 		return
 	}
+	if strings.TrimSpace(request.SessionID) == "" {
+		writeSkillHubError(w, errors.New("sessionId is required for installation"))
+		return
+	}
 	if strings.TrimSpace(request.ID) == "" {
 		writeSkillHubError(w, errors.New("skill id is required"))
+		return
+	}
+	if strings.TrimSpace(request.TargetDir) == "" {
+		writeSkillHubError(w, errors.New("targetDir is required for installation"))
 		return
 	}
 	scope := request.Scope
@@ -251,7 +301,7 @@ func (rt *channelRuntime) handleSkillHubInstall(w http.ResponseWriter, r *http.R
 		writeSkillHubError(w, err)
 		return
 	}
-	result, err := service.Install(r.Context(), skillhub.InstallRequest{Market: market, ID: request.ID, Version: request.Version, Scope: scope, Overwrite: request.Overwrite})
+	result, err := service.Install(r.Context(), skillhub.InstallRequest{Market: market, ID: request.ID, Version: request.Version, Scope: scope, TargetDir: request.TargetDir, Overwrite: request.Overwrite})
 	if err != nil {
 		writeSkillHubError(w, err)
 		return

@@ -169,13 +169,10 @@ func (s *Service) Install(ctx context.Context, request InstallRequest) (InstallR
 		return InstallResult{}, err
 	}
 	if request.TargetDir == "" {
-		if request.Scope == "global" {
-			request.TargetDir = s.globalDir
-		} else if len(s.projectDirs) > 0 {
-			request.TargetDir = s.projectDirs[0]
-		} else {
-			return InstallResult{}, errors.New("project skills directory is unavailable")
-		}
+		return InstallResult{}, errors.New("target directory is required")
+	}
+	if err := s.validateTargetDir(request.TargetDir, request.Scope); err != nil {
+		return InstallResult{}, err
 	}
 	result, err := Install(ctx, client, request)
 	if err == nil {
@@ -183,6 +180,26 @@ func (s *Service) Install(ctx context.Context, request InstallRequest) (InstallR
 	}
 	return result, err
 }
+
+func (s *Service) validateTargetDir(targetDir, scope string) error {
+	target, err := filepath.Abs(filepath.Clean(targetDir))
+	if err != nil { return err }
+	if scope != "project" && scope != "global" {
+		return fmt.Errorf("scope must be project or global")
+	}
+	if scope == "global" {
+		if s.globalDir == "" { return errors.New("global skills directory is unavailable") }
+		global, absErr := filepath.Abs(filepath.Clean(s.globalDir))
+		if absErr != nil || target != global { return fmt.Errorf("global scope requires target directory %q", s.globalDir) }
+		return nil
+	}
+	for _, root := range s.projectDirs {
+		project, absErr := filepath.Abs(filepath.Clean(root))
+		if absErr == nil && target == project { return nil }
+	}
+	return fmt.Errorf("target directory %q is not a configured project skills directory", targetDir)
+}
+
 
 func (s *Service) Uninstall(market Market, id, scope string) error {
 	state := s.state(market, id)

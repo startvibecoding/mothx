@@ -38,12 +38,10 @@ func NewBwrapSandboxWithOptions(projectDir string, level Level, opts Options) *B
 	}
 	gitPaths := []string{}
 	if opts.ProtectGit {
+		// .git is intentionally visible to sandboxed commands. Keep resolving
+		// its paths for compatibility with one-shot Git access handling, but do
+		// not add them to DeniedPaths.
 		gitPaths = protectedGitPaths(absDir)
-		for _, gitPath := range gitPaths {
-			if !containsPath(opts.DeniedPaths, gitPath) {
-				opts.DeniedPaths = append(opts.DeniedPaths, gitPath)
-			}
-		}
 	}
 	if opts.TmpSize != "" {
 		// NewBwrapSandboxWithOptions is also used directly by tests and platform
@@ -307,7 +305,10 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 	for _, p := range s.options.AllowedRead {
 		// /proc is created by --proc above. Binding entries from the host proc
 		// tree is invalid after --unshare-pid because process paths change.
-		if isProcPath(p) {
+		// /dev is created by --dev above; rebinding host device nodes (notably
+		// /dev/null) can turn them into regular read-only files and break tools
+		// such as git that open them for read/write.
+		if isProcPath(p) || isDevPath(p) {
 			continue
 		}
 		if !s.denied(p) {
@@ -326,7 +327,7 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 
 	// Additional read-only paths from options
 	for _, p := range opts.ReadOnlyPaths {
-		if isProcPath(p) {
+		if isProcPath(p) || isDevPath(p) {
 			continue
 		}
 		if !s.denied(p) {
@@ -392,6 +393,11 @@ func (s *BwrapSandbox) buildBwrapArgs(opts ExecOpts, shell, cmd string) []string
 func isProcPath(path string) bool {
 	clean := filepath.Clean(path)
 	return clean == "/proc" || strings.HasPrefix(clean, "/proc"+string(os.PathSeparator))
+}
+
+func isDevPath(path string) bool {
+	clean := filepath.Clean(path)
+	return clean == "/dev" || strings.HasPrefix(clean, "/dev"+string(os.PathSeparator))
 }
 
 // buildEnv constructs the environment for the sandboxed process.

@@ -162,6 +162,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		s.clearSessionApprovals(sess, "cancelled", "run ended before the approval was resolved")
 		sess.approvalMu.Lock()
 		sess.activeRunID = ""
+		sess.runCancel = nil
 		sess.approvalMu.Unlock()
 		sess.SetRunning(false)
 		s.publishSessionStreamDone(sess.ID, runID, terminalStatus)
@@ -169,6 +170,12 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	if err := s.applySessionToolOptions(sess, req.XTools, runID); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error(), "server_error")
 		return
+	}
+	if req.XSkills != nil {
+		if err := s.setActiveSkillsLocked(sess, req.XSkills); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error(), "invalid_request_error")
+			return
+		}
 	}
 
 	mode := s.cfg.DefaultMode
@@ -305,7 +312,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		Mode:               mode,
 		ThinkingLevel:      thinkingLevel,
 		MaxTokens:          maxTokens,
-		SandboxMgr:         s.sandboxMgr,
+		SandboxMgr:         sessionSandboxMgr(s, sess),
 		Settings:           runtimeSettings,
 		Allow:              s.getAllow(),
 		Session:            sess.Manager,
@@ -338,6 +345,9 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	timeout := time.Duration(s.cfg.RequestTimeoutSecs) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
+	sess.approvalMu.Lock()
+	sess.runCancel = cancel
+	sess.approvalMu.Unlock()
 	if (sess.MultiAgent || sess.DelegateMode || sess.Workflows) && sess.AgentMgr != nil {
 		sess.AgentMgr.Register(agent.NewAgentAdapter(a))
 		defer func() {
@@ -858,6 +868,7 @@ func (s *Server) getOrCreateSession(sessionID, workDir string) (*APISession, err
 					WorkDir:      sessWorkDir,
 					Manager:      sess,
 					Registry:     resources.registry,
+					SandboxMgr:   resources.sandboxMgr,
 					SkillsMgr:    resources.skillsMgr,
 					ExtraContext: resources.extraContext,
 					RuleContent:  resources.ruleContent,
@@ -974,6 +985,16 @@ type sessionResources struct {
 	ruleContent  string
 }
 
+func sessionSandboxMgr(s *Server, sess *APISession) *sandbox.Manager {
+	if sess != nil && sess.SandboxMgr != nil {
+		return sess.SandboxMgr
+	}
+	if s != nil {
+		return s.sandboxMgr
+	}
+	return nil
+}
+
 func (s *Server) buildSessionResources(workDir string) (*sessionResources, error) {
 	skillsMgr, extraContext, err := buildWorkDirContext(s.settings, workDir, s.cfg.EnableWorkflows, s.cfg.EnableBrowser)
 	if err != nil {
@@ -981,7 +1002,14 @@ func (s *Server) buildSessionResources(workDir string) (*sessionResources, error
 	}
 
 	sbMgr := sandbox.NewManagerWithOptions(workDir, s.settings.Sandbox.Options())
-	if err := sbMgr.SetLevel(s.sandboxMgr.GetActive().Level()); err != nil {
+	// Copy the server's effective level, not settings.Sandbox.Enabled. The
+	// serve sandbox switch is authoritative for WebUI/API requests; settings
+	// contains the CLI sandbox policy and may independently be enabled.
+	level := sandbox.LevelNone
+	if s.sandboxMgr != nil {
+		level = s.sandboxMgr.GetActive().Level()
+	}
+	if err := sbMgr.SetLevel(level); err != nil {
 		return nil, fmt.Errorf("sandbox for work directory: %w", err)
 	}
 	registry := tools.NewRegistry(workDir, sbMgr.GetActive())

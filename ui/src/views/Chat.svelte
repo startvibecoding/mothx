@@ -1,7 +1,7 @@
 <script>
   import { onDestroy, onMount, tick } from 'svelte';
   import { get } from 'svelte/store';
-  import { markdownToHTML } from '../lib/markdown.js';
+  import { markdownToHTML, highlightedCodeToHTML } from '../lib/markdown.js';
   import { readSSE, postJSON } from '../lib/api.js';
   import { approvalSessionID, approvalRequestOwnership, approvalHistoryFromRunEvents, applyApprovalRequestToRuntime } from '../lib/approval.js';
   import {
@@ -53,6 +53,10 @@
   import { t } from '../lib/preferences.js';
 
   let prompt = '';
+  let availableSkills = [];
+  let activeSkills = [];
+  let showSkillPicker = false;
+  let loadedSkillsKey = '';
   let messages = [];
   let busy = false;
   let chatEvents = [];
@@ -67,6 +71,7 @@
   let shouldFollowOutput = true;
   let scrollFrame = 0;
   let streamUsesTranscript = false;
+  let streamHadError = false;
   let sessionHistoryLoadedFor = '';
   let sessionStreamCompletedFor = '';
   let sessionStreamCursor = { entrySeq: 0, runSeq: 0, capabilitySeq: 0 };
@@ -85,6 +90,7 @@
   let newSessionMode = 'yolo';
   let runtimeUpdating = false;
   let runtimeControls;
+  let skillPicker;
   let showRuntimePanel = false;
   let showApprovalCenter = false;
   let selectedApprovalID = '';
@@ -118,11 +124,15 @@
       if (showRuntimePanel && runtimeControls && !runtimeControls.contains(event.target)) {
         showRuntimePanel = false;
       }
+      if (showSkillPicker && skillPicker && !skillPicker.contains(event.target)) {
+        showSkillPicker = false;
+      }
     };
     document.addEventListener('pointerdown', handleRuntimeOutsidePointer);
     if ($currentSession) {
       loadSessionMessages($currentSession);
     }
+    loadSkills();
     return () => document.removeEventListener('pointerdown', handleRuntimeOutsidePointer);
   });
   onDestroy(() => {
@@ -264,6 +274,13 @@
   $: activeModel = modelOptions.find((m) => m.id === $selectedModel);
   $: selectedModelSupportsImages = (activeModel?.input || []).includes('image');
   $: apiEnabled = $features.api;
+  $: skillNames = activeSkills;
+  $: skillsWorkDir = activeSessionWorkDir || workDir.trim();
+  $: skillsContextKey = `${$currentSession || ''}:${skillsWorkDir}`;
+  $: if (apiEnabled && skillsContextKey && skillsContextKey !== loadedSkillsKey) {
+    loadedSkillsKey = skillsContextKey;
+    loadSkills();
+  }
   $: isNewSession = !$currentSession && !sessionCreated;
   $: activeSessionWorkDir = activeSession?.workDir || workDir.trim();
   $: if ($currentSession && activeSession?.workDir && workDir !== activeSession.workDir) {
@@ -301,6 +318,28 @@
     }
   }
 
+  async function loadSkills() {
+    if (!apiEnabled) return;
+    try {
+      const params = new URLSearchParams();
+      if ($currentSession) params.set('sessionId', $currentSession);
+      else if (activeSessionWorkDir || workDir.trim()) params.set('workDir', activeSessionWorkDir || workDir.trim());
+      const data = await fetch(`/api/skillhub/installed?${params}`).then((r) => r.ok ? r.json() : null);
+      availableSkills = (data?.installed || []).filter((item) => item?.name).map((item) => ({ name: item.name, description: item.name, active: Boolean(item.active) }));
+      const serverActive = data?.session?.activeSkills;
+      activeSkills = Array.isArray(serverActive) ? serverActive : availableSkills.filter((item) => item.active).map((item) => item.name);
+    } catch { availableSkills = []; }
+  }
+
+  async function toggleSkill(name, event) {
+    const next = event.currentTarget.checked ? [...activeSkills, name] : activeSkills.filter((item) => item !== name);
+    activeSkills = [...new Set(next)];
+    if (!$currentSession) return;
+    try {
+      await postJSON('/api/skillhub/set-active', { sessionId: $currentSession, names: activeSkills });
+    } catch (err) { setError(err); await loadSkills(); }
+  }
+
   async function sendPrompt() {
     const outgoing = prompt.trim();
     const outgoingImages = imageUploads;
@@ -331,7 +370,7 @@
     sessionStreamCompletedFor = '';
     chatEvents = [];
     streamUsesTranscript = false;
-    clearBanners();
+    streamHadError = false;
 
     messages = [...messages, { role: 'user', content: outgoing, images: outgoingImages }];
     if (creatingExplicitSession) {
@@ -361,6 +400,7 @@
         x_working_dir: creatingSession ? workDir.trim() : activeSessionWorkDir,
         x_mode: creatingSession ? newSessionMode : undefined,
         x_tools: visibleSessionTools,
+        x_skills: activeSkills,
         x_transcript: true,
         messages: requestMessages
       });
@@ -386,8 +426,9 @@
         scrollChatToBottom({ force: true });
       });
       await readSSE(res.body, (event) => handleStreamEvent(sessionID, event));
-      withSessionProjection(sessionID, () => finishOptimisticRunEvent('completed'));
-      markCompletion(sessionID, 'completed');
+      const finalStatus = streamHadError ? 'failed' : 'completed';
+      withSessionProjection(sessionID, () => finishOptimisticRunEvent(finalStatus, streamHadError ? getSessionState(sessionID).lastError : ''));
+      markCompletion(sessionID, finalStatus, streamHadError ? getSessionState(sessionID).lastError : '');
       sessionCreated = true;
     } catch (err) {
       const canceled = err?.name === 'AbortError';
@@ -443,8 +484,23 @@
     };
   }
 
-  function stop() {
-    if ($currentSession) abortCompletion($currentSession);
+  async function stop() {
+    if (!$currentSession) return;
+    const id = $currentSession;
+    // After a page refresh there is no local AbortController. Ask the server
+    // to cancel the persisted in-memory run instead.
+    try {
+      await postJSON(`/api/sessions/${encodeURIComponent(id)}/stop`, {});
+      abortCompletion(id);
+      markCompletion(id, 'cancel_requested');
+      setNotice($t('chat.notice.stopped'));
+    } catch (err) {
+      setError(err);
+      // A stale runtime snapshot should not permanently block this session.
+      if (err?.message?.includes('no active run')) {
+        markCompletion(id, 'failed', err);
+      }
+    }
   }
 
   function resetSession() {
@@ -2153,6 +2209,22 @@
   }
 
   function handleProjectedCompletionEvent(boundSessionID, event) {
+    if (event.event === 'error') {
+      let message = event.data;
+      try {
+        const item = JSON.parse(event.data);
+        message = item?.error || item?.message || message;
+      } catch {
+        // Keep the raw SSE payload when it is not JSON.
+      }
+      streamHadError = true;
+      withSessionProjection(boundSessionID, () => {
+        finishOptimisticRunEvent('failed', message);
+        appendTaskFailureMessage(message);
+      });
+      if (boundSessionID === $currentSession) setError(message);
+      return;
+    }
     if (event.event === 'transcript') {
       try {
         const item = JSON.parse(event.data);
@@ -2239,6 +2311,57 @@
     }
     scrollChatToBottom();
   }
+
+  function codeBlockControls(node) {
+    const handleClick = (event) => { void copyCodeBlock(event); };
+    node.addEventListener('click', handleClick);
+    node.addEventListener('toggle', updateCodeBlockToggle);
+    return {
+      destroy() {
+        node.removeEventListener('click', handleClick);
+        node.removeEventListener('toggle', updateCodeBlockToggle);
+      }
+    };
+  }
+
+  async function copyCodeBlock(event) {
+    const button = event.target.closest('.code-copy');
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const code = button.closest('.code-block')?.querySelector('code')?.textContent || '';
+    if (!code) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      button.textContent = 'Copied';
+      button.classList.add('copied');
+      window.setTimeout(() => {
+        button.textContent = 'Copy';
+        button.classList.remove('copied');
+      }, 1600);
+    } catch {
+      button.textContent = 'Failed';
+      window.setTimeout(() => { button.textContent = 'Copy'; }, 1600);
+    }
+  }
+
+  function updateCodeBlockToggle(event) {
+    const block = event.target.closest('.code-block');
+    if (!block) return;
+    const toggle = block.querySelector('.code-block-toggle');
+    if (toggle) toggle.textContent = block.open ? toggle.dataset.collapse : toggle.dataset.expand;
+  }
 </script>
 
 <section class="chat-view">
@@ -2292,7 +2415,7 @@
                 <span>{msg.isError ? $t('common.failed') : busy && idx === messages.length - 1 ? $t('chat.generating') : $t('common.completed')}</span>
               </div>
               {#if msg.content}
-                <div class="markdown">{@html markdownToHTML(msg.content)}</div>
+                <div class="markdown" use:codeBlockControls>{@html markdownToHTML(msg.content)}</div>
               {:else if busy && idx === messages.length - 1}
                 <p class="pending-text">{$t('chat.waitingModel')}</p>
               {/if}
@@ -2354,11 +2477,11 @@
                         <div class="edit-columns">
                           <div class="edit-pane old">
                             <span>{$t('chat.tool.edit.oldText')}</span>
-                            <pre class:empty={edit.oldText === ''}>{edit.oldText || $t('chat.tool.edit.empty')}</pre>
+                            <pre class:empty={edit.oldText === ''}><code>{@html edit.oldText ? highlightedCodeToHTML(edit.oldText, msg.callView.target) : $t('chat.tool.edit.empty')}</code></pre>
                           </div>
                           <div class="edit-pane new">
                             <span>{$t('chat.tool.edit.newText')}</span>
-                            <pre class:empty={edit.newText === ''}>{edit.newText || $t('chat.tool.edit.empty')}</pre>
+                            <pre class:empty={edit.newText === ''}><code>{@html edit.newText ? highlightedCodeToHTML(edit.newText, msg.callView.target) : $t('chat.tool.edit.empty')}</code></pre>
                           </div>
                         </div>
                       </section>
@@ -2527,7 +2650,7 @@
                     </div>
                   {:else if msg.detail?.kind === 'skill-ref' && msg.detail.content}
                     <div class="skill-ref-result">
-                      <div class="markdown">{@html markdownToHTML(msg.detail.content)}</div>
+                      <div class="markdown" use:codeBlockControls>{@html markdownToHTML(msg.detail.content)}</div>
                     </div>
                   {:else if msg.detail?.kind === 'workflow-lint' && msg.detail.workflowLintResult}
                     <div class="workflow-lint-result">
@@ -2790,6 +2913,29 @@
             </section>
           {/if}
         </div>
+        <div bind:this={skillPicker} class="skill-picker" aria-label="Active skills">
+          <button type="button" class="skill-picker-toggle" disabled={!apiEnabled || busy} on:click={() => (showSkillPicker = !showSkillPicker)} aria-expanded={showSkillPicker}>
+            <span>Skills</span>
+            <strong>{activeSkills.length ? `${activeSkills.length} active` : 'none active'}</strong>
+            <span class="runtime-chevron">⌄</span>
+          </button>
+          {#if showSkillPicker}
+            <div class="skill-picker-menu">
+              <header><strong>Project skills</strong><span>{activeSkills.length} active · {availableSkills.length - activeSkills.length} pending</span></header>
+              {#if availableSkills.length === 0}
+                <p class="skill-picker-empty">No skills found in this project.</p>
+              {:else}
+                {#each availableSkills as skill}
+                  <label class:active={activeSkills.includes(skill.name)}>
+                    <input type="checkbox" checked={activeSkills.includes(skill.name)} disabled={busy} on:change={(event) => toggleSkill(skill.name, event)} />
+                    <span class="skill-name">{skill.name}</span>
+                    <em>{activeSkills.includes(skill.name) ? 'active' : 'pending'}</em>
+                  </label>
+                {/each}
+              {/if}
+            </div>
+          {/if}
+        </div>
         <div class="tool-toggles" aria-label={$t('chat.tools')}>
           {#each availableToolToggles as item}
             <label class="tool-toggle" title={$t(`chat.toolToggle.${item.key}`)}>
@@ -2878,7 +3024,7 @@
                     {#each approvalToolViewValue.edits as edit}
                       <section class="edit-block">
                         <div class="edit-block-head"><strong>{$t('chat.tool.edit.editNumber', { number: edit.index })}</strong><span>{$t('chat.tool.edit.lineChange', { old: edit.oldLines, next: edit.newLines })}</span></div>
-                        <div class="edit-columns"><div class="edit-pane old"><span>{$t('chat.tool.edit.oldText')}</span><pre class:empty={edit.oldText === ''}>{edit.oldText || $t('chat.tool.edit.empty')}</pre></div><div class="edit-pane new"><span>{$t('chat.tool.edit.newText')}</span><pre class:empty={edit.newText === ''}>{edit.newText || $t('chat.tool.edit.empty')}</pre></div></div>
+                        <div class="edit-columns"><div class="edit-pane old"><span>{$t('chat.tool.edit.oldText')}</span><pre class:empty={edit.oldText === ''}><code>{@html edit.oldText ? highlightedCodeToHTML(edit.oldText, msg.callView.target) : $t('chat.tool.edit.empty')}</code></pre></div><div class="edit-pane new"><span>{$t('chat.tool.edit.newText')}</span><pre class:empty={edit.newText === ''}><code>{@html edit.newText ? highlightedCodeToHTML(edit.newText, msg.callView.target) : $t('chat.tool.edit.empty')}</code></pre></div></div>
                       </section>
                     {/each}
                   </div>
@@ -2966,7 +3112,7 @@
                   {#if item.toolName}<span>{item.toolName}</span>{/if}
                 </div>
                 {#if item.role === 'assistant'}
-                  <div class="markdown">{@html markdownToHTML(item.content || '')}</div>
+                  <div class="markdown" use:codeBlockControls>{@html markdownToHTML(item.content || '')}</div>
                 {:else if item.role === 'user'}
                   <p>{item.content}</p>
                 {:else if item.role === 'toolCall'}

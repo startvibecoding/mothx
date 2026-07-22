@@ -41,10 +41,23 @@ func TestNormalizeOptionsRejectsOverlappingAllowAndDeny(t *testing.T) {
 	project := t.TempDir()
 	_, err := NormalizeOptions(project, Options{
 		AllowedWrite: []string{project},
-		DeniedPaths:  []string{filepath.Join(project, ".git")},
+		DeniedPaths:  []string{filepath.Join(project, "secret")},
 	})
 	if err == nil || !strings.Contains(err.Error(), "overlaps") {
 		t.Fatalf("expected overlap error, got %v", err)
+	}
+}
+
+func TestNormalizeOptionsKeepsGitVisible(t *testing.T) {
+	project := t.TempDir()
+	opts, err := NormalizeOptions(project, Options{
+		DeniedPaths: []string{filepath.Join(project, ".git")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(opts.DeniedPaths) != 0 {
+		t.Fatalf("denied paths = %#v, want .git removed", opts.DeniedPaths)
 	}
 }
 
@@ -158,7 +171,7 @@ func TestBwrapDeniedFileBlocksReadAndWrite(t *testing.T) {
 	}
 }
 
-func TestBwrapProtectGitBlocksGitMetadata(t *testing.T) {
+func TestBwrapProtectGitLeavesGitMetadataVisible(t *testing.T) {
 	project := t.TempDir()
 	if !NewBwrapSandbox(project, LevelStandard).IsAvailable() {
 		t.Skip("bwrap unavailable")
@@ -171,9 +184,9 @@ func TestBwrapProtectGitBlocksGitMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := NewBwrapSandboxWithOptions(project, LevelStandard, Options{ProtectGit: true})
-	cmd := s.WrapCommand(context.Background(), "/bin/sh", "test ! -e .git/config && ! -w .git", ExecOpts{WorkDir: project})
+	cmd := s.WrapCommand(context.Background(), "/bin/sh", "test -r .git/config && test -w .git/config", ExecOpts{WorkDir: project})
 	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git metadata was accessible: %v\n%s", err, output)
+		t.Fatalf("git metadata was not visible: %v\n%s", err, output)
 	}
 }
 

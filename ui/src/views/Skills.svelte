@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentSession, setError, setNotice, clearBanners } from '../lib/stores.js';
+  import { currentSession, sessions, setError, setNotice, clearBanners } from '../lib/stores.js';
   import { request, postJSON } from '../lib/api.js';
   import { t } from '../lib/preferences.js';
 
@@ -11,6 +11,10 @@
   let category = '';
   let sort = 'downloads';
   let scope = 'project';
+  let selectedSession = '';
+  let targetDir = '';
+  let targets = [];
+  let targetLoading = false;
   let page = 1;
   let cursor = '';
   let cursorHistory = [];
@@ -28,12 +32,14 @@
   let resultsRequest = 0;
   let detailRequest = 0;
 
-  $: sessionID = $currentSession || '';
+  $: sessionID = selectedSession || '';
+  $: selectedSessionInfo = $sessions.find((item) => item.id === sessionID) || null;
   $: canPrevious = market === 'clawhub.ai' ? cursorHistory.length > 0 : page > 1;
   $: canNext = market === 'clawhub.ai' ? Boolean(nextCursor) : page * pageSize < total;
 
   onMount(async () => {
-    await Promise.all([loadCategories(), loadInstalled()]);
+    if (!selectedSession && $currentSession) selectedSession = $currentSession;
+    await Promise.all([loadCategories(), loadInstalled(), loadTargets()]);
     await loadResults();
   });
 
@@ -59,6 +65,27 @@
     } catch {
       categories = [];
     }
+  }
+
+  async function loadTargets() {
+    targets = [];
+    targetDir = '';
+    if (!sessionID) return;
+    targetLoading = true;
+    try {
+      const data = await request(`/api/skillhub/targets?${sessionParams()}`);
+      targets = data?.targets || [];
+    } catch (err) {
+      setError(err);
+    } finally {
+      targetLoading = false;
+    }
+  }
+
+  function selectSession(id) {
+    selectedSession = id;
+    loadTargets();
+    loadInstalled();
   }
 
   async function loadResults() {
@@ -178,7 +205,7 @@
     try { const data = await request(`/api/skillhub/showcase/${encodeURIComponent(kind)}?${sessionParams({ market })}`); items = data?.items || []; total = Number(data?.total || items.length); selected = items[0] || null; if (selected) await loadDetail(selected); } catch (err) { setError(err); } finally { loading = false; }
   }
   function toggleBatch(item) { const next = new Set(selectedBatch); const key = `${item.market}:${item.id}`; if (next.has(key)) next.delete(key); else next.add(key); selectedBatch = next; }
-  async function installBatch() { const chosen = items.filter((item) => selectedBatch.has(`${item.market}:${item.id}`)); if (!chosen.length) return; actionLoading = true; try { await postJSON('/api/skillhub/skillset', { skills: chosen.map((item) => ({ market: item.market, id: item.id, version: item.version || '', scope })), sessionId: sessionID }); selectedBatch = new Set(); setNotice('Selected skills installed.'); await loadResults(); } catch (err) { setError(err); } finally { actionLoading = false; } }
+  async function installBatch() { const chosen = items.filter((item) => selectedBatch.has(`${item.market}:${item.id}`)); if (!chosen.length || !sessionID || !targetDir) return; actionLoading = true; try { await postJSON('/api/skillhub/skillset', { skills: chosen.map((item) => ({ market: item.market, id: item.id, version: item.version || '', scope, targetDir })), sessionId: sessionID, targetDir, scope }); selectedBatch = new Set(); setNotice('Selected skills installed.'); await loadResults(); } catch (err) { setError(err); } finally { actionLoading = false; } }
   async function loadFileContent(file) { if (!detail || !file?.path) return; try { const data = await request(`/api/skillhub/content/${encodeURIComponent(detail.market)}/${encodeURIComponent(detail.id)}?${sessionParams({ path: file.path, version: detail.version || '' })}`); file.content = data?.content || ''; detail = { ...detail }; } catch (err) { setError(err); } }
   async function install(activate = false, overwrite = false) {
     if (!detail) return;
@@ -191,6 +218,7 @@
         version: detail.version || '',
         scope,
         sessionId: sessionID,
+        targetDir,
         overwrite,
         activate
       });
@@ -287,10 +315,6 @@
       <input bind:value={query} placeholder={$t('skills.searchPlaceholder')} aria-label={$t('skills.search')} />
       <button type="submit" class="primary">{$t('skills.search')}</button>
     </form>
-    <select bind:value={scope} aria-label={$t('skills.scope')}>
-      <option value="project">{$t('skills.scope.project')}</option>
-      <option value="global">{$t('skills.scope.global')}</option>
-    </select>
   </div>
 
   {#if market === 'skillhub.cn' && view === 'browse'}
@@ -322,7 +346,7 @@
       <div class="skills-section-head">
         <strong>{$t('skills.results')}</strong>
         <span class="loading-row">{#if loading}<span class="spinner sm"></span>{$t('common.loading')}{:else}{$t('common.items', { count: total })}{/if}</span>
-        <button type="button" disabled={selectedBatch.size === 0 || actionLoading} on:click={installBatch}>{#if actionLoading}<span class="spinner sm"></span> {/if}Install selected ({selectedBatch.size})</button>
+        <button type="button" disabled={selectedBatch.size === 0 || actionLoading || !sessionID || !targetDir} on:click={installBatch}>{#if actionLoading}<span class="spinner sm"></span> {/if}Install selected ({selectedBatch.size})</button>
       </div>
       <div class="skills-rows">
         {#if loading && items.length === 0}
@@ -372,12 +396,49 @@
         <div class="skill-badges detail-badges">
           {#each badges(detail) as badge}<span class:warning={badge === 'risk'} class:positive={badge === 'active' || badge === 'certified'}>{badge}</span>{/each}
         </div>
+        <div class="skills-install-target">
+          <div class="skills-install-target-head">
+            <div>
+              <span class="skills-install-target-kicker">INSTALL TARGET</span>
+              <h3>安装目标</h3>
+            </div>
+            <span class:ready={sessionID && targetDir} class="skills-install-target-state">{sessionID && targetDir ? '已就绪' : '未选择'}</span>
+          </div>
+          <p class="skills-install-target-hint">请选择要刷新技能上下文的 Session，以及技能实际安装的目录。</p>
+          <div class="skills-install-target-fields">
+            <label>
+              <span>Session</span>
+              <select bind:value={selectedSession} on:change={(event) => selectSession(event.currentTarget.value)}>
+                <option value="">选择 Session</option>
+                {#each $sessions as item}<option value={item.id}>{item.title || item.id} · {item.workDir || '未知目录'}</option>{/each}
+              </select>
+              {#if selectedSessionInfo}<small>{selectedSessionInfo.workDir || '工作目录未知'}</small>{/if}
+            </label>
+            <label>
+              <span>安装目录</span>
+              <select bind:value={targetDir} on:change={() => { scope = targets.find((item) => item.path === targetDir)?.scope || 'project'; }} disabled={!sessionID || targetLoading}>
+                <option value="">选择安装目录</option>
+                {#each targets as target}<option value={target.path}>{target.label} · {target.path}</option>{/each}
+              </select>
+              {#if targetDir}<small class="skills-target-path">{targetDir}</small>{/if}
+            </label>
+          </div>
+          <div class="skills-install-target-confirmation">
+            <span class="skills-target-dot"></span>
+            {#if sessionID && targetDir}
+              <span>将安装到 <strong>{targetDir}</strong>，并刷新 Session <strong>{sessionID}</strong></span>
+            {:else}
+              <span>请选择 Session 和安装目录</span>
+            {/if}
+          </div>
+        </div>
+
         <div class="skills-actions">
           {#if detail.installed?.updateAvailable}
-            <button type="button" class="primary" disabled={actionLoading} on:click={() => install(false, true)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.update')}</button>
+          <button type="button" class="primary" disabled={actionLoading || !sessionID || !targetDir} on:click={() => install(false, true)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.update')}</button>
           {:else if !detail.installed?.installed}
-            <button type="button" class="primary" disabled={actionLoading} on:click={() => install(false, false)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.install')}</button>
-            <button type="button" disabled={actionLoading} on:click={() => install(true, false)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.installActivate')}</button>
+          <button type="button" class="primary" disabled={actionLoading || !sessionID || !targetDir} on:click={() => install(false, false)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.install')}</button>
+          <button type="button" disabled={actionLoading || !sessionID || !targetDir} on:click={() => install(true, false)}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.installActivate')}</button>
           {:else if !isActive(detail)}
             <button type="button" class="primary" disabled={actionLoading} on:click={activate}>{#if actionLoading}<span class="spinner sm"></span> {/if}{$t('skills.activate')}</button>
             <button type="button" disabled={actionLoading} on:click={uninstall}>{#if actionLoading}<span class="spinner sm"></span> {/if}Uninstall</button>
