@@ -75,6 +75,7 @@ func ProjectSkillDirs(projectRoot string) []string {
 	return []string{
 		config.ProjectPathFor(projectRoot, "skills"),
 		filepath.Join(projectRoot, ".skills"),
+		filepath.Join(projectRoot, ".agents", "skills"),
 		filepath.Join(projectRoot, "skills"),
 	}
 }

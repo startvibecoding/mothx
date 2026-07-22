@@ -117,6 +117,43 @@ func TestLoadProjectDirsPriority(t *testing.T) {
 	}
 }
 
+func TestProjectSkillDirsIncludesAgentsSkills(t *testing.T) {
+	projectRoot := filepath.Join("/tmp", "repo")
+	dirs := ProjectSkillDirs(projectRoot)
+	want := filepath.Join(projectRoot, ".agents", "skills")
+
+	found := false
+	for _, dir := range dirs {
+		if dir == want {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("ProjectSkillDirs() = %v, want %q", dirs, want)
+	}
+}
+
+func TestLoadAgentsSkillsDir(t *testing.T) {
+	projectRoot := t.TempDir()
+	skillDir := filepath.Join(projectRoot, ".agents", "skills", "agents-skill")
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		t.Fatalf("mkdir agents skill dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("# Agents Skill"), 0644); err != nil {
+		t.Fatalf("write agents skill: %v", err)
+	}
+
+	m := NewManagerWithProjectDirs("", ProjectSkillDirs(projectRoot))
+	if err := m.Load(); err != nil {
+		t.Fatalf("load skills: %v", err)
+	}
+	if skill := m.Get("agents-skill"); skill == nil {
+		t.Fatal("expected skill from .agents/skills")
+	} else if skill.Path != filepath.Join(skillDir, "SKILL.md") {
+		t.Errorf("skill path = %q, want %q", skill.Path, filepath.Join(skillDir, "SKILL.md"))
+	}
+}
 func TestLoadProjectPlainSkillsDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	globalDir := filepath.Join(tmpDir, "global")
