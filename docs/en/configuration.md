@@ -970,7 +970,7 @@ Example:
     {
       "name": "local-tools",
       "type": "stdio",
-      "command": "/absolute/path/to/mcp-server",
+      "command": "mcp-server",
       "args": ["--port", "8080"],
       "env": [
         {"name": "API_KEY", "value": "sk-..."}
@@ -990,7 +990,7 @@ Example:
 
 Supported transports:
 
-- `stdio`: requires an absolute `command` path
+- `stdio`: `command` may be an executable name resolved through `PATH`, or a direct path; put arguments in `args`
 - `http`: streamable HTTP endpoint via `url`
 - `sse`: legacy SSE stream via `url` plus `messageUrl`
 

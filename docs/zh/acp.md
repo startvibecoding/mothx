@@ -145,7 +145,7 @@ MCP 服务器由 IDE 客户端配置，并在创建或加载会话时传递给 M
     {
       "name": "my-database",
       "type": "stdio",
-      "command": "/absolute/path/to/mcp-server",
+      "command": "mcp-server",
       "args": ["--port", "8080"],
       "env": [
         {"name": "DB_URL", "value": "postgres://localhost/mydb"}
@@ -184,7 +184,7 @@ MCP 服务器由 IDE 客户端配置，并在创建或加载会话时传递给 M
 
 支持的传输类型：
 
-- `stdio`：要求 `command` 为绝对路径
+- `stdio`：`command` 可以是通过 `PATH` 查找的命令名，也可以是直接路径；命令参数请放在 `args` 中
 - `http`：通过 `url` 连接 streamable HTTP 端点
 - `sse`：通过 `url` 连接 legacy SSE 流，并通过 `messageUrl` 发送请求
 

@@ -970,7 +970,7 @@ MothX 启动时会从以下位置加载 MCP 配置：
     {
       "name": "local-tools",
       "type": "stdio",
-      "command": "/absolute/path/to/mcp-server",
+      "command": "mcp-server",
       "args": ["--port", "8080"],
       "env": [
         {"name": "API_KEY", "value": "sk-..."}
@@ -990,7 +990,7 @@ MothX 启动时会从以下位置加载 MCP 配置：
 
 支持的传输类型：
 
-- `stdio`：要求 `command` 为绝对路径
+- `stdio`：`command` 可以是通过 `PATH` 查找的命令名，也可以是直接路径；参数请放在 `args` 中
 - `http`：通过 `url` 连接 streamable HTTP 端点
 - `sse`：通过 `url` 连接 legacy SSE 流，并通过 `messageUrl` 发送请求
 

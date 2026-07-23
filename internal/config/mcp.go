@@ -68,8 +68,29 @@ func SaveMCPConfig(path string, cfg *MCPConfig) error {
 		return fmt.Errorf("marshal MCP config: %w", err)
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0644); err != nil {
-		return fmt.Errorf("write MCP config: %w", err)
+	tmp, err := os.CreateTemp(dir, ".mcp-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temporary MCP config: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if err := tmp.Chmod(0600); err != nil {
+		tmp.Close()
+		return fmt.Errorf("set MCP config permissions: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temporary MCP config: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync temporary MCP config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temporary MCP config: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("replace MCP config: %w", err)
 	}
 	return nil
 }
