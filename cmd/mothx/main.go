@@ -47,8 +47,16 @@ func main() {
 	}
 	_ = platform.EnsureWindowsBusybox()
 	rootCmd := newRootCommand(run, acp.Run)
+	exitCode := 0
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		exitCode = 1
+	}
+	if err := session.CloseDatabases(); err != nil {
+		fmt.Fprintf(os.Stderr, "close session databases: %v\n", err)
+		exitCode = 1
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
 	}
 }
 
@@ -804,6 +812,10 @@ func runInteractive(cfg runInteractiveConfig) error {
 		return fmt.Errorf("run TUI: %w", err)
 	}
 	if app.ReloadRequested() {
+		cfg.runtime.cleanup()
+		if err := session.CloseDatabases(); err != nil {
+			return fmt.Errorf("close session databases before reload: %w", err)
+		}
 		return reexecFresh()
 	}
 	return nil

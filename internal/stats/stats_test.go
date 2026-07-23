@@ -11,8 +11,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const expectedMigrationCount = 15
-
 func TestDashboardUsesMothXSmallFavicon(t *testing.T) {
 	if !strings.Contains(dashboardHTML, `href="/mothx-small.ico"`) {
 		t.Fatal("dashboard must reference mothx-small.ico")
@@ -267,16 +265,11 @@ func TestRecentFiltered(t *testing.T) {
 	}
 }
 
-// TestMigrationFromOldDB verifies that opening a DB created with an older
-// schema (no schema_migrations table, no request_stats table) auto-migrates
-// and works correctly.
-func TestMigrationFromOldDB(t *testing.T) {
+func TestOpenRejectsOldSchemaWithoutMigrating(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "sessions.db")
 
-	// Create a DB simulating an old vibecoding version:
-	// only sessions + entries, no schema_migrations, no request_stats.
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -305,106 +298,64 @@ func TestMigrationFromOldDB(t *testing.T) {
 	}
 	db.Close()
 
-	// Open with stats.Open — triggers ApplyMigrations
 	sdb, err := Open(dbPath)
-	if err != nil {
-		t.Fatalf("Open should migrate old DB, got error: %v", err)
+	if err == nil {
+		sdb.Close()
+		t.Fatal("Open succeeded for an old schema")
 	}
-	defer sdb.Close()
-
-	// schema_migrations table should exist and record all migrations
-	var migrationCount int
-	err = sdb.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount)
-	if err != nil {
-		t.Fatalf("schema_migrations table should exist after migration: %v", err)
-	}
-	if migrationCount != expectedMigrationCount {
-		t.Errorf("expected %d migrations recorded, got %d", expectedMigrationCount, migrationCount)
+	if !strings.Contains(err.Error(), "database schema is incompatible") {
+		t.Fatalf("Open error = %v, want incompatible schema", err)
 	}
 
-	// Verify a specific migration was recorded
-	var appliedAt string
-	err = sdb.db.QueryRow("SELECT applied_at FROM schema_migrations WHERE name = '004_create_request_stats_table'").Scan(&appliedAt)
-	if err != nil {
-		t.Fatalf("migration 004 should be recorded: %v", err)
-	}
-	if appliedAt == "" {
-		t.Error("migration 004 should have applied_at timestamp")
-	}
-
-	var esmTable string
-	if err := sdb.db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='session_esm_objectives'").Scan(&esmTable); err != nil {
-		t.Fatalf("session_esm_objectives table should exist after migration: %v", err)
-	}
-
-	// request_stats table should now exist and be usable
-	_, err = sdb.db.Exec("INSERT INTO request_stats (timestamp, provider, protocol, model, input_tokens, output_tokens, total_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		time.Now().Format(time.RFC3339Nano), "anthropic", "anthropic-messages", "claude-3", 500, 200, 700)
+	db, err = sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	summary, err := sdb.Summary(Query{})
-	if err != nil {
-		t.Fatalf("Summary on migrated DB failed: %v", err)
+	defer db.Close()
+	var count int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'request_stats'").Scan(&count); err != nil {
+		t.Fatal(err)
 	}
-	if summary.TotalRequests != 1 {
-		t.Errorf("expected 1 request after migration, got %d", summary.TotalRequests)
-	}
-	if summary.InputTokens != 500 {
-		t.Errorf("expected 500 input tokens, got %d", summary.InputTokens)
-	}
-
-	// Old tables should still be intact
-	var sessionCount int
-	err = sdb.db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&sessionCount)
-	if err != nil {
-		t.Fatalf("Old sessions table should still exist: %v", err)
-	}
-	var cronTable string
-	err = sdb.db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='cron_jobs'").Scan(&cronTable)
-	if err != nil {
-		t.Fatalf("cron_jobs table should exist after migration: %v", err)
+	if count != 0 {
+		t.Fatal("old schema was modified")
 	}
 }
 
-// TestIdempotentMigrations verifies that calling ApplyMigrations multiple
-// times is safe and does not re-apply already-applied migrations.
-func TestIdempotentMigrations(t *testing.T) {
+func TestCurrentSchemaInitializationIsIdempotent(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "sessions.db")
 
-	// Create an empty file (Open requires the file to exist)
 	f, err := os.Create(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
 
-	// First open — runs all migrations
 	db1, err := Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	var count1 int
-	db1.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count1)
-	if count1 != expectedMigrationCount {
-		t.Errorf("expected %d migrations after first open, got %d", expectedMigrationCount, count1)
+	var count int
+	if err := db1.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'request_stats'").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("request_stats count = %d, want 1", count)
 	}
 	db1.Close()
 
-	// Second open — should be a no-op
 	db2, err := Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db2.Close()
 
-	var count2 int
-	db2.db.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count2)
-	if count2 != expectedMigrationCount {
-		t.Errorf("expected %d migrations after second open (no re-apply), got %d", expectedMigrationCount, count2)
+	if err := db2.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatal("schema_migrations table must not be created")
 	}
 }

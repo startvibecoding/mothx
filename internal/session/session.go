@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,16 +18,17 @@ import (
 	"github.com/startvibecoding/mothx/internal/platform"
 	"github.com/startvibecoding/mothx/internal/provider"
 	"github.com/startvibecoding/mothx/internal/util"
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
 
 const CurrentVersion = 3
 
 var (
-	dbLock         sync.Mutex
-	initializedDBs = make(map[string]bool)
-	cachedDBs      = make(map[string]*sql.DB)
+	dbLock    sync.Mutex
+	cachedDBs = make(map[string]*sql.DB)
 )
+
+var ErrSessionModified = errors.New("session was modified by another process")
 
 // Manager manages a single session's state and persistence.
 type Manager struct {
@@ -165,6 +168,124 @@ func sessionDirForCwd(cwd, sessionDir string) string {
 	return filepath.Join(sessionDir, "--"+encoded+"--")
 }
 
+func canonicalDBPath(path string) (string, error) {
+	abs, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("resolve database path: %w", err)
+	}
+	return abs, nil
+}
+
+func sqliteDSN(path string) string {
+	u := url.URL{Scheme: "file", Path: filepath.ToSlash(path)}
+	q := u.Query()
+	q.Add("_pragma", "busy_timeout(10000)")
+	q.Add("_pragma", "synchronous(NORMAL)")
+	q.Set("_txlock", "immediate")
+	q.Set("_dqs", "false")
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func isSQLiteBusy(err error) bool {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	code := sqliteErr.Code() & 0xff
+	return code == 5 || code == 6 // SQLITE_BUSY or SQLITE_LOCKED
+}
+
+func enableWAL(db *sql.DB) error {
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var journalMode string
+		err := db.QueryRow("PRAGMA journal_mode=WAL").Scan(&journalMode)
+		if err == nil {
+			if !strings.EqualFold(journalMode, "wal") {
+				return fmt.Errorf("sqlite journal mode is %q, want WAL", journalMode)
+			}
+			return nil
+		}
+		if !isSQLiteBusy(err) || time.Now().After(deadline) {
+			return fmt.Errorf("enable sqlite WAL mode: %w", err)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+func openSQLiteDB(path string) (*sql.DB, string, error) {
+	dbPath, err := canonicalDBPath(path)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
+		return nil, "", fmt.Errorf("create db dir: %w", err)
+	}
+	db, err := sql.Open("sqlite", sqliteDSN(dbPath))
+	if err != nil {
+		return nil, "", fmt.Errorf("open sqlite db: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, "", fmt.Errorf("initialize sqlite connection: %w", err)
+	}
+	if err := enableWAL(db); err != nil {
+		_ = db.Close()
+		return nil, "", err
+	}
+	if err := EnsureCurrentSchema(db); err != nil {
+		_ = db.Close()
+		return nil, "", err
+	}
+	return db, dbPath, nil
+}
+
+func cachedDB(path string) (*sql.DB, error) {
+	dbPath, err := canonicalDBPath(path)
+	if err != nil {
+		return nil, err
+	}
+	dbLock.Lock()
+	defer dbLock.Unlock()
+	if db := cachedDBs[dbPath]; db != nil {
+		return db, nil
+	}
+	db, _, err := openSQLiteDB(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	cachedDBs[dbPath] = db
+	return db, nil
+}
+
+// OpenStandaloneDB opens a configured, caller-owned SQLite connection.
+func OpenStandaloneDB(path string) (*sql.DB, error) {
+	db, _, err := openSQLiteDB(path)
+	return db, err
+}
+
+// CloseDatabases checkpoints and closes all process-owned session connections.
+func CloseDatabases() error {
+	dbLock.Lock()
+	defer dbLock.Unlock()
+	var errs []error
+	for path, db := range cachedDBs {
+		var busy, logFrames, checkpointed int
+		if err := db.QueryRow("PRAGMA wal_checkpoint(PASSIVE)").Scan(&busy, &logFrames, &checkpointed); err != nil {
+			errs = append(errs, fmt.Errorf("checkpoint %s: %w", path, err))
+		}
+		if err := db.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close %s: %w", path, err))
+		}
+		delete(cachedDBs, path)
+	}
+	return errors.Join(errs...)
+}
+
 func openExistingSessionDB(sessionDir string) (*sql.DB, bool, error) {
 	if sessionDir == "" {
 		sessionDir = platform.SessionDir()
@@ -178,65 +299,18 @@ func openExistingSessionDB(sessionDir string) (*sql.DB, bool, error) {
 		return nil, false, err
 	}
 
-	dbLock.Lock()
-	db, ok := cachedDBs[dbPath]
-	if !ok {
-		var err error
-		db, err = sql.Open("sqlite", dbPath)
-		if err != nil {
-			dbLock.Unlock()
-			return nil, false, fmt.Errorf("open sqlite db: %w", err)
-		}
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
-		db.SetConnMaxLifetime(0)
-		_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
-		_, _ = db.Exec("PRAGMA journal_mode = WAL;")
-		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
-		cachedDBs[dbPath] = db
-	}
-	if err := ApplyMigrations(db); err != nil {
-		dbLock.Unlock()
-		return nil, false, fmt.Errorf("apply migrations: %w", err)
-	}
-	dbLock.Unlock()
-
-	return db, true, nil
+	db, err := cachedDB(dbPath)
+	return db, err == nil, err
 }
 
-// OpenRootDB opens the shared sessions.db for a session root directory and
-// applies all pending migrations.
+// OpenRootDB opens the shared sessions.db for a session root directory.
 func OpenRootDB(sessionDir string) (*sql.DB, error) {
 	if sessionDir == "" {
 		sessionDir = platform.SessionDir()
 	}
 	dbPath := filepath.Join(sessionDir, "sessions.db")
 
-	dbLock.Lock()
-	defer dbLock.Unlock()
-
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
-		return nil, fmt.Errorf("create db dir: %w", err)
-	}
-	db, ok := cachedDBs[dbPath]
-	if !ok {
-		var err error
-		db, err = sql.Open("sqlite", dbPath)
-		if err != nil {
-			return nil, fmt.Errorf("open sqlite db: %w", err)
-		}
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
-		db.SetConnMaxLifetime(0)
-		_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
-		_, _ = db.Exec("PRAGMA journal_mode = WAL;")
-		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
-		cachedDBs[dbPath] = db
-	}
-	if err := ApplyMigrations(db); err != nil {
-		return nil, fmt.Errorf("apply migrations: %w", err)
-	}
-	return db, nil
+	return cachedDB(dbPath)
 }
 
 func parseSessionTimestamp(timestampStr string) time.Time {
@@ -401,28 +475,14 @@ func OpenByID(cwd, sessionDir, sessionID string) (*Manager, error) {
 		return nil, fmt.Errorf("session %s not found for cwd %s", sessionID, cwd)
 	}
 
-	dbLock.Lock()
-	db, ok := cachedDBs[dbPath]
-	if !ok {
-		var err error
-		db, err = sql.Open("sqlite", dbPath)
-		if err != nil {
-			dbLock.Unlock()
-			return nil, fmt.Errorf("open sqlite db: %w", err)
-		}
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
-		db.SetConnMaxLifetime(0)
-		_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
-		_, _ = db.Exec("PRAGMA journal_mode = WAL;")
-		_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
-		cachedDBs[dbPath] = db
+	db, err := cachedDB(dbPath)
+	if err != nil {
+		return nil, err
 	}
-	dbLock.Unlock()
 
 	// Query by exact match first
 	var exactID string
-	err := db.QueryRow("SELECT id FROM sessions WHERE id = ? AND cwd = ?", sessionID, cwd).Scan(&exactID)
+	err = db.QueryRow("SELECT id FROM sessions WHERE id = ? AND cwd = ?", sessionID, cwd).Scan(&exactID)
 	if err == nil {
 		return openSessionFromDB(exactID, sessionDir)
 	}
@@ -512,14 +572,12 @@ func openSessionFromDB(sessionID, dir string) (*Manager, error) {
 	}
 
 	dbPath := filepath.Join(dir, "sessions.db")
-	dbLock.Lock()
-	db, ok := cachedDBs[dbPath]
-	dbLock.Unlock()
-
-	var timestampStr string
-	if ok && db != nil {
-		_ = db.QueryRow("SELECT timestamp FROM sessions WHERE id = ?", sessionID).Scan(&timestampStr)
+	db, err := cachedDB(dbPath)
+	if err != nil {
+		return nil, err
 	}
+	var timestampStr string
+	_ = db.QueryRow("SELECT timestamp FROM sessions WHERE id = ?", sessionID).Scan(&timestampStr)
 
 	if timestampStr != "" {
 		ts, _ := time.Parse(time.RFC3339Nano, timestampStr)
@@ -974,50 +1032,11 @@ func resolveDBPath(sessionFilePath string) string {
 }
 
 func (m *Manager) withDB(fn func(*sql.DB) error) error {
-	dbLock.Lock()
 	dbPath := resolveDBPath(m.file)
-
-	// Ensure parent directory of database exists
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0700); err != nil {
-		dbLock.Unlock()
-		return fmt.Errorf("create db dir: %w", err)
+	db, err := cachedDB(dbPath)
+	if err != nil {
+		return err
 	}
-
-	db, ok := cachedDBs[dbPath]
-	if !ok {
-		var err error
-		db, err = sql.Open("sqlite", dbPath)
-		if err != nil {
-			dbLock.Unlock()
-			return fmt.Errorf("open sqlite db: %w", err)
-		}
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
-		db.SetConnMaxLifetime(0)
-		cachedDBs[dbPath] = db
-	}
-
-	// Always make sure PRAGMAs are run on connection (or at least during initialization)
-	_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
-
-	if !initializedDBs[dbPath] {
-		// Check and enable WAL mode conditionally (since WAL persists in the file header)
-		var currentMode string
-		_ = db.QueryRow("PRAGMA journal_mode;").Scan(&currentMode)
-		if currentMode != "wal" {
-			_, _ = db.Exec("PRAGMA journal_mode=WAL;")
-		}
-		_, _ = db.Exec("PRAGMA synchronous=NORMAL;")
-		initializedDBs[dbPath] = true
-	}
-
-	// Run pending migrations (idempotent — skips already-applied ones)
-	if err := ApplyMigrations(db); err != nil {
-		dbLock.Unlock()
-		return fmt.Errorf("apply migrations: %w", err)
-	}
-	dbLock.Unlock()
-
 	return fn(db)
 }
 
@@ -1216,29 +1235,33 @@ func DeleteSession(path string, sessionDir string) error {
 
 	if sessionID != "" {
 		dbPath := resolveDBPath(cleanPath)
-		dbLock.Lock()
-		db, ok := cachedDBs[dbPath]
-		if !ok {
-			var err error
-			db, err = sql.Open("sqlite", dbPath)
-			if err == nil {
-				db.SetMaxOpenConns(1)
-				db.SetMaxIdleConns(1)
-				db.SetConnMaxLifetime(0)
-				_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
-				_, _ = db.Exec("PRAGMA journal_mode = WAL;")
-				_, _ = db.Exec("PRAGMA synchronous = NORMAL;")
-				cachedDBs[dbPath] = db
+		db, err := cachedDB(dbPath)
+		if err != nil {
+			return err
+		}
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin deleting session %s: %w", sessionID, err)
+		}
+		for _, table := range []string{
+			"session_run_events",
+			"session_capability_events",
+			"session_capabilities",
+			"session_esm_objectives",
+			"entries",
+		} {
+			if _, err := tx.Exec("DELETE FROM "+table+" WHERE session_id = ?", sessionID); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("delete session %s from %s: %w", sessionID, table, err)
 			}
 		}
-		if db != nil {
-			_, _ = db.Exec("DELETE FROM session_run_events WHERE session_id = ?", sessionID)
-			_, _ = db.Exec("DELETE FROM session_capability_events WHERE session_id = ?", sessionID)
-			_, _ = db.Exec("DELETE FROM session_capabilities WHERE session_id = ?", sessionID)
-			_, _ = db.Exec("DELETE FROM entries WHERE session_id = ?", sessionID)
-			_, _ = db.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
+		if _, err := tx.Exec("DELETE FROM sessions WHERE id = ?", sessionID); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("delete session %s: %w", sessionID, err)
 		}
-		dbLock.Unlock()
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit deleting session %s: %w", sessionID, err)
+		}
 	}
 
 	if _, err := os.Stat(path); err == nil {
@@ -1892,14 +1915,39 @@ func (m *Manager) writeEntry(entry interface{}) error {
 	}
 
 	return m.withDB(func(db *sql.DB) error {
+		tx, err := db.Begin()
+		if err != nil {
+			return fmt.Errorf("begin writing session entry: %w", err)
+		}
+		defer tx.Rollback()
+
+		if typeStr != string(EntrySession) {
+			var currentLeaf sql.NullString
+			err := tx.QueryRow(
+				"SELECT id FROM "+m.entriesTable()+" WHERE session_id = ? AND type != ? ORDER BY seq DESC LIMIT 1",
+				sessionID, string(EntrySession),
+			).Scan(&currentLeaf)
+			if err != nil && err != sql.ErrNoRows {
+				return fmt.Errorf("read current session leaf: %w", err)
+			}
+			expectedLeaf := ""
+			if parentID != nil {
+				expectedLeaf = *parentID
+			}
+			if currentLeaf.String != expectedLeaf {
+				return fmt.Errorf("%w: expected leaf %q, current leaf %q; reopen the session before writing", ErrSessionModified, expectedLeaf, currentLeaf.String)
+			}
+		}
+
 		// Register session if header is being written
 		if typeStr == string(EntrySession) && m.header != nil {
 			var parentSess interface{}
 			if m.header.ParentSession != "" {
 				parentSess = m.header.ParentSession
 			}
-			_, err = db.Exec(
-				"INSERT OR REPLACE INTO "+m.sessionTable()+" (id, cwd, timestamp, parent_session, version) VALUES (?, ?, ?, ?, ?)",
+			_, err = tx.Exec(
+				"INSERT INTO "+m.sessionTable()+" (id, cwd, timestamp, parent_session, version) VALUES (?, ?, ?, ?, ?) "+
+					"ON CONFLICT(id) DO UPDATE SET cwd = excluded.cwd, timestamp = excluded.timestamp, parent_session = excluded.parent_session, version = excluded.version",
 				sessionID, m.cwd, m.header.Timestamp.Format(time.RFC3339Nano), parentSess, m.header.Version,
 			)
 			if err != nil {
@@ -1911,10 +1959,16 @@ func (m *Manager) writeEntry(entry interface{}) error {
 		if parentID != nil {
 			parentIDVal = *parentID
 		}
-		_, err := db.Exec(
-			"INSERT OR REPLACE INTO "+m.entriesTable()+" (session_id, id, type, parent_id, timestamp, data) VALUES (?, ?, ?, ?, ?, ?)",
+		_, err = tx.Exec(
+			"INSERT INTO "+m.entriesTable()+" (session_id, id, type, parent_id, timestamp, data) VALUES (?, ?, ?, ?, ?, ?)",
 			sessionID, id, typeStr, parentIDVal, ts.Format(time.RFC3339Nano), string(data),
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit session entry: %w", err)
+		}
+		return nil
 	})
 }

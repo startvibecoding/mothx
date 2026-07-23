@@ -25,6 +25,7 @@ type Scheduler struct {
 	running    bool
 	claims     map[string]struct{}
 	mu         sync.Mutex
+	loopWG     sync.WaitGroup
 }
 
 var a2aHTTPClient = &http.Client{Timeout: 30 * time.Second}
@@ -65,20 +66,26 @@ func (s *Scheduler) Start() {
 	}
 	s.running = true
 	s.quit = make(chan struct{})
+	s.loopWG.Add(1)
 	s.mu.Unlock()
 
-	go s.loop()
+	go func() {
+		defer s.loopWG.Done()
+		s.loop()
+	}()
 }
 
 // Stop stops the scheduler.
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !s.running {
+		s.mu.Unlock()
 		return
 	}
 	s.running = false
 	close(s.quit)
+	s.mu.Unlock()
+	s.loopWG.Wait()
 }
 
 // IsRunning returns whether the scheduler is running.
