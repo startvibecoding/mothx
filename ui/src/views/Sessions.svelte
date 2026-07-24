@@ -1,5 +1,5 @@
 <script>
-  import { sessions, currentSession, setError, setNotice, refreshSessions, clearBanners } from '../lib/stores.js';
+  import { sessions, currentSession, setError, setNotice, refreshSessions, clearBanners, isMobile } from '../lib/stores.js';
   import { del } from '../lib/api.js';
   import { navigate } from '../lib/router.js';
   import { shortID } from '../lib/format.js';
@@ -77,6 +77,40 @@
   </div>
 
   <div class="page-body">
+    {#if $isMobile}
+      <div class="session-cards">
+        {#each pageItems as s (s.id)}
+          <div class="session-card" class:active={$currentSession === s.id}>
+            <button
+              type="button"
+              class="link-btn session-card-title"
+              title={s.title || s.preview || shortID(s.id)}
+              on:click={() => open(s.id)}
+            >
+              {s.title || s.preview || shortID(s.id)}
+            </button>
+            <div class="session-card-meta">
+              <span class="session-card-id" title={s.id}>{shortID(s.id)}</span>
+              <span class="session-card-status">{s.active ? $t('sessions.active') : $t('sessions.history')}</span>
+              <span class="session-card-count">{s.messageCount || 0} {$t('sessions.messageCount')}</span>
+            </div>
+            {#if s.workDir}
+              <div class="session-card-wd" title={s.workDir}>{s.workDir}</div>
+            {/if}
+            {#if s.preview && s.title}
+              <div class="session-card-preview" title={s.preview}>{s.preview}</div>
+            {/if}
+            <div class="session-card-actions">
+              <button type="button" class="ghost" on:click={() => open(s.id)}>{$t('common.open')}</button>
+              <button type="button" class="danger" on:click={() => remove(s.id)}>{$t('common.delete')}</button>
+            </div>
+          </div>
+        {/each}
+        {#if filtered.length === 0}
+          <p class="empty">{$t('sessions.empty')}</p>
+        {/if}
+      </div>
+    {:else}
     <table class="table sessions-table">
       <colgroup>
         <col class="session-col" />
@@ -127,6 +161,7 @@
         {/if}
       </tbody>
     </table>
+    {/if}
     {#if filtered.length > pageSize}
       <div class="stats-pagination sessions-pagination">
         <button type="button" class="page-btn" disabled={page <= 1} on:click={() => goToPage(1)}>{$t('common.first')}</button>

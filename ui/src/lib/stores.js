@@ -1,8 +1,18 @@
 // Shared reactive stores. Views subscribe; a small refresh helper reloads
 // everything after significant server-state changes.
 
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived, readable, get } from 'svelte/store';
 import { request, jsonBody } from './api.js';
+
+// Reactive media-query store: true when viewport is mobile-width.
+export const isMobile = readable(false, (set) => {
+  if (typeof window === 'undefined') return;
+  const mql = window.matchMedia('(max-width: 900px)');
+  set(mql.matches);
+  const handler = (e) => set(e.matches);
+  mql.addEventListener('change', handler);
+  return () => mql.removeEventListener('change', handler);
+});
 
 export const health = writable(null);
 export const status = writable(null);
@@ -20,6 +30,7 @@ export const statsSummary = writable(null);
 export const notice = writable('');
 export const error = writable('');
 export const currentSession = writable('');
+export const sidebarOpen = writable(false);
 export const selectedModel = writable('default');
 export const sessionRuntime = writable(null);
 export const pendingApprovals = derived(sessionRuntime, ($runtime) => $runtime?.pendingApprovals || []);

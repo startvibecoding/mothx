@@ -996,6 +996,33 @@ func TestSSEWriter_Done(t *testing.T) {
 	}
 }
 
+func TestSSEWriter_WriteError(t *testing.T) {
+	w := httptest.NewRecorder()
+	sse := NewSSEWriter(w, "test-model", "sess-1")
+	sse.WriteError("something broke")
+	body := w.Body.String()
+
+	// The error event must use real newlines so SSE parsers can separate the
+	// event name from the data payload. A literal backslash-n (\n) would
+	// merge them into one line and break the WebUI error handler.
+	if !strings.Contains(body, "event: error\n") {
+		t.Errorf("error event must be followed by a real newline, got: %q", body)
+	}
+	if !strings.Contains(body, "\"error\":\"something broke\"") {
+		t.Errorf("missing error payload: %s", body)
+	}
+	if !strings.Contains(body, "\"code\":\"server_error\"") {
+		t.Errorf("missing error code: %s", body)
+	}
+	if !strings.Contains(body, "[DONE]") {
+		t.Error("missing [DONE] sentinel")
+	}
+	// Ensure no literal backslash-n leaked into the output.
+	if strings.Contains(body, "event: error\\n") {
+		t.Errorf("error event contains literal backslash-n instead of newline: %q", body)
+	}
+}
+
 func TestSSEWriter_ToolStatusContent(t *testing.T) {
 	w := httptest.NewRecorder()
 	sse := NewSSEWriter(w, "test-model", "")

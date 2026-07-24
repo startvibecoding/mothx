@@ -1,6 +1,11 @@
 <script>
   import { route } from '../lib/router.js';
   import { t } from '../lib/preferences.js';
+  import { sidebarOpen, isMobile } from '../lib/stores.js';
+
+  function toggleSidebar() {
+    sidebarOpen.update((v) => !v);
+  }
 
   const titles = {
     chat: 'nav.newChat',
@@ -25,6 +30,19 @@
 </script>
 
 <header class="topbar">
+  {#if $isMobile}
+    <button
+      type="button"
+      class="menu-toggle"
+      aria-label={$t('sidebar.menu') || 'Menu'}
+      aria-expanded={$sidebarOpen}
+      on:click={toggleSidebar}
+    >
+      <span class="menu-bar"></span>
+      <span class="menu-bar"></span>
+      <span class="menu-bar"></span>
+    </button>
+  {/if}
   <div class="tb-title">
     <h1>{title}</h1>
     {#if subtitle}<span>{subtitle}</span>{/if}

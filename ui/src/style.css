@@ -463,6 +463,30 @@ label span:first-child { margin-bottom: 2px; }
   margin-top: 8px;
 }
 
+/* ─── Mobile drawer (rendered via Svelte {#if}, no media query needed) ─── */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 90;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.45);
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+.sidebar.mobile-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  width: 280px;
+  max-width: 85vw;
+  height: 100vh;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+}
+
 .pref-controls {
   display: grid;
   gap: 8px;
@@ -523,6 +547,28 @@ label span:first-child { margin-bottom: 2px; }
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: var(--bg);
+}
+.menu-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+ margin-right: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+.menu-toggle .menu-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  margin: 0 auto;
+  background: var(--text);
+  border-radius: 1px;
 }
 .tb-title {
   display: flex;
@@ -659,6 +705,62 @@ label span:first-child { margin-bottom: 2px; }
   font-family: var(--font-mono);
 }
 .empty-cell { text-align: center; color: var(--text-muted); padding: 24px 14px; }
+
+/* ─── Session mobile cards ─── */
+.session-cards {
+  display: grid;
+  gap: 8px;
+}
+.session-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.session-card.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.session-card-title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 14px;
+}
+.session-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.session-card-id {
+  font-family: var(--font-mono);
+}
+.session-card-wd,
+.session-card-preview {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.session-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.session-card-actions button {
+  font-size: 12px;
+  padding: 4px 12px;
+}
 
 /* ─── Tags / Pills ─── */
 .tag {
@@ -830,6 +932,47 @@ label span:first-child { margin-bottom: 2px; }
 }
 .sessions-pagination {
   border-bottom: 1px solid var(--border-subtle);
+}
+
+/* ─── Stats mobile cards ─── */
+.stats-cards {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+.stats-card-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+.stats-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+.stats-card-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  flex-shrink: 0;
+}
+.stats-card-value {
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.stats-card-value.num {
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 /* ─── KV list ─── */
@@ -2188,9 +2331,6 @@ label span:first-child { margin-bottom: 2px; }
 }
 
 @media (max-width: 760px) {
-  .stats-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .edit-columns {
     grid-template-columns: 1fr;
   }
@@ -2684,25 +2824,19 @@ label span:first-child { margin-bottom: 2px; }
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 1fr; }
-  .sidebar {
-    position: static;
-    height: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    flex-direction: row;
-    flex-wrap: wrap;
-    padding: 8px 12px;
-    gap: 6px;
-    overflow: visible;
-  }
-  .side-search { width: 100%; margin-bottom: 0; }
-  .new-chat { width: auto; margin-bottom: 0; }
-  .side-nav { flex-direction: row; flex-wrap: wrap; margin-bottom: 0; gap: 2px; }
-  .side-history { display: none; }
-  .side-stats { display: none; }
-  .side-footer { display: none; }
-  .nav-divider { display: none; }
   .runtime-panel { left: auto; right: 0; }
+  .topbar { padding: 0 12px; }
+  .composer { padding: 10px 12px; }
+  .page { padding: 12px; gap: 12px; }
+  .page-toolbar .filter { min-width: 0; width: 100%; }
+
+  /* Stats */
+  .stats-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats-kpi { padding: 10px 12px; gap: 4px; }
+  .stats-kpi strong { font-size: 18px; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .stats-chart { height: 200px; padding: 8px; }
+  .stats-pagination { justify-content: center; }
 
   .cron-row { grid-template-columns: 1fr; }
   .log-line { grid-template-columns: 60px 60px 1fr; }
@@ -2724,6 +2858,19 @@ label span:first-child { margin-bottom: 2px; }
     grid-template-columns: 1fr;
   }
   .model-row-head { display: none; }
+
+  /* Composer */
+  .composer { padding: 10px 12px; }
+  .composer-bar { gap: 8px; }
+  .composer-bar .left { flex-wrap: wrap; gap: 6px; }
+  .composer-bar .right { flex-shrink: 0; align-self: flex-end; }
+  .composer-bar .right .primary { min-height: 38px; padding: 0 20px; }
+  .composer-bar select { max-width: 120px; }
+  .composer-row textarea { min-height: 40px; font-size: 16px; }
+  .composer-session-info { flex-wrap: wrap; }
+  .session-dir { max-width: 160px; }
+  .runtime-panel { position: fixed; left: 12px; right: 12px; bottom: 12px; width: auto; }
+  .skill-picker-menu { position: fixed; left: 12px; right: 12px; bottom: 12px; width: auto; max-height: 60vh; }
 }
 
 /* ─── WorkDir form ─── */

@@ -32,6 +32,13 @@
 - **Installer Package Versioning**
   - Bumped the npm and PyPI installer packages and all platform-specific npm packages to version `1.1.72`.
 
+- **Web UI Mobile Responsive Adaptation**
+  - Sidebar collapses into a mobile drawer (hamburger menu pattern) on screens ≤ 900px, using Svelte-native `matchMedia` store + `{#if}` conditional rendering + `transition:fly`/`fade` animations; overlay and drawer only exist in the DOM when open, preventing click-blocking.
+  - Stats page adapts to mobile: KPI grid switches to 2 columns, trend/rank grid stacks vertically, chart padding adjusts for narrow screens, and the recent-requests table renders as a card list.
+  - Sessions page converts from table to card list on mobile, with compact metadata rows and inline action buttons.
+  - Composer input adapts to mobile: controls wrap naturally without scroll containers (preventing select dropdown clipping), textarea uses 16px font to avoid iOS auto-zoom, and runtime/skill popup panels use `position: fixed` bottom-sheet pattern to prevent screen overflow.
+  - AGENTS.md updated with WebUI-specific conventions documenting the Svelte-native mobile approach.
+
 ## v1.1.72
 
 ### ✨ Features

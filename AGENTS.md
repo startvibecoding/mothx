@@ -51,6 +51,7 @@ This file is for AI agents working in this repository. Keep changes aligned with
 - `internal/serve/ws/` — serve WebSocket channel runtime
 - `internal/serve/webhook/` — inbound webhook routing for serve channels
 - `internal/serve/hooks/` — hooks execution
+- `ui/` — Svelte 5 + Vite frontend for serve Web UI; embedded into the Go binary via `ui/embed.go`
 - `docs/` — documentation
 
 ## Architecture Notes
@@ -173,6 +174,25 @@ When changing code, prefer the least risky approach that satisfies the request, 
 - Slash command handlers belong in `internal/serve/openaiapi/commands.go`, kept separate from TUI commands (different dependencies).
 - The `resolveToolEvent()` helper in `handler_chat.go` handles the fact that `EventToolCall` carries tool name in `ev.ToolCall.Name` (not `ev.ToolName`).
 - When adding new slash commands, add to both API `commands.go` and TUI `commands.go` to keep feature parity.
+
+## WebUI-Specific Notes
+
+- The serve Web UI is a Svelte 5 + Vite SPA. Source lives in `ui/src/`, built output in `ui/dist/`, embedded into Go via `ui/embed.go` (`webui.DistFS()`).
+- Build: `cd ui && npm run build`. The Go binary serves the embedded `dist/` at runtime; no separate frontend server needed in production.
+- Dev server: `cd ui && npm run dev` (Vite, `127.0.0.1:5173`). Point the serve API at it via `webUI.dir` or the Vite proxy.
+- Entry: `ui/src/App.svelte` renders a two-pane layout (`Sidebar` + `workbench`) inside `.app-shell` (CSS grid).
+- Shared reactive stores live in `ui/src/lib/stores.js`. Views subscribe to stores; `refreshAll()` reloads everything after server-state changes.
+- Routing is hash-based (`ui/src/lib/router.js`): `#/chat`, `#/sessions`, `#/stats`, `#/cron`, `#/skills`, `#/settings`.
+- Translations (i18n) live in `ui/src/lib/preferences.js` as `zh` and `en` flat key maps. Use the `$t('key')` store. Add new keys to both language maps.
+- Styling is a single global `ui/src/style.css` (no CSS modules, no Tailwind). Follow existing class naming and CSS variable conventions (`--bg`, `--border`, `--text-muted`, etc.).
+- Mobile responsiveness uses Svelte-native patterns, not CSS media queries for interactive behavior:
+  - `isMobile` is a `readable` store backed by `window.matchMedia('(max-width: 900px)')` in `stores.js`. Use `{#if $isMobile}` to conditionally render mobile-specific UI (e.g., hamburger button, drawer).
+  - The sidebar drawer on mobile uses `{#if $sidebarOpen}` + Svelte `transition:fly` / `transition:fade`. The overlay and drawer are only in the DOM when open, so they cannot block clicks when closed.
+  - `sidebarOpen` store defaults to `false` (collapsed). Navigation clicks and Escape key close the drawer.
+  - CSS media queries in `style.css` are reserved for non-interactive layout adjustments (grid columns, padding, form layouts). Do not use media queries to toggle `display` or `pointer-events` for interactive elements — use Svelte `{#if}` instead.
+- Svelte 5 snippets (`{#snippet name()}...{/snippet}` + `{@render name()}`) are used to share markup between mobile and desktop branches without duplication.
+- When adding new views, register them in `App.svelte` and add a nav entry in `Sidebar.svelte` (`primaryNav` or `secondaryNav`).
+- When adding translation keys, update both `zh` and `en` maps in `preferences.js`.
 
 ## TUI-Specific Notes
 

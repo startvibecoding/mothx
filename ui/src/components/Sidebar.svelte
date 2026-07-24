@@ -1,6 +1,8 @@
 <script>
   import { onDestroy, onMount, tick } from 'svelte';
-  import { sessions, currentSession, features, statsSummary, refreshStatsSummary } from '../lib/stores.js';
+  import { get } from 'svelte/store';
+  import { fly, fade } from 'svelte/transition';
+  import { sessions, currentSession, features, statsSummary, refreshStatsSummary, sidebarOpen, isMobile } from '../lib/stores.js';
   import { route, navigate } from '../lib/router.js';
   import { shortID } from '../lib/format.js';
   import { t } from '../lib/preferences.js';
@@ -37,7 +39,13 @@
     isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '');
     searchShortcut = isMac ? '⌘K' : 'Ctrl K';
     newChatShortcut = isMac ? '⇧⌘K' : 'Ctrl⇧K';
-    const onKeydown = (event) => handleGlobalShortcut(event);
+    const onKeydown = (event) => {
+      if (event.key === 'Escape' && get(sidebarOpen)) {
+        closeSidebar();
+        return;
+      }
+      handleGlobalShortcut(event);
+    };
     window.addEventListener('keydown', onKeydown);
     removeShortcutListener = () => window.removeEventListener('keydown', onKeydown);
     refreshStatsSummary();
@@ -60,11 +68,22 @@
   function openSession(id) {
     currentSession.set(id);
     navigate(id ? `/chat?session=${encodeURIComponent(id)}` : '/chat');
+    closeSidebar();
   }
 
   function openNewChat() {
     currentSession.set('');
     navigate('/chat');
+    closeSidebar();
+  }
+
+  function closeSidebar() {
+    sidebarOpen.set(false);
+  }
+
+  function onNavClick(item) {
+    navigate(item.path);
+    closeSidebar();
   }
 
   async function focusSearch() {
@@ -122,7 +141,7 @@
   }
 </script>
 
-<aside class="sidebar">
+{#snippet content()}
   <div class="side-search">
     <span class="ico" aria-hidden="true">🔍</span>
     <input
@@ -155,7 +174,7 @@
         class="nav-item"
         class:active={isActive(item)}
         disabled={!isFeatureEnabled(item)}
-        on:click={() => navigate(item.path)}
+        on:click={() => onNavClick(item)}
       >
         <span class="ico ico-{item.icon}" aria-hidden="true"></span>
         <span class="label">{$t(item.label)}</span>
@@ -169,7 +188,7 @@
         type="button"
         class="nav-item"
         class:active={isActive(item)}
-        on:click={() => navigate(item.path)}
+        on:click={() => onNavClick(item)}
       >
         <span class="ico ico-{item.icon}" aria-hidden="true"></span>
         <span class="label">{$t(item.label)}</span>
@@ -183,7 +202,7 @@
       <button
         type="button"
         class="link-btn"
-        on:click={() => navigate('/sessions')}
+        on:click={() => onNavClick({ path: '/sessions' })}
       >
         {$t('sidebar.all')}
       </button>
@@ -226,7 +245,7 @@
     </div>
   </section>
 
-  <button type="button" class="side-stats" aria-label={$t('sidebar.stats')} on:click={() => navigate('/stats')}>
+  <button type="button" class="side-stats" aria-label={$t('sidebar.stats')} on:click={() => onNavClick({ path: '/stats' })}>
     <span>{$t('sidebar.stats')}</span>
     <div>
       <div>
@@ -243,4 +262,23 @@
   <div class="side-footer">
     <PreferenceControls />
   </div>
-</aside>
+{/snippet}
+
+{#if $isMobile}
+  {#if $sidebarOpen}
+    <button
+      type="button"
+      class="sidebar-overlay"
+      aria-label="Close menu"
+      transition:fade={{ duration: 200 }}
+      on:click={closeSidebar}
+    ></button>
+    <aside class="sidebar mobile-drawer" transition:fly={{ x: -300, duration: 250 }}>
+      {@render content()}
+    </aside>
+  {/if}
+{:else}
+  <aside class="sidebar">
+    {@render content()}
+  </aside>
+{/if}

@@ -6,7 +6,8 @@
     getStatsByProvider,
     getStatsByModel,
     getStatsRecent,
-    refreshStatsSummary
+    refreshStatsSummary,
+    isMobile
   } from '../lib/stores.js';
   import { t } from '../lib/preferences.js';
 
@@ -208,7 +209,9 @@
       return;
     }
 
-    const padding = { top: 18, right: 18, bottom: 38, left: 54 };
+    const padding = $isMobile
+      ? { top: 12, right: 10, bottom: 32, left: 38 }
+      : { top: 18, right: 18, bottom: 38, left: 54 };
     const chartWidth = Math.max(1, width - padding.left - padding.right);
     const chartHeight = Math.max(1, height - padding.top - padding.bottom);
     const maxValue = Math.max(...values);
@@ -397,35 +400,71 @@
       <h3>{$t('stats.recent')}</h3>
       <span class="hint">{$t('common.count', { count: recent.total || 0 })}</span>
     </div>
-    <table class="table stats-table">
-      <thead>
-        <tr>
-          <th>{$t('stats.time')}</th>
-          <th>{$t('stats.model')}</th>
-          <th>{$t('stats.provider')}</th>
-          <th class="num">{$t('stats.input')}</th>
-          <th class="num">{$t('stats.output')}</th>
-          <th class="num">{$t('stats.duration')}</th>
-        </tr>
-      </thead>
-      <tbody>
+    {#if $isMobile}
+      <div class="stats-cards">
         {#each recent.items || [] as item}
-          <tr>
-            <td>{timeLabel(item.timestamp)}</td>
-            <td class="wd">{item.model || '-'}</td>
-            <td>{item.vendor || '-'}</td>
-            <td class="num">{formatNumber(item.inputTokens)}</td>
-            <td class="num">{formatNumber(item.outputTokens)}</td>
-            <td class="num">{duration(item.durationMs)}</td>
-          </tr>
+          <div class="stats-card-item">
+            <div class="stats-card-row">
+              <span class="stats-card-label">{$t('stats.time')}</span>
+              <span class="stats-card-value">{timeLabel(item.timestamp)}</span>
+            </div>
+            <div class="stats-card-row">
+              <span class="stats-card-label">{$t('stats.model')}</span>
+              <span class="stats-card-value" title={item.model}>{item.model || '-'}</span>
+            </div>
+            <div class="stats-card-row">
+              <span class="stats-card-label">{$t('stats.provider')}</span>
+              <span class="stats-card-value">{item.vendor || '-'}</span>
+            </div>
+            <div class="stats-card-row">
+              <span class="stats-card-label">{$t('stats.input')}</span>
+              <span class="stats-card-value num">{formatNumber(item.inputTokens)}</span>
+            </div>
+            <div class="stats-card-row">
+              <span class="stats-card-label">{$t('stats.output')}</span>
+              <span class="stats-card-value num">{formatNumber(item.outputTokens)}</span>
+            </div>
+            <div class="stats-card-row">
+              <span class="stats-card-label">{$t('stats.duration')}</span>
+              <span class="stats-card-value num">{duration(item.durationMs)}</span>
+            </div>
+          </div>
         {/each}
         {#if !recent.items || recent.items.length === 0}
-          <tr>
-            <td colspan="6" class="empty-cell">{$t('stats.empty')}</td>
-          </tr>
+          <p class="empty">{$t('stats.empty')}</p>
         {/if}
-      </tbody>
-    </table>
+      </div>
+    {:else}
+      <table class="table stats-table">
+        <thead>
+          <tr>
+            <th>{$t('stats.time')}</th>
+            <th>{$t('stats.model')}</th>
+            <th>{$t('stats.provider')}</th>
+            <th class="num">{$t('stats.input')}</th>
+            <th class="num">{$t('stats.output')}</th>
+            <th class="num">{$t('stats.duration')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each recent.items || [] as item}
+            <tr>
+              <td>{timeLabel(item.timestamp)}</td>
+              <td class="wd">{item.model || '-'}</td>
+              <td>{item.vendor || '-'}</td>
+              <td class="num">{formatNumber(item.inputTokens)}</td>
+              <td class="num">{formatNumber(item.outputTokens)}</td>
+              <td class="num">{duration(item.durationMs)}</td>
+            </tr>
+          {/each}
+          {#if !recent.items || recent.items.length === 0}
+            <tr>
+              <td colspan="6" class="empty-cell">{$t('stats.empty')}</td>
+            </tr>
+          {/if}
+        </tbody>
+      </table>
+    {/if}
     {#if Number(recent.total || 0) > 0}
       <div class="stats-pagination">
         <button
