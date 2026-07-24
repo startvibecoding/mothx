@@ -2,7 +2,26 @@
 
 ## v1.1.73
 
+### ✨ Features
+
+- **MCP PATH-based Command Resolution and Robust Client Lifecycle**
+  - stdio MCP server commands no longer require an absolute path; commands are resolved through `PATH` with proper environment merging (case-insensitive on Windows, no duplicates).
+  - Added an inbound request queue with backpressure for sampling and notification messages.
+  - JSON-RPC response IDs are now validated against request IDs; mismatched responses are rejected.
+  - HTTP response body parsing is bounded to 16 MiB; SSE multi-line data payloads are joined with newlines.
+  - Client lifecycle uses per-client context with cancellation; `Close` cancels inflight requests and closes idle HTTP connections.
+  - Resource and prompt discovery errors (non method-not-found) now fail `ConnectServers` instead of being silently ignored.
+  - MCP config files are now written atomically via temp file + rename with `0600` permissions.
+  - ACP new-session MCP failures now roll back the persisted session.
+  - SSE `messageUrl` values are validated to be `http`/`https`; arbitrary schemes are rejected.
+
 ### 🔧 Improvements
+
+- **Unified Session Schema Management**
+  - Replaced incremental migration logic (`migrations.go`) with a unified full schema definition in `schema.go`, using `EnsureCurrentSchema()` for idempotent initialization.
+  - Implemented robust SQLite connection handling with WAL mode and busy timeout.
+  - Added `CloseDatabases()` for proper cleanup on exit and reload, and `OpenStandaloneDB()` for caller-owned database connections.
+  - Fixed the cron scheduler goroutine lifecycle with a `WaitGroup` to prevent premature exit.
 
 - **Web UI Approval and Session Cancellation**
   - Cancelling a running Web UI session now aborts its active Agent, including approval waits that have not yet reached the pending queue, preventing sessions from remaining stuck in the running state.

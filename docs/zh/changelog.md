@@ -2,7 +2,26 @@
 
 ## v1.1.73
 
+### ✨ 新功能
+
+- **MCP PATH 命令解析与健壮的客户端生命周期**
+  - stdio MCP 服务器命令不再需要绝对路径；命令通过 `PATH` 解析，并正确合并环境变量（Windows 下大小写不敏感，且无重复项）。
+  - 新增入站请求队列，为 sampling 和 notification 消息提供背压机制。
+  - 现在会校验 JSON-RPC 响应 ID 是否与请求 ID 匹配；不匹配的响应将被拒绝。
+  - HTTP 响应体解析上限为 16 MiB；SSE 多行 data 负载以换行符连接。
+  - 客户端生命周期使用按客户端隔离的 context 与 cancel；`Close` 会取消进行中的请求并关闭空闲 HTTP 连接。
+  - 资源和 prompt 发现错误（非 method-not-found）现在会导致 `ConnectServers` 失败，不再被静默忽略。
+  - MCP 配置文件现在通过临时文件 + rename 原子写入，权限为 `0600`。
+  - ACP 新建会话时 MCP 失败会回滚已持久化的会话。
+  - SSE `messageUrl` 被校验为 `http`/`https`；任意 scheme 均被拒绝。
+
 ### 🔧 改进
+
+- **统一会话 Schema 管理**
+  - 用 `schema.go` 中的统一完整 schema 定义替换了增量迁移逻辑（`migrations.go`），使用 `EnsureCurrentSchema()` 实现幂等初始化。
+  - 实现了健壮的 SQLite 连接处理，启用 WAL 模式和 busy timeout。
+  - 新增 `CloseDatabases()` 用于退出和重载时的正确清理，以及 `OpenStandaloneDB()` 供调用方管理数据库连接。
+  - 修复了 cron 调度器 goroutine 生命周期管理，使用 `WaitGroup` 防止提前退出。
 
 - **Web UI 审批与会话取消**
   - 取消运行中的 Web UI 会话时，现在会中止该会话的活动 Agent，包括尚未进入待处理队列的审批等待，避免会话一直停留在运行状态。
