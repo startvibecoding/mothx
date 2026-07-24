@@ -2,9 +2,12 @@ package mcp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestUniqueToolName(t *testing.T) {
@@ -45,6 +48,88 @@ func TestReadLoopRespondsPing(t *testing.T) {
 	}
 	if !strings.Contains(resp, `"result":{}`) {
 		t.Fatalf("expected ping response result, got %q", resp)
+	}
+}
+
+func TestReadLoopResponseNotBlockedBySampling(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	client := &Client{
+		name:    "test",
+		ctx:     ctx,
+		cancel:  cancel,
+		stdin:   nopWriteCloser{Writer: &bytes.Buffer{}},
+		pending: make(map[string]chan mcpResponse),
+		callbacks: Callbacks{OnSamplingCreateMessage: func(context.Context, string, json.RawMessage) (json.RawMessage, *RPCError) {
+			close(started)
+			<-release
+			return json.RawMessage(`{"model":"test"}`), nil
+		}},
+	}
+	client.startInboundLoop()
+	response := make(chan mcpResponse, 1)
+	client.pending["2"] = response
+
+	input := bytes.NewBufferString(
+		`{"jsonrpc":"2.0","id":1,"method":"sampling/createMessage","params":{}}` + "\n" +
+			`{"jsonrpc":"2.0","id":2,"result":{"ok":true}}` + "\n",
+	)
+	go client.readLoop(input)
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("sampling callback did not start")
+	}
+	select {
+	case got := <-response:
+		if got.Error != nil || string(got.Result) != `{"ok":true}` {
+			t.Fatalf("unexpected response while sampling blocked: %#v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ordinary response was blocked by sampling callback")
+	}
+	close(release)
+}
+
+func TestParseSSECallResponseRequiresMatchingID(t *testing.T) {
+	stream := strings.NewReader(
+		"data: {\"jsonrpc\":\"2.0\",\"result\":{\"wrong\":true}}\n\n" +
+			"data: {\"jsonrpc\":\"2.0\",\"id\":7,\"result\":{\"ok\":true}}\n\n",
+	)
+	result, err := parseSSECallResponse(stream, 7)
+	if err != nil {
+		t.Fatalf("parse SSE response: %v", err)
+	}
+	if string(result) != `{"ok":true}` {
+		t.Fatalf("unexpected SSE result: %s", result)
+	}
+}
+
+func TestIsMCPMethodNotFound(t *testing.T) {
+	if !isMCPMethodNotFound(&RPCError{Code: -32601, Message: "method not found"}) {
+		t.Fatal("expected JSON-RPC method-not-found error to be ignored")
+	}
+	if isMCPMethodNotFound(&RPCError{Code: -32000, Message: "server failed"}) {
+		t.Fatal("unexpected non-method-not-found error to be ignored")
+	}
+	if isMCPMethodNotFound(errors.New("method not found")) {
+		t.Fatal("plain text error must not be treated as JSON-RPC method-not-found")
+	}
+}
+
+func TestMCPSSERejectsInvalidMessageURL(t *testing.T) {
+	_, err := newMCPHTTPClient(context.Background(), ServerConfig{
+		Name:       "invalid-sse",
+		Type:       "sse",
+		URL:        "http://127.0.0.1/events",
+		MessageURL: "file:///tmp/messages",
+	}, true, Callbacks{})
+	if err == nil || !strings.Contains(err.Error(), "messageUrl must be a valid http(s) URL") {
+		t.Fatalf("newMCPHTTPClient error = %v, want invalid message URL", err)
 	}
 }
 

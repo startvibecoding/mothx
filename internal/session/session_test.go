@@ -1,9 +1,12 @@
 package session
 
 import (
+	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1253,15 +1256,12 @@ func TestWriteEntryDurable(t *testing.T) {
 	}
 }
 
-// TestApplyMigrationsOnOldDB verifies that creating a session on an old-format
-// DB (without schema_migrations) triggers migration and creates all tables.
-func TestApplyMigrationsOnOldDB(t *testing.T) {
+func TestOldSchemaIsRejectedWithoutModification(t *testing.T) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	sessionDir := filepath.Join(tmpDir, "sessions")
 	dbPath := filepath.Join(sessionDir, "sessions.db")
 
-	// Simulate an old DB: create sessions + entries only, no schema_migrations
 	if err := os.MkdirAll(sessionDir, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -1295,83 +1295,176 @@ func TestApplyMigrationsOnOldDB(t *testing.T) {
 	}
 	db.Close()
 
-	// Reset the in-memory cache so the session package treats this as a new DB
-	dbLock.Lock()
-	delete(initializedDBs, dbPath)
-	delete(cachedDBs, dbPath)
-	dbLock.Unlock()
-
-	// Creating a new session should trigger migrations
-	m := New("/tmp/test-migration", sessionDir)
-	if err := m.Init(); err != nil {
-		t.Fatalf("Init on old DB should trigger migration: %v", err)
+	m := New("/tmp/test-old-schema", sessionDir)
+	if err := m.Init(); err == nil || !strings.Contains(err.Error(), "database schema is incompatible") {
+		t.Fatalf("Init error = %v, want incompatible schema", err)
 	}
 
-	// Re-open DB to verify tables exist
 	db2, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db2.Close()
 
-	var migrationCount int
-	if err := db2.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
-		t.Fatalf("schema_migrations should exist: %v", err)
+	var tableCount int
+	if err := db2.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'request_stats'").Scan(&tableCount); err != nil {
+		t.Fatal(err)
 	}
-	if migrationCount != len(migrations) {
-		t.Errorf("expected %d migrations applied, got %d", len(migrations), migrationCount)
+	if tableCount != 0 {
+		t.Fatal("old database was modified despite migrations being disabled")
 	}
-
-	// request_stats should exist
-	var tblName string
-	if err := db2.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='request_stats'").Scan(&tblName); err != nil {
-		t.Fatalf("request_stats table should exist after migration: %v", err)
+	if err := db2.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&tableCount); err != nil {
+		t.Fatal(err)
 	}
-	if err := db2.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='cron_jobs'").Scan(&tblName); err != nil {
-		t.Fatalf("cron_jobs table should exist after migration: %v", err)
-	}
-	if err := db2.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='session_esm_objectives'").Scan(&tblName); err != nil {
-		t.Fatalf("session_esm_objectives table should exist after migration: %v", err)
-	}
-
-	// Old data should still work
-	var entryCount int
-	if err := db2.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&entryCount); err != nil {
-		t.Fatalf("sessions table should still work: %v", err)
-	}
-	if entryCount != 1 {
-		t.Errorf("expected 1 session header row after init, got %d", entryCount)
+	if tableCount != 0 {
+		t.Fatalf("sessions count = %d, want 0", tableCount)
 	}
 }
 
-func TestApplyMigrationsRollsBackPartialMigration(t *testing.T) {
+func TestEnsureCurrentSchemaInitializesEmptyDatabase(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
 	defer db.Close()
 
-	original := migrations
-	migrations = []migration{{
-		Name: "test_partial_migration",
-		SQL:  `CREATE TABLE partial_migration_test (id INTEGER); THIS IS INVALID SQL;`,
-	}}
-	defer func() { migrations = original }()
-
-	if err := ApplyMigrations(db); err == nil {
-		t.Fatal("ApplyMigrations succeeded for invalid migration")
+	if err := EnsureCurrentSchema(db); err != nil {
+		t.Fatalf("EnsureCurrentSchema: %v", err)
 	}
-	var name string
-	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'partial_migration_test'").Scan(&name)
-	if err != sql.ErrNoRows {
-		t.Fatalf("partial migration table survived rollback: name=%q err=%v", name, err)
+	for _, table := range []string{"sessions", "entries", "request_stats", "cron_jobs", "session_esm_objectives", "sub_entries"} {
+		var count int
+		if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("table %s count = %d, want 1", table, count)
+		}
 	}
 	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE name = 'test_partial_migration'").Scan(&count); err != nil {
-		t.Fatalf("query migration marker: %v", err)
+	if err := db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'").Scan(&count); err != nil {
+		t.Fatal(err)
 	}
 	if count != 0 {
-		t.Fatalf("partial migration marker count = %d, want 0", count)
+		t.Fatal("schema_migrations table must not be created")
+	}
+}
+
+func TestConcurrentManagersRejectStaleSessionWriter(t *testing.T) {
+	sessionDir := t.TempDir()
+	first := New("/tmp/concurrent", sessionDir)
+	if err := first.InitWithID("concurrent-session"); err != nil {
+		t.Fatal(err)
+	}
+	second, err := Open(first.GetFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.AppendMessage(provider.NewUserMessage("first writer")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := second.AppendMessage(provider.NewUserMessage("stale writer")); !errors.Is(err, ErrSessionModified) {
+		t.Fatalf("second writer error = %v, want ErrSessionModified", err)
+	}
+}
+
+func TestConcurrentSessionProcessHelper(t *testing.T) {
+	if os.Getenv("MOTHX_SESSION_PROCESS_HELPER") != "1" {
+		return
+	}
+	sessionDir := os.Getenv("MOTHX_SESSION_PROCESS_DIR")
+	sessionID := os.Getenv("MOTHX_SESSION_PROCESS_ID")
+	m := New("/tmp/multiprocess", sessionDir)
+	if err := m.InitWithID(sessionID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 8; i++ {
+		if _, err := m.AppendMessage(provider.NewUserMessage(fmt.Sprintf("%s-%d", sessionID, i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestMultipleProcessesWriteDistinctSessions(t *testing.T) {
+	sessionDir := t.TempDir()
+	const processCount = 3
+	type runningCommand struct {
+		cmd    *exec.Cmd
+		output *bytes.Buffer
+	}
+	commands := make([]runningCommand, 0, processCount)
+	for i := 0; i < processCount; i++ {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestConcurrentSessionProcessHelper$")
+		cmd.Env = append(os.Environ(),
+			"MOTHX_SESSION_PROCESS_HELPER=1",
+			"MOTHX_SESSION_PROCESS_DIR="+sessionDir,
+			fmt.Sprintf("MOTHX_SESSION_PROCESS_ID=process-%d", i),
+		)
+		output := &bytes.Buffer{}
+		cmd.Stdout = output
+		cmd.Stderr = output
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		commands = append(commands, runningCommand{cmd: cmd, output: output})
+	}
+	for _, command := range commands {
+		if err := command.cmd.Wait(); err != nil {
+			t.Fatalf("helper process failed: %v\n%s", err, command.output.String())
+		}
+	}
+
+	db, err := OpenRootDB(sessionDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sessions, entries int
+	if err := db.QueryRow("SELECT COUNT(*) FROM sessions WHERE cwd = ?", "/tmp/multiprocess").Scan(&sessions); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow("SELECT COUNT(*) FROM entries").Scan(&entries); err != nil {
+		t.Fatal(err)
+	}
+	if sessions != processCount || entries != processCount*9 {
+		t.Fatalf("sessions=%d entries=%d, want sessions=%d entries=%d", sessions, entries, processCount, processCount*9)
+	}
+	var integrity string
+	if err := db.QueryRow("PRAGMA quick_check").Scan(&integrity); err != nil {
+		t.Fatal(err)
+	}
+	if integrity != "ok" {
+		t.Fatalf("quick_check = %q, want ok", integrity)
+	}
+}
+
+func TestConfiguredConnectionAndCloseLifecycle(t *testing.T) {
+	sessionDir := t.TempDir()
+	db, err := OpenRootDB(sessionDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var busyTimeout int
+	var journalMode string
+	var synchronous int
+	if err := db.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow("PRAGMA journal_mode").Scan(&journalMode); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow("PRAGMA synchronous").Scan(&synchronous); err != nil {
+		t.Fatal(err)
+	}
+	if busyTimeout != 10000 || journalMode != "wal" || synchronous != 1 {
+		t.Fatalf("busy_timeout=%d journal_mode=%q synchronous=%d", busyTimeout, journalMode, synchronous)
+	}
+	if err := CloseDatabases(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Ping(); err == nil {
+		t.Fatal("cached database remained usable after CloseDatabases")
+	}
+	if _, err := OpenRootDB(sessionDir); err != nil {
+		t.Fatalf("reopen after CloseDatabases: %v", err)
 	}
 }
 

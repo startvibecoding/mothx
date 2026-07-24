@@ -145,7 +145,7 @@ MCP servers are configured by the IDE client and passed to MothX when creating o
     {
       "name": "my-database",
       "type": "stdio",
-      "command": "/absolute/path/to/mcp-server",
+      "command": "mcp-server",
       "args": ["--port", "8080"],
       "env": [
         {"name": "DB_URL", "value": "postgres://localhost/mydb"}
@@ -184,7 +184,7 @@ In addition to `tools/*`, MothX now also discovers:
 
 Supported transports:
 
-- `stdio`: requires absolute `command` path
+- `stdio`: `command` may be an executable name resolved through `PATH`, or a direct path; use `args` for command arguments
 - `http`: streamable HTTP endpoint via `url`
 - `sse`: legacy SSE stream via `url` plus `messageUrl` for client POSTs
 

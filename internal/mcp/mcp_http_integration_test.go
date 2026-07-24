@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/startvibecoding/mothx/internal/sandbox"
 	"github.com/startvibecoding/mothx/internal/tools"
@@ -31,7 +32,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "initialize":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
-				"id":      1,
+				"id":      req.ID,
 				"result":  map[string]any{"protocolVersion": mcpProtocolVersion},
 			})
 		case "notifications/initialized":
@@ -39,6 +40,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "tools/list":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"tools": []map[string]any{
 						{
@@ -52,6 +54,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "resources/list":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"resources": []map[string]any{
 						{"uri": "file://README.md", "name": "readme"},
@@ -61,6 +64,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "prompts/list":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"prompts": []map[string]any{
 						{"name": "summarize", "description": "summarize prompt"},
@@ -70,6 +74,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "tools/call":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"content": []map[string]any{{"type": "text", "text": "ok"}},
 				},
@@ -77,6 +82,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "resources/read":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"contents": []map[string]any{{"type": "text", "text": "resource-body"}},
 				},
@@ -84,6 +90,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		case "prompts/get":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"description": "prompt-desc",
 					"messages": []map[string]any{
@@ -97,6 +104,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 			mu.Unlock()
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"result": map[string]any{
 					"content": []map[string]any{{"type": "text", "text": "sampled"}},
 				},
@@ -109,6 +117,7 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 		default:
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"jsonrpc": "2.0",
+				"id":      req.ID,
 				"error":   map[string]any{"code": -32601, "message": "method not found"},
 			})
 		}
@@ -206,12 +215,19 @@ func TestConnectMCPServersHTTPRegistersAndExecutes(t *testing.T) {
 func TestMCPHTTPSessionIDHeaderRoundTrip(t *testing.T) {
 	const sid = "sid-123"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var req RPCRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		if r.Header.Get("Mcp-Session-Id") == "" {
 			w.Header().Set("Mcp-Session-Id", sid)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"jsonrpc": "2.0",
+			"id":      req.ID,
 			"result":  map[string]any{"tools": []any{}},
 		})
 	}))
@@ -228,5 +244,106 @@ func TestMCPHTTPSessionIDHeaderRoundTrip(t *testing.T) {
 	defer CloseClients(clients)
 	if clients[0].sessionID != sid {
 		t.Fatalf("expected session id %q, got %q", sid, clients[0].sessionID)
+	}
+}
+
+func TestMCPHTTPRejectsMismatchedResponseID(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":"1","result":{}}`))
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &Client{
+		name:       "wrong-id",
+		transport:  "http",
+		httpClient: srv.Client(),
+		httpURL:    srv.URL,
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+	defer client.Close()
+
+	_, err := client.callHTTP(context.Background(), "tools/list", nil)
+	if err == nil || !strings.Contains(err.Error(), "does not match request id") {
+		t.Fatalf("callHTTP error = %v, want mismatched response ID", err)
+	}
+}
+
+func TestMCPHTTPCloseCancelsInflightRequest(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+	}))
+	defer func() {
+		close(release)
+		srv.Close()
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	client := &Client{
+		name:       "cancel-http",
+		transport:  "http",
+		httpClient: srv.Client(),
+		httpURL:    srv.URL,
+		ctx:        ctx,
+		cancel:     cancel,
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.callHTTP(context.Background(), "tools/list", nil)
+		done <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("HTTP request did not start")
+	}
+	client.Close()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("in-flight request succeeded after client close")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("client close did not cancel in-flight HTTP request")
+	}
+}
+
+func TestConnectMCPServersReturnsResourceDiscoveryError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		var req RPCRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		response := map[string]any{"jsonrpc": "2.0", "id": req.ID}
+		switch req.Method {
+		case "initialize":
+			response["result"] = map[string]any{"protocolVersion": mcpProtocolVersion}
+		case "tools/list":
+			response["result"] = map[string]any{"tools": []any{}}
+		case "resources/list":
+			response["error"] = map[string]any{"code": -32000, "message": "resource backend unavailable"}
+		default:
+			response["result"] = map[string]any{}
+		}
+		_ = json.NewEncoder(w).Encode(response)
+	}))
+	defer srv.Close()
+
+	registry := tools.NewRegistry(t.TempDir(), sandbox.NewNoneSandbox())
+	_, err := ConnectServers(context.Background(), []ServerConfig{
+		{Name: "discovery-error", Type: "http", URL: srv.URL},
+	}, registry, Callbacks{})
+	if err == nil || !strings.Contains(err.Error(), "resource backend unavailable") {
+		t.Fatalf("ConnectServers error = %v, want resource discovery failure", err)
 	}
 }

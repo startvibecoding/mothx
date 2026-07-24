@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,8 @@ const (
 	mcpListToolsTimeout  = 15 * time.Second
 	mcpCallTimeout       = 60 * time.Second
 	mcpMaxListPages      = 100
+	mcpInboundQueueSize  = 128
+	mcpMaxResponseBytes  = 16 << 20
 )
 
 type ServerConfig = config.MCPServer
@@ -52,6 +55,9 @@ type Client struct {
 	sseCancel  context.CancelFunc
 	sessionID  string
 	callbacks  Callbacks
+	ctx        context.Context
+	cancel     context.CancelFunc
+	inbound    chan RPCRequest
 }
 
 func (c *Client) currentSessionID() string {
@@ -68,6 +74,60 @@ func (c *Client) setSessionID(sid string) {
 	c.smu.Lock()
 	defer c.smu.Unlock()
 	c.sessionID = sid
+}
+
+func (c *Client) context() context.Context {
+	if c.ctx != nil {
+		return c.ctx
+	}
+	return context.Background()
+}
+
+func (c *Client) requestContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	requestCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(c.context(), cancel)
+	return requestCtx, func() {
+		stop()
+		cancel()
+	}
+}
+
+func (c *Client) startInboundLoop() {
+	c.inbound = make(chan RPCRequest, mcpInboundQueueSize)
+	go func() {
+		for {
+			select {
+			case <-c.context().Done():
+				return
+			case msg := <-c.inbound:
+				c.handleInboundRequest(msg)
+			}
+		}
+	}()
+}
+
+func (c *Client) dispatchInboundRequest(msg RPCRequest) {
+	if c.inbound == nil {
+		c.handleInboundRequest(msg)
+		return
+	}
+	select {
+	case <-c.context().Done():
+	case c.inbound <- msg:
+	default:
+		if len(msg.ID) > 0 {
+			go func() {
+				_ = c.writeMessage(map[string]any{
+					"jsonrpc": "2.0",
+					"id":      msg.ID,
+					"error": &RPCError{
+						Code:    -32000,
+						Message: "MCP inbound request queue is full",
+					},
+				})
+			}()
+		}
+	}
 }
 
 type Callbacks struct {
@@ -88,6 +148,13 @@ type RPCError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
+}
+
+func (e *RPCError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return e.Message
 }
 
 type mcpResponse struct {
@@ -189,6 +256,10 @@ func ConnectServers(ctx context.Context, configs []ServerConfig, registry *tools
 			registry.Register(tool)
 		}
 		resourceInfos, err := client.listResources(ctx)
+		if err != nil && !isMCPMethodNotFound(err) {
+			CloseClients(clients)
+			return nil, fmt.Errorf("list MCP resources for %q: %w", client.name, err)
+		}
 		if err == nil {
 			for _, info := range resourceInfos {
 				if strings.TrimSpace(info.URI) == "" {
@@ -200,6 +271,10 @@ func ConnectServers(ctx context.Context, configs []ServerConfig, registry *tools
 			}
 		}
 		promptInfos, err := client.listPrompts(ctx)
+		if err != nil && !isMCPMethodNotFound(err) {
+			CloseClients(clients)
+			return nil, fmt.Errorf("list MCP prompts for %q: %w", client.name, err)
+		}
 		if err == nil {
 			for _, info := range promptInfos {
 				if strings.TrimSpace(info.Name) == "" {
@@ -212,6 +287,11 @@ func ConnectServers(ctx context.Context, configs []ServerConfig, registry *tools
 		}
 	}
 	return clients, nil
+}
+
+func isMCPMethodNotFound(err error) bool {
+	var rpcErr *RPCError
+	return errors.As(err, &rpcErr) && rpcErr.Code == -32601
 }
 
 func CloseClients(clients []*Client) {
@@ -241,29 +321,36 @@ func newMCPClient(ctx context.Context, cfg ServerConfig, callbacks Callbacks) (*
 }
 
 func newMCPStdioClient(ctx context.Context, cfg ServerConfig, callbacks Callbacks) (*Client, error) {
-	if strings.TrimSpace(cfg.Command) == "" {
+	command := strings.TrimSpace(cfg.Command)
+	if command == "" {
 		return nil, fmt.Errorf("MCP server %q command is required", cfg.Name)
 	}
-	if !filepath.IsAbs(cfg.Command) {
-		return nil, fmt.Errorf("MCP server %q command must be an absolute path", cfg.Name)
+	env, err := mergeMCPEnvironment(cfg.Env)
+	if err != nil {
+		return nil, fmt.Errorf("MCP server %q environment: %w", cfg.Name, err)
+	}
+	resolvedCommand, err := resolveMCPCommand(command, env)
+	if err != nil {
+		return nil, fmt.Errorf("resolve MCP server %q command %q: %w", cfg.Name, command, err)
 	}
 
-	cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
-	cmd.Env = os.Environ()
-	for _, env := range cfg.Env {
-		cmd.Env = append(cmd.Env, env.Name+"="+env.Value)
-	}
+	clientCtx, clientCancel := context.WithCancel(ctx)
+	cmd := exec.CommandContext(clientCtx, resolvedCommand, cfg.Args...)
+	cmd.Env = env
 	cmd.Stderr = os.Stderr
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
+		clientCancel()
 		return nil, fmt.Errorf("open MCP stdin for %q: %w", cfg.Name, err)
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		clientCancel()
 		return nil, fmt.Errorf("open MCP stdout for %q: %w", cfg.Name, err)
 	}
 	if err := cmd.Start(); err != nil {
+		clientCancel()
 		return nil, fmt.Errorf("start MCP server %q: %w", cfg.Name, err)
 	}
 
@@ -274,7 +361,10 @@ func newMCPStdioClient(ctx context.Context, cfg ServerConfig, callbacks Callback
 		pending:   make(map[string]chan mcpResponse),
 		transport: "stdio",
 		callbacks: callbacks,
+		ctx:       clientCtx,
+		cancel:    clientCancel,
 	}
+	client.startInboundLoop()
 	go client.readLoop(stdout)
 	go func() {
 		defer func() {
@@ -307,6 +397,116 @@ func newMCPStdioClient(ctx context.Context, cfg ServerConfig, callbacks Callback
 	return client, nil
 }
 
+func mergeMCPEnvironment(overrides []struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}) ([]string, error) {
+	env := append([]string(nil), os.Environ()...)
+	indices := make(map[string]int, len(env))
+	for i, entry := range env {
+		name, _, ok := strings.Cut(entry, "=")
+		if ok {
+			// Keep the last inherited value because execve uses the last
+			// duplicate environment entry on Unix-like systems.
+			indices[normalizeMCPEnvName(name)] = i
+		}
+	}
+	for _, override := range overrides {
+		name := strings.TrimSpace(override.Name)
+		if name == "" {
+			return nil, errors.New("environment variable name is empty")
+		}
+		if strings.ContainsAny(name, "=\x00") || strings.ContainsRune(override.Value, 0) {
+			return nil, fmt.Errorf("invalid environment variable %q", name)
+		}
+		entry := name + "=" + override.Value
+		key := normalizeMCPEnvName(name)
+		if index, ok := indices[key]; ok {
+			env[index] = entry
+		} else {
+			indices[key] = len(env)
+			env = append(env, entry)
+		}
+	}
+	return env, nil
+}
+
+func normalizeMCPEnvName(name string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(name)
+	}
+	return name
+}
+
+func mcpEnvValue(env []string, name string) string {
+	key := normalizeMCPEnvName(name)
+	value := ""
+	for _, entry := range env {
+		entryName, currentValue, ok := strings.Cut(entry, "=")
+		if ok && normalizeMCPEnvName(entryName) == key {
+			value = currentValue
+		}
+	}
+	return value
+}
+
+func resolveMCPCommand(command string, env []string) (string, error) {
+	if strings.ContainsRune(command, 0) {
+		return "", fmt.Errorf("command contains NUL byte")
+	}
+	if strings.ContainsRune(command, os.PathSeparator) || (runtime.GOOS == "windows" && strings.ContainsAny(command, `/\\`)) {
+		if err := checkMCPExecutable(command); err != nil {
+			return "", &exec.Error{Name: command, Err: err}
+		}
+		return command, nil
+	}
+
+	pathValue := mcpEnvValue(env, "PATH")
+	for _, dir := range filepath.SplitList(pathValue) {
+		if dir == "" {
+			dir = "."
+		}
+		candidate := filepath.Join(dir, command)
+		for _, path := range mcpCommandCandidates(candidate, env) {
+			if err := checkMCPExecutable(path); err == nil {
+				return path, nil
+			}
+		}
+	}
+	return "", &exec.Error{Name: command, Err: exec.ErrNotFound}
+}
+
+func mcpCommandCandidates(candidate string, env []string) []string {
+	if runtime.GOOS != "windows" || filepath.Ext(candidate) != "" {
+		return []string{candidate}
+	}
+	extensions := filepath.SplitList(strings.ReplaceAll(mcpEnvValue(env, "PATHEXT"), ";", string(os.PathListSeparator)))
+	if len(extensions) == 0 {
+		extensions = []string{".COM", ".EXE", ".BAT", ".CMD"}
+	}
+	paths := make([]string, 0, len(extensions))
+	for _, ext := range extensions {
+		if ext != "" {
+			paths = append(paths, candidate+ext)
+		}
+	}
+	return paths
+}
+
+func checkMCPExecutable(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return fmt.Errorf("path is a directory")
+	}
+	if runtime.GOOS != "windows" && info.Mode()&0111 == 0 {
+		return os.ErrPermission
+	}
+	return nil
+}
+
 func newMCPHTTPClient(ctx context.Context, cfg ServerConfig, legacySSE bool, callbacks Callbacks) (*Client, error) {
 	rawURL := strings.TrimSpace(cfg.URL)
 	if rawURL == "" {
@@ -334,15 +534,22 @@ func newMCPHTTPClient(ctx context.Context, cfg ServerConfig, legacySSE bool, cal
 		headers:    headers,
 		callbacks:  callbacks,
 	}
+	client.ctx, client.cancel = context.WithCancel(ctx)
+	client.startInboundLoop()
 	if legacySSE {
 		msgURL := strings.TrimSpace(cfg.MessageURL)
 		if msgURL == "" {
+			client.cancel()
 			return nil, fmt.Errorf("MCP server %q messageUrl is required for sse transport", cfg.Name)
 		}
+		parsedMessageURL, err := url.Parse(msgURL)
+		if err != nil || (parsedMessageURL.Scheme != "http" && parsedMessageURL.Scheme != "https") {
+			client.cancel()
+			return nil, fmt.Errorf("MCP server %q messageUrl must be a valid http(s) URL", cfg.Name)
+		}
 		client.messageURL = msgURL
-		sseCtx, cancel := context.WithCancel(context.Background())
-		client.sseCancel = cancel
-		go client.readSSELoop(sseCtx, rawURL)
+		client.sseCancel = client.cancel
+		go client.readSSELoop(client.ctx, rawURL)
 	}
 
 	initCtx, cancel := context.WithTimeout(ctx, mcpInitializeTimeout)
@@ -530,7 +737,7 @@ func (c *Client) call(ctx context.Context, method string, params any) (json.RawM
 		return nil, ctx.Err()
 	case resp := <-ch:
 		if resp.Error != nil {
-			return nil, fmt.Errorf("%s", resp.Error.Message)
+			return nil, resp.Error
 		}
 		return resp.Result, nil
 	}
@@ -559,7 +766,7 @@ func (c *Client) callSSE(ctx context.Context, method string, params any) (json.R
 		return nil, ctx.Err()
 	case resp := <-ch:
 		if resp.Error != nil {
-			return nil, fmt.Errorf("%s", resp.Error.Message)
+			return nil, resp.Error
 		}
 		return resp.Result, nil
 	}
@@ -587,6 +794,8 @@ func (c *Client) callHTTP(ctx context.Context, method string, params any) (json.
 }
 
 func (c *Client) callHTTPInternal(ctx context.Context, method string, params any, isNotification bool, reqID *int64) (json.RawMessage, error) {
+	requestCtx, requestCancel := c.requestContext(ctx)
+	defer requestCancel()
 	msg := map[string]any{
 		"jsonrpc": "2.0",
 		"method":  method,
@@ -612,7 +821,7 @@ func (c *Client) callHTTPInternal(ctx context.Context, method string, params any
 	if c.transport == "sse" {
 		target = c.messageURL
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -645,13 +854,26 @@ func (c *Client) callHTTPInternal(ctx context.Context, method string, params any
 		return parseSSECallResponse(resp.Body, id)
 	}
 	var rpcResp RPCRequest
-	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, mcpMaxResponseBytes+1))
+	if err != nil {
 		return nil, err
+	}
+	if len(responseBody) > mcpMaxResponseBytes {
+		return nil, fmt.Errorf("MCP response exceeds %d bytes", mcpMaxResponseBytes)
+	}
+	if err := json.Unmarshal(responseBody, &rpcResp); err != nil {
+		return nil, err
+	}
+	if rpcResp.JSONRPC != "2.0" {
+		return nil, fmt.Errorf("invalid JSON-RPC version %q", rpcResp.JSONRPC)
+	}
+	if len(rpcResp.ID) == 0 || rpcResponseIDKey(rpcResp.ID) != fmt.Sprintf("%d", id) {
+		return nil, fmt.Errorf("JSON-RPC response id %q does not match request id %d", string(rpcResp.ID), id)
 	}
 	if len(rpcResp.Error) > 0 {
 		var rpcErr RPCError
 		if err := json.Unmarshal(rpcResp.Error, &rpcErr); err == nil {
-			return nil, fmt.Errorf("%s", rpcErr.Message)
+			return nil, &rpcErr
 		}
 		return nil, fmt.Errorf("%s", string(rpcResp.Error))
 	}
@@ -665,16 +887,19 @@ func parseSSECallResponse(r io.Reader, expectID int64) (json.RawMessage, error) 
 	for sc.Scan() {
 		line := sc.Text()
 		if strings.HasPrefix(line, "data:") {
+			if payload.Len() > 0 {
+				payload.WriteByte('\n')
+			}
 			payload.WriteString(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
 		}
 		if line == "" && payload.Len() > 0 {
 			var rpcResp RPCRequest
 			if err := json.Unmarshal([]byte(payload.String()), &rpcResp); err == nil {
-				if RawIDKey(rpcResp.ID) == fmt.Sprintf("%d", expectID) || len(rpcResp.ID) == 0 {
+				if rpcResp.JSONRPC == "2.0" && rpcResponseIDKey(rpcResp.ID) == fmt.Sprintf("%d", expectID) {
 					if len(rpcResp.Error) > 0 {
 						var rpcErr RPCError
 						if err := json.Unmarshal(rpcResp.Error, &rpcErr); err == nil {
-							return nil, fmt.Errorf("%s", rpcErr.Message)
+							return nil, &rpcErr
 						}
 						return nil, fmt.Errorf("%s", string(rpcResp.Error))
 					}
@@ -695,7 +920,9 @@ func (c *Client) writeMessage(msg any) error {
 		return errors.New("MCP client is closed")
 	}
 	if c.transport == "http" || c.transport == "sse" {
-		return c.postRPCMessage(context.Background(), msg)
+		ctx, cancel := context.WithTimeout(c.context(), mcpCallTimeout)
+		defer cancel()
+		return c.postRPCMessage(ctx, msg)
 	}
 	if c.stdin == nil {
 		return errors.New("MCP stdin is not available")
@@ -722,7 +949,9 @@ func (c *Client) postRPCMessage(ctx context.Context, msg any) error {
 	if c.transport == "sse" && c.messageURL != "" {
 		target = c.messageURL
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(data))
+	requestCtx, requestCancel := c.requestContext(ctx)
+	defer requestCancel()
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, target, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -758,13 +987,13 @@ func (c *Client) readLoop(r io.Reader) {
 			continue
 		}
 		if len(msg.Method) > 0 {
-			c.handleInboundRequest(msg)
+			c.dispatchInboundRequest(msg)
 			continue
 		}
 		if len(msg.ID) == 0 {
 			continue
 		}
-		key := RawIDKey(msg.ID)
+		key := rpcResponseIDKey(msg.ID)
 		c.mu.Lock()
 		ch, ok := c.pending[key]
 		if ok {
@@ -831,20 +1060,20 @@ func (c *Client) readSSELoop(ctx context.Context, streamURL string) {
 		if len(dataLines) == 0 {
 			continue
 		}
-		payload := strings.Join(dataLines, "")
+		payload := strings.Join(dataLines, "\n")
 		dataLines = dataLines[:0]
 		var msg RPCRequest
 		if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 			continue
 		}
 		if len(msg.Method) > 0 {
-			c.handleInboundRequest(msg)
+			c.dispatchInboundRequest(msg)
 			continue
 		}
 		if len(msg.ID) == 0 {
 			continue
 		}
-		key := RawIDKey(msg.ID)
+		key := rpcResponseIDKey(msg.ID)
 		c.mu.Lock()
 		ch, ok := c.pending[key]
 		if ok {
@@ -892,12 +1121,18 @@ func (c *Client) Close() {
 	if !c.closed.CompareAndSwap(false, true) {
 		return
 	}
+	if c.cancel != nil {
+		c.cancel()
+	}
 	if c.stdin != nil {
 		_ = c.stdin.Close()
 	}
 	c.closePending(fmt.Errorf("MCP client %q closed", c.name))
 	if c.sseCancel != nil {
 		c.sseCancel()
+	}
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
 	}
 	if c.cmd != nil && c.cmd.Process != nil {
 		_ = c.cmd.Process.Kill()
@@ -906,6 +1141,10 @@ func (c *Client) Close() {
 
 func RawIDKey(id json.RawMessage) string {
 	return strings.Trim(string(id), "\"")
+}
+
+func rpcResponseIDKey(id json.RawMessage) string {
+	return string(bytes.TrimSpace(id))
 }
 
 type mcpTool struct {
@@ -1167,7 +1406,7 @@ func (c *Client) handleInboundRequest(msg RPCRequest) {
 		})
 	case "sampling/createMessage":
 		if c.callbacks.OnSamplingCreateMessage != nil {
-			result, rpcErr := c.callbacks.OnSamplingCreateMessage(context.Background(), c.name, msg.Params)
+			result, rpcErr := c.callbacks.OnSamplingCreateMessage(c.context(), c.name, msg.Params)
 			if rpcErr != nil {
 				_ = c.writeMessage(map[string]any{
 					"jsonrpc": "2.0",

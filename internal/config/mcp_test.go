@@ -43,6 +43,25 @@ func TestSaveLoadMCPConfig(t *testing.T) {
 	if len(got.MCPServers) != 1 || got.MCPServers[0].Name != "s1" {
 		t.Fatalf("unexpected MCP config: %#v", got)
 	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat MCP config: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("MCP config permissions = %04o, want 0600", got)
+	}
+
+	cfg.MCPServers[0].Name = "updated"
+	if err := SaveMCPConfig(path, cfg); err != nil {
+		t.Fatalf("overwrite MCP config: %v", err)
+	}
+	got, err = LoadMCPConfig(path)
+	if err != nil {
+		t.Fatalf("load overwritten MCP config: %v", err)
+	}
+	if len(got.MCPServers) != 1 || got.MCPServers[0].Name != "updated" {
+		t.Fatalf("unexpected overwritten MCP config: %#v", got)
+	}
 }
 
 func TestNormalizeMCPConfig(t *testing.T) {

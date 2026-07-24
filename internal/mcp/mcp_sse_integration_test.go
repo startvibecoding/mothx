@@ -102,7 +102,7 @@ func TestMCPServerSSECallFlow(t *testing.T) {
 					},
 				})
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "result": map[string]any{}})
+			w.WriteHeader(http.StatusAccepted)
 		default:
 			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "result": map[string]any{}})
 		}

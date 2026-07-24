@@ -23,7 +23,7 @@ func TestStatsCLIPrintsUsageSummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := session.ApplyMigrations(raw); err != nil {
+	if err := session.EnsureCurrentSchema(raw); err != nil {
 		t.Fatal(err)
 	}
 	ts := time.Date(2026, 7, 1, 12, 30, 0, 0, time.UTC).Format(time.RFC3339Nano)
@@ -87,7 +87,7 @@ func TestOpenStatsDBUsesConfiguredSessionDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := session.ApplyMigrations(raw); err != nil {
+	if err := session.EnsureCurrentSchema(raw); err != nil {
 		t.Fatal(err)
 	}
 	if err := raw.Close(); err != nil {

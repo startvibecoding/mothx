@@ -9,7 +9,6 @@ import (
 
 	"github.com/startvibecoding/mothx/internal/platform"
 	"github.com/startvibecoding/mothx/internal/session"
-	_ "modernc.org/sqlite"
 )
 
 // StatsEntry represents a single recorded LLM request.
@@ -62,21 +61,13 @@ type DB struct {
 }
 
 // Open opens the stats database at the given sessions.db path.
-// It runs schema migrations to ensure all required tables exist
-// (e.g. when opening an old DB from a previous vibecoding version).
 func Open(dbPath string) (*DB, error) {
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("database not found: %s", dbPath)
 	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := session.OpenStandaloneDB(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
-	if err := session.ApplyMigrations(db); err != nil {
-		return nil, fmt.Errorf("apply migrations: %w", err)
 	}
 	return &DB{db: db}, nil
 }

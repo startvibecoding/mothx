@@ -228,6 +228,36 @@ func TestDeleteSessionRemovesPersistedSession(t *testing.T) {
 	}
 }
 
+func TestNewSessionMCPFailureRollsBackPersistedSession(t *testing.T) {
+	dir := t.TempDir()
+	cwd := t.TempDir()
+	var out bytes.Buffer
+	s := testSessionServer(cwd, dir, &out)
+
+	s.handleNewSession(rpcRequest{
+		ID: json.RawMessage("1"),
+		Params: json.RawMessage(fmt.Sprintf(
+			`{"cwd":%q,"mcpServers":[{"name":"broken","type":"stdio"}]}`,
+			cwd,
+		)),
+	})
+
+	messages := jsonLines(t, &out)
+	if len(messages) != 1 || messages[0]["error"] == nil {
+		t.Fatalf("new session response = %#v, want MCP error", messages)
+	}
+	if len(s.sessions) != 0 {
+		t.Fatalf("runtime sessions = %d, want 0", len(s.sessions))
+	}
+	persisted, err := session.ListForDir(cwd, dir)
+	if err != nil {
+		t.Fatalf("list persisted sessions: %v", err)
+	}
+	if len(persisted) != 0 {
+		t.Fatalf("persisted sessions = %#v, want none after MCP failure", persisted)
+	}
+}
+
 func TestCancelRequestCancelsMatchingPrompt(t *testing.T) {
 	cancelled := make(chan struct{})
 	s := &server{sessions: map[string]*sessionRuntime{

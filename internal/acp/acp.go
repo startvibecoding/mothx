@@ -602,7 +602,11 @@ func (s *server) handleNewSession(req rpcRequest) {
 	registry := s.newToolRegistry(in.Cwd)
 	mcpClients, err := mcp.ConnectServers(context.Background(), in.McpServers, registry, s.buildMCPCallbacks(id))
 	if err != nil {
-		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: err.Error()})
+		message := err.Error()
+		if cleanupErr := session.DeleteSession(mgr.GetFile(), s.settings.GetSessionDir()); cleanupErr != nil {
+			message += fmt.Sprintf("; cleanup failed session %s: %v", id, cleanupErr)
+		}
+		s.writeResponse(req.ID, nil, &mcp.RPCError{Code: -32000, Message: message})
 		return
 	}
 	s.mu.Lock()
