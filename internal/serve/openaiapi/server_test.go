@@ -3538,3 +3538,79 @@ func TestDefaultSessionID_IsolatedByWorkDir(t *testing.T) {
 		t.Fatalf("pool count = %d, want 2", srv.pool.Count())
 	}
 }
+
+// TestRefreshSessionContextReRegistersSubAgentTools verifies that when
+// refreshSessionContext replaces sess.AgentMgr (e.g. via setActiveSkillsLocked
+// which the WebUI triggers on every request because it always sends x_skills),
+// the sub-agent/delegate/workflow tools are re-registered with the new manager.
+// Without this, tools keep referencing the old manager while the parent agent
+// is registered into the new one, causing "parent agent not found" errors.
+func TestRefreshSessionContextReRegistersSubAgentTools(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.pool.Stop()
+	workDir := t.TempDir()
+	sess, err := srv.getOrCreateSession("refresh-mgr-sess", workDir)
+	if err != nil {
+		t.Fatalf("getOrCreateSession: %v", err)
+	}
+	sess.Lock()
+	defer sess.Unlock()
+
+	enabled := true
+	if err := srv.applySessionToolOptions(sess, &SessionToolOptions{
+		Delegate:   &enabled,
+		MultiAgent: &enabled,
+		Workflows:  &enabled,
+	}, ""); err != nil {
+		t.Fatalf("applySessionToolOptions: %v", err)
+	}
+
+	mgrBefore := sess.AgentMgr
+	if mgrBefore == nil {
+		t.Fatal("expected AgentMgr to be created after enabling delegate/multiAgent/workflows")
+	}
+
+	// Simulate the WebUI sending x_skills (even an empty array triggers
+	// setActiveSkillsLocked → refreshSessionContext).
+	if err := srv.setActiveSkillsLocked(sess, []string{}); err != nil {
+		t.Fatalf("setActiveSkillsLocked: %v", err)
+	}
+
+	mgrAfter := sess.AgentMgr
+	if mgrAfter == nil {
+		t.Fatal("expected AgentMgr to still be non-nil after refreshSessionContext")
+	}
+	if mgrAfter == mgrBefore {
+		t.Fatal("expected AgentMgr to be replaced by refreshSessionContext")
+	}
+
+	// The delegate_subagent and subagent_spawn tools must still be registered.
+	// The fix in refreshSessionContext re-registers them with the new manager.
+	for _, name := range []string{"delegate_subagent", "subagent_spawn", "subagent_status", "workflow_run"} {
+		if _, ok := sess.Registry.Get(name); !ok {
+			t.Fatalf("expected %s tool to be registered after refreshSessionContext", name)
+		}
+	}
+
+	// Verify that a parent agent registered into the new manager is findable.
+	// This is the core invariant: the tools must reference sess.AgentMgr so
+	// that AgentManager.Get(parentID) succeeds when a sub-agent is spawned.
+	testAgent := agent.NewAgentAdapter(agent.New(agent.Config{
+		ID:       "agent-test-refresh",
+		Mode:      "yolo",
+		Provider:  srv.provider,
+		Model:     srv.model,
+		Settings:  srv.settings,
+		Session:   sess.Manager,
+		Workflows: true,
+	}, sess.Registry))
+	mgrAfter.Register(testAgent)
+	if _, ok := mgrAfter.Get(testAgent.ID()); !ok {
+		t.Fatal("expected parent agent to be findable in the new AgentMgr after Register")
+	}
+	// The old manager should NOT have the parent agent.
+	if _, ok := mgrBefore.Get(testAgent.ID()); ok {
+		t.Fatal("parent agent should not be in the old AgentMgr")
+	}
+}
+

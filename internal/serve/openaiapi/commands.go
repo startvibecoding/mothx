@@ -552,6 +552,15 @@ func (s *Server) cmdRule(sess *APISession, parts []string) *CommandResult {
 	sess.RuleContent = content
 	if sess.AgentMgr != nil {
 		sess.AgentMgr = s.newAgentManagerForSession(sess)
+		if sess.MultiAgent && sess.AgentMgr != nil {
+			agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
+		}
+		if sess.DelegateMode && sess.AgentMgr != nil {
+			agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
+		}
+		if sess.Workflows && sess.AgentMgr != nil {
+			workflow.RegisterTools(sess.Registry, sess.AgentMgr, nil)
+		}
 	}
 
 	if written {

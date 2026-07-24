@@ -1171,6 +1171,20 @@ func (s *Server) refreshSessionContext(sess *APISession) error {
 	}
 	if sess.AgentMgr != nil {
 		sess.AgentMgr = s.newAgentManagerForSession(sess)
+		// Re-register sub-agent/delegate/workflow tools with the new manager so
+		// tool instances reference the current AgentMgr. Without this, tools
+		// created by syncSessionTools keep pointing at the old manager while the
+		// parent agent is registered into the new one, causing "parent agent not
+		// found" errors when sub-agents are spawned.
+		if sess.MultiAgent && sess.AgentMgr != nil {
+			agent.RegisterSubAgentTools(sess.Registry, sess.AgentMgr)
+		}
+		if sess.DelegateMode && sess.AgentMgr != nil {
+			agent.RegisterDelegateSubAgentTool(sess.Registry, sess.AgentMgr)
+		}
+		if sess.Workflows && sess.AgentMgr != nil {
+			workflow.RegisterTools(sess.Registry, sess.AgentMgr, nil)
+		}
 	}
 	return nil
 }
