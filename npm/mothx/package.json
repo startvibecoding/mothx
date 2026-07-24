@@ -1,6 +1,6 @@
 {
   "name": "mothx-installer",
-  "version": "1.1.71",
+  "version": "1.1.72",
   "description": "AI coding assistant for the terminal",
   "scripts": {
     "postinstall": "node scripts/postinstall.js"
@@ -31,23 +31,23 @@
     "node": ">=14"
   },
   "optionalDependencies": {
-    "mothx-installer-darwin-arm64": "1.1.71",
-    "mothx-installer-darwin-x64": "1.1.71",
-    "mothx-installer-freebsd-arm64": "1.1.71",
-    "mothx-installer-freebsd-x64": "1.1.71",
-    "mothx-installer-linux-arm64": "1.1.71",
-    "mothx-installer-linux-loong64": "1.1.71",
-    "mothx-installer-linux-musl-arm64": "1.1.71",
-    "mothx-installer-linux-musl-x64": "1.1.71",
-    "mothx-installer-linux-ppc64le": "1.1.71",
-    "mothx-installer-linux-riscv64": "1.1.71",
-    "mothx-installer-linux-s390x": "1.1.71",
-    "mothx-installer-linux-x64": "1.1.71",
-    "mothx-installer-netbsd-x64": "1.1.71",
-    "mothx-installer-openbsd-arm64": "1.1.71",
-    "mothx-installer-openbsd-x64": "1.1.71",
-    "mothx-installer-win32-arm64": "1.1.71",
-    "mothx-installer-win32-x64": "1.1.71"
+    "mothx-installer-darwin-arm64": "1.1.72",
+    "mothx-installer-darwin-x64": "1.1.72",
+    "mothx-installer-freebsd-arm64": "1.1.72",
+    "mothx-installer-freebsd-x64": "1.1.72",
+    "mothx-installer-linux-arm64": "1.1.72",
+    "mothx-installer-linux-loong64": "1.1.72",
+    "mothx-installer-linux-musl-arm64": "1.1.72",
+    "mothx-installer-linux-musl-x64": "1.1.72",
+    "mothx-installer-linux-ppc64le": "1.1.72",
+    "mothx-installer-linux-riscv64": "1.1.72",
+    "mothx-installer-linux-s390x": "1.1.72",
+    "mothx-installer-linux-x64": "1.1.72",
+    "mothx-installer-netbsd-x64": "1.1.72",
+    "mothx-installer-openbsd-arm64": "1.1.72",
+    "mothx-installer-openbsd-x64": "1.1.72",
+    "mothx-installer-win32-arm64": "1.1.72",
+    "mothx-installer-win32-x64": "1.1.72"
   },
   "bin": {
     "mothx": "bin/mothx"

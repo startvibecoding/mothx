@@ -89,6 +89,7 @@
   let sessionRuntimeValue = null;
   let newSessionMode = 'yolo';
   let runtimeUpdating = false;
+  let stopSubmitting = false;
   let runtimeControls;
   let skillPicker;
   let showRuntimePanel = false;
@@ -257,9 +258,19 @@
 
   $: activeSession = $sessions.find((s) => s.id === $currentSession);
   $: selectedRunState = $currentSession ? $sessionRunStates[$currentSession] : null;
-  $: busy = isCompletionActive(selectedRunState) || selectedRunState?.runtime?.activeRun?.status === 'running';
+  $: busy = isCompletionActive(selectedRunState) || ['running', 'cancelling', 'terminalizing'].includes(selectedRunState?.runtime?.activeRun?.status);
   $: runtimeMode = sessionRuntimeValue?.mode || activeSession?.mode || (!$currentSession ? newSessionMode : 'yolo');
   $: pendingApprovalCount = (sessionRuntimeValue?.pendingApprovals || []).length;
+  $: {
+    const pending = sessionRuntimeValue?.pendingApprovals || [];
+    if (pending.length > 0 && !pending.some((approval) => approval.approvalId === selectedApprovalID)) {
+      selectedApprovalID = pending[0].approvalId;
+      activeApproval.set(pending[0]);
+    } else if (pending.length === 0 && selectedApprovalID) {
+      selectedApprovalID = '';
+      activeApproval.set(null);
+    }
+  }
   $: approvalToolViewValue = approvalToolView(selectedApproval);
   $: selectedApproval = (sessionRuntimeValue?.pendingApprovals || []).find((approval) => approval.approvalId === selectedApprovalID) || $activeApproval || null;
   $: runtimeActiveRun = sessionRuntimeValue?.activeRun;
@@ -357,7 +368,7 @@
     const sessionID = $currentSession || newWebUISessionID();
     const creatingExplicitSession = !$currentSession;
     const existingState = getSessionState(sessionID);
-    if (isCompletionActive(existingState) || existingState.runtime?.activeRun?.status === 'running') {
+    if (isCompletionActive(existingState) || ['running', 'cancelling', 'terminalizing'].includes(existingState.runtime?.activeRun?.status)) {
       setError('This session already has an active run.');
       return;
     }
@@ -485,21 +496,36 @@
   }
 
   async function stop() {
-    if (!$currentSession) return;
+    if (!$currentSession || stopSubmitting) return;
     const id = $currentSession;
-    // After a page refresh there is no local AbortController. Ask the server
-    // to cancel the persisted in-memory run instead.
+    stopSubmitting = true;
+    markCompletion(id, 'cancel_requested');
+    if (id === $currentSession && sessionRuntimeValue?.activeRun) {
+      sessionRuntimeValue = {
+        ...sessionRuntimeValue,
+        activeRun: { ...sessionRuntimeValue.activeRun, status: 'cancelling' }
+      };
+      sessionRuntime.set(sessionRuntimeValue);
+      persistLocalSessionState(id);
+    }
     try {
       await postJSON(`/api/sessions/${encodeURIComponent(id)}/stop`, {});
       abortCompletion(id);
-      markCompletion(id, 'cancel_requested');
       setNotice($t('chat.notice.stopped'));
+      const snapshot = await getSessionRuntime(id);
+      if (id === $currentSession) {
+        sessionRuntimeValue = snapshot;
+        sessionRuntime.set(snapshot);
+        persistLocalSessionState(id);
+      }
     } catch (err) {
       setError(err);
-      // A stale runtime snapshot should not permanently block this session.
       if (err?.message?.includes('no active run')) {
         markCompletion(id, 'failed', err);
+        if (id === $currentSession) await loadSessionRuntime(id);
       }
+    } finally {
+      stopSubmitting = false;
     }
   }
 
@@ -2952,7 +2978,7 @@
       </div>
       <div class="right">
         {#if busy}
-          <button type="button" class="ghost" on:click={stop}>{$t('common.stop')}</button>
+          <button type="button" class="ghost" disabled={stopSubmitting} on:click={stop}>{stopSubmitting ? 'Stopping…' : $t('common.stop')}</button>
         {/if}
         <button
           type="button"

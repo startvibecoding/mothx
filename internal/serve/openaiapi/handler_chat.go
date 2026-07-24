@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -153,18 +154,13 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	}
 	sess.Touch()
 	runID := newRunID()
-	sess.approvalMu.Lock()
-	sess.activeRunID = runID
-	sess.approvalMu.Unlock()
-	sess.SetRunning(true)
+	sess.beginRun(runID)
 	terminalStatus := "failed"
 	defer func() {
-		s.clearSessionApprovals(sess, "cancelled", "run ended before the approval was resolved")
-		sess.approvalMu.Lock()
-		sess.activeRunID = ""
-		sess.runCancel = nil
-		sess.approvalMu.Unlock()
-		sess.SetRunning(false)
+		sess.markRunTerminalizing(runID)
+		s.clearSessionApprovalsForRun(sess, runID, "cancelled", "run ended before the approval was resolved")
+		sess.finishRun(runID)
+		s.publishSessionRuntime(sess)
 		s.publishSessionStreamDone(sess.ID, runID, terminalStatus)
 	}()
 	if err := s.applySessionToolOptions(sess, req.XTools, runID); err != nil {
@@ -345,9 +341,11 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	timeout := time.Duration(s.cfg.RequestTimeoutSecs) * time.Second
 	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
-	sess.approvalMu.Lock()
-	sess.runCancel = cancel
-	sess.approvalMu.Unlock()
+	if !sess.attachRunAgent(runID, a, cancel) {
+		a.Abort()
+		writeError(w, http.StatusConflict, "session run is being cancelled", "session_run_cancelling")
+		return
+	}
 	if (sess.MultiAgent || sess.DelegateMode || sess.Workflows) && sess.AgentMgr != nil {
 		sess.AgentMgr.Register(agent.NewAgentAdapter(a))
 		defer func() {
@@ -529,6 +527,10 @@ func (s *Server) handleStreamingResponseWithAgent(w http.ResponseWriter, r *http
 				continue
 			}
 			if ev.Error != nil {
+				if errors.Is(ev.Error, context.Canceled) || errors.Is(ev.Error, context.DeadlineExceeded) {
+					sse.WriteDone(&totalUsage)
+					return totalUsage, "canceled", ev.Error.Error()
+				}
 				if transcript {
 					s.writeTranscriptEvent(sse, sessionID, assistantDeltaTranscriptEvent("\n\n[Error: "+ev.Error.Error()+"]", ""))
 				}
@@ -710,6 +712,9 @@ func (s *Server) handleNonStreamingResponseWithAgent(w http.ResponseWriter, even
 				continue
 			}
 			if ev.Error != nil {
+				if errors.Is(ev.Error, context.Canceled) || errors.Is(ev.Error, context.DeadlineExceeded) {
+					return totalUsage, "canceled", ev.Error.Error()
+				}
 				writeError(w, http.StatusInternalServerError, ev.Error.Error(), "server_error")
 				return totalUsage, "failed", ev.Error.Error()
 			}

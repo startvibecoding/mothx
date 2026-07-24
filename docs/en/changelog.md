@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.1.73
+
+### 🔧 Improvements
+
+- **Web UI Approval and Session Cancellation**
+  - Cancelling a running Web UI session now aborts its active Agent, including approval waits that have not yet reached the pending queue, preventing sessions from remaining stuck in the running state.
+  - Approval requests and terminal decisions are scoped to their session and run, persisted in `session.db`, and unresolved approvals are recorded as cancelled when their run ends.
+  - The approval panel automatically selects the first pending approval and clears stale approval state when the queue becomes empty.
+  - After refreshing or reopening a running session, the Stop button beside Send can still cancel the server-side run; once termination completes, the session can start a new conversation.
+
+- **Installer Package Versioning**
+  - Bumped the npm and PyPI installer packages and all platform-specific npm packages to version `1.1.72`.
+
 ## v1.1.72
 
 ### ✨ Features

@@ -52,6 +52,8 @@ type APISession struct {
 	approvalMu       sync.Mutex
 	pendingApprovals map[string]pendingSessionApproval
 	activeRunID      string
+	activeRunStatus  string
+	activeRunAgent   *agent.Agent
 	runCancel        context.CancelFunc
 }
 
@@ -242,14 +244,80 @@ func (s *Server) CancelSessionRun(id string) error {
 	if err != nil || sess == nil {
 		return ErrSessionNotFound
 	}
+
+	// Mark the run as cancelling before releasing the lifecycle lock. Approval
+	// events racing with stop will then be rejected instead of becoming pending.
 	sess.approvalMu.Lock()
-	cancel := sess.runCancel
-	sess.approvalMu.Unlock()
-	if cancel == nil || !sess.IsRunning() {
+	if sess.activeRunID == "" || sess.activeRunStatus != "running" || !sess.IsRunning() {
+		sess.approvalMu.Unlock()
 		return ErrSessionNotFound
 	}
-	cancel()
+	runID := sess.activeRunID
+	sess.activeRunStatus = "cancelling"
+	cancel := sess.runCancel
+	runningAgent := sess.activeRunAgent
+	sess.approvalMu.Unlock()
+
+	// Approval waits listen to Agent.Abort rather than only the request context.
+	// Abort the active agent even if its approval event has not been registered.
+	if runningAgent != nil {
+		runningAgent.Abort()
+	}
+	if cancel != nil {
+		cancel()
+	}
+	s.clearSessionApprovalsForRun(sess, runID, "cancelled", "run cancelled by user")
+	s.publishSessionRuntime(sess)
 	return nil
+}
+
+func (s *Server) publishSessionRuntime(sess *APISession) {
+	if s == nil || sess == nil {
+		return
+	}
+	caps := s.capabilitiesFromSession(sess, true, sess.Manager != nil)
+	s.publishSessionStreamEvent(sess.ID, "runtime_event", s.runtimeSnapshotFromCapabilities(&caps))
+}
+
+func (s *APISession) beginRun(runID string) {
+	s.approvalMu.Lock()
+	s.activeRunID = runID
+	s.activeRunStatus = "running"
+	s.activeRunAgent = nil
+	s.runCancel = nil
+	s.approvalMu.Unlock()
+	s.SetRunning(true)
+}
+
+func (s *APISession) attachRunAgent(runID string, a *agent.Agent, cancel context.CancelFunc) bool {
+	s.approvalMu.Lock()
+	defer s.approvalMu.Unlock()
+	if s.activeRunID != runID || s.activeRunStatus != "running" {
+		return false
+	}
+	s.activeRunAgent = a
+	s.runCancel = cancel
+	return true
+}
+
+func (s *APISession) markRunTerminalizing(runID string) {
+	s.approvalMu.Lock()
+	if s.activeRunID == runID && s.activeRunStatus == "running" {
+		s.activeRunStatus = "terminalizing"
+	}
+	s.approvalMu.Unlock()
+}
+
+func (s *APISession) finishRun(runID string) {
+	s.approvalMu.Lock()
+	if s.activeRunID == runID {
+		s.activeRunID = ""
+		s.activeRunStatus = ""
+		s.activeRunAgent = nil
+		s.runCancel = nil
+	}
+	s.approvalMu.Unlock()
+	s.SetRunning(false)
 }
 
 // ActiveRunID returns the current run identifier, if any.
@@ -742,12 +810,18 @@ func (s *Server) runtimeSnapshotFromCapabilities(caps *SessionCapabilities) *Ses
 		if sess, err := s.pool.getExact(caps.ID); err == nil && sess != nil {
 			sess.approvalMu.Lock()
 			runID := sess.activeRunID
+			runStatus := sess.activeRunStatus
 			for _, pending := range sess.pendingApprovals {
-				snapshot.PendingApprovals = append(snapshot.PendingApprovals, pending.Request)
+				if pending.Request.RunID == runID {
+					snapshot.PendingApprovals = append(snapshot.PendingApprovals, pending.Request)
+				}
 			}
 			sess.approvalMu.Unlock()
-			if sess.IsRunning() {
-				snapshot.ActiveRun = &SessionActiveRun{RunID: runID, Status: "running"}
+			if sess.IsRunning() && runID != "" {
+				if runStatus == "" {
+					runStatus = "running"
+				}
+				snapshot.ActiveRun = &SessionActiveRun{RunID: runID, Status: runStatus}
 			}
 		}
 	}

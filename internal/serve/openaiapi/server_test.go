@@ -1101,6 +1101,7 @@ func TestStreamingApprovalRequestReachesChatSSEAndResumesAgent(t *testing.T) {
 	registry := tools.NewRegistry(srv.cfg.GetWorkDir(), sandbox.NewNoneSandbox())
 	registry.RegisterDefaults()
 	runningAgent := agent.New(agent.Config{Mode: "agent"}, registry)
+	beginApprovalTestRun(sess, "run_approval_sse", runningAgent)
 	events, cancel := srv.getSessionStreamHub().subscribe(sess.ID)
 	defer cancel()
 	eventCh := make(chan agent.Event, 1)
@@ -1117,18 +1118,21 @@ func TestStreamingApprovalRequestReachesChatSSEAndResumesAgent(t *testing.T) {
 	}()
 
 	var request SessionApprovalRequest
-	select {
-	case event := <-events:
-		if event.Name != "approval_request" {
-			t.Fatalf("session event = %q, want approval_request", event.Name)
+	deadline := time.After(time.Second)
+	for request.ApprovalID == "" {
+		select {
+		case event := <-events:
+			if event.Name != "approval_request" {
+				continue
+			}
+			var ok bool
+			request, ok = event.Data.(SessionApprovalRequest)
+			if !ok {
+				t.Fatalf("approval event = %#v", event.Data)
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for approval request")
 		}
-		var ok bool
-		request, ok = event.Data.(SessionApprovalRequest)
-		if !ok {
-			t.Fatalf("approval event = %#v", event.Data)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for approval request")
 	}
 	if _, err := srv.ResolveSessionApproval(sess.ID, request.ApprovalID, SessionApprovalResponse{Action: "approve_once"}); err != nil {
 		t.Fatal(err)
