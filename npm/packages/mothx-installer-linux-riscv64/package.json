@@ -1,6 +1,6 @@
 {
   "name": "mothx-installer-linux-riscv64",
-  "version": "1.1.72",
+  "version": "1.1.73",
   "description": "MothX native binary for linux-riscv64",
   "os": ["linux"],
   "cpu": ["riscv64"],
